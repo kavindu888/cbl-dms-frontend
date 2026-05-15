@@ -24,7 +24,21 @@ export const authService = {
       persistSession(response.data.data)
       return response.data.data
     } catch (error) {
-      if (import.meta.env.DEV && axios.isAxiosError(error) && !error.response) {
+      // The response interceptor normalizes AxiosErrors into NormalizedAppError before
+      // they reach here, so axios.isAxiosError() is always false at this point.
+      // Detect a network-level failure (no server response) by checking statusCode 500
+      // or a raw AxiosError in case the interceptor is bypassed.
+      const isNetworkFailure =
+        (axios.isAxiosError(error) && !error.response) ||
+        (typeof error === 'object' &&
+          error !== null &&
+          'statusCode' in error &&
+          (error as { statusCode: number }).statusCode === 500 &&
+          'errors' in error &&
+          Array.isArray((error as { errors: unknown[] }).errors) &&
+          (error as { errors: unknown[] }).errors.length === 0)
+
+      if (import.meta.env.DEV && isNetworkFailure) {
         const mockSession = createMockLoginResponse(credentials.username)
         persistSession(mockSession)
         return mockSession
