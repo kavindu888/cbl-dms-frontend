@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { useAuthStore } from '@stores/authStore'
+import loginBg from '@/assets/login_bg.png'
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -51,206 +52,188 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg-base)' }}>
-      {/* ── Left panel ─────────────────────────────────────────── */}
-      <div
-        className="hidden lg:flex lg:w-1/2 flex-col"
-        style={{ backgroundColor: '#0D1E2D', borderRight: '1px solid var(--color-border)' }}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-3 px-10 py-7">
-          <span className="text-2xl font-bold" style={{ color: 'var(--color-amber)', fontFamily: 'var(--font-sans)' }}>
-            CBL
-          </span>
-          <div style={{ width: 1, height: 20, background: 'var(--color-border)' }} />
-          <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Foods International</span>
+    <div className="flex min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+
+      {/* ── Left Panel: Cinematic Branding ─────────────────────── */}
+      <div className="hidden lg:flex lg:w-3/5 flex-col relative border-r border-[var(--color-border)] overflow-hidden">
+        {/* Background Image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${loginBg})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#00182A]/90 via-[#00182A]/70 to-transparent" />
+        <div className="absolute inset-0 bg-black/30" />
+
+        {/* Top Branding */}
+        <div className="relative z-10 flex items-center gap-3 px-10 py-8">
+          <span className="text-2xl font-bold tracking-tight text-[var(--color-amber)]">CBL</span>
+          <div className="w-[1px] h-5 bg-white/20" />
+          <span className="text-sm text-white/80 font-medium">Foods International</span>
         </div>
 
-        {/* Center content */}
-        <div className="flex flex-1 flex-col items-center justify-center px-12 pb-16">
-          <div className="text-center mb-10">
-            <div
-              className="text-8xl font-bold mb-2"
-              style={{ color: 'var(--color-amber)', fontFamily: 'var(--font-sans)', letterSpacing: '-2px' }}
-            >
+        {/* Center Content */}
+        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-12 pb-24">
+          <div className="text-center">
+            <h1 className="text-[130px] font-black leading-[0.8] tracking-tighter text-[var(--color-amber)] mb-4 drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
               CBL
-            </div>
-            <p
-              className="text-sm font-semibold tracking-[0.2em] mb-8"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
+            </h1>
+            <p className="text-[10px] font-bold tracking-[0.6em] text-white/80 mb-10 uppercase">
               FOODS INTERNATIONAL
             </p>
-            <h1
-              className="text-2xl font-semibold mb-2"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
-              Distribution Management System
-            </h1>
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              Streamlining Sri Lanka's FMCG supply chain
+            <h2 className="text-5xl lg:text-6xl font-black mb-6 tracking-tight text-white leading-tight">
+              Distribution Management <br /> System
+            </h2>
+            <p className="text-lg text-white/70 mx-auto leading-relaxed font-medium text-center">
+              Streamlining Sri Lanka's FMCG Supply Chain
             </p>
-          </div>
-
-          {/* Stats box */}
-          <div
-            className="flex divide-x w-full max-w-xs"
-            style={{
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
-              overflow: 'hidden',
-            }}
-          >
-            {[
-              { value: '284', label: 'Active SKUs' },
-              { value: '12',  label: 'Districts' },
-              { value: '4',   label: 'Fleet' },
-            ].map(({ value, label }) => (
-              <div
-                key={label}
-                className="flex-1 flex flex-col items-center py-4"
-                style={{ borderRight: '1px solid var(--color-border)' }}
-              >
-                <span className="text-xl font-bold mono" style={{ color: 'var(--color-amber)' }}>
-                  {value}
-                </span>
-                <span className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                  {label}
-                </span>
-              </div>
-            ))}
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-10 pb-8">
-          <p className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
+        {/* Bottom Footer */}
+        <div className="relative z-10 px-10 pb-8">
+          <p className="text-[11px] text-white/40 font-medium tracking-wide">
             v1.0.0 · © 2026 CBL Foods International (Pvt) Ltd
           </p>
         </div>
       </div>
 
-      {/* ── Right panel ────────────────────────────────────────── */}
-      <div
-        className="flex w-full lg:w-1/2 flex-col items-center justify-center px-8 py-12"
-        style={{ backgroundColor: 'var(--color-bg-base)' }}
-      >
-        {/* Mobile logo */}
-        <div className="flex items-center gap-2 mb-10 lg:hidden">
-          <span className="text-2xl font-bold" style={{ color: 'var(--color-amber)' }}>CBL</span>
-          <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Distribution Management System</span>
-        </div>
+      {/* ── Right Panel: Login Form ─────────────────────────────── */}
+      {/* (right panel is lg:w-2/5 = 40%) */}
+      {/*
+        Layout analysis from reference screenshot:
+        - "Welcome Back"  ~36–38px bold, left-aligned
+        - "Sign in to your account"  ~14px muted, 4px below heading
+        - ~32px gap before USERNAME label
+        - USERNAME label  11px uppercase spaced, 8px above input
+        - username input  52px tall, rounded-xl
+        - ~20px gap before PASSWORD label
+        - PASSWORD label  11px uppercase spaced, 8px above input
+        - password input  52px tall, rounded-xl, eye icon right
+        - ~14px gap before Remember me row
+        - Remember me row + Forgot password on same line
+        - ~20px gap before Sign In button
+        - Sign In button  52px tall, amber, rounded-xl
+        - ~16px gap before Having trouble text, centered
+      */}
+      <div className="relative flex w-full lg:w-2/5 items-center justify-center bg-[#00121F]">
 
-        <div className="w-full max-w-sm">
-          <h2
-            className="text-3xl font-bold mb-1"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
+        {/* Ambient glow */}
+        <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-[var(--color-amber)]/8 blur-3xl pointer-events-none" />
+
+        {/* Form card — constrained width, no card background, left-aligned */}
+        <div className="relative z-10 w-full" style={{ maxWidth: '360px', padding: '0 0' }}>
+
+          {/* ── Heading ── */}
+          <h2 style={{ fontSize: '2.1rem', fontWeight: 800, color: '#ffffff', lineHeight: 1.1, marginBottom: '6px', letterSpacing: '-0.5px' }}>
             Welcome Back
           </h2>
-          <p className="mb-8 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+
+          {/* ── Subtitle ── */}
+          <p style={{ fontSize: '0.92rem', color: 'var(--color-text-muted)', marginBottom: '36px' }}>
             Sign in to your account
           </p>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Username */}
-            <div>
-              <label className="form-label" htmlFor="username">USERNAME</label>
+          <form onSubmit={handleSubmit(onSubmit)}>
+
+            {/* ── USERNAME label ── */}
+            <label
+              htmlFor="username"
+              style={{ display: 'block', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--color-text-muted)', marginBottom: '8px' }}
+            >
+              Username
+            </label>
+
+            {/* ── Username input ── */}
+            <input
+              id="username"
+              type="text"
+              placeholder="Enter username"
+              autoComplete="username"
+              style={{ display: 'block', width: '100%', height: '52px', borderRadius: '10px', border: '1px solid #1a3347', background: '#0d1f2f', padding: '0 16px', fontSize: '0.92rem', color: '#ffffff', outline: 'none', transition: 'border-color 0.2s, background 0.2s', marginBottom: '20px', boxSizing: 'border-box' }}
+              onFocus={e => { e.target.style.borderColor = 'var(--color-amber)'; e.target.style.background = '#0f2438' }}
+              onBlur={e => { e.target.style.borderColor = '#1a3347'; e.target.style.background = '#0d1f2f' }}
+              {...register('username')}
+            />
+
+            {/* ── PASSWORD label ── */}
+            <label
+              htmlFor="password"
+              style={{ display: 'block', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--color-text-muted)', marginBottom: '8px' }}
+            >
+              Password
+            </label>
+
+            {/* ── Password input ── */}
+            <div style={{ position: 'relative', marginBottom: '14px' }}>
               <input
-                id="username"
-                className={`form-input ${errors.username ? 'error' : ''}`}
-                placeholder="Enter username"
-                autoComplete="username"
-                {...register('username')}
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                style={{ display: 'block', width: '100%', height: '52px', borderRadius: '10px', border: '1px solid #1a3347', background: '#0d1f2f', padding: '0 48px 0 16px', fontSize: '0.92rem', color: '#ffffff', outline: 'none', transition: 'border-color 0.2s, background 0.2s', boxSizing: 'border-box' }}
+                onFocus={e => { e.target.style.borderColor = 'var(--color-amber)'; e.target.style.background = '#0f2438' }}
+                onBlur={e => { e.target.style.borderColor = '#1a3347'; e.target.style.background = '#0d1f2f' }}
+                {...register('password')}
               />
-              {errors.username && (
-                <p className="form-error">⚠ {errors.username.message}</p>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowPassword(prev => !prev)}
+                style={{ position: 'absolute', top: 0, right: 0, height: '52px', width: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5a7a99', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#ffffff')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#5a7a99')}
+              >
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
             </div>
 
-            {/* Password */}
-            <div>
-              <label className="form-label" htmlFor="password">PASSWORD</label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  className={`form-input pr-10 ${errors.password ? 'error' : ''}`}
-                  placeholder="Enter password"
-                  autoComplete="current-password"
-                  {...register('password')}
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-3 flex items-center"
-                  style={{ color: 'var(--color-text-dim)' }}
-                  onClick={() => setShowPassword((v) => !v)}
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="form-error">⚠ {errors.password.message}</p>
-              )}
-            </div>
-
-            {/* Remember me + Forgot password */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
+            {/* ── Remember me + Forgot password ── */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
-                  className="h-4 w-4 rounded accent-amber-400"
-                  style={{ accentColor: 'var(--color-amber)' }}
+                  style={{ width: '17px', height: '17px', borderRadius: '4px', accentColor: 'var(--color-amber)', cursor: 'pointer' }}
                   {...register('rememberMe')}
                 />
-                <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                  Remember me
-                </span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Remember me</span>
               </label>
               <button
                 type="button"
-                className="text-sm font-medium"
-                style={{ color: 'var(--color-amber)' }}
+                style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-amber)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#FFB74D')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-amber)')}
               >
                 Forgot password?
               </button>
             </div>
 
-            {/* Submit */}
+            {/* ── Sign In button ── */}
             <button
               type="submit"
-              className="button-primary w-full text-base"
-              style={{ height: 48, fontWeight: 600, fontSize: 15 }}
               disabled={isLoading}
+              style={{ display: 'block', width: '100%', height: '52px', borderRadius: '10px', background: 'var(--color-amber)', border: 'none', fontSize: '1rem', fontWeight: 700, color: '#00182A', cursor: 'pointer', transition: 'background 0.2s, transform 0.1s', marginBottom: '20px', opacity: isLoading ? 0.6 : 1 }}
+              onMouseEnter={e => { if (!isLoading) { e.currentTarget.style.background = '#FFB74D'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-amber)'; e.currentTarget.style.transform = 'translateY(0)' }}
             >
-              {isLoading ? 'Signing In...' : 'Sign In'}
+              {isLoading ? 'SIGNING IN...' : 'Sign In'}
             </button>
+
+            {/* ── Having trouble ── */}
+            <p style={{ textAlign: 'center', fontSize: '0.83rem', color: 'var(--color-text-muted)', margin: 0 }}>
+              Having trouble?{' '}
+              <button
+                type="button"
+                style={{ fontWeight: 600, color: 'var(--color-amber)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#FFB74D')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-amber)')}
+              >
+                Contact IT Support
+              </button>
+            </p>
+
           </form>
-
-          {/* Divider */}
-          <div className="relative my-6">
-            <div style={{ height: 1, background: 'var(--color-border)' }} />
-            <span
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-3 text-xs"
-              style={{ background: 'var(--color-bg-base)', color: 'var(--color-text-dim)' }}
-            >
-              OR
-            </span>
-          </div>
-
-          {/* Support */}
-          <p className="text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            Having trouble?{' '}
-            <span
-              className="font-medium cursor-pointer"
-              style={{ color: 'var(--color-amber)' }}
-            >
-              Contact IT Support
-            </span>
-          </p>
         </div>
       </div>
+
     </div>
   )
 }
