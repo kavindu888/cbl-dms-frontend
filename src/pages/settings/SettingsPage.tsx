@@ -6,12 +6,12 @@ import { toast } from 'sonner'
 /* ── Theme token defaults ─────────────────────────────────────── */
 
 const DEFAULTS = {
-  bgBase:      '#00182A',
-  bgSurface:   '#132337',
-  bgElevated:  '#1B3050',
-  accentColor: '#F4A623',
-  fontSans:    "'Inter', system-ui, sans-serif",
-  fontMono:    "'JetBrains Mono', monospace",
+  bgBase:       '#00182A',
+  bgSurface:    '#132337',
+  bgElevated:   '#1B3050',
+  accentColor:  '#F4A623',
+  fontSans:     "'Inter', system-ui, sans-serif",
+  fontMono:     "'JetBrains Mono', monospace",
   borderRadius: 'default' as RadiusMode,
 }
 
@@ -29,6 +29,12 @@ const RADIUS_VALUES: Record<RadiusMode, string> = {
   compact: '4px',
   default: '8px',
   rounded: '14px',
+}
+
+const RADIUS_LABELS: Record<RadiusMode, string> = {
+  compact: 'Compact',
+  default: 'Default',
+  rounded: 'Rounded',
 }
 
 const STORAGE_KEY = 'cbl-theme'
@@ -76,7 +82,7 @@ function ApiConfigTab() {
   }, [])
 
   return (
-    <div className="max-w-xl space-y-6">
+    <div style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div>
         <label className="form-label">API BASE URL</label>
         <input
@@ -85,7 +91,7 @@ function ApiConfigTab() {
           readOnly
           style={{ cursor: 'default' }}
         />
-        <p className="mt-1 text-xs" style={{ color: 'var(--color-text-dim)' }}>
+        <p style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-dim)' }}>
           Set via VITE_API_URL in your .env file
         </p>
       </div>
@@ -93,25 +99,32 @@ function ApiConfigTab() {
       <div>
         <label className="form-label">CONNECTION STATUS</label>
         <div
-          className="flex items-center gap-3 px-4 py-3 rounded-md"
-          style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)' }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '10px 16px',
+            background: 'var(--color-bg-elevated)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+          }}
         >
           {status === 'checking' && (
             <>
-              <RefreshCw className="h-4 w-4 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
-              <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Checking…</span>
+              <RefreshCw style={{ width: 16, height: 16, color: 'var(--color-text-muted)', animation: 'spin 1s linear infinite' }} />
+              <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Checking…</span>
             </>
           )}
           {status === 'online' && (
             <>
-              <CheckCircle className="h-4 w-4" style={{ color: 'var(--color-teal)' }} />
-              <span className="text-sm" style={{ color: 'var(--color-teal)' }}>API reachable</span>
+              <CheckCircle style={{ width: 16, height: 16, color: 'var(--color-teal)' }} />
+              <span style={{ fontSize: 13, color: 'var(--color-teal)' }}>API reachable</span>
             </>
           )}
           {status === 'offline' && (
             <>
-              <XCircle className="h-4 w-4" style={{ color: 'var(--color-danger)' }} />
-              <span className="text-sm" style={{ color: 'var(--color-danger)' }}>
+              <XCircle style={{ width: 16, height: 16, color: 'var(--color-danger)' }} />
+              <span style={{ fontSize: 13, color: 'var(--color-danger)' }}>
                 API unreachable — running in mock mode
               </span>
             </>
@@ -155,27 +168,43 @@ function AppearanceTab() {
     toast.success('Theme reset to defaults.')
   }
 
+  const badgeColor: Record<string, { bg: string; text: string; border: string }> = {
+    SUBMITTED: { bg: 'rgba(102,181,250,0.15)', text: '#66B5FA', border: '#66B5FA' },
+    RECEIVED:  { bg: 'rgba(32,212,191,0.15)',  text: '#20D4BF', border: '#20D4BF' },
+    PENDING:   { bg: 'rgba(167,139,250,0.15)', text: '#A78BFA', border: '#A78BFA' },
+    OVERDUE:   { bg: 'rgba(244,63,94,0.20)',   text: '#F43F5E', border: '#F43F5E' },
+    ACTIVE:    { bg: 'rgba(32,212,191,0.15)',  text: '#20D4BF', border: '#20D4BF' },
+  }
+
   return (
-    <div className="grid gap-8 xl:grid-cols-[1fr_320px]">
-      {/* Left — controls */}
-      <div className="space-y-8">
-        {/* Accent color */}
-        <section className="panel p-5">
-          <p className="font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 32, alignItems: 'start' }}>
+
+      {/* ── Left column ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* Accent Color */}
+        <section className="panel" style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>
             Accent Color
           </p>
-          <div className="flex flex-wrap items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {ACCENT_PRESETS.map(({ label, color }) => (
               <button
                 key={color}
                 type="button"
                 title={label}
                 onClick={() => update('accentColor', color)}
-                className="h-9 w-9 rounded-full transition-transform hover:scale-110"
                 style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
                   background: color,
+                  border: 'none',
+                  cursor: 'pointer',
                   outline: theme.accentColor === color ? `3px solid ${color}` : '3px solid transparent',
                   outlineOffset: 2,
+                  transition: 'transform 120ms',
+                  flexShrink: 0,
                 }}
               />
             ))}
@@ -183,35 +212,53 @@ function AppearanceTab() {
               type="color"
               value={theme.accentColor}
               onChange={(e) => update('accentColor', e.target.value)}
-              className="h-9 w-9 cursor-pointer rounded-full border-0 bg-transparent p-0"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                padding: 0,
+                flexShrink: 0,
+              }}
               title="Custom color"
             />
           </div>
         </section>
 
-        {/* Background colors */}
-        <section className="panel p-5">
-          <p className="font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+        {/* Background Colors */}
+        <section className="panel" style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
             Background Colors
           </p>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {([
-              ['bgBase',     'Base'],
-              ['bgSurface',  'Surface'],
-              ['bgElevated', 'Elevated'],
+              ['bgBase',     'BASE'],
+              ['bgSurface',  'SURFACE'],
+              ['bgElevated', 'ELEVATED'],
             ] as const).map(([key, label]) => (
               <div key={key}>
-                <label className="form-label">{label.toUpperCase()}</label>
-                <div className="flex items-center gap-2">
+                <label className="form-label" style={{ marginBottom: 8 }}>{label}</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input
                     type="color"
                     value={theme[key]}
                     onChange={(e) => update(key, e.target.value)}
-                    className="h-9 w-9 cursor-pointer rounded border-0 p-0"
-                    style={{ background: 'transparent' }}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 6,
+                      background: theme[key],
+                      cursor: 'pointer',
+                      padding: 0,
+                      flexShrink: 0,
+                    }}
                   />
                   <input
-                    className="form-input mono text-xs"
+                    className="form-input mono"
+                    style={{ fontSize: 13 }}
                     value={theme[key]}
                     onChange={(e) => update(key, e.target.value)}
                   />
@@ -222,11 +269,11 @@ function AppearanceTab() {
         </section>
 
         {/* Typography */}
-        <section className="panel p-5">
-          <p className="font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+        <section className="panel" style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
             Typography
           </p>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div>
               <label className="form-label">SANS FONT</label>
               <select
@@ -236,10 +283,10 @@ function AppearanceTab() {
                 style={{ cursor: 'pointer' }}
               >
                 {[
-                  ["'Inter', system-ui, sans-serif",         'Inter'],
-                  ["'IBM Plex Sans', sans-serif",            'IBM Plex Sans'],
-                  ["'Roboto', sans-serif",                   'Roboto'],
-                  ["system-ui, sans-serif",                  'System UI'],
+                  ["'Inter', system-ui, sans-serif",  'Inter'],
+                  ["'IBM Plex Sans', sans-serif",     'IBM Plex Sans'],
+                  ["'Roboto', sans-serif",             'Roboto'],
+                  ["system-ui, sans-serif",            'System UI'],
                 ].map(([v, l]) => (
                   <option key={v} value={v} style={{ background: 'var(--color-bg-elevated)' }}>{l}</option>
                 ))}
@@ -254,10 +301,10 @@ function AppearanceTab() {
                 style={{ cursor: 'pointer' }}
               >
                 {[
-                  ["'JetBrains Mono', monospace",  'JetBrains Mono'],
-                  ["'IBM Plex Mono', monospace",   'IBM Plex Mono'],
-                  ["'Fira Code', monospace",        'Fira Code'],
-                  ["'Courier New', monospace",      'Courier New'],
+                  ["'JetBrains Mono', monospace", 'JetBrains Mono'],
+                  ["'IBM Plex Mono', monospace",  'IBM Plex Mono'],
+                  ["'Fira Code', monospace",       'Fira Code'],
+                  ["'Courier New', monospace",     'Courier New'],
                 ].map(([v, l]) => (
                   <option key={v} value={v} style={{ background: 'var(--color-bg-elevated)' }}>{l}</option>
                 ))}
@@ -267,134 +314,129 @@ function AppearanceTab() {
         </section>
 
         {/* Border Radius */}
-        <section className="panel p-5">
-          <p className="font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+        <section className="panel" style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
             Border Radius
           </p>
-          <div className="flex gap-3">
-            {(['compact', 'default', 'rounded'] as RadiusMode[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => update('borderRadius', mode)}
-                className="flex-1 py-3 text-sm font-medium capitalize transition-colors"
-                style={{
-                  background: theme.borderRadius === mode ? 'rgba(244,166,35,0.12)' : 'var(--color-bg-elevated)',
-                  border: `1px solid ${theme.borderRadius === mode ? 'var(--color-amber)' : 'var(--color-border)'}`,
-                  color: theme.borderRadius === mode ? 'var(--color-amber)' : 'var(--color-text-muted)',
-                  borderRadius: RADIUS_VALUES[mode],
-                }}
-              >
-                {mode}
-              </button>
-            ))}
+          <div style={{ display: 'flex', gap: 12 }}>
+            {(['compact', 'default', 'rounded'] as RadiusMode[]).map((mode) => {
+              const active = theme.borderRadius === mode
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => update('borderRadius', mode)}
+                  style={{
+                    flex: 1,
+                    height: 44,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    background: active ? 'rgba(244,166,35,0.10)' : 'transparent',
+                    border: `1px solid ${active ? 'var(--color-amber)' : 'var(--color-border)'}`,
+                    color: active ? 'var(--color-amber)' : 'var(--color-text-muted)',
+                    borderRadius: RADIUS_VALUES[mode],
+                    transition: 'color 150ms, background 150ms, border-color 150ms',
+                  }}
+                >
+                  {RADIUS_LABELS[mode]}
+                </button>
+              )
+            })}
           </div>
         </section>
 
         {/* Actions */}
-        <div className="flex items-center gap-3">
-          <button className="button-primary" onClick={save}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 4 }}>
+          <button className="button-primary" onClick={save} style={{ height: 40, padding: '0 20px', fontSize: 14 }}>
             Save Appearance
           </button>
-          <button className="button-ghost" onClick={reset}>
-            <RefreshCw className="h-4 w-4" />
+          <button className="button-ghost" onClick={reset} style={{ height: 40, padding: '0 14px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <RefreshCw style={{ width: 15, height: 15 }} />
             Reset to Defaults
           </button>
         </div>
       </div>
 
-      {/* Right — live preview */}
-      <div className="space-y-4">
-        <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+      {/* ── Right column — Live Preview ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 0 }}>
           Live Preview
         </p>
 
-        <div className="panel p-4 space-y-3">
-          <p className="eyebrow">TODAY'S SALES</p>
-          <p className="text-3xl font-bold mono" style={{ color: theme.accentColor }}>
-            Rs. 2,847,500
+        {/* Today's Sales card */}
+        <div className="panel" style={{ padding: '16px 20px' }}>
+          <p className="eyebrow" style={{ marginBottom: 8 }}>TODAY'S SALES</p>
+          <p className="mono" style={{ fontSize: 28, fontWeight: 700, color: theme.accentColor, marginBottom: 6 }}>
+            Rs.&nbsp;2,847,500
           </p>
-          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            ▲ 12% vs yesterday
-          </p>
+          <p style={{ fontSize: 13, color: 'var(--color-teal)' }}>▲ 12% vs yesterday</p>
         </div>
 
-        <div className="panel p-4 space-y-3">
-          <p className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
+        {/* Button Variants card */}
+        <div className="panel" style={{ padding: '16px 20px' }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 14 }}>
             Button Variants
           </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="h-9 rounded px-4 text-sm font-semibold"
-              style={{
-                background: theme.accentColor,
-                color: '#00182A',
-                borderRadius: RADIUS_VALUES[theme.borderRadius],
-                border: 'none',
-              }}
-            >
-              Primary
-            </button>
-            <button
-              className="h-9 rounded px-4 text-sm"
-              style={{
-                background: 'transparent',
-                color: 'var(--color-text-primary)',
-                borderRadius: RADIUS_VALUES[theme.borderRadius],
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              Secondary
-            </button>
-            <button
-              className="h-9 rounded px-4 text-sm font-semibold"
-              style={{
-                background: '#F43F5E',
-                color: '#fff',
-                borderRadius: RADIUS_VALUES[theme.borderRadius],
-                border: 'none',
-              }}
-            >
-              Delete
-            </button>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button style={{
+              height: 36, padding: '0 16px', fontSize: 13, fontWeight: 600,
+              background: theme.accentColor, color: '#00182A',
+              border: 'none', borderRadius: RADIUS_VALUES[theme.borderRadius], cursor: 'default',
+            }}>Primary</button>
+            <button style={{
+              height: 36, padding: '0 16px', fontSize: 13,
+              background: 'transparent', color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border)', borderRadius: RADIUS_VALUES[theme.borderRadius], cursor: 'default',
+            }}>Secondary</button>
+            <button style={{
+              height: 36, padding: '0 16px', fontSize: 13, fontWeight: 600,
+              background: '#F43F5E', color: '#fff',
+              border: 'none', borderRadius: RADIUS_VALUES[theme.borderRadius], cursor: 'default',
+            }}>Delete</button>
           </div>
         </div>
 
-        <div className="panel p-4">
+        {/* Focused Input card */}
+        <div className="panel" style={{ padding: '16px 20px' }}>
           <label className="form-label">FOCUSED INPUT</label>
           <input
             className="form-input"
             defaultValue="Perera Stores"
-            style={{ borderColor: theme.accentColor, boxShadow: `0 0 0 3px ${theme.accentColor}22` }}
+            style={{
+              borderColor: theme.accentColor,
+              boxShadow: `0 0 0 3px ${theme.accentColor}28`,
+            }}
           />
         </div>
 
-        <div className="panel p-4 space-y-2">
-          <p className="text-xs font-semibold mb-2" style={{ color: 'var(--color-text-muted)' }}>
-            STATUS BADGES
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {['SUBMITTED', 'RECEIVED', 'PENDING', 'OVERDUE', 'ACTIVE'].map((s) => (
-              <span
-                key={s}
-                className="mono inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-                style={{
-                  background: s === 'SUBMITTED' ? 'rgba(102,181,250,0.15)'
-                    : s === 'RECEIVED' ? 'rgba(32,212,191,0.15)'
-                    : s === 'PENDING'  ? 'rgba(167,139,250,0.15)'
-                    : s === 'OVERDUE'  ? 'rgba(244,63,94,0.20)'
-                    : 'rgba(32,212,191,0.15)',
-                  color: s === 'SUBMITTED' ? '#66B5FA'
-                    : s === 'RECEIVED' ? '#20D4BF'
-                    : s === 'PENDING'  ? '#A78BFA'
-                    : s === 'OVERDUE'  ? '#F43F5E'
-                    : '#20D4BF',
-                  border: `1px solid ${s === 'SUBMITTED' ? '#66B5FA' : s === 'RECEIVED' ? '#20D4BF' : s === 'PENDING' ? '#A78BFA' : s === 'OVERDUE' ? '#F43F5E' : '#20D4BF'}`,
-                }}
-              >
-                {s}
-              </span>
-            ))}
+        {/* Status Badges card */}
+        <div className="panel" style={{ padding: '16px 20px' }}>
+          <p className="eyebrow" style={{ marginBottom: 12 }}>STATUS BADGES</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {['SUBMITTED', 'RECEIVED', 'PENDING', 'OVERDUE', 'ACTIVE'].map((s) => {
+              const c = badgeColor[s]
+              return (
+                <span
+                  key={s}
+                  className="mono"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '3px 10px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: '0.4px',
+                    background: c.bg,
+                    color: c.text,
+                    border: `1px solid ${c.border}`,
+                    borderRadius: 20,
+                  }}
+                >
+                  {s}
+                </span>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -402,46 +444,165 @@ function AppearanceTab() {
   )
 }
 
-/* ── Page ─────────────────────────────────────────────────────── */
+/* ── Company tab ──────────────────────────────────────────────── */
 
-const TAB_BASE: React.CSSProperties = {
-  padding: '8px 16px',
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: 'pointer',
-  border: 'none',
-  background: 'none',
-  borderBottom: '2px solid transparent',
-  color: 'var(--color-text-muted)',
-  transition: 'color 150ms, border-color 150ms',
-  whiteSpace: 'nowrap',
+function CompanyTab() {
+  const [saved, setSaved] = useState(false)
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    setSaved(true)
+    toast.success('Company settings saved.')
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  return (
+    <form onSubmit={handleSave} style={{ maxWidth: 680, display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      <section className="panel" style={{ padding: '20px 24px' }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
+          Company Identity
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div>
+            <label className="form-label">COMPANY NAME</label>
+            <input className="form-input" defaultValue="CBL Foods International (Pvt) Ltd" />
+          </div>
+          <div>
+            <label className="form-label">REGISTRATION NO.</label>
+            <input className="form-input" defaultValue="PV 00012345" />
+          </div>
+          <div>
+            <label className="form-label">VAT NUMBER</label>
+            <input className="form-input" defaultValue="VAT-123456789" />
+          </div>
+          <div>
+            <label className="form-label">TAX ID</label>
+            <input className="form-input" defaultValue="TIN-987654321" />
+          </div>
+        </div>
+      </section>
+
+      <section className="panel" style={{ padding: '20px 24px' }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
+          Contact &amp; Address
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div>
+            <label className="form-label">PHONE</label>
+            <input className="form-input" defaultValue="+94 11 234 5678" />
+          </div>
+          <div>
+            <label className="form-label">EMAIL</label>
+            <input className="form-input" type="email" defaultValue="info@cblfoods.lk" />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">ADDRESS</label>
+            <input className="form-input" defaultValue="117, Sir Chittampalam A. Gardiner Mawatha, Colombo 02, Sri Lanka" />
+          </div>
+          <div>
+            <label className="form-label">CITY</label>
+            <input className="form-input" defaultValue="Colombo" />
+          </div>
+          <div>
+            <label className="form-label">COUNTRY</label>
+            <input className="form-input" defaultValue="Sri Lanka" />
+          </div>
+        </div>
+      </section>
+
+      <section className="panel" style={{ padding: '20px 24px' }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
+          Financial Defaults
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          <div>
+            <label className="form-label">BASE CURRENCY</label>
+            <select className="form-input" defaultValue="LKR" style={{ cursor: 'pointer' }}>
+              <option value="LKR" style={{ background: 'var(--color-bg-elevated)' }}>LKR — Sri Lankan Rupee</option>
+              <option value="USD" style={{ background: 'var(--color-bg-elevated)' }}>USD — US Dollar</option>
+              <option value="EUR" style={{ background: 'var(--color-bg-elevated)' }}>EUR — Euro</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">FISCAL YEAR START</label>
+            <select className="form-input" defaultValue="01" style={{ cursor: 'pointer' }}>
+              {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
+                <option key={m} value={String(i + 1).padStart(2, '0')} style={{ background: 'var(--color-bg-elevated)' }}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">DATE FORMAT</label>
+            <select className="form-input" defaultValue="DD/MM/YYYY" style={{ cursor: 'pointer' }}>
+              {['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'].map(f => (
+                <option key={f} value={f} style={{ background: 'var(--color-bg-elevated)' }}>{f}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button type="submit" className="button-primary" style={{ height: 40, padding: '0 20px' }}>
+          {saved && <CheckCircle style={{ width: 15, height: 15 }} />}
+          Save Company Settings
+        </button>
+        <button type="button" className="button-ghost" onClick={() => toast.info('No changes to revert.')} style={{ height: 40 }}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  )
 }
+
+/* ── Outer tab pill style ─────────────────────────────────────── */
+
+/* outerTabBase removed — outer tabs now use underline style */
+
+/* ── Page ─────────────────────────────────────────────────────── */
 
 export default function SettingsPage() {
   return (
-    <div className="space-y-5">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      {/* Page header */}
       <div>
-        <h1 className="text-2xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4 }}>
           Settings
         </h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          Application configuration, appearance, and system controls
+        <p style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>
+          Manage company profile, application configuration, and appearance
         </p>
       </div>
 
-      <Tabs.Root defaultValue="appearance">
-        <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 24 }}>
-          <Tabs.List className="flex gap-1" aria-label="Settings sections">
+      {/* Outer tabs: Company | Application */}
+      <Tabs.Root defaultValue="application">
+
+        {/* Outer underline tab bar */}
+        <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 28 }}>
+          <Tabs.List style={{ display: 'flex', gap: 0 }} aria-label="Settings category">
             {[
-              ['appearance',  'Appearance'],
-              ['api',         'API Configuration'],
-              ['notifications','Notifications'],
+              ['company',     'Company'],
+              ['application', 'Application'],
             ].map(([value, label]) => (
               <Tabs.Trigger
                 key={value}
                 value={value}
-                style={TAB_BASE}
-                className="data-[state=active]:text-amber data-[state=active]:border-b-amber"
+                className="settings-outer-tab"
+                style={{
+                  padding: '10px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: 'none',
+                  background: 'none',
+                  borderBottom: '2px solid transparent',
+                  color: 'var(--color-text-muted)',
+                  transition: 'color 150ms, border-color 150ms',
+                  whiteSpace: 'nowrap',
+                  marginBottom: -1,
+                }}
               >
                 {label}
               </Tabs.Trigger>
@@ -449,21 +610,66 @@ export default function SettingsPage() {
           </Tabs.List>
         </div>
 
-        <Tabs.Content value="appearance">
-          <AppearanceTab />
+        {/* Company content */}
+        <Tabs.Content value="company">
+          <CompanyTab />
         </Tabs.Content>
 
-        <Tabs.Content value="api">
-          <ApiConfigTab />
+        {/* Application content → inner tabs */}
+        <Tabs.Content value="application">
+          <Tabs.Root defaultValue="appearance">
+
+            {/* Inner underline tab bar */}
+            <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 28 }}>
+              <Tabs.List style={{ display: 'flex', gap: 0 }} aria-label="Application settings sections">
+                {[
+                  ['appearance',    'Appearance'],
+                  ['api',           'API Configuration'],
+                  ['notifications', 'Notifications'],
+                ].map(([value, label]) => (
+                  <Tabs.Trigger
+                    key={value}
+                    value={value}
+                    className="settings-inner-tab"
+                    style={{
+                      padding: '10px 18px',
+                      fontSize: 13,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      border: 'none',
+                      background: 'none',
+                      borderBottom: '2px solid transparent',
+                      color: 'var(--color-text-muted)',
+                      transition: 'color 150ms, border-color 150ms',
+                      whiteSpace: 'nowrap',
+                      marginBottom: -1,
+                    }}
+                  >
+                    {label}
+                  </Tabs.Trigger>
+                ))}
+              </Tabs.List>
+            </div>
+
+            <Tabs.Content value="appearance">
+              <AppearanceTab />
+            </Tabs.Content>
+
+            <Tabs.Content value="api">
+              <ApiConfigTab />
+            </Tabs.Content>
+
+            <Tabs.Content value="notifications">
+              <div className="panel" style={{ maxWidth: 520, padding: 24 }}>
+                <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+                  Notification preferences — coming soon.
+                </p>
+              </div>
+            </Tabs.Content>
+
+          </Tabs.Root>
         </Tabs.Content>
 
-        <Tabs.Content value="notifications">
-          <div className="panel max-w-xl p-6">
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              Notification preferences — coming soon.
-            </p>
-          </div>
-        </Tabs.Content>
       </Tabs.Root>
     </div>
   )
