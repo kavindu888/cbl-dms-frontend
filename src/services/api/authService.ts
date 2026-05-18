@@ -33,10 +33,9 @@ export const authService = {
         (typeof error === 'object' &&
           error !== null &&
           'statusCode' in error &&
-          (error as { statusCode: number }).statusCode === 500 &&
+          ((error as { statusCode: number }).statusCode === 500 || (error as { statusCode: number }).statusCode === 404) &&
           'errors' in error &&
-          Array.isArray((error as { errors: unknown[] }).errors) &&
-          (error as { errors: unknown[] }).errors.length === 0)
+          Array.isArray((error as { errors: unknown[] }).errors))
 
       if (import.meta.env.DEV && isNetworkFailure) {
         const mockSession = createMockLoginResponse(credentials.username)

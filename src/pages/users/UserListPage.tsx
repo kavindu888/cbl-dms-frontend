@@ -132,137 +132,134 @@ function CreateUserModal({ open, onClose, onCreated }: {
           style={{ background: 'rgba(0,4,12,0.75)', backdropFilter: 'blur(2px)' }}
         />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl shadow-2xl"
+          className="fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 shadow-2xl"
           style={{
+            maxWidth: 580,
             background: 'var(--color-bg-surface)',
             border: '1px solid var(--color-border)',
+            borderRadius: 12,
             maxHeight: '92vh',
             overflowY: 'auto',
           }}
         >
           {/* Header */}
-          <div
-            className="flex items-start justify-between p-6 pb-4"
-            style={{ borderBottom: '1px solid var(--color-border)' }}
-          >
+          <div style={{ padding: '32px 32px 24px 32px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
-              <Dialog.Title
-                className="text-xl font-semibold"
-                style={{ color: 'var(--color-text-primary)' }}
-              >
+              <Dialog.Title style={{ fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)' }}>
                 Create New Account
               </Dialog.Title>
-              <Dialog.Description
-                className="mt-1 text-sm"
-                style={{ color: 'var(--color-text-muted)' }}
-              >
+              <Dialog.Description style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}>
                 Admin access required to create users
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
-              <button className="icon-button" aria-label="Close">
-                <X className="h-4 w-4" />
+              <button aria-label="Close" style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '50%' }}>
+                <X style={{ width: 18, height: 18 }} />
               </button>
             </Dialog.Close>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '0 32px 32px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+            
             {/* First + Last name */}
-            <div className="grid grid-cols-2 gap-3">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
-                <label className="form-label">FIRST NAME</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>FIRST NAME</label>
                 <input
                   className={`form-input ${errors.firstName ? 'error' : ''}`}
+                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
                   placeholder="John"
                   {...register('firstName')}
                 />
-                {errors.firstName && <p className="form-error">⚠ {errors.firstName.message}</p>}
+                {errors.firstName && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.firstName.message}</p>}
               </div>
               <div>
-                <label className="form-label">LAST NAME</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>LAST NAME</label>
                 <input
                   className={`form-input ${errors.lastName ? 'error' : ''}`}
+                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
                   placeholder="Perera"
                   {...register('lastName')}
                 />
-                {errors.lastName && <p className="form-error">⚠ {errors.lastName.message}</p>}
+                {errors.lastName && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.lastName.message}</p>}
               </div>
             </div>
 
             {/* Username */}
             <div>
-              <label className="form-label">USERNAME</label>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>USERNAME</label>
               <input
                 className={`form-input ${errors.username ? 'error' : ''}`}
+                style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
                 placeholder="john.perera"
                 {...register('username')}
               />
-              <p className="mt-1 text-xs" style={{ color: 'var(--color-text-dim)' }}>
+              <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-dim)' }}>
                 Auto-generated from first + last name
               </p>
-              {errors.username && <p className="form-error">⚠ {errors.username.message}</p>}
+              {errors.username && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.username.message}</p>}
             </div>
 
             {/* Email */}
             <div>
-              <label className="form-label">EMAIL</label>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>EMAIL</label>
               <input
                 className={`form-input ${errors.email ? 'error' : ''}`}
                 type="email"
+                style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
                 placeholder="john.perera@cblfoods.lk"
                 {...register('email')}
               />
-              {errors.email && <p className="form-error">⚠ {errors.email.message}</p>}
+              {errors.email && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.email.message}</p>}
             </div>
 
             {/* Employee Code + Phone */}
-            <div className="grid grid-cols-2 gap-3">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
-                <label className="form-label">EMPLOYEE CODE</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>EMPLOYEE CODE</label>
                 <input
                   className={`form-input ${errors.employeeCode ? 'error' : ''}`}
+                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-muted)', fontSize: 14, fontFamily: 'var(--font-mono)' }}
                   placeholder="EMP-042"
                   {...register('employeeCode')}
                 />
-                {errors.employeeCode && <p className="form-error">⚠ {errors.employeeCode.message}</p>}
+                {errors.employeeCode && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.employeeCode.message}</p>}
               </div>
               <div>
-                <label className="form-label">PHONE</label>
-                <div className="flex">
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>PHONE</label>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
                   <span
-                    className="flex items-center px-3 text-sm"
                     style={{
-                      background: 'var(--color-bg-elevated)',
-                      border: '1px solid var(--color-border)',
-                      borderRight: 'none',
-                      borderRadius: 'var(--radius-input) 0 0 var(--radius-input)',
-                      color: 'var(--color-text-muted)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      height: 44, padding: '0 14px', fontSize: 14, color: 'var(--color-text-muted)',
+                      background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRight: 'none',
+                      borderRadius: '6px 0 0 6px',
                     }}
                   >
                     +94
                   </span>
                   <input
                     className={`form-input ${errors.phone ? 'error' : ''}`}
-                    style={{ borderRadius: '0 var(--radius-input) var(--radius-input) 0' }}
+                    style={{ flex: 1, height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: '0 6px 6px 0', padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, fontFamily: 'var(--font-mono)' }}
                     placeholder="77 234 5678"
                     {...register('phone')}
                   />
                 </div>
-                {errors.phone && <p className="form-error">⚠ {errors.phone.message}</p>}
+                {errors.phone && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.phone.message}</p>}
               </div>
             </div>
 
             {/* Role */}
             <div>
-              <label className="form-label">ROLE</label>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>ROLE</label>
               <select
                 className={`form-input ${errors.role ? 'error' : ''}`}
-                style={{ cursor: 'pointer' }}
+                style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, cursor: 'pointer', appearance: 'none' }}
                 {...register('role')}
               >
                 {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value} style={{ background: 'var(--color-bg-elevated)' }}>
+                  <option key={value} value={value} style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>
                     {label}
                   </option>
                 ))}
@@ -271,110 +268,230 @@ function CreateUserModal({ open, onClose, onCreated }: {
 
             {/* Assigned Vehicle */}
             <div>
-              <label className="form-label">ASSIGNED VEHICLE</label>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>ASSIGNED VEHICLE</label>
               <select
                 className="form-input"
-                style={{ cursor: 'pointer' }}
+                style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, cursor: 'pointer', appearance: 'none' }}
                 {...register('assignedVehicle')}
               >
-                <option value="" style={{ background: 'var(--color-bg-elevated)' }}>— None —</option>
+                <option value="" style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>— None —</option>
                 {VEHICLES.map((v) => (
-                  <option key={v} value={v} style={{ background: 'var(--color-bg-elevated)' }}>{v}</option>
+                  <option key={v} value={v} style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>{v}</option>
                 ))}
               </select>
             </div>
 
             {/* Password + Confirm */}
-            <div className="grid grid-cols-2 gap-3">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
-                <label className="form-label">PASSWORD</label>
-                <div className="relative">
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>PASSWORD</label>
+                <div style={{ position: 'relative' }}>
                   <input
-                    className={`form-input pr-10 ${errors.password ? 'error' : ''}`}
+                    className={`form-input ${errors.password ? 'error' : ''}`}
                     type={showPw ? 'text' : 'password'}
+                    style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 40px 0 16px', color: 'var(--color-text-primary)', fontSize: 14, letterSpacing: showPw ? 'normal' : '2px' }}
                     placeholder="••••••••••••"
                     {...register('password')}
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-3 flex items-center"
-                    style={{ color: 'var(--color-text-dim)' }}
+                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--color-text-dim)', cursor: 'pointer', padding: 4 }}
                     onClick={() => setShowPw((v) => !v)}
                     tabIndex={-1}
                   >
-                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPw ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
                   </button>
                 </div>
-                {errors.password && <p className="form-error">⚠ {errors.password.message}</p>}
+                {errors.password && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.password.message}</p>}
+                {/* Password strength indicator - kept functional but visually minimized to match design focus */}
+                {password.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                      {[1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          style={{ height: 4, flex: 1, borderRadius: 2, transition: 'background 200ms', background: i <= strength.level ? strength.color : 'rgba(255,255,255,0.1)' }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
-                <label className="form-label">CONFIRM PASSWORD</label>
-                <div className="relative">
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>CONFIRM PASSWORD</label>
+                <div style={{ position: 'relative' }}>
                   <input
-                    className={`form-input pr-10 ${errors.confirmPassword ? 'error' : ''}`}
+                    className={`form-input ${errors.confirmPassword ? 'error' : ''}`}
                     type={showConfPw ? 'text' : 'password'}
+                    style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 40px 0 16px', color: 'var(--color-text-primary)', fontSize: 14, letterSpacing: showConfPw ? 'normal' : '2px' }}
                     placeholder="••••••••••••"
                     {...register('confirmPassword')}
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-3 flex items-center"
-                    style={{ color: 'var(--color-text-dim)' }}
+                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--color-text-dim)', cursor: 'pointer', padding: 4 }}
                     onClick={() => setShowConfPw((v) => !v)}
                     tabIndex={-1}
                   >
-                    {showConfPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showConfPw ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
                   </button>
                 </div>
                 {errors.confirmPassword && (
-                  <p className="form-error">⚠ {errors.confirmPassword.message}</p>
+                  <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.confirmPassword.message}</p>
                 )}
               </div>
             </div>
 
-            {/* Password strength bar */}
-            {password.length > 0 && (
-              <div>
-                <div className="flex gap-1 mb-1">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className="h-1.5 flex-1 rounded-full transition-colors duration-200"
-                      style={{ background: i <= strength.level ? strength.color : 'var(--color-border)' }}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs font-medium" style={{ color: strength.color }}>
-                  {strength.label}
-                </p>
-              </div>
-            )}
-
             {/* Action buttons */}
-            <div
-              className="flex items-center justify-end gap-3 pt-2"
-              style={{ borderTop: '1px solid var(--color-border)', marginTop: 8 }}
-            >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16, marginTop: 8 }}>
               <Dialog.Close asChild>
-                <button type="button" className="button-secondary">Cancel</button>
+                <button type="button" style={{ height: 40, padding: '0 24px', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+                  Cancel
+                </button>
               </Dialog.Close>
-              <button type="submit" className="button-primary" disabled={isSubmitting}>
+              <button type="submit" disabled={isSubmitting} style={{ height: 40, padding: '0 32px', background: '#F5A623', border: 'none', borderRadius: 6, color: '#111827', fontSize: 14, fontWeight: 600, cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.7 : 1 }}>
                 {isSubmitting ? 'Creating...' : 'Create'}
               </button>
             </div>
           </form>
 
           {/* Footer note */}
-          <div
-            className="flex items-center gap-2 px-6 py-3 text-xs"
-            style={{ borderTop: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}
-          >
-            <Bell className="h-3.5 w-3.5 shrink-0" />
-            The new user will receive login credentials by email.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 32px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)', borderBottomLeftRadius: 12, borderBottomRightRadius: 12 }}>
+            <Bell style={{ width: 14, height: 14, color: 'var(--color-text-muted)' }} />
+            <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 500 }}>
+              The new user will receive login credentials by email.
+            </span>
           </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  )
+}
+
+/* ── Relative time formatter ─────────────────────────────────── */
+function formatLastLogin(isoString: string): string {
+  const date = new Date(isoString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  if (diffDays === 0) return `Today, ${time}`
+  if (diffDays === 1) return `Yesterday, ${time}`
+  if (diffDays < 7)  return `${diffDays}d ago, ${time}`
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+/* ── Avatar color palette (cycles through users) ─────────────── */
+const AVATAR_PALETTE = [
+  { bg: 'rgba(244,166,35,0.15)',  text: '#F4A623' },  // amber
+  { bg: 'rgba(102,181,250,0.15)', text: '#66B5FA' },  // blue
+  { bg: 'rgba(244,63,94,0.15)',   text: '#F43F5E' },  // red
+  { bg: 'rgba(167,139,250,0.15)', text: '#A78BFA' },  // purple
+  { bg: 'rgba(32,212,191,0.15)',  text: '#20D4BF' },  // teal
+  { bg: 'rgba(250,204,21,0.15)',  text: '#FACC15' },  // yellow
+  { bg: 'rgba(244,63,94,0.15)',   text: '#F43F5E' },  // red
+  { bg: 'rgba(244,166,35,0.15)',  text: '#F4A623' },  // amber
+]
+
+function UserRow({ user, isLast, index }: { user: UserListItemDto; isLast: boolean; index: number }) {
+  const avatar = AVATAR_PALETTE[index % AVATAR_PALETTE.length]
+  return (
+    <tr
+      style={{
+        borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
+        transition: 'background 120ms',
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(27,48,80,0.5)')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+    >
+      {/* USER */}
+      <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 700, background: avatar.bg, color: avatar.text,
+          }}>
+            {getInitials(user.username)}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            {user.username}
+          </span>
+        </div>
+      </td>
+
+      {/* EMPLOYEE CODE */}
+      <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-muted)', letterSpacing: '0.3px' }}>
+          {user.employeeCode}
+        </span>
+      </td>
+
+      {/* EMAIL */}
+      <td style={{ padding: '12px 10px' }}>
+        <span style={{ fontSize: 12, color: user.isActive ? 'var(--color-text-muted)' : 'var(--color-text-dim)', wordBreak: 'break-all' }}>
+          {user.email}
+        </span>
+      </td>
+
+      {/* PHONE */}
+      <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-muted)', letterSpacing: '0.3px' }}>
+          {user.phone}
+        </span>
+      </td>
+
+      {/* ROLE */}
+      <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center',
+          padding: '2px 8px', fontSize: 11, fontWeight: 500,
+          background: 'rgba(102,181,250,0.10)',
+          color: 'var(--color-blue)',
+          border: '1px solid rgba(102,181,250,0.25)',
+          borderRadius: 6,
+        }}>
+          {ROLE_LABELS[user.roles[0]] ?? user.roles[0]}
+        </span>
+      </td>
+
+      {/* STATUS */}
+      <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center',
+          padding: '2px 8px', fontSize: 11, fontWeight: 600,
+          borderRadius: 20,
+          background: user.isActive ? 'rgba(32,212,191,0.12)' : 'rgba(148,163,184,0.10)',
+          color: user.isActive ? 'var(--color-teal)' : 'var(--color-text-muted)',
+          border: `1px solid ${user.isActive ? 'rgba(32,212,191,0.30)' : 'rgba(148,163,184,0.20)'}`,
+          letterSpacing: '0.4px',
+        }}>
+          {user.isActive ? 'ACTIVE' : 'INACTIVE'}
+        </span>
+      </td>
+
+      {/* LAST LOGIN */}
+      <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+        {user.lastLoginAt ? (
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+            {formatLastLogin(user.lastLoginAt)}
+          </span>
+        ) : (
+          <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>—</span>
+        )}
+      </td>
+
+      {/* ACTIONS */}
+      <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+        <button
+          className="icon-button"
+          title="Edit user"
+          style={{ width: 28, height: 28 }}
+        >
+          <Pencil style={{ width: 13, height: 13 }} />
+        </button>
+      </td>
+    </tr>
   )
 }
 
@@ -397,45 +514,53 @@ export default function UserListPage() {
   }, [users, search, roleFilter])
 
   return (
-    <div className="space-y-5">
-      {/* Page header */}
-      <div className="flex items-center justify-between gap-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* ── Page Header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <div>
-          <h1 className="text-2xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>
             User Management
           </h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
             {users.length} accounts · {users.filter((u) => u.isActive).length} active
           </p>
         </div>
         <button
-          className="button-primary flex items-center gap-2"
+          className="button-primary"
           onClick={() => setShowCreate(true)}
+          style={{ height: 40, padding: '0 20px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}
         >
-          <Plus className="h-4 w-4" />
+          <Plus style={{ width: 16, height: 16 }} />
           Create New Account
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="panel flex flex-wrap items-center gap-3 p-4">
-        <div className="relative flex-1 min-w-55">
+      {/* ── Filter Bar ── */}
+      <div
+        className="panel"
+        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px' }}
+      >
+        <div style={{ position: 'relative', flex: 1 }}>
           <Search
-            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-            style={{ color: 'var(--color-text-dim)' }}
+            style={{
+              position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+              width: 16, height: 16, color: 'var(--color-text-dim)', pointerEvents: 'none',
+            }}
           />
           <input
-            className="form-input pl-9"
-            placeholder="Search by name, email or code…"
+            className="form-input"
+            style={{ paddingLeft: 38 }}
+            placeholder="Search by name, email or code..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <select
-          className="form-input w-auto"
+          className="form-input"
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          style={{ cursor: 'pointer', minWidth: 180 }}
+          style={{ cursor: 'pointer', width: 200, flexShrink: 0 }}
         >
           <option value="all" style={{ background: 'var(--color-bg-elevated)' }}>All Roles</option>
           {Object.entries(ROLE_LABELS).map(([v, l]) => (
@@ -444,78 +569,41 @@ export default function UserListPage() {
         </select>
       </div>
 
-      {/* Table */}
-      <div className="panel overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="data-table">
+      {/* ── Data Table ── */}
+      <div className="panel" style={{ overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr>
-                <th>User</th>
-                <th>Employee Code</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Actions</th>
+              <tr style={{ background: 'var(--color-bg-elevated)', borderBottom: '1px solid var(--color-border)' }}>
+                {['USER', 'EMPLOYEE CODE', 'EMAIL', 'PHONE', 'ROLE', 'STATUS', 'LAST LOGIN', 'ACTIONS'].map((col) => (
+                  <th
+                    key={col}
+                    style={{
+                      padding: '10px 10px',
+                      fontSize: 10,
+                      fontWeight: 600,
+                      letterSpacing: '0.6px',
+                      color: 'var(--color-text-muted)',
+                      textAlign: col === 'ACTIONS' ? 'right' : 'left',
+                      whiteSpace: 'nowrap',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {col}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12">
-                    <p style={{ color: 'var(--color-text-muted)' }}>
-                      No users match your filters.
-                    </p>
+                  <td colSpan={7} style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 14 }}>
+                    No users match your filters.
                   </td>
                 </tr>
               ) : (
-                filtered.map((user) => (
-                  <tr key={user.id}>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold shrink-0"
-                          style={{ background: 'rgba(244,166,35,0.12)', color: 'var(--color-amber)' }}
-                        >
-                          {getInitials(user.username)}
-                        </div>
-                        <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                          {user.username}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                        {user.employeeCode}
-                      </span>
-                    </td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {user.email}
-                    </td>
-                    <td className="mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                      {user.phone}
-                    </td>
-                    <td>
-                      <span
-                        className="text-xs font-medium px-2 py-0.5 rounded"
-                        style={{
-                          background: 'rgba(102,181,250,0.1)',
-                          color: 'var(--color-blue)',
-                          border: '1px solid rgba(102,181,250,0.2)',
-                        }}
-                      >
-                        {ROLE_LABELS[user.roles[0]] ?? user.roles[0]}
-                      </span>
-                    </td>
-                    <td>
-                      <StatusBadge status={user.isActive ? 'ACTIVE' : 'INACTIVE'} />
-                    </td>
-                    <td>
-                      <button className="icon-button" title="Edit user">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
+                filtered.map((user, idx) => (
+                  <UserRow key={user.id} user={user} isLast={idx === filtered.length - 1} index={idx} />
                 ))
               )}
             </tbody>

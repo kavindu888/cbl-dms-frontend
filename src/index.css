@@ -294,3 +294,25 @@ button, input, textarea, select {
   padding: 6px 10px;
   border-radius: 6px;
 }
+
+/* ── Settings Tabs ────────────────────────────────────────────── */
+
+/* Outer underline tabs (Company / Application) */
+.settings-outer-tab[data-state='active'] {
+  color: var(--color-amber) !important;
+  border-bottom-color: var(--color-amber) !important;
+}
+
+.settings-outer-tab:hover {
+  color: var(--color-text-primary);
+}
+
+/* Inner underline tabs (Appearance / API / Notifications) */
+.settings-inner-tab[data-state='active'] {
+  color: var(--color-amber) !important;
+  border-bottom-color: var(--color-amber) !important;
+}
+
+.settings-inner-tab:hover {
+  color: var(--color-text-primary);
+}

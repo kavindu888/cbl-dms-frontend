@@ -36,6 +36,7 @@ export const mockUsers: UserListItemDto[] = [
     roles: [Role.Admin],
     isActive: true,
     orgId: 'cbl-lk',
+    lastLoginAt: '2026-05-15T07:32:00Z',
   },
   {
     id: 'usr-002',
@@ -46,6 +47,7 @@ export const mockUsers: UserListItemDto[] = [
     roles: [Role.SalesRepresentative],
     isActive: true,
     orgId: 'cbl-lk',
+    lastLoginAt: '2026-05-15T06:14:00Z',
   },
   {
     id: 'usr-003',
@@ -56,6 +58,7 @@ export const mockUsers: UserListItemDto[] = [
     roles: [Role.FleetCoordinator],
     isActive: true,
     orgId: 'cbl-lk',
+    lastLoginAt: '2026-05-14T14:50:00Z',
   },
   {
     id: 'usr-004',
@@ -66,6 +69,7 @@ export const mockUsers: UserListItemDto[] = [
     roles: [Role.SalesRepresentative],
     isActive: true,
     orgId: 'cbl-lk',
+    lastLoginAt: '2026-05-15T05:08:00Z',
   },
   {
     id: 'usr-005',
@@ -76,6 +80,7 @@ export const mockUsers: UserListItemDto[] = [
     roles: [Role.InventoryController],
     isActive: true,
     orgId: 'cbl-lk',
+    lastLoginAt: '2026-05-13T11:22:00Z',
   },
   {
     id: 'usr-006',
@@ -86,6 +91,7 @@ export const mockUsers: UserListItemDto[] = [
     roles: [Role.CollectionsOfficer],
     isActive: false,
     orgId: 'cbl-lk',
+    lastLoginAt: '2026-04-28T09:00:00Z',
   },
   {
     id: 'usr-007',
@@ -96,6 +102,7 @@ export const mockUsers: UserListItemDto[] = [
     roles: [Role.PurchasingManager],
     isActive: true,
     orgId: 'cbl-lk',
+    lastLoginAt: '2026-05-15T08:45:00Z',
   },
   {
     id: 'usr-008',
@@ -106,6 +113,7 @@ export const mockUsers: UserListItemDto[] = [
     roles: [Role.Analyst],
     isActive: true,
     orgId: 'cbl-lk',
+    lastLoginAt: '2026-05-14T16:30:00Z',
   },
 ]
 

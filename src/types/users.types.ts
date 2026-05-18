@@ -9,6 +9,7 @@ export interface UserListItemDto {
   roles: Role[]
   isActive: boolean
   orgId: string
+  lastLoginAt?: string   // ISO 8601 — e.g. "2026-04-28T09:00:00Z"
 }
 
 export interface CreateUserRequest {
