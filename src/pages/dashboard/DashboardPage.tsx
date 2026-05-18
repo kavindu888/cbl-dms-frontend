@@ -1,9 +1,12 @@
 import {
-  AlertTriangle,
-  ArrowDownRight,
-  ArrowUpRight,
   Download,
+  TrendingUp,
+  BarChart2,
+  FileText,
   Truck,
+  ArrowUpRight,
+  ArrowDownRight,
+  AlertTriangle,
 } from 'lucide-react'
 import {
   Area,
@@ -17,6 +20,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { useNavigate } from 'react-router-dom'
 
 import StatusBadge from '@components/ui/StatusBadge'
 import {
@@ -39,208 +43,197 @@ function formatLKRFull(value: number) {
 }
 
 export default function DashboardPage() {
+  const navigate = useNavigate()
   const { todaySales, outstandingCredit, totalStockValue, fleetOnRoad } = mockDashboardKpis
 
   return (
-    <div className="space-y-6">
-      {/* ── Page header ──────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-10">
+      {/* ── Page Header ──────────────────────────────────────────── */}
+      <div className="flex items-end justify-between gap-6 pb-2">
         <div>
-          <h1 className="text-2xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+          <h1 className="text-4xl font-black tracking-tight text-[var(--color-text-primary)]">
             Dashboard
           </h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          <p className="mt-2 text-sm font-medium text-[var(--color-text-muted)]">
             Tuesday, 29 Apr 2026 · Real-time view of operations
           </p>
         </div>
-        <button className="button-primary flex items-center gap-2">
+        <button className="button-primary px-6 h-11 flex items-center gap-2 text-sm font-bold shadow-lg shadow-[var(--color-amber)]/10">
           <Download className="h-4 w-4" />
           Generate Daily Report
         </button>
       </div>
 
-      {/* ── KPI row ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* ── KPI Row ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
         {/* Today's Sales */}
-        <div className="panel p-5">
-          <p className="eyebrow">Today's Sales</p>
-          <div
-            className="mt-3 text-3xl font-bold mono"
-            style={{ color: 'var(--color-amber)' }}
-          >
+        <div className="panel p-6 group hover:border-[var(--color-amber)]/30 transition-colors">
+          <p className="text-[10px] font-bold tracking-[0.15em] text-[var(--color-amber)] opacity-80 mb-4 uppercase">TODAY'S SALES</p>
+          <div className="text-3xl font-black mono text-[var(--color-amber)] mb-2">
             Rs. {todaySales.value.toLocaleString()}
           </div>
-          <div className="mt-2 flex items-center gap-1.5">
-            <ArrowUpRight className="h-4 w-4" style={{ color: 'var(--color-teal)' }} />
-            <span className="text-sm font-medium" style={{ color: 'var(--color-teal)' }}>
-              {todaySales.trendPct}% {todaySales.trendLabel}
+          <div className="flex items-center gap-1.5 mb-2">
+            <ArrowUpRight className="h-4 w-4 text-[var(--color-teal)]" />
+            <span className="text-sm font-bold text-[var(--color-teal)]">
+              {todaySales.trendPct}% vs yesterday
             </span>
           </div>
-          <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {todaySales.sub}
+          <p className="text-xs font-medium text-[var(--color-text-dim)]">
+            47 invoices issued today
           </p>
         </div>
 
         {/* Outstanding Credit */}
-        <div className="panel p-5">
-          <p className="eyebrow">Outstanding Credit</p>
-          <div
-            className="mt-3 text-3xl font-bold mono"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
+        <div className="panel p-6 group hover:border-[var(--color-amber)]/30 transition-colors">
+          <p className="text-[10px] font-bold tracking-[0.15em] text-[var(--color-text-muted)] mb-4 uppercase">OUTSTANDING CREDIT</p>
+          <div className="text-3xl font-black mono text-[var(--color-text-primary)] mb-2">
             Rs. {outstandingCredit.value.toLocaleString()}
           </div>
-          <div className="mt-2 flex items-center gap-1.5">
-            <AlertTriangle className="h-4 w-4" style={{ color: 'var(--color-warning)' }} />
-            <span className="text-sm font-medium" style={{ color: 'var(--color-warning)' }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <AlertTriangle className="h-4 w-4 text-[var(--color-amber)]" />
+            <span className="text-sm font-bold text-[var(--color-amber)]">
               {outstandingCredit.alert}
             </span>
           </div>
-          <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {outstandingCredit.sub}
+          <p className="text-xs font-medium text-[var(--color-text-dim)]">
+            Across 34 customers
           </p>
         </div>
 
         {/* Total Stock Value */}
-        <div className="panel p-5">
-          <p className="eyebrow">Total Stock Value</p>
-          <div
-            className="mt-3 text-3xl font-bold mono"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            Rs.{' '}
-            <span className="text-4xl">
-              {(totalStockValue.value / 1_000_000).toFixed(3).replace('.', ',')}
-            </span>
-            <span className="text-xl">000</span>
+        <div className="panel p-6 group hover:border-[var(--color-amber)]/30 transition-colors">
+          <p className="text-[10px] font-bold tracking-[0.15em] text-[var(--color-text-muted)] mb-4 uppercase">TOTAL STOCK VALUE</p>
+          <div className="text-3xl font-black mono text-[var(--color-text-primary)] mb-2">
+            Rs. {(totalStockValue.value / 1000).toLocaleString()} <span className="text-xl opacity-60">000</span>
           </div>
-          <div className="mt-2 flex items-center gap-1.5">
-            <ArrowDownRight className="h-4 w-4" style={{ color: 'var(--color-danger)' }} />
-            <span className="text-sm font-medium" style={{ color: 'var(--color-danger)' }}>
-              {totalStockValue.trendPct}% {totalStockValue.trendLabel}
+          <div className="flex items-center gap-1.5 mb-2">
+            <ArrowDownRight className="h-4 w-4 text-[var(--color-danger)]" />
+            <span className="text-sm font-bold text-[var(--color-danger)]">
+              {totalStockValue.trendPct}% vs last week
             </span>
           </div>
-          <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {totalStockValue.sub}
+          <p className="text-xs font-medium text-[var(--color-text-dim)]">
+            284 active SKUs in warehouse
           </p>
         </div>
 
         {/* Fleet on Road */}
-        <div className="panel p-5">
-          <p className="eyebrow">Fleet on Road</p>
-          <div
-            className="mt-3 text-3xl font-bold mono"
-            style={{ color: 'var(--color-teal)' }}
-          >
-            {fleetOnRoad.active}{' '}
-            <span style={{ color: 'var(--color-text-muted)' }}>/ {fleetOnRoad.total}</span>
+        <div className="panel p-6 group hover:border-[var(--color-amber)]/30 transition-colors">
+          <p className="text-[10px] font-bold tracking-[0.15em] text-[var(--color-text-muted)] mb-4 uppercase">FLEET ON ROAD</p>
+          <div className="text-3xl font-black mono text-[var(--color-teal)] mb-2">
+            {fleetOnRoad.active} <span className="text-2xl text-[var(--color-text-dim)]">/ {fleetOnRoad.total}</span>
           </div>
-          <div className="mt-2 flex items-center gap-1.5">
-            <AlertTriangle className="h-4 w-4" style={{ color: 'var(--color-warning)' }} />
-            <span className="text-sm font-medium" style={{ color: 'var(--color-warning)' }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <AlertTriangle className="h-4 w-4 text-[var(--color-amber)]" />
+            <span className="text-sm font-bold text-[var(--color-amber)]">
               {fleetOnRoad.alert}
             </span>
           </div>
-          <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {fleetOnRoad.sub}
+          <p className="text-xs font-medium text-[var(--color-text-dim)]">
+            Routes active since 06:00
           </p>
         </div>
       </div>
-
-      {/* ── Charts row ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+ 
+      {/* ── Charts Row ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {/* Sales bar chart */}
-        <div className="panel p-5">
-          <div className="mb-4">
-            <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+        <div className="panel p-6">
+          <div className="mb-8">
+            <h3 className="text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
               Sales This Week
-            </p>
-            <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            </h3>
+            <p className="mt-1 text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
               Mon 22 Apr – Sun 28 Apr (LKR)
             </p>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={mockWeeklySales} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-              <CartesianGrid vertical={false} stroke="var(--color-border)" strokeDasharray="3 3" />
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={mockWeeklySales} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+              <CartesianGrid vertical={false} stroke="var(--color-border)" strokeOpacity={0.5} />
               <XAxis
                 dataKey="day"
-                tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
+                tick={{ fill: 'var(--color-text-muted)', fontSize: 11, fontWeight: 600 }}
                 axisLine={false}
                 tickLine={false}
+                dy={10}
               />
               <YAxis
                 tickFormatter={(v) => formatLKR(v as number)}
-                tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                width={52}
-              />
-              <Tooltip
-                formatter={(v) => [formatLKRFull(v as number), 'Sales']}
-                contentStyle={{
-                  background: 'var(--color-bg-elevated)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  color: 'var(--color-text-primary)',
-                }}
-              />
-              <Bar dataKey="sales" fill="var(--color-amber)" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Collections vs Invoiced area chart */}
-        <div className="panel p-5">
-          <div className="mb-4">
-            <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              Collections vs Invoiced
-            </p>
-            <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              April 2026 — cumulative (LKR)
-            </p>
-          </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart
-              data={mockCollectionsVsInvoiced}
-              margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
-            >
-              <defs>
-                <linearGradient id="invoicedGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#66B5FA" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#66B5FA" stopOpacity={0.02} />
-                </linearGradient>
-                <linearGradient id="collectedGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#20D4BF" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#20D4BF" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tickFormatter={(v) => formatLKR(v as number)}
-                tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+                tick={{ fill: 'var(--color-text-dim)', fontSize: 10, fontWeight: 600 }}
                 axisLine={false}
                 tickLine={false}
                 width={50}
               />
               <Tooltip
-                formatter={(v, name) => [formatLKRFull(v as number), name]}
+                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
                 contentStyle={{
                   background: 'var(--color-bg-elevated)',
                   border: '1px solid var(--color-border)',
-                  borderRadius: 6,
+                  borderRadius: 12,
                   fontSize: 12,
-                  color: 'var(--color-text-primary)',
+                  boxShadow: 'var(--shadow-modal)',
                 }}
+                formatter={(v) => [formatLKRFull(v as number), 'Sales']}
+              />
+              <Bar dataKey="sales" fill="var(--color-amber)" radius={[4, 4, 0, 0]} barSize={40} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Collections vs Invoiced area chart */}
+        <div className="panel p-6">
+          <div className="mb-8">
+            <h3 className="text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
+              Collections vs Invoiced
+            </h3>
+            <p className="mt-1 text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
+              April 2026 — cumulative (LKR)
+            </p>
+          </div>
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart
+              data={mockCollectionsVsInvoiced}
+              margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+            >
+              <defs>
+                <linearGradient id="invoicedGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#66B5FA" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#66B5FA" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="collectedGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#20D4BF" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#20D4BF" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} stroke="var(--color-border)" strokeOpacity={0.5} />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: 'var(--color-text-muted)', fontSize: 10, fontWeight: 600 }}
+                axisLine={false}
+                tickLine={false}
+                dy={10}
+              />
+              <YAxis
+                tickFormatter={(v) => formatLKR(v as number)}
+                tick={{ fill: 'var(--color-text-dim)', fontSize: 10, fontWeight: 600 }}
+                axisLine={false}
+                tickLine={false}
+                width={50}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: 'var(--color-bg-elevated)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 12,
+                  boxShadow: 'var(--shadow-modal)',
+                }}
+                formatter={(v, name) => [formatLKRFull(v as number), name]}
               />
               <Legend
-                wrapperStyle={{ fontSize: 11, color: 'var(--color-text-muted)', paddingTop: 8 }}
+                verticalAlign="bottom"
+                height={36}
+                iconType="circle"
+                wrapperStyle={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', paddingTop: 20 }}
               />
               <Area
                 type="monotone"
@@ -248,7 +241,7 @@ export default function DashboardPage() {
                 name="Invoiced"
                 stroke="#66B5FA"
                 fill="url(#invoicedGrad)"
-                strokeWidth={2}
+                strokeWidth={3}
                 dot={false}
               />
               <Area
@@ -257,7 +250,7 @@ export default function DashboardPage() {
                 name="Collected"
                 stroke="#20D4BF"
                 fill="url(#collectedGrad)"
-                strokeWidth={2}
+                strokeWidth={3}
                 dot={false}
               />
             </AreaChart>
@@ -265,52 +258,42 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Bottom row ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_0.8fr_0.8fr]">
+      {/* ── Bottom Row ───────────────────────────────────────────── */}
+      <div className="grid  grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Recent Invoices */}
-        <div className="panel overflow-hidden">
-          <div
-            className="flex items-center justify-between px-5 py-4"
-            style={{ borderBottom: '1px solid var(--color-border)' }}
-          >
-            <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              Recent Invoices
-            </p>
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        <div className="panel xl:col-span-2 overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border)]">
+            <h3 className="text-xl font-bold text-[var(--color-text-primary)]">Recent Invoices</h3>
+            <span className="text-[11px] font-bold text-[var(--color-text-dim)] uppercase tracking-widest">
               Last 5 transactions
-            </p>
+            </span>
           </div>
-          <table className="data-table">
+          <table className="w-full text-left">
             <thead>
-              <tr>
-                <th>Invoice #</th>
-                <th>Customer</th>
-                <th>Amount</th>
-                <th>Type</th>
-                <th>Status</th>
+              <tr className="bg-[var(--color-bg-elevated)]/30">
+                <th className="px-6 py-4 text-[10px] font-bold text-[var(--color-text-dim)] uppercase tracking-wider">INVOICE #</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-[var(--color-text-dim)] uppercase tracking-wider">CUSTOMER</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-[var(--color-text-dim)] uppercase tracking-wider text-right">AMOUNT</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-[var(--color-text-dim)] uppercase tracking-wider">TYPE</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-[var(--color-text-dim)] uppercase tracking-wider text-center">STATUS</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-[var(--color-border)]">
               {mockRecentInvoices.map((inv) => (
-                <tr key={inv.id}>
-                  <td>
-                    <span
-                      className="mono text-sm font-medium"
-                      style={{ color: 'var(--color-amber)', cursor: 'pointer' }}
-                    >
-                      {inv.id}
-                    </span>
+                <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors group">
+                  <td className="px-6 py-4 text-sm font-black mono text-[var(--color-amber)] group-hover:underline cursor-pointer">
+                    {inv.id}
                   </td>
-                  <td className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                  <td className="px-6 py-4 text-sm font-medium text-[var(--color-text-primary)]">
                     {inv.customer}
                   </td>
-                  <td className="mono text-sm" style={{ color: 'var(--color-text-primary)' }}>
-                    Rs.&nbsp;{inv.amount.toLocaleString()}
+                  <td className="px-6 py-4 text-sm font-bold mono text-right text-[var(--color-text-primary)]">
+                    Rs. {inv.amount.toLocaleString()}
                   </td>
-                  <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                  <td className="px-6 py-4 text-sm text-[var(--color-text-muted)] font-medium">
                     {inv.type}
                   </td>
-                  <td>
+                  <td className="px-6 py-4 text-center">
                     <StatusBadge status={inv.status} />
                   </td>
                 </tr>
@@ -319,101 +302,63 @@ export default function DashboardPage() {
           </table>
         </div>
 
-        {/* Low Stock */}
-        <div className="panel overflow-hidden">
-          <div
-            className="flex items-center justify-between px-5 py-4"
-            style={{ borderBottom: '1px solid var(--color-border)' }}
-          >
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" style={{ color: 'var(--color-warning)' }} />
-              <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                Low Stock
-              </p>
-            </div>
-            <span
-              className="mono text-xs font-medium px-2 py-0.5 rounded-full"
-              style={{
-                background: 'rgba(244,63,94,0.15)',
-                color: '#F43F5E',
-                border: '1px solid #F43F5E',
-              }}
-            >
-              {mockLowStock.length} ITEMS
-            </span>
-          </div>
-          <div className="p-3 space-y-2">
-            {mockLowStock.map((item) => (
-              <div
-                key={item.sku}
-                className="flex items-center justify-between gap-3 rounded-md px-3 py-2"
-                style={{ background: 'rgba(27,48,80,0.4)' }}
-              >
-                <div className="min-w-0">
-                  <p
-                    className="truncate text-sm"
-                    style={{ color: 'var(--color-text-primary)' }}
-                  >
-                    {item.name}
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    {item.cases} cases
-                  </p>
-                </div>
-                <StatusBadge status={item.status} />
+        {/* Right Stack: Low Stock & Fleet Status */}
+        <div className="flex flex-col gap-6">
+          {/* Low Stock */}
+          <div className="panel overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border)] bg-[var(--color-bg-elevated)]/20">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-[var(--color-warning)]" />
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Low Stock</h3>
               </div>
-            ))}
-            <button
-              className="mt-2 w-full text-center text-xs font-medium"
-              style={{ color: 'var(--color-amber)' }}
-            >
-              View Full Stock →
-            </button>
+            </div>
+            <div className="p-4 space-y-3">
+              {mockLowStock.slice(0, 3).map((item) => (
+                <div
+                  key={item.sku}
+                  className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-[var(--color-text-primary)]">
+                      {item.name}
+                    </p>
+                    <p className="text-xs font-medium text-[var(--color-text-dim)]">
+                      {item.cases} cases
+                    </p>
+                  </div>
+                  <StatusBadge status={item.status} />
+                </div>
+              ))}
+              <button className="w-full mt-2 text-[11px] font-bold text-[var(--color-amber)] hover:underline uppercase tracking-widest pt-2">
+                View Full Stock →
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Fleet Status */}
-        <div className="panel overflow-hidden">
-          <div
-            className="px-5 py-4"
-            style={{ borderBottom: '1px solid var(--color-border)' }}
-          >
-            <div className="flex items-center gap-2">
-              <Truck className="h-4 w-4" style={{ color: 'var(--color-blue)' }} />
-              <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                Fleet Status
-              </p>
-            </div>
-          </div>
-          <div className="p-3 space-y-2">
-            {mockFleetStatus.map((v) => (
-              <div
-                key={v.reg}
-                className="rounded-md px-3 py-3"
-                style={{
-                  background: 'rgba(27,48,80,0.4)',
-                  border: '1px solid var(--color-border)',
-                }}
-              >
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span
-                    className="mono text-xs font-semibold"
-                    style={{ color: 'var(--color-text-primary)' }}
-                  >
-                    {v.reg}
-                  </span>
-                  <StatusBadge status={v.status} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    {v.type}
-                  </span>
-                  <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-                    {v.driver}
-                  </span>
-                </div>
+          {/* Fleet Status */}
+          <div className="panel overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-2">
+                <Truck className="h-4 w-4 text-[var(--color-blue)]" />
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Fleet Status</h3>
               </div>
-            ))}
+            </div>
+            <div className="divide-y divide-[var(--color-border)]">
+              {mockFleetStatus.map((v) => (
+                <div key={v.reg} className="p-4 hover:bg-white/[0.02] transition-colors">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-black mono text-[var(--color-text-primary)]">
+                      {v.reg}
+                    </span>
+                    <StatusBadge status={v.status} />
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-medium text-[var(--color-text-muted)]">
+                    <span>{v.type}</span>
+                    <span className="text-[var(--color-text-dim)]">{v.driver}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
