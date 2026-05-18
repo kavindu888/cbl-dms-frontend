@@ -9,7 +9,9 @@ import {
   LogOut,
   Package,
   Settings,
+  Shield,
   ShoppingCart,
+  Store,
   Truck,
   Users,
   type LucideIcon,
@@ -38,9 +40,15 @@ const navGroups: NavGroup[] = [
     label: 'OPERATIONS',
     items: [
       { label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true },
-      { label: 'Purchasing', to: '/purchasing', icon: ShoppingCart },
       { label: 'Inventory', to: '/inventory', icon: Package },
       { label: 'Sales', to: '/sales/invoices', icon: ClipboardList },
+    ],
+  },
+  {
+    label: 'PURCHASING',
+    items: [
+      { label: 'Purchase Order', to: '/purchasing', icon: ShoppingCart, end: true },
+      { label: 'Supplier', to: '/purchasing/suppliers', icon: Store },
     ],
   },
   {
@@ -58,7 +66,8 @@ const navGroups: NavGroup[] = [
   {
     label: 'ADMIN',
     items: [
-      { label: 'Users', to: '/users', icon: Users },
+      { label: 'Users', to: '/users', icon: Users, end: true },
+      { label: 'Roles & Permissions', to: '/users/roles', icon: Shield },
       { label: 'Settings', to: '/settings', icon: Settings },
     ],
   },

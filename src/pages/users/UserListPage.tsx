@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as Dialog from '@radix-ui/react-dialog'
+import * as Tabs from '@radix-ui/react-tabs'
 import { Bell, Eye, EyeOff, Pencil, Plus, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -29,25 +30,39 @@ const VEHICLES = [
   'WP-AB-1234 · Lorry 5T',
 ]
 
-const createUserSchema = z
+const AVAILABLE_MODULES = [
+  { id: 'dashboard',   label: 'Dashboard Overview', desc: 'View high-level KPIs and metrics' },
+  { id: 'sales',       label: 'Sales Management',   desc: 'Create and manage sales orders and invoicing' },
+  { id: 'inventory',   label: 'Inventory Control',  desc: 'View stock levels and process adjustments' },
+  { id: 'purchasing',  label: 'Purchasing',         desc: 'Manage vendor POs and goods receipts' },
+  { id: 'collections', label: 'Collections',        desc: 'Handle payments and credit tracking' },
+  { id: 'fleet',       label: 'Fleet & Logistics',  desc: 'Monitor dispatch, vehicles, and routes' },
+  { id: 'reports',     label: 'Analytics & Reports',desc: 'Generate and export system-wide reports' },
+  { id: 'settings',    label: 'System Settings',    desc: 'Configure application behavior and defaults' }
+]
+
+const userFormSchema = z
   .object({
-    firstName:       z.string().min(1, 'First name is required'),
-    lastName:        z.string().min(1, 'Last name is required'),
     username:        z.string().min(3, 'Username must be at least 3 characters'),
     email:           z.string().email('Valid email required'),
     employeeCode:    z.string().min(1, 'Employee code is required'),
     phone:           z.string().min(7, 'Phone number is required'),
     role:            z.nativeEnum(Role),
-    assignedVehicle: z.string().optional(),
-    password:        z.string().min(8, 'Password must be at least 8 characters'),
-    confirmPassword: z.string().min(1, 'Please confirm password'),
+    password:        z.string().optional(),
+    confirmPassword: z.string().optional(),
   })
-  .refine((d) => d.password === d.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
+  .superRefine((data, ctx) => {
+    if (data.password) {
+      if (data.password.length < 8) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Password must be at least 8 characters', path: ['password'] })
+      }
+      if (data.password !== data.confirmPassword) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Passwords do not match', path: ['confirmPassword'] })
+      }
+    }
   })
 
-type CreateUserFormValues = z.infer<typeof createUserSchema>
+type UserFormValues = z.infer<typeof userFormSchema>
 
 function getInitials(username: string) {
   return username
@@ -73,10 +88,11 @@ function passwordStrength(pw: string): { level: number; label: string; color: st
   return { level: score, ...(map[score] ?? map[1]) }
 }
 
-function CreateUserModal({ open, onClose, onCreated }: {
+function UserFormModal({ open, user, onClose, onSaved }: {
   open: boolean
+  user: UserListItemDto | null
   onClose: () => void
-  onCreated: (user: UserListItemDto) => void
+  onSaved: (user: UserListItemDto) => void
 }) {
   const [showPw, setShowPw] = useState(false)
   const [showConfPw, setShowConfPw] = useState(false)
@@ -85,42 +101,78 @@ function CreateUserModal({ open, onClose, onCreated }: {
     register,
     handleSubmit,
     watch,
-    setValue,
     reset,
+    setError,
     formState: { errors, isSubmitting },
-  } = useForm<CreateUserFormValues>({
-    resolver: zodResolver(createUserSchema),
+  } = useForm<UserFormValues>({
+    resolver: zodResolver(userFormSchema),
     defaultValues: { role: Role.SalesRepresentative },
   })
 
-  const firstName = watch('firstName') ?? ''
-  const lastName  = watch('lastName')  ?? ''
-  const password  = watch('password')  ?? ''
-
   useEffect(() => {
-    if (firstName || lastName) {
-      const generated = `${firstName.toLowerCase().trim()}.${lastName.toLowerCase().trim()}`.replace(/\s+/g, '')
-      setValue('username', generated)
+    if (open) {
+      if (user) {
+        reset({
+          username: user.username,
+          email: user.email,
+          employeeCode: user.employeeCode,
+          phone: user.phone.replace('+94', '').trim(),
+          role: user.roles[0],
+          password: '',
+          confirmPassword: '',
+        })
+      } else {
+        reset({
+          username: '',
+          email: '',
+          employeeCode: '',
+          phone: '',
+          role: Role.SalesRepresentative,
+          password: '',
+          confirmPassword: '',
+        })
+      }
     }
-  }, [firstName, lastName, setValue])
+  }, [open, user, reset])
+
+  const password = watch('password') ?? ''
 
   const strength = passwordStrength(password)
 
-  async function onSubmit(values: CreateUserFormValues) {
-    await new Promise((r) => setTimeout(r, 600))
-    const newUser: UserListItemDto = {
-      id: `usr-${Date.now()}`,
-      username: values.username,
-      email: values.email,
-      employeeCode: values.employeeCode,
-      phone: `+94 ${values.phone}`,
-      roles: [values.role],
-      isActive: true,
-      orgId: 'cbl-lk',
+  async function onSubmit(values: UserFormValues) {
+    if (!user && !values.password) {
+      setError('password', { type: 'manual', message: 'Password is required to create an account' })
+      return
     }
-    onCreated(newUser)
-    toast.success(`User ${values.username} created. Login credentials sent by email.`)
-    reset()
+
+    await new Promise((r) => setTimeout(r, 600))
+    
+    if (user) {
+      const updatedUser: UserListItemDto = {
+        ...user,
+        username: values.username,
+        email: values.email,
+        employeeCode: values.employeeCode,
+        phone: `+94 ${values.phone}`,
+        roles: [values.role],
+      }
+      onSaved(updatedUser)
+      toast.success(`User ${values.username} updated successfully.`)
+    } else {
+      const newUser: UserListItemDto = {
+        id: `usr-${Date.now()}`,
+        username: values.username,
+        email: values.email,
+        employeeCode: values.employeeCode,
+        phone: `+94 ${values.phone}`,
+        roles: [values.role],
+        isActive: true,
+        orgId: 'cbl-lk',
+      }
+      onSaved(newUser)
+      toast.success(`User ${values.username} created. Login credentials sent by email.`)
+    }
+    
     onClose()
   }
 
@@ -146,10 +198,10 @@ function CreateUserModal({ open, onClose, onCreated }: {
           <div style={{ padding: '32px 32px 24px 32px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
               <Dialog.Title style={{ fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                Create New Account
+                {user ? 'Edit Account' : 'Create New Account'}
               </Dialog.Title>
               <Dialog.Description style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}>
-                Admin access required to create users
+                {user ? 'Update user details and permissions' : 'Admin access required to create users'}
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -162,28 +214,16 @@ function CreateUserModal({ open, onClose, onCreated }: {
           {/* Form */}
           <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '0 32px 32px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
             
-            {/* First + Last name */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>FIRST NAME</label>
-                <input
-                  className={`form-input ${errors.firstName ? 'error' : ''}`}
-                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
-                  placeholder="John"
-                  {...register('firstName')}
-                />
-                {errors.firstName && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.firstName.message}</p>}
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>LAST NAME</label>
-                <input
-                  className={`form-input ${errors.lastName ? 'error' : ''}`}
-                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
-                  placeholder="Perera"
-                  {...register('lastName')}
-                />
-                {errors.lastName && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.lastName.message}</p>}
-              </div>
+            {/* Employee Code */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>EMPLOYEE CODE</label>
+              <input
+                className={`form-input ${errors.employeeCode ? 'error' : ''}`}
+                style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, fontFamily: 'var(--font-mono)' }}
+                placeholder="EMP-042"
+                {...register('employeeCode')}
+              />
+              {errors.employeeCode && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.employeeCode.message}</p>}
             </div>
 
             {/* Username */}
@@ -195,9 +235,6 @@ function CreateUserModal({ open, onClose, onCreated }: {
                 placeholder="john.perera"
                 {...register('username')}
               />
-              <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-dim)' }}>
-                Auto-generated from first + last name
-              </p>
               {errors.username && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.username.message}</p>}
             </div>
 
@@ -214,40 +251,28 @@ function CreateUserModal({ open, onClose, onCreated }: {
               {errors.email && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.email.message}</p>}
             </div>
 
-            {/* Employee Code + Phone */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>EMPLOYEE CODE</label>
+            {/* Phone */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>PHONE</label>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    height: 44, padding: '0 14px', fontSize: 14, color: 'var(--color-text-muted)',
+                    background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRight: 'none',
+                    borderRadius: '6px 0 0 6px',
+                  }}
+                >
+                  +94
+                </span>
                 <input
-                  className={`form-input ${errors.employeeCode ? 'error' : ''}`}
-                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-muted)', fontSize: 14, fontFamily: 'var(--font-mono)' }}
-                  placeholder="EMP-042"
-                  {...register('employeeCode')}
+                  className={`form-input ${errors.phone ? 'error' : ''}`}
+                  style={{ flex: 1, height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: '0 6px 6px 0', padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, fontFamily: 'var(--font-mono)' }}
+                  placeholder="77 234 5678"
+                  {...register('phone')}
                 />
-                {errors.employeeCode && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.employeeCode.message}</p>}
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>PHONE</label>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      height: 44, padding: '0 14px', fontSize: 14, color: 'var(--color-text-muted)',
-                      background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRight: 'none',
-                      borderRadius: '6px 0 0 6px',
-                    }}
-                  >
-                    +94
-                  </span>
-                  <input
-                    className={`form-input ${errors.phone ? 'error' : ''}`}
-                    style={{ flex: 1, height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: '0 6px 6px 0', padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, fontFamily: 'var(--font-mono)' }}
-                    placeholder="77 234 5678"
-                    {...register('phone')}
-                  />
-                </div>
-                {errors.phone && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.phone.message}</p>}
-              </div>
+              {errors.phone && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.phone.message}</p>}
             </div>
 
             {/* Role */}
@@ -266,25 +291,13 @@ function CreateUserModal({ open, onClose, onCreated }: {
               </select>
             </div>
 
-            {/* Assigned Vehicle */}
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>ASSIGNED VEHICLE</label>
-              <select
-                className="form-input"
-                style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, cursor: 'pointer', appearance: 'none' }}
-                {...register('assignedVehicle')}
-              >
-                <option value="" style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>— None —</option>
-                {VEHICLES.map((v) => (
-                  <option key={v} value={v} style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>{v}</option>
-                ))}
-              </select>
-            </div>
-
             {/* Password + Confirm */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>PASSWORD</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>
+                  {user ? 'NEW PASSWORD' : 'PASSWORD'}
+                  {user && <span style={{ textTransform: 'none', fontWeight: 400, marginLeft: 8, color: 'var(--color-text-dim)' }}>(Leave blank to keep unchanged)</span>}
+                </label>
                 <div style={{ position: 'relative' }}>
                   <input
                     className={`form-input ${errors.password ? 'error' : ''}`}
@@ -350,18 +363,20 @@ function CreateUserModal({ open, onClose, onCreated }: {
                 </button>
               </Dialog.Close>
               <button type="submit" disabled={isSubmitting} style={{ height: 40, padding: '0 32px', background: '#F5A623', border: 'none', borderRadius: 6, color: '#111827', fontSize: 14, fontWeight: 600, cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.7 : 1 }}>
-                {isSubmitting ? 'Creating...' : 'Create'}
+                {isSubmitting ? 'Saving...' : user ? 'Save Changes' : 'Create'}
               </button>
             </div>
           </form>
 
           {/* Footer note */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 32px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)', borderBottomLeftRadius: 12, borderBottomRightRadius: 12 }}>
-            <Bell style={{ width: 14, height: 14, color: 'var(--color-text-muted)' }} />
-            <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 500 }}>
-              The new user will receive login credentials by email.
-            </span>
-          </div>
+          {!user && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 32px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)', borderBottomLeftRadius: 12, borderBottomRightRadius: 12 }}>
+              <Bell style={{ width: 14, height: 14, color: 'var(--color-text-muted)' }} />
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                The new user will receive login credentials by email.
+              </span>
+            </div>
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -393,7 +408,7 @@ const AVATAR_PALETTE = [
   { bg: 'rgba(244,166,35,0.15)',  text: '#F4A623' },  // amber
 ]
 
-function UserRow({ user, isLast, index }: { user: UserListItemDto; isLast: boolean; index: number }) {
+function UserRow({ user, isLast, index, onEdit }: { user: UserListItemDto; isLast: boolean; index: number; onEdit: (user: UserListItemDto) => void }) {
   const avatar = AVATAR_PALETTE[index % AVATAR_PALETTE.length]
   return (
     <tr
@@ -487,6 +502,7 @@ function UserRow({ user, isLast, index }: { user: UserListItemDto; isLast: boole
           className="icon-button"
           title="Edit user"
           style={{ width: 28, height: 28 }}
+          onClick={() => onEdit(user)}
         >
           <Pencil style={{ width: 13, height: 13 }} />
         </button>
@@ -496,10 +512,58 @@ function UserRow({ user, isLast, index }: { user: UserListItemDto; isLast: boole
 }
 
 export default function UserListPage() {
+  const [activeTab, setActiveTab] = useState('management')
   const [users, setUsers] = useState<UserListItemDto[]>(mockUsers)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
-  const [showCreate, setShowCreate] = useState(false)
+  
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<UserListItemDto | null>(null)
+  
+  const [selectedPermissionUser, setSelectedPermissionUser] = useState<string>('')
+  const [stagedPermissions, setStagedPermissions] = useState<string[]>([])
+
+  useEffect(() => {
+    if (selectedPermissionUser) {
+      const u = users.find((x) => x.id === selectedPermissionUser)
+      setStagedPermissions(u?.permissions || [])
+    } else {
+      setStagedPermissions([])
+    }
+  }, [selectedPermissionUser, users])
+
+  const handleTogglePermission = (modId: string) => {
+    setStagedPermissions((prev) =>
+      prev.includes(modId) ? prev.filter((p) => p !== modId) : [...prev, modId]
+    )
+  }
+
+  const handleSavePermissions = () => {
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === selectedPermissionUser ? { ...u, permissions: stagedPermissions } : u
+      )
+    )
+    toast.success('User permissions updated successfully.')
+  }
+
+  const handleCreate = () => {
+    setEditingUser(null)
+    setIsModalOpen(true)
+  }
+
+  const handleEdit = (user: UserListItemDto) => {
+    setEditingUser(user)
+    setIsModalOpen(true)
+  }
+
+  const handleSaved = (user: UserListItemDto) => {
+    if (editingUser) {
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? user : u)))
+    } else {
+      setUsers((prev) => [user, ...prev])
+    }
+  }
 
   const filtered = useMemo(() => {
     return users.filter((u) => {
@@ -526,95 +590,227 @@ export default function UserListPage() {
             {users.length} accounts · {users.filter((u) => u.isActive).length} active
           </p>
         </div>
-        <button
-          className="button-primary"
-          onClick={() => setShowCreate(true)}
-          style={{ height: 40, padding: '0 20px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}
-        >
-          <Plus style={{ width: 16, height: 16 }} />
-          Create New Account
-        </button>
+        {activeTab === 'management' && (
+          <button
+            className="button-primary"
+            onClick={handleCreate}
+            style={{ height: 40, padding: '0 20px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}
+          >
+            <Plus style={{ width: 16, height: 16 }} />
+            Create New Account
+          </button>
+        )}
       </div>
 
-      {/* ── Filter Bar ── */}
-      <div
-        className="panel"
-        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px' }}
-      >
-        <div style={{ position: 'relative', flex: 1 }}>
-          <Search
-            style={{
-              position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-              width: 16, height: 16, color: 'var(--color-text-dim)', pointerEvents: 'none',
-            }}
-          />
-          <input
-            className="form-input"
-            style={{ paddingLeft: 38 }}
-            placeholder="Search by name, email or code..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
+        {/* Inner underline tab bar */}
+        <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 28, marginTop: 8 }}>
+          <Tabs.List style={{ display: 'flex', gap: 0 }} aria-label="User sections">
+            {[
+              ['management', 'User Management'],
+              ['permission', 'User Permission'],
+            ].map(([value, label]) => (
+              <Tabs.Trigger
+                key={value}
+                value={value}
+                className="settings-inner-tab"
+                style={{
+                  padding: '10px 18px',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  border: 'none',
+                  background: 'none',
+                  borderBottom: '2px solid transparent',
+                  color: 'var(--color-text-muted)',
+                  transition: 'color 150ms, border-color 150ms',
+                  whiteSpace: 'nowrap',
+                  marginBottom: -1,
+                }}
+              >
+                {label}
+              </Tabs.Trigger>
+            ))}
+          </Tabs.List>
         </div>
-        <select
-          className="form-input"
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-          style={{ cursor: 'pointer', width: 200, flexShrink: 0 }}
-        >
-          <option value="all" style={{ background: 'var(--color-bg-elevated)' }}>All Roles</option>
-          {Object.entries(ROLE_LABELS).map(([v, l]) => (
-            <option key={v} value={v} style={{ background: 'var(--color-bg-elevated)' }}>{l}</option>
-          ))}
-        </select>
-      </div>
 
-      {/* ── Data Table ── */}
-      <div className="panel" style={{ overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--color-bg-elevated)', borderBottom: '1px solid var(--color-border)' }}>
-                {['USER', 'EMPLOYEE CODE', 'EMAIL', 'PHONE', 'ROLE', 'STATUS', 'LAST LOGIN', 'ACTIONS'].map((col) => (
-                  <th
-                    key={col}
-                    style={{
-                      padding: '10px 10px',
-                      fontSize: 10,
-                      fontWeight: 600,
-                      letterSpacing: '0.6px',
-                      color: 'var(--color-text-muted)',
-                      textAlign: col === 'ACTIONS' ? 'right' : 'left',
-                      whiteSpace: 'nowrap',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 14 }}>
-                    No users match your filters.
-                  </td>
-                </tr>
+        <Tabs.Content value="management">
+          {/* ── Filter Bar ── */}
+          <div
+            className="panel"
+            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', marginBottom: 20 }}
+          >
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Search
+                style={{
+                  position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                  width: 16, height: 16, color: 'var(--color-text-dim)', pointerEvents: 'none',
+                }}
+              />
+              <input
+                className="form-input"
+                style={{ paddingLeft: 38 }}
+                placeholder="Search by name, email or code..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <select
+              className="form-input"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              style={{ cursor: 'pointer', width: 200, flexShrink: 0 }}
+            >
+              <option value="all" style={{ background: 'var(--color-bg-elevated)' }}>All Roles</option>
+              {Object.entries(ROLE_LABELS).map(([v, l]) => (
+                <option key={v} value={v} style={{ background: 'var(--color-bg-elevated)' }}>{l}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* ── Data Table ── */}
+          <div className="panel" style={{ overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--color-bg-elevated)', borderBottom: '1px solid var(--color-border)' }}>
+                    {['USER', 'EMPLOYEE CODE', 'EMAIL', 'PHONE', 'ROLE', 'STATUS', 'LAST LOGIN', 'ACTIONS'].map((col) => (
+                      <th
+                        key={col}
+                        style={{
+                          padding: '10px 10px',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          letterSpacing: '0.6px',
+                          color: 'var(--color-text-muted)',
+                          textAlign: col === 'ACTIONS' ? 'right' : 'left',
+                          whiteSpace: 'nowrap',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 14 }}>
+                        No users match your filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((user, idx) => (
+                      <UserRow key={user.id} user={user} isLast={idx === filtered.length - 1} index={idx} onEdit={handleEdit} />
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Tabs.Content>
+
+        <Tabs.Content value="permission">
+          <div className="panel" style={{ padding: '24px 32px' }}>
+            <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px solid var(--color-border)' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>Configure User Permissions</h2>
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                Select a user from the combo box below to view and update their module access permissions.
+              </p>
+              
+              <div style={{ marginTop: 24, maxWidth: 400 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>
+                  SELECT USER ACCOUNT
+                </label>
+                <select
+                  className="form-input"
+                  value={selectedPermissionUser}
+                  onChange={(e) => setSelectedPermissionUser(e.target.value)}
+                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, cursor: 'pointer' }}
+                >
+                  <option value="" disabled style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-dim)' }}>
+                    -- Click to select user --
+                  </option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id} style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>
+                      {u.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ minHeight: 200 }}>
+              {selectedPermissionUser ? (
+                <div style={{ marginTop: 24, animation: 'fadeIn 0.3s ease-out' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+                    {AVAILABLE_MODULES.map((mod) => {
+                      const isChecked = stagedPermissions.includes(mod.id)
+                      return (
+                        <div
+                          key={mod.id}
+                          onClick={() => handleTogglePermission(mod.id)}
+                          style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 14,
+                            padding: 16, cursor: 'pointer',
+                            background: isChecked ? 'rgba(244,166,35,0.05)' : 'rgba(0,0,0,0.15)',
+                            border: `1px solid ${isChecked ? 'rgba(244,166,35,0.3)' : 'var(--color-border)'}`,
+                            borderRadius: 8, transition: 'all 0.2s',
+                          }}
+                        >
+                          <div style={{
+                            width: 20, height: 20, borderRadius: 4,
+                            border: `1px solid ${isChecked ? '#F4A623' : 'var(--color-text-dim)'}`,
+                            background: isChecked ? '#F4A623' : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0, marginTop: 2, transition: 'all 0.2s'
+                          }}>
+                            {isChecked && (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                              </svg>
+                            )}
+                          </div>
+                          <div>
+                            <p style={{ fontSize: 14, fontWeight: 600, color: isChecked ? '#F4A623' : 'var(--color-text-primary)', transition: 'color 0.2s' }}>
+                              {mod.label}
+                            </p>
+                            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                              {mod.desc}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div style={{ marginTop: 32, display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      className="button-primary"
+                      onClick={handleSavePermissions}
+                      style={{ height: 40, padding: '0 24px', fontSize: 14 }}
+                    >
+                      Save Permissions
+                    </button>
+                  </div>
+                </div>
               ) : (
-                filtered.map((user, idx) => (
-                  <UserRow key={user.id} user={user} isLast={idx === filtered.length - 1} index={idx} />
-                ))
+                <div style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <p style={{ color: 'var(--color-text-dim)', fontSize: 14 }}>
+                    Please select a user above to begin.
+                  </p>
+                </div>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </div>
+          </div>
+        </Tabs.Content>
+      </Tabs.Root>
 
-      <CreateUserModal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onCreated={(user) => setUsers((prev) => [user, ...prev])}
+      <UserFormModal
+        open={isModalOpen}
+        user={editingUser}
+        onClose={() => { setIsModalOpen(false); setEditingUser(null); }}
+        onSaved={handleSaved}
       />
     </div>
   )

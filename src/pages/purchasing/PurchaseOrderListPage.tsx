@@ -1,8 +1,12 @@
-import * as Tabs from '@radix-ui/react-tabs'
 import dayjs from 'dayjs'
-import { Eye, Plus, Search } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as Dialog from '@radix-ui/react-dialog'
+import { Eye, Pencil, Plus, Search, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { z } from 'zod'
 
 import StatusBadge from '@components/ui/StatusBadge'
 import { mockPurchaseOrders, mockSuppliers } from '@data/mockPurchaseOrders'
@@ -15,21 +19,211 @@ function formatLKR(value: number) {
   return `Rs. ${value.toLocaleString()}`
 }
 
-/* ── Purchase Orders tab ──────────────────────────────────────── */
+/* ── Form Modal ─────────────────────────────────────────────── */
 
-function PurchaseOrdersTab() {
+const poSchema = z.object({
+  supplierName: z.string().min(1, 'Supplier is required'),
+  expectedDate: z.string().min(1, 'Expected date is required'),
+  notes: z.string().optional(),
+})
+
+type POFormValues = z.infer<typeof poSchema>
+
+function PurchaseOrderFormModal({
+  open,
+  po,
+  onClose,
+  onSaved,
+}: {
+  open: boolean
+  po?: PurchaseOrderDto | null
+  onClose: () => void
+  onSaved: (po: PurchaseOrderDto) => void
+}) {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<POFormValues>({
+    resolver: zodResolver(poSchema),
+    defaultValues: {
+      supplierName: '',
+      expectedDate: '',
+      notes: '',
+    },
+  })
+
+  useEffect(() => {
+    if (open) {
+      if (po) {
+        reset({
+          supplierName: po.supplierName,
+          expectedDate: po.expectedDate.split('T')[0],
+          notes: po.notes || '',
+        })
+      } else {
+        reset({
+          supplierName: '',
+          expectedDate: '',
+          notes: '',
+        })
+      }
+    }
+  }, [open, po, reset])
+
+  async function onSubmit(values: POFormValues) {
+    // Simulate API delay
+    await new Promise((r) => setTimeout(r, 600))
+    
+    if (po) {
+      const updatedPO: PurchaseOrderDto = {
+        ...po,
+        supplierName: values.supplierName,
+        expectedDate: new Date(values.expectedDate).toISOString(),
+        notes: values.notes,
+      }
+      onSaved(updatedPO)
+      toast.success(`Purchase Order ${updatedPO.poNumber} updated.`)
+    } else {
+      const newPO: PurchaseOrderDto = {
+        id: `po_${Date.now()}`,
+        poNumber: `PO-${Math.floor(1000 + Math.random() * 9000)}`,
+        supplierName: values.supplierName,
+        orderDate: new Date().toISOString(),
+        expectedDate: new Date(values.expectedDate).toISOString(),
+        status: PurchaseOrderStatus.Draft,
+        totalAmount: 0,
+        notes: values.notes,
+        createdBy: 'Admin User',
+        lines: [],
+      }
+      onSaved(newPO)
+      toast.success(`Purchase Order ${newPO.poNumber} created.`)
+    }
+    
+    onClose()
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay
+          className="fixed inset-0 z-50"
+          style={{ background: 'rgba(0,4,12,0.75)', backdropFilter: 'blur(2px)' }}
+        />
+        <Dialog.Content
+          className="fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 shadow-2xl"
+          style={{
+            maxWidth: 500,
+            background: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 12,
+          }}
+        >
+          {/* Header */}
+          <div style={{ padding: '32px 32px 24px 32px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div>
+              <Dialog.Title style={{ fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                {po ? 'Edit Purchase Order' : 'Create Purchase Order'}
+              </Dialog.Title>
+              <Dialog.Description style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}>
+                {po ? 'Update draft properties for this PO.' : 'Initialize a new draft PO. Line items can be added on the detail page.'}
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
+              <button aria-label="Close" style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '50%' }}>
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </Dialog.Close>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '0 32px 32px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+            
+            {/* Supplier Name */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>SUPPLIER</label>
+              <select
+                className={`form-input ${errors.supplierName ? 'error' : ''}`}
+                style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, cursor: 'pointer' }}
+                {...register('supplierName')}
+              >
+                <option value="" disabled style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-dim)' }}>Select a supplier...</option>
+                {mockSuppliers.map(s => (
+                  <option key={s.id} value={s.name} style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>{s.name}</option>
+                ))}
+              </select>
+              {errors.supplierName && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.supplierName.message}</p>}
+            </div>
+
+            {/* Expected Date */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>EXPECTED DELIVERY DATE</label>
+              <input
+                type="date"
+                className={`form-input ${errors.expectedDate ? 'error' : ''}`}
+                style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, cursor: 'pointer' }}
+                {...register('expectedDate')}
+              />
+              {errors.expectedDate && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.expectedDate.message}</p>}
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>NOTES (OPTIONAL)</label>
+              <textarea
+                className={`form-input ${errors.notes ? 'error' : ''}`}
+                style={{ width: '100%', minHeight: 80, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '12px 16px', color: 'var(--color-text-primary)', fontSize: 14, resize: 'vertical' }}
+                placeholder="E.g. Fast delivery requested."
+                {...register('notes')}
+              />
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={onClose}
+                style={{ height: 40, padding: '0 24px', fontSize: 14 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="button-primary"
+                style={{ height: 40, padding: '0 24px', fontSize: 14 }}
+              >
+                {po ? 'Save Changes' : 'Create Draft PO'}
+              </button>
+            </div>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+/* ── Page Component ─────────────────────────────────────────────── */
+
+export default function PurchaseOrderListPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [supplierFilter, setSupplierFilter] = useState('All')
+  
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingPO, setEditingPO] = useState<PurchaseOrderDto | null>(null)
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderDto[]>(mockPurchaseOrders)
 
   const uniqueSuppliers = useMemo(
-    () => ['All', ...Array.from(new Set(mockPurchaseOrders.map((po) => po.supplierName)))],
-    []
+    () => ['All', ...Array.from(new Set(purchaseOrders.map((po) => po.supplierName)))],
+    [purchaseOrders]
   )
 
   const filtered = useMemo<PurchaseOrderDto[]>(() => {
-    return mockPurchaseOrders.filter((po) => {
+    return purchaseOrders.filter((po) => {
       const matchSearch =
         !search ||
         po.poNumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -38,295 +232,196 @@ function PurchaseOrdersTab() {
       const matchSupplier = supplierFilter === 'All' || po.supplierName === supplierFilter
       return matchSearch && matchStatus && matchSupplier
     })
-  }, [search, statusFilter, supplierFilter])
+  }, [search, statusFilter, supplierFilter, purchaseOrders])
+
+  const handlePOSaved = (savedPO: PurchaseOrderDto) => {
+    const isExisting = purchaseOrders.some((po) => po.id === savedPO.id)
+    if (isExisting) {
+      setPurchaseOrders(purchaseOrders.map((po) => (po.id === savedPO.id ? savedPO : po)))
+    } else {
+      setPurchaseOrders([savedPO, ...purchaseOrders])
+    }
+  }
+
+  const openNewPOModal = () => {
+    setEditingPO(null)
+    setIsModalOpen(true)
+  }
+
+  const openEditPOModal = (po: PurchaseOrderDto, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingPO(po)
+    setIsModalOpen(true)
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Filter bar */}
-      <div className="panel flex flex-wrap items-center gap-3 p-4">
-        <div className="relative flex-1 min-w-48">
-          <Search
-            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-            style={{ color: 'var(--color-text-dim)' }}
-          />
-          <input
-            className="form-input pl-9"
-            placeholder="Search PO number or supplier…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <select
-          className="form-input w-auto"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ cursor: 'pointer', minWidth: 140 }}
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s} style={{ background: 'var(--color-bg-elevated)' }}>
-              {s === 'All' ? 'All Statuses' : s}
-            </option>
-          ))}
-        </select>
-        <select
-          className="form-input w-auto"
-          value={supplierFilter}
-          onChange={(e) => setSupplierFilter(e.target.value)}
-          style={{ cursor: 'pointer', minWidth: 200 }}
-        >
-          {uniqueSuppliers.map((s) => (
-            <option key={s} value={s} style={{ background: 'var(--color-bg-elevated)' }}>
-              {s === 'All' ? 'All Suppliers' : s}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className="panel overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div
-              className="flex h-14 w-14 items-center justify-center rounded-full"
-              style={{ background: 'var(--color-bg-elevated)' }}
-            >
-              <Search className="h-6 w-6" style={{ color: 'var(--color-text-dim)' }} />
-            </div>
-            <div className="text-center">
-              <p className="font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                No purchase orders found
-              </p>
-              <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                Try adjusting your filters or create a new purchase order
-              </p>
-            </div>
-            <button className="button-primary flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              New Purchase Order
-            </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>PO #</th>
-                  <th>Date</th>
-                  <th>Supplier</th>
-                  <th>Expected</th>
-                  <th>Status</th>
-                  <th>Items</th>
-                  <th className="text-right">Total</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((po) => (
-                  <tr
-                    key={po.id}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/purchasing/${po.id}`)}
-                  >
-                    <td>
-                      <span
-                        className="mono text-sm font-semibold"
-                        style={{ color: 'var(--color-amber)' }}
-                      >
-                        {po.poNumber}
-                      </span>
-                    </td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {dayjs(po.orderDate).format('DD MMM YYYY')}
-                    </td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
-                      {po.supplierName}
-                    </td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {dayjs(po.expectedDate).format('DD MMM YYYY')}
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <StatusBadge status={po.status} />
-                    </td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {po.lines.length}
-                    </td>
-                    <td className="text-right">
-                      <span className="mono text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                        {formatLKR(po.totalAmount)}
-                      </span>
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-1">
-                        <button
-                          className="icon-button"
-                          title="View details"
-                          onClick={() => navigate(`/purchasing/${po.id}`)}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Summary row */}
-      {filtered.length > 0 && (
-        <p className="text-xs text-right" style={{ color: 'var(--color-text-dim)' }}>
-          Showing {filtered.length} of {mockPurchaseOrders.length} purchase orders
-        </p>
-      )}
-    </div>
-  )
-}
-
-/* ── Suppliers tab ────────────────────────────────────────────── */
-
-function SuppliersTab() {
-  const [search, setSearch] = useState('')
-
-  const filtered = useMemo(
-    () =>
-      mockSuppliers.filter(
-        (s) =>
-          !search ||
-          s.name.toLowerCase().includes(search.toLowerCase()) ||
-          s.code.toLowerCase().includes(search.toLowerCase())
-      ),
-    [search]
-  )
-
-  return (
-    <div className="space-y-4">
-      <div className="panel flex items-center gap-3 p-4">
-        <div className="relative flex-1 min-w-48">
-          <Search
-            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-            style={{ color: 'var(--color-text-dim)' }}
-          />
-          <input
-            className="form-input pl-9"
-            placeholder="Search suppliers…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="panel overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Supplier Name</th>
-                <th>Contact</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>City</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => (
-                <tr key={s.id}>
-                  <td>
-                    <span className="mono text-xs font-medium" style={{ color: 'var(--color-amber)' }}>
-                      {s.code}
-                    </span>
-                  </td>
-                  <td className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                    {s.name}
-                  </td>
-                  <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{s.contact}</td>
-                  <td className="text-sm" style={{ color: 'var(--color-blue)' }}>{s.email}</td>
-                  <td className="mono text-xs" style={{ color: 'var(--color-text-muted)' }}>{s.phone}</td>
-                  <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{s.city}</td>
-                  <td>
-                    <StatusBadge status={s.status} />
-                  </td>
-                  <td>
-                    <button className="icon-button" title="View supplier">
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ── Page ─────────────────────────────────────────────────────── */
-
-const TAB_STYLE_BASE: React.CSSProperties = {
-  padding: '8px 16px',
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: 'pointer',
-  border: 'none',
-  background: 'none',
-  borderBottom: '2px solid transparent',
-  color: 'var(--color-text-muted)',
-  transition: 'color 150ms, border-color 150ms',
-  whiteSpace: 'nowrap',
-}
-
-export default function PurchaseOrderListPage() {
-  return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* ── Page Header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 className="text-2xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            Purchasing
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>
+            Purchase Orders
           </h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            Manage purchase orders and supplier accounts
+          <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
+            Create and manage purchase orders to your suppliers.
           </p>
         </div>
-        <button className="button-primary flex items-center gap-2">
-          <Plus className="h-4 w-4" />
+        <button
+          className="button-primary"
+          onClick={openNewPOModal}
+          style={{ height: 40, padding: '0 24px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}
+        >
+          <Plus style={{ width: 16, height: 16 }} />
           New Purchase Order
         </button>
       </div>
 
-      {/* Tabs */}
-      <Tabs.Root defaultValue="orders">
-        <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 20 }}>
-          <Tabs.List className="flex gap-1" aria-label="Purchasing sections">
-            <Tabs.Trigger
-              value="orders"
-              style={TAB_STYLE_BASE}
-              className="data-[state=active]:text-amber data-[state=active]:border-b-amber"
-            >
-              Purchase Orders
-            </Tabs.Trigger>
-            <Tabs.Trigger
-              value="suppliers"
-              style={TAB_STYLE_BASE}
-              className="data-[state=active]:text-amber data-[state=active]:border-b-amber"
-            >
-              Suppliers
-            </Tabs.Trigger>
-          </Tabs.List>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* ── Filter Bar ── */}
+        <div className="panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <Search
+              style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'var(--color-text-dim)' }}
+            />
+            <input
+              className="form-input"
+              placeholder="Search PO number or supplier..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: '100%', height: 40, paddingLeft: 36, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', fontSize: 14 }}
+            />
+          </div>
+          <select
+            className="form-input"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ width: 180, height: 40, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, cursor: 'pointer' }}
+          >
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s} style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>
+                {s === 'All' ? 'All Statuses' : s}
+              </option>
+            ))}
+          </select>
+          <select
+            className="form-input"
+            value={supplierFilter}
+            onChange={(e) => setSupplierFilter(e.target.value)}
+            style={{ width: 220, height: 40, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, cursor: 'pointer' }}
+          >
+            {uniqueSuppliers.map((s) => (
+              <option key={s} value={s} style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}>
+                {s === 'All' ? 'All Suppliers' : s}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <Tabs.Content value="orders">
-          <PurchaseOrdersTab />
-        </Tabs.Content>
-        <Tabs.Content value="suppliers">
-          <SuppliersTab />
-        </Tabs.Content>
-      </Tabs.Root>
+        {/* Table */}
+        <div className="panel overflow-hidden">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <div
+                className="flex h-14 w-14 items-center justify-center rounded-full"
+                style={{ background: 'var(--color-bg-elevated)' }}
+              >
+                <Search className="h-6 w-6" style={{ color: 'var(--color-text-dim)' }} />
+              </div>
+              <div className="text-center">
+                <p className="font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                  No purchase orders found
+                </p>
+                <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                  Try adjusting your filters or create a new purchase order
+                </p>
+              </div>
+              <button className="button-primary flex items-center gap-2" onClick={openNewPOModal}>
+                <Plus className="h-4 w-4" />
+                New Purchase Order
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>PO #</th>
+                    <th>Date</th>
+                    <th>Supplier</th>
+                    <th>Expected</th>
+                    <th>Status</th>
+                    <th>Items</th>
+                    <th className="text-right">Total</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((po) => (
+                    <tr
+                      key={po.id}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/purchasing/${po.id}`)}
+                    >
+                      <td>
+                        <span
+                          className="mono text-sm font-semibold"
+                          style={{ color: 'var(--color-amber)' }}
+                        >
+                          {po.poNumber}
+                        </span>
+                      </td>
+                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                        {dayjs(po.orderDate).format('DD MMM YYYY')}
+                      </td>
+                      <td className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                        {po.supplierName}
+                      </td>
+                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                        {dayjs(po.expectedDate).format('DD MMM YYYY')}
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <StatusBadge status={po.status} />
+                      </td>
+                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                        {po.lines.length}
+                      </td>
+                      <td className="text-right">
+                        <span className="mono text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                          {formatLKR(po.totalAmount)}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="icon-button"
+                          title="Edit PO header"
+                          style={{ width: 28, height: 28 }}
+                          onClick={(e) => openEditPOModal(po, e)}
+                        >
+                          <Pencil style={{ width: 13, height: 13 }} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Summary row */}
+        {filtered.length > 0 && (
+          <p className="text-xs text-right" style={{ color: 'var(--color-text-dim)' }}>
+            Showing {filtered.length} of {purchaseOrders.length} purchase orders
+          </p>
+        )}
+      </div>
+
+      <PurchaseOrderFormModal
+        open={isModalOpen}
+        po={editingPO}
+        onClose={() => setIsModalOpen(false)}
+        onSaved={handlePOSaved}
+      />
     </div>
   )
 }

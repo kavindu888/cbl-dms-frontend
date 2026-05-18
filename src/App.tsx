@@ -22,6 +22,7 @@ import PurchaseOrderDetailPage from './pages/purchasing/PurchaseOrderDetailPage'
 import PurchaseOrderListPage from './pages/purchasing/PurchaseOrderListPage'
 import PurchaseReturnsPage from './pages/purchasing/PurchaseReturnsPage'
 import ReceiptEntryPage from './pages/purchasing/ReceiptEntryPage'
+import SupplierListPage from './pages/purchasing/SupplierListPage'
 import ReportHubPage from './pages/reports/ReportHubPage'
 import ReportPreviewPage from './pages/reports/ReportPreviewPage'
 import CustomerDetailPage from './pages/sales/CustomerDetailPage'
@@ -100,16 +101,20 @@ export const router = createBrowserRouter([
         element: <PurchaseOrderListPage />,
       },
       {
+        path: 'purchasing/suppliers',
+        element: <SupplierListPage />,
+      },
+      {
+        path: 'purchasing/returns',
+        element: <PurchaseReturnsPage />,
+      },
+      {
         path: 'purchasing/:id',
         element: <PurchaseOrderDetailPage />,
       },
       {
         path: 'purchasing/:id/receive',
         element: <ReceiptEntryPage />,
-      },
-      {
-        path: 'purchasing/returns',
-        element: <PurchaseReturnsPage />,
       },
       {
         path: 'inventory',
