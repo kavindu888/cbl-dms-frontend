@@ -8,8 +8,8 @@
   width: var(--spacing-layout-sidebar);
   flex-direction: column;
   overflow: hidden;
-  border-right: 1px solid rgba(37, 49, 74, 0.92);
-  background: linear-gradient(180deg, rgba(11, 18, 31, 0.98) 0%, rgba(13, 21, 36, 0.98) 100%);
+  border-right: 1px solid var(--color-border);
+  background: linear-gradient(180deg, var(--color-bg-base) 0%, var(--color-bg-surface) 100%);
   box-shadow: 10px 0 30px rgba(0, 0, 0, 0.28);
   transition: transform 300ms ease, width 300ms ease;
 }
@@ -22,7 +22,7 @@
   }
 
   .sidebarCollapsed {
-    width: 76px;
+    width: 84px;
   }
 }
 
@@ -47,7 +47,7 @@
   width: 100%;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid rgba(37, 49, 74, 0.72);
+  border-bottom: 1px solid var(--color-border);
   padding-inline: 20px;
 }
 
@@ -72,8 +72,10 @@
 }
 
 .brandMarkCollapsed {
-  height: 36px;
-  width: 36px;
+  height: 44px;
+  width: 44px;
+  border-radius: 12px;
+  font-size: 21px;
 }
 
 .brandText {
@@ -112,6 +114,18 @@
   margin-bottom: 10px;
 }
 
+.sidebarCollapsed .navContent {
+  padding: 16px 8px 18px;
+}
+
+.sidebarCollapsed .navGroup {
+  margin-bottom: 18px;
+}
+
+.sidebarCollapsed .navList {
+  gap: 12px;
+}
+
 .navGroupLabel {
   padding: 0 8px 6px;
   color: #64748b;
@@ -147,21 +161,22 @@
 }
 
 .navLinkCollapsed {
-  margin-inline: 4px;
+  margin-inline: 0;
   justify-content: center;
-  padding-inline: 6px;
+  padding-inline: 0;
+  border-radius: 16px;
 }
 
 .navLinkActive {
   border-left-color: var(--color-amber);
-  background: rgba(30, 41, 59, 0.9);
-  color: #ffffff;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .navLinkInactive:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  color: var(--color-text-primary);
 }
 
 .navIconWrap {
@@ -179,12 +194,30 @@
   transition: color 150ms ease;
 }
 
+.sidebarCollapsed .navLink {
+  min-height: 52px;
+}
+
+.sidebarCollapsed .navIconWrap {
+  width: 100%;
+}
+
+.sidebarCollapsed .navIcon {
+  height: 20px;
+  width: 20px;
+}
+
+.sidebarCollapsed .navLinkActive {
+  background: rgba(30, 41, 59, 0.72);
+  box-shadow: inset 3px 0 0 var(--color-amber);
+}
+
 .navIconActive {
-  color: #fce4c4;
+  color: var(--color-amber);
 }
 
 .navIconInactive {
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 
 .tooltipContent {
@@ -202,23 +235,34 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  border-top: 1px solid rgba(37, 49, 74, 0.72);
+  border-top: 1px solid var(--color-border);
   padding: 12px;
+}
+
+.sidebarCollapsed .footer {
+  padding: 12px 8px 14px;
 }
 
 .profileCard {
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid rgba(37, 49, 74, 0.72);
+  border: 1px solid var(--color-border);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--color-bg-surface);
   padding: 10px;
 }
 
 .profileCardCollapsed {
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  padding-inline: 8px;
+  padding: 12px 10px;
+  border-radius: 22px;
+}
+
+.sidebarCollapsed .profileCardCollapsed {
+  gap: 12px;
 }
 
 .profileLink {
@@ -242,11 +286,22 @@
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  background: #fcd38f;
+  background: var(--color-amber);
   color: #0f172a;
   font-size: 14px;
   font-weight: 600;
   box-shadow: 0 8px 16px rgba(252, 211, 143, 0.14);
+}
+
+.sidebarCollapsed .profileAvatar {
+  height: 44px;
+  width: 44px;
+  font-size: 16px;
+}
+
+.sidebarCollapsed .profileLink {
+  flex: 0 0 auto;
+  justify-content: center;
 }
 
 .profileText {
@@ -269,7 +324,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   font-size: 11px;
 }
 
@@ -283,13 +338,13 @@
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  background: rgba(248, 113, 113, 0.16);
-  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.14);
+  color: #fda4af;
   transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
 }
 
 .logoutButton:hover {
-  background: rgba(248, 113, 113, 0.24);
+  background: rgba(248, 113, 113, 0.22);
   transform: translateY(-1px);
 }
 
@@ -302,6 +357,21 @@
 
 .logoutButton:hover .logoutIcon {
   color: #ffffff;
+}
+
+.sidebarCollapsed .logoutButton {
+  min-height: 40px;
+  min-width: 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 9999px;
+  background: rgba(248, 113, 113, 0.16);
+  box-shadow: 0 8px 18px rgba(248, 113, 113, 0.08);
+}
+
+.sidebarCollapsed .logoutButton:hover {
+  background: rgba(248, 113, 113, 0.24);
 }
 
 .logoutLabel {
