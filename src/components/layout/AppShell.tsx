@@ -23,7 +23,7 @@ export default function AppShell() {
     <div
       className="relative h-screen overflow-hidden bg-[var(--color-bg-base)] text-[var(--color-text-primary)] lg:grid"
       style={{
-        gridTemplateColumns: `${sidebarCollapsed ? '56px' : 'var(--spacing-layout-sidebar)'} 1fr`,
+        gridTemplateColumns: `${sidebarCollapsed ? '76px' : 'var(--spacing-layout-sidebar)'} 1fr`,
         gridTemplateRows: 'var(--spacing-layout-topbar) 1fr',
       }}
     >
