@@ -1,12 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import '@fontsource-variable/geist';
 @import 'tailwindcss';
 
 @theme {
   /* ── Backgrounds ────────────────────────────────────────────── */
-  --color-bg-base:     #00182A;
-  --color-bg-surface:  #132337;
-  --color-bg-elevated: #1B3050;
-  --color-border:      #243057;
+  --color-bg-base:     #050915;
+  --color-bg-surface:  #111a2b;
+  --color-bg-elevated: #17233a;
+  --color-border:      #25314a;
 
   /* ── Accent Colors ──────────────────────────────────────────── */
   --color-amber:  #F4A623;
@@ -19,11 +19,11 @@
 
   /* ── Text ───────────────────────────────────────────────────── */
   --color-text-primary: #F8FAFC;
-  --color-text-muted:   #94A3B8;
-  --color-text-dim:     #4A6580;
+  --color-text-muted:   #93A3BB;
+  --color-text-dim:     #5B6C86;
 
   /* ── Fonts ──────────────────────────────────────────────────── */
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Geist Variable', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
   /* ── Radius ─────────────────────────────────────────────────── */
@@ -37,8 +37,8 @@
   --radius-input: 4px;
 
   /* ── Layout ─────────────────────────────────────────────────── */
-  --spacing-layout-sidebar: 196px;
-  --spacing-layout-topbar: 56px;
+  --spacing-layout-sidebar: 320px;
+  --spacing-layout-topbar: 80px;
 
   /* ── Shadows ────────────────────────────────────────────────── */
   --shadow-card:   0 4px 24px rgba(0,0,0,0.4);
@@ -104,9 +104,10 @@ button, input, textarea, select {
 
 .panel {
   border: 1px solid var(--color-border);
-  background: var(--color-bg-surface);
+  background: rgba(17, 26, 43, 0.92);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
 }
 
 /* ── Buttons ─────────────────────────────────────────────────── */
@@ -172,8 +173,9 @@ button, input, textarea, select {
   width: 36px;
   height: 36px;
   border-color: var(--color-border);
-  background: rgba(255,255,255,0.02);
+  background: rgba(255,255,255,0.03);
   color: var(--color-text-muted);
+  border-radius: 12px;
 }
 .icon-button:hover { background: var(--color-bg-elevated); color: var(--color-text-primary); }
 
@@ -270,7 +272,7 @@ button, input, textarea, select {
   flex-direction: column;
   gap: 24px;
   min-height: 100%;
-  padding: 20px 24px;
+  padding: 24px 32px 32px;
 }
 
 .gradient-orb {
@@ -279,7 +281,7 @@ button, input, textarea, select {
   right: -10%;
   width: 320px;
   height: 320px;
-  background: radial-gradient(circle, rgba(32,212,191,0.12), transparent 68%);
+  background: radial-gradient(circle, rgba(244,166,35,0.08), transparent 68%);
   pointer-events: none;
   filter: blur(6px);
   z-index: 0;

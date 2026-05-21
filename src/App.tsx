@@ -15,6 +15,8 @@ import DashboardPage from './pages/dashboard/DashboardPage'
 import FleetOverviewPage from './pages/fleet/FleetOverviewPage'
 import RouteLogPage from './pages/fleet/RouteLogPage'
 import VehicleDetailPage from './pages/fleet/VehicleDetailPage'
+import BrandListPage from './pages/inventory/BrandListPage'
+import CategoryListPage from './pages/inventory/CategoryListPage'
 import MonthlyAdjustmentPage from './pages/inventory/MonthlyAdjustmentPage'
 import MovementLogPage from './pages/inventory/MovementLogPage'
 import StockOverviewPage from './pages/inventory/StockOverviewPage'
@@ -33,6 +35,8 @@ import InvoiceListPage from './pages/sales/InvoiceListPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import RolesPermissionsPage from './pages/users/RolesPermissionsPage'
 import UserListPage from './pages/users/UserListPage'
+import UserProfilePage from './pages/users/UserProfilePage'
+
 
 type ProtectedRouteProps = {
   children: ReactNode
@@ -121,6 +125,14 @@ export const router = createBrowserRouter([
         element: <StockOverviewPage />,
       },
       {
+        path: 'inventory/categories',
+        element: <CategoryListPage />,
+      },
+      {
+        path: 'inventory/brands',
+        element: <BrandListPage />,
+      },
+      {
         path: 'inventory/movements',
         element: <MovementLogPage />,
       },
@@ -191,6 +203,10 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: <SettingsPage />,
+      },
+      {
+        path: 'profile',
+        element: <UserProfilePage />,
       },
     ],
   },
