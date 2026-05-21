@@ -1,7 +1,8 @@
 import * as Tabs from '@radix-ui/react-tabs'
-import { CheckCircle, RefreshCw, XCircle } from 'lucide-react'
+import { CheckCircle, RefreshCw, XCircle, Pencil, Plus, Search, Trash } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import StatusBadge from '@components/ui/StatusBadge'
 
 /* ── Theme token defaults ─────────────────────────────────────── */
 
@@ -457,93 +458,110 @@ function CompanyTab() {
   }
 
   return (
-    <form onSubmit={handleSave} style={{ maxWidth: 680, display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <form onSubmit={handleSave} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'stretch' }}>
+        
+        {/* Left Side: Company Identity & Financial Defaults */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          
+          <section className="panel" style={{ padding: '20px 24px', flex: 1 }}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>
+              Company Identity
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label className="form-label">COMPANY NAME</label>
+                <input className="form-input" defaultValue="CBL Foods International (Pvt) Ltd" />
+              </div>
+              <div>
+                <label className="form-label">REGISTRATION NO.</label>
+                <input className="form-input" defaultValue="PV 00012345" />
+              </div>
+              <div>
+                <label className="form-label">VAT NUMBER</label>
+                <input className="form-input" defaultValue="VAT-123456789" />
+              </div>
+              <div>
+                <label className="form-label">TAX ID</label>
+                <input className="form-input" defaultValue="TIN-987654321" />
+              </div>
+            </div>
+          </section>
 
-      <section className="panel" style={{ padding: '20px 24px' }}>
-        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
-          Company Identity
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div>
-            <label className="form-label">COMPANY NAME</label>
-            <input className="form-input" defaultValue="CBL Foods International (Pvt) Ltd" />
-          </div>
-          <div>
-            <label className="form-label">REGISTRATION NO.</label>
-            <input className="form-input" defaultValue="PV 00012345" />
-          </div>
-          <div>
-            <label className="form-label">VAT NUMBER</label>
-            <input className="form-input" defaultValue="VAT-123456789" />
-          </div>
-          <div>
-            <label className="form-label">TAX ID</label>
-            <input className="form-input" defaultValue="TIN-987654321" />
-          </div>
+          <section className="panel" style={{ padding: '20px 24px' }}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>
+              Financial Defaults
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div>
+                <label className="form-label">BASE CURRENCY</label>
+                <select className="form-input" defaultValue="LKR" style={{ cursor: 'pointer' }}>
+                  <option value="LKR" style={{ background: 'var(--color-bg-elevated)' }}>LKR — Sri Lankan Rupee</option>
+                  <option value="USD" style={{ background: 'var(--color-bg-elevated)' }}>USD — US Dollar</option>
+                  <option value="EUR" style={{ background: 'var(--color-bg-elevated)' }}>EUR — Euro</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label">FISCAL YEAR START</label>
+                <select className="form-input" defaultValue="01" style={{ cursor: 'pointer' }}>
+                  {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
+                    <option key={m} value={String(i + 1).padStart(2, '0')} style={{ background: 'var(--color-bg-elevated)' }}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">DATE FORMAT</label>
+                <select className="form-input" defaultValue="DD/MM/YYYY" style={{ cursor: 'pointer' }}>
+                  {['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'].map(f => (
+                    <option key={f} value={f} style={{ background: 'var(--color-bg-elevated)' }}>{f}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </section>
+
         </div>
-      </section>
 
-      <section className="panel" style={{ padding: '20px 24px' }}>
-        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
-          Contact &amp; Address
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div>
-            <label className="form-label">PHONE</label>
-            <input className="form-input" defaultValue="+94 11 234 5678" />
-          </div>
-          <div>
-            <label className="form-label">EMAIL</label>
-            <input className="form-input" type="email" defaultValue="info@cblfoods.lk" />
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label className="form-label">ADDRESS</label>
-            <input className="form-input" defaultValue="117, Sir Chittampalam A. Gardiner Mawatha, Colombo 02, Sri Lanka" />
-          </div>
-          <div>
-            <label className="form-label">CITY</label>
-            <input className="form-input" defaultValue="Colombo" />
-          </div>
-          <div>
-            <label className="form-label">COUNTRY</label>
-            <input className="form-input" defaultValue="Sri Lanka" />
-          </div>
+        {/* Right Side: Contact & Address */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <section className="panel" style={{ padding: '20px 24px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>
+              Contact &amp; Address
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, flex: 1 }}>
+              <div>
+                <label className="form-label">PHONE</label>
+                <input className="form-input" defaultValue="+94 11 234 5678" />
+              </div>
+              <div>
+                <label className="form-label">EMAIL</label>
+                <input className="form-input" type="email" defaultValue="info@cblfoods.lk" />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className="form-label">ADDRESS</label>
+                <textarea 
+                  className="form-input" 
+                  defaultValue="117, Sir Chittampalam A. Gardiner Mawatha, Colombo 02, Sri Lanka" 
+                  rows={2} 
+                  style={{ resize: 'none', padding: '10px 12px', height: 72 }}
+                />
+              </div>
+              <div>
+                <label className="form-label">CITY</label>
+                <input className="form-input" defaultValue="Colombo" />
+              </div>
+              <div>
+                <label className="form-label">COUNTRY</label>
+                <input className="form-input" defaultValue="Sri Lanka" />
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
 
-      <section className="panel" style={{ padding: '20px 24px' }}>
-        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
-          Financial Defaults
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-          <div>
-            <label className="form-label">BASE CURRENCY</label>
-            <select className="form-input" defaultValue="LKR" style={{ cursor: 'pointer' }}>
-              <option value="LKR" style={{ background: 'var(--color-bg-elevated)' }}>LKR — Sri Lankan Rupee</option>
-              <option value="USD" style={{ background: 'var(--color-bg-elevated)' }}>USD — US Dollar</option>
-              <option value="EUR" style={{ background: 'var(--color-bg-elevated)' }}>EUR — Euro</option>
-            </select>
-          </div>
-          <div>
-            <label className="form-label">FISCAL YEAR START</label>
-            <select className="form-input" defaultValue="01" style={{ cursor: 'pointer' }}>
-              {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
-                <option key={m} value={String(i + 1).padStart(2, '0')} style={{ background: 'var(--color-bg-elevated)' }}>{m}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">DATE FORMAT</label>
-            <select className="form-input" defaultValue="DD/MM/YYYY" style={{ cursor: 'pointer' }}>
-              {['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'].map(f => (
-                <option key={f} value={f} style={{ background: 'var(--color-bg-elevated)' }}>{f}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </section>
+      </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
         <button type="submit" className="button-primary" style={{ height: 40, padding: '0 20px' }}>
           {saved && <CheckCircle style={{ width: 15, height: 15 }} />}
           Save Company Settings
@@ -552,7 +570,358 @@ function CompanyTab() {
           Cancel
         </button>
       </div>
+
     </form>
+  )
+}
+
+/* ── Territories tab ─────────────────────────────────────────── */
+
+type Territory = {
+  id: string
+  code: string
+  name: string
+  isActive: boolean
+}
+
+const initialTerritories: Territory[] = [
+  { id: 'ter-001', code: 'NWP', name: 'North Western Province', isActive: true },
+  { id: 'ter-002', code: 'CP', name: 'Central Province', isActive: true },
+  { id: 'ter-003', code: 'WP', name: 'Western Province', isActive: true },
+  { id: 'ter-004', code: 'SP', name: 'Southern Province', isActive: true },
+  { id: 'ter-005', code: 'NP', name: 'Northern Province', isActive: false },
+]
+
+function TerritoriesTab() {
+  const [territories, setTerritories] = useState<Territory[]>(initialTerritories)
+  const [search, setSearch] = useState('')
+  const [editingItem, setEditingItem] = useState<Territory | null>(null)
+
+  // Form Fields State
+  const [code, setCode] = useState('')
+  const [name, setName] = useState('')
+  const [isActive, setIsActive] = useState(true)
+
+  const filtered = territories.filter(
+    (t) =>
+      t.name.toLowerCase().includes(search.toLowerCase()) ||
+      t.code.toLowerCase().includes(search.toLowerCase())
+  )
+
+  function openEdit(t: Territory) {
+    setEditingItem(t)
+    setCode(t.code)
+    setName(t.name)
+    setIsActive(t.isActive)
+  }
+
+  function resetForm() {
+    setEditingItem(null)
+    setCode('')
+    setName('')
+    setIsActive(true)
+  }
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    if (!code || !name) {
+      toast.error('Code and Name are required.')
+      return
+    }
+
+    if (editingItem) {
+      setTerritories(
+        territories.map((t) =>
+          t.id === editingItem.id ? { ...t, code, name, isActive } : t
+        )
+      )
+      toast.success('Territory updated successfully.')
+    } else {
+      const newItem: Territory = {
+        id: `ter-${Date.now()}`,
+        code,
+        name,
+        isActive,
+      }
+      setTerritories([newItem, ...territories])
+      toast.success('Territory added successfully.')
+    }
+    resetForm()
+  }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'stretch' }}>
+      {/* List Panel */}
+      <div className="panel" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)' }}>Territories</p>
+        </div>
+
+        {/* Search */}
+        <div style={{ position: 'relative' }}>
+          <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'var(--color-text-dim)' }} />
+          <input
+            className="form-input"
+            placeholder="Search territories..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: '100%', height: 36, paddingLeft: 36, background: 'rgba(0,0,0,0.15)', fontSize: 13 }}
+          />
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto" style={{ marginTop: 4 }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((t) => (
+                <tr key={t.id}>
+                  <td><span className="mono text-xs font-semibold" style={{ color: 'var(--color-amber)' }}>{t.code}</span></td>
+                  <td className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{t.name}</td>
+                  <td>
+                    <StatusBadge status={t.isActive ? 'ACTIVE' : 'INACTIVE'} />
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="icon-button" style={{ width: 26, height: 26 }} onClick={() => openEdit(t)}>
+                      <Pencil style={{ width: 12, height: 12 }} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-text-dim)', padding: '24px 0' }}>
+                    No territories found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Inline Form (Sidebar style on the right) */}
+      <form onSubmit={handleSave} className="panel" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            {editingItem ? 'Edit Territory' : 'Add New Territory'}
+          </p>
+          {editingItem && (
+            <button type="button" className="button-ghost" onClick={resetForm} style={{ padding: '4px 8px', height: 'auto', fontSize: 12 }}>
+              Clear
+            </button>
+          )}
+        </div>
+
+        <div>
+          <label className="form-label" style={{ fontSize: 10 }}>CODE</label>
+          <input className="form-input" placeholder="e.g. NWP" value={code} onChange={(e) => setCode(e.target.value)} style={{ height: 38 }} />
+        </div>
+
+        <div>
+          <label className="form-label" style={{ fontSize: 10 }}>NAME</label>
+          <input className="form-input" placeholder="e.g. North Western Province" value={name} onChange={(e) => setName(e.target.value)} style={{ height: 38 }} />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+          <input type="checkbox" id="isActiveTerritory" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }} />
+          <label htmlFor="isActiveTerritory" style={{ fontSize: 13, color: 'var(--color-text-primary)', cursor: 'pointer' }}>Active Territory</label>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 16 }}>
+          <button type="button" className="button-ghost" onClick={resetForm} style={{ flex: 1, height: 36, fontSize: 13 }}>Cancel</button>
+          <button type="submit" className="button-primary" style={{ flex: 1, height: 36, fontSize: 13 }}>{editingItem ? 'Save Changes' : 'Save'}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+/* ── Business Units tab ──────────────────────────────────────── */
+
+type BusinessUnit = {
+  id: string
+  code: string
+  name: string
+  type: string
+  isActive: boolean
+}
+
+const initialBusinessUnits: BusinessUnit[] = [
+  { id: 'bu-001', code: 'BU-MAIN', name: 'Main Operations', type: 'Distribution', isActive: true },
+  { id: 'bu-002', code: 'BU-CONF', name: 'Confectionery Division', type: 'Manufacturing', isActive: true },
+  { id: 'bu-003', code: 'BU-EXPT', name: 'International Export', type: 'Export', isActive: true },
+  { id: 'bu-004', code: 'BU-RETL', name: 'Retail Sales Unit', type: 'Retail', isActive: true },
+]
+
+function BusinessUnitsTab() {
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>(initialBusinessUnits)
+  const [search, setSearch] = useState('')
+  const [editingItem, setEditingItem] = useState<BusinessUnit | null>(null)
+
+  // Form Fields State
+  const [code, setCode] = useState('')
+  const [name, setName] = useState('')
+  const [type, setType] = useState('')
+  const [isActive, setIsActive] = useState(true)
+
+  const filtered = businessUnits.filter(
+    (b) =>
+      b.name.toLowerCase().includes(search.toLowerCase()) ||
+      b.code.toLowerCase().includes(search.toLowerCase()) ||
+      b.type.toLowerCase().includes(search.toLowerCase())
+  )
+
+  function openEdit(b: BusinessUnit) {
+    setEditingItem(b)
+    setCode(b.code)
+    setName(b.name)
+    setType(b.type)
+    setIsActive(b.isActive)
+  }
+
+  function resetForm() {
+    setEditingItem(null)
+    setCode('')
+    setName('')
+    setType('')
+    setIsActive(true)
+  }
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    if (!code || !name) {
+      toast.error('Code and Name are required.')
+      return
+    }
+
+    if (editingItem) {
+      setBusinessUnits(
+        businessUnits.map((b) =>
+          b.id === editingItem.id ? { ...b, code, name, type, isActive } : b
+        )
+      )
+      toast.success('Business unit updated successfully.')
+    } else {
+      const newItem: BusinessUnit = {
+        id: `bu-${Date.now()}`,
+        code,
+        name,
+        type,
+        isActive,
+      }
+      setBusinessUnits([newItem, ...businessUnits])
+      toast.success('Business unit added successfully.')
+    }
+    resetForm()
+  }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'stretch' }}>
+      {/* List Panel */}
+      <div className="panel" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)' }}>Business Units</p>
+        </div>
+
+        {/* Search */}
+        <div style={{ position: 'relative' }}>
+          <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'var(--color-text-dim)' }} />
+          <input
+            className="form-input"
+            placeholder="Search business units..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: '100%', height: 36, paddingLeft: 36, background: 'rgba(0,0,0,0.15)', fontSize: 13 }}
+          />
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto" style={{ marginTop: 4 }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((b) => (
+                <tr key={b.id}>
+                  <td><span className="mono text-xs font-semibold" style={{ color: 'var(--color-amber)' }}>{b.code}</span></td>
+                  <td className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{b.name}</td>
+                  <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{b.type || '—'}</td>
+                  <td>
+                    <StatusBadge status={b.isActive ? 'ACTIVE' : 'INACTIVE'} />
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="icon-button" style={{ width: 26, height: 26 }} onClick={() => openEdit(b)}>
+                      <Pencil style={{ width: 12, height: 12 }} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-text-dim)', padding: '24px 0' }}>
+                    No business units found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Inline Form (Sidebar style on the right) */}
+      <form onSubmit={handleSave} className="panel" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            {editingItem ? 'Edit Business Unit' : 'Add New Business Unit'}
+          </p>
+          {editingItem && (
+            <button type="button" className="button-ghost" onClick={resetForm} style={{ padding: '4px 8px', height: 'auto', fontSize: 12 }}>
+              Clear
+            </button>
+          )}
+        </div>
+
+        <div>
+          <label className="form-label" style={{ fontSize: 10 }}>CODE</label>
+          <input className="form-input" placeholder="e.g. BU-MAIN" value={code} onChange={(e) => setCode(e.target.value)} style={{ height: 38 }} />
+        </div>
+
+        <div>
+          <label className="form-label" style={{ fontSize: 10 }}>NAME</label>
+          <input className="form-input" placeholder="e.g. Main Operations" value={name} onChange={(e) => setName(e.target.value)} style={{ height: 38 }} />
+        </div>
+
+        <div>
+          <label className="form-label" style={{ fontSize: 10 }}>TYPE</label>
+          <input className="form-input" placeholder="e.g. Distribution" value={type} onChange={(e) => setType(e.target.value)} style={{ height: 38 }} />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+          <input type="checkbox" id="isActiveBU" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }} />
+          <label htmlFor="isActiveBU" style={{ fontSize: 13, color: 'var(--color-text-primary)', cursor: 'pointer' }}>Active Business Unit</label>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 16 }}>
+          <button type="button" className="button-ghost" onClick={resetForm} style={{ flex: 1, height: 36, fontSize: 13 }}>Cancel</button>
+          <button type="submit" className="button-primary" style={{ flex: 1, height: 36, fontSize: 13 }}>{editingItem ? 'Save Changes' : 'Save'}</button>
+        </div>
+      </form>
+    </div>
   )
 }
 
@@ -577,14 +946,16 @@ export default function SettingsPage() {
       </div>
 
       {/* Outer tabs: Company | Application */}
-      <Tabs.Root defaultValue="application">
+      <Tabs.Root defaultValue="company">
 
         {/* Outer underline tab bar */}
         <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 28 }}>
           <Tabs.List style={{ display: 'flex', gap: 0 }} aria-label="Settings category">
             {[
-              ['company',     'Company'],
-              ['application', 'Application'],
+              ['company',       'Company'],
+              ['territories',   'Territories'],
+              ['businessUnits', 'Business Units'],
+              ['application',   'Application'],
             ].map(([value, label]) => (
               <Tabs.Trigger
                 key={value}
@@ -613,6 +984,16 @@ export default function SettingsPage() {
         {/* Company content */}
         <Tabs.Content value="company">
           <CompanyTab />
+        </Tabs.Content>
+
+        {/* Territories content */}
+        <Tabs.Content value="territories">
+          <TerritoriesTab />
+        </Tabs.Content>
+
+        {/* Business Units content */}
+        <Tabs.Content value="businessUnits">
+          <BusinessUnitsTab />
         </Tabs.Content>
 
         {/* Application content → inner tabs */}
