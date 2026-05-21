@@ -6,22 +6,30 @@ import StatusBadge from '@components/ui/StatusBadge'
 
 /* ── Theme token defaults ─────────────────────────────────────── */
 
-const DEFAULTS = {
-  bgBase:       '#00182A',
-  bgSurface:    '#132337',
-  bgElevated:   '#1B3050',
-  accentColor:  '#F4A623',
-  fontSans:     "'Inter', system-ui, sans-serif",
-  fontMono:     "'JetBrains Mono', monospace",
-  borderRadius: 'default' as RadiusMode,
+type ThemeMode = 'dark' | 'light'
+
+type ThemeSettings = {
+  mode: ThemeMode
+  accentColor: string
+  fontSans: string
+  fontMono: string
+  borderRadius: RadiusMode
+}
+
+const DEFAULTS: ThemeSettings = {
+  mode: 'dark',
+  accentColor: '#F4A623',
+  fontSans: "'Inter', system-ui, sans-serif",
+  fontMono: "'JetBrains Mono', monospace",
+  borderRadius: 'default',
 }
 
 const ACCENT_PRESETS = [
-  { label: 'Amber',  color: '#F4A623' },
-  { label: 'Teal',   color: '#20D4BF' },
-  { label: 'Blue',   color: '#66B5FA' },
+  { label: 'Amber', color: '#F4A623' },
+  { label: 'Teal', color: '#20D4BF' },
+  { label: 'Blue', color: '#3B82F6' },
   { label: 'Purple', color: '#A78BFA' },
-  { label: 'Red',    color: '#F43F5E' },
+  { label: 'Red', color: '#F43F5E' },
 ]
 
 type RadiusMode = 'compact' | 'default' | 'rounded'
@@ -40,15 +48,54 @@ const RADIUS_LABELS: Record<RadiusMode, string> = {
 
 const STORAGE_KEY = 'cbl-theme'
 
-function loadTheme(): typeof DEFAULTS {
+const THEME_PRESETS: Record<
+  ThemeMode,
+  {
+    bgBase: string
+    bgSurface: string
+    bgElevated: string
+    border: string
+    textPrimary: string
+    textMuted: string
+    textDim: string
+    accentColor: string
+    accentDark: string
+  }
+> = {
+  dark: {
+    bgBase: '#00182A',
+    bgSurface: '#132337',
+    bgElevated: '#1B3050',
+    border: '#25314A',
+    textPrimary: '#F8FAFC',
+    textMuted: '#93A3BB',
+    textDim: '#5B6C86',
+    accentColor: '#F4A623',
+    accentDark: '#C47D0E',
+  },
+  light: {
+    bgBase: '#F7FAFF',
+    bgSurface: '#FFFFFF',
+    bgElevated: '#EAF2FF',
+    border: '#C9D8F0',
+    textPrimary: '#0F172A',
+    textMuted: '#4B5568',
+    textDim: '#6B7A90',
+    accentColor: '#2563EB',
+    accentDark: '#1D4ED8',
+  },
+}
+
+function loadTheme(): ThemeSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return { ...DEFAULTS }
-    const parsed = JSON.parse(raw) as Partial<typeof DEFAULTS>
+    const parsed = JSON.parse(raw) as Partial<ThemeSettings>
     const validModes: RadiusMode[] = ['compact', 'default', 'rounded']
     return {
       ...DEFAULTS,
       ...parsed,
+      mode: parsed.mode === 'light' ? 'light' : 'dark',
       borderRadius: validModes.includes(parsed.borderRadius as RadiusMode)
         ? (parsed.borderRadius as RadiusMode)
         : DEFAULTS.borderRadius,
@@ -58,14 +105,23 @@ function loadTheme(): typeof DEFAULTS {
   }
 }
 
-function applyTheme(theme: typeof DEFAULTS) {
+function applyTheme(theme: ThemeSettings) {
   const root = document.documentElement
-  root.style.setProperty('--color-bg-base',     theme.bgBase)
-  root.style.setProperty('--color-bg-surface',  theme.bgSurface)
-  root.style.setProperty('--color-bg-elevated', theme.bgElevated)
-  root.style.setProperty('--color-amber',       theme.accentColor)
+  const preset = THEME_PRESETS[theme.mode]
+
+  root.style.setProperty('--color-bg-base', preset.bgBase)
+  root.style.setProperty('--color-bg-surface', preset.bgSurface)
+  root.style.setProperty('--color-bg-elevated', preset.bgElevated)
+  root.style.setProperty('--color-border', preset.border)
+  root.style.setProperty('--color-text-primary', preset.textPrimary)
+  root.style.setProperty('--color-text-muted', preset.textMuted)
+  root.style.setProperty('--color-text-dim', preset.textDim)
+  root.style.setProperty('--color-amber', theme.accentColor)
+  root.style.setProperty('--color-amber-dark', preset.accentDark)
   root.style.setProperty('--font-sans',         theme.fontSans)
   root.style.setProperty('--font-mono',         theme.fontMono)
+  root.style.colorScheme = theme.mode
+  document.body.style.colorScheme = theme.mode
   const r = RADIUS_VALUES[theme.borderRadius]
   root.style.setProperty('--radius-card',   r)
   root.style.setProperty('--radius-md',     r)
@@ -151,7 +207,7 @@ function ApiConfigTab() {
 function AppearanceTab() {
   const [theme, setTheme] = useState(() => loadTheme())
 
-  function update<K extends keyof typeof DEFAULTS>(key: K, value: (typeof DEFAULTS)[K]) {
+  function update<K extends keyof ThemeSettings>(key: K, value: ThemeSettings[K]) {
     const next = { ...theme, [key]: value }
     setTheme(next)
     applyTheme(next)
@@ -176,6 +232,8 @@ function AppearanceTab() {
     OVERDUE:   { bg: 'rgba(244,63,94,0.20)',   text: '#F43F5E', border: '#F43F5E' },
     ACTIVE:    { bg: 'rgba(32,212,191,0.15)',  text: '#20D4BF', border: '#20D4BF' },
   }
+
+  const themePreset = THEME_PRESETS[theme.mode]
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 32, alignItems: 'start' }}>
@@ -228,44 +286,64 @@ function AppearanceTab() {
           </div>
         </section>
 
-        {/* Background Colors */}
+        {/* Theme Mode */}
         <section className="panel" style={{ padding: '20px 24px' }}>
-          <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 20 }}>
-            Background Colors
+          <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 10 }}>
+            Theme Mode
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 18 }}>
+            Choose the overall app appearance for the dashboard shell and pages.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
             {([
-              ['bgBase',     'BASE'],
-              ['bgSurface',  'SURFACE'],
-              ['bgElevated', 'ELEVATED'],
-            ] as const).map(([key, label]) => (
-              <div key={key}>
-                <label className="form-label" style={{ marginBottom: 8 }}>{label}</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="color"
-                    value={theme[key]}
-                    onChange={(e) => update(key, e.target.value)}
+              ['dark', 'Dark', 'Deep navy workspace with bright contrast.'],
+              ['light', 'Light', 'Clean bright workspace with soft surfaces.'],
+            ] as const).map(([value, label, desc]) => {
+              const active = theme.mode === value
+              const preset = THEME_PRESETS[value]
+
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => update('mode', value)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 14,
+                    padding: '14px 16px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    border: `1px solid ${active ? 'var(--color-amber)' : 'var(--color-border)'}`,
+                    borderRadius: RADIUS_VALUES[theme.borderRadius],
+                    background: active ? 'rgba(244,166,35,0.08)' : 'var(--color-bg-elevated)',
+                    boxShadow: active ? '0 0 0 3px rgba(244,166,35,0.12)' : 'none',
+                    transition: 'border-color 150ms, background 150ms, box-shadow 150ms',
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
                     style={{
-                      width: 36,
-                      height: 36,
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 6,
-                      background: theme[key],
-                      cursor: 'pointer',
-                      padding: 0,
+                      width: 42,
+                      height: 42,
                       flexShrink: 0,
+                      borderRadius: 12,
+                      border: `1px solid ${preset.border}`,
+                      background: `linear-gradient(180deg, ${preset.bgSurface} 0%, ${preset.bgElevated} 100%)`,
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
                     }}
                   />
-                  <input
-                    className="form-input mono"
-                    style={{ fontSize: 13 }}
-                    value={theme[key]}
-                    onChange={(e) => update(key, e.target.value)}
-                  />
-                </div>
-              </div>
-            ))}
+                  <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                      {label}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                      {desc}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </section>
 
@@ -368,7 +446,7 @@ function AppearanceTab() {
         {/* Today's Sales card */}
         <div className="panel" style={{ padding: '16px 20px' }}>
           <p className="eyebrow" style={{ marginBottom: 8 }}>TODAY'S SALES</p>
-          <p className="mono" style={{ fontSize: 28, fontWeight: 700, color: theme.accentColor, marginBottom: 6 }}>
+          <p className="mono" style={{ fontSize: 28, fontWeight: 700, color: themePreset.accentColor, marginBottom: 6 }}>
             Rs.&nbsp;2,847,500
           </p>
           <p style={{ fontSize: 13, color: 'var(--color-teal)' }}>▲ 12% vs yesterday</p>
@@ -382,7 +460,7 @@ function AppearanceTab() {
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <button style={{
               height: 36, padding: '0 16px', fontSize: 13, fontWeight: 600,
-              background: theme.accentColor, color: '#00182A',
+              background: themePreset.accentColor, color: '#00182A',
               border: 'none', borderRadius: RADIUS_VALUES[theme.borderRadius], cursor: 'default',
             }}>Primary</button>
             <button style={{
@@ -401,14 +479,14 @@ function AppearanceTab() {
         {/* Focused Input card */}
         <div className="panel" style={{ padding: '16px 20px' }}>
           <label className="form-label">FOCUSED INPUT</label>
-          <input
-            className="form-input"
-            defaultValue="Perera Stores"
-            style={{
-              borderColor: theme.accentColor,
-              boxShadow: `0 0 0 3px ${theme.accentColor}28`,
-            }}
-          />
+            <input
+              className="form-input"
+              defaultValue="Perera Stores"
+              style={{
+              borderColor: themePreset.accentColor,
+              boxShadow: `0 0 0 3px ${themePreset.accentColor}28`,
+              }}
+            />
         </div>
 
         {/* Status Badges card */}
