@@ -73,8 +73,40 @@ function SupplierFormModal({
           isActive: true,
         })
       }
+      
+      // Auto-focus Supplier Code on open
+      setTimeout(() => {
+        const firstInput = document.querySelector<HTMLElement>('input[name="code"]')
+        if (firstInput) firstInput.focus()
+      }, 50)
     }
   }, [open, supplier, reset])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      const form = e.currentTarget.closest('form')
+      if (!form) return
+      const elements = Array.from(
+        form.querySelectorAll<HTMLElement>(
+          'input, select, textarea, button[type="submit"]'
+        )
+      ).filter(
+        (el) =>
+          !el.hasAttribute('disabled') &&
+          el.tabIndex !== -1 &&
+          !el.hasAttribute('data-skip-focus')
+      )
+      const index = elements.indexOf(e.currentTarget as HTMLElement)
+      if (index > -1 && index < elements.length - 1) {
+        elements[index + 1].focus()
+      } else if (index === elements.length - 1) {
+        if (elements[index] instanceof HTMLButtonElement) {
+          ;(elements[index] as HTMLButtonElement).click()
+        }
+      }
+    }
+  }
 
   async function onSubmit(values: SupplierFormValues) {
     // Simulate API delay
@@ -90,6 +122,7 @@ function SupplierFormModal({
       }
       onSaved(updatedSupplier)
       toast.success(`Supplier ${values.name} updated successfully.`)
+      onClose()
     } else {
       const newSupplier = {
         id: `sup_${Date.now()}`,
@@ -100,9 +133,22 @@ function SupplierFormModal({
       }
       onSaved(newSupplier)
       toast.success(`Supplier ${values.name} created successfully.`)
+      
+      reset({
+        code: '',
+        name: '',
+        contactName: '',
+        phone: '',
+        email: '',
+        address: '',
+        isActive: true,
+      })
+      
+      setTimeout(() => {
+        const firstInput = document.querySelector<HTMLElement>('input[name="code"]')
+        if (firstInput) firstInput.focus()
+      }, 50)
     }
-    
-    onClose()
   }
 
   return (
@@ -151,6 +197,8 @@ function SupplierFormModal({
                   className={`form-input ${errors.code ? 'error' : ''}`}
                   style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, fontFamily: 'var(--font-mono)' }}
                   placeholder="SUP-001"
+                  autoFocus
+                  onKeyDown={handleKeyDown}
                   {...register('code')}
                 />
                 {errors.code && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.code.message}</p>}
@@ -162,6 +210,7 @@ function SupplierFormModal({
                   className={`form-input ${errors.name ? 'error' : ''}`}
                   style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
                   placeholder="CBL Foods International (Pvt) Ltd"
+                  onKeyDown={handleKeyDown}
                   {...register('name')}
                 />
                 {errors.name && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.name.message}</p>}
@@ -175,6 +224,7 @@ function SupplierFormModal({
                 className={`form-input ${errors.contactName ? 'error' : ''}`}
                 style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
                 placeholder="Accounts Manager"
+                onKeyDown={handleKeyDown}
                 {...register('contactName')}
               />
               {errors.contactName && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.contactName.message}</p>}
@@ -189,6 +239,7 @@ function SupplierFormModal({
                   type="email"
                   style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
                   placeholder="helpdesk.cbl@muncheelk.com"
+                  onKeyDown={handleKeyDown}
                   {...register('email')}
                 />
                 {errors.email && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.email.message}</p>}
@@ -201,6 +252,7 @@ function SupplierFormModal({
                     className={`form-input ${errors.phone ? 'error' : ''}`}
                     style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
                     placeholder="+94117878600"
+                    onKeyDown={handleKeyDown}
                     {...register('phone')}
                   />
                 </div>
@@ -215,6 +267,7 @@ function SupplierFormModal({
                 className={`form-input ${errors.address ? 'error' : ''}`}
                 style={{ width: '100%', minHeight: 80, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '12px 16px', color: 'var(--color-text-primary)', fontSize: 14, resize: 'vertical' }}
                 placeholder="Habarakada Road, Ranala, Sri Lanka"
+                onKeyDown={handleKeyDown}
                 {...register('address')}
               />
               {errors.address && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.address.message}</p>}
@@ -224,6 +277,7 @@ function SupplierFormModal({
               <input
                 type="checkbox"
                 id="isActive"
+                onKeyDown={handleKeyDown}
                 {...register('isActive')}
                 style={{ width: 16, height: 16, accentColor: '#F4A623', cursor: 'pointer' }}
               />
@@ -238,6 +292,7 @@ function SupplierFormModal({
                 type="button"
                 className="button-secondary"
                 onClick={onClose}
+                data-skip-focus="true"
                 style={{ height: 40, padding: '0 24px', fontSize: 14 }}
               >
                 Cancel
@@ -245,6 +300,7 @@ function SupplierFormModal({
               <button
                 type="submit"
                 className="button-primary"
+                onKeyDown={handleKeyDown}
                 style={{ height: 40, padding: '0 24px', fontSize: 14 }}
               >
                 Save Supplier

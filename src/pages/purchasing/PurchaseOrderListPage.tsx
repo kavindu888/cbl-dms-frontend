@@ -69,8 +69,40 @@ function PurchaseOrderFormModal({
           notes: '',
         })
       }
+      
+      // Auto-focus Supplier on open
+      setTimeout(() => {
+        const firstInput = document.querySelector<HTMLElement>('select[name="supplierName"]')
+        if (firstInput) firstInput.focus()
+      }, 50)
     }
   }, [open, po, reset])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      const form = e.currentTarget.closest('form')
+      if (!form) return
+      const elements = Array.from(
+        form.querySelectorAll<HTMLElement>(
+          'input, select, textarea, button[type="submit"]'
+        )
+      ).filter(
+        (el) =>
+          !el.hasAttribute('disabled') &&
+          el.tabIndex !== -1 &&
+          !el.hasAttribute('data-skip-focus')
+      )
+      const index = elements.indexOf(e.currentTarget as HTMLElement)
+      if (index > -1 && index < elements.length - 1) {
+        elements[index + 1].focus()
+      } else if (index === elements.length - 1) {
+        if (elements[index] instanceof HTMLButtonElement) {
+          ;(elements[index] as HTMLButtonElement).click()
+        }
+      }
+    }
+  }
 
   async function onSubmit(values: POFormValues) {
     // Simulate API delay
@@ -85,6 +117,7 @@ function PurchaseOrderFormModal({
       }
       onSaved(updatedPO)
       toast.success(`Purchase Order ${updatedPO.poNumber} updated.`)
+      onClose()
     } else {
       const newPO: PurchaseOrderDto = {
         id: `po_${Date.now()}`,
@@ -100,9 +133,18 @@ function PurchaseOrderFormModal({
       }
       onSaved(newPO)
       toast.success(`Purchase Order ${newPO.poNumber} created.`)
+      
+      reset({
+        supplierName: '',
+        expectedDate: '',
+        notes: '',
+      })
+      
+      setTimeout(() => {
+        const firstInput = document.querySelector<HTMLElement>('select[name="supplierName"]')
+        if (firstInput) firstInput.focus()
+      }, 50)
     }
-    
-    onClose()
   }
 
   return (
@@ -147,6 +189,8 @@ function PurchaseOrderFormModal({
               <select
                 className={`form-input ${errors.supplierName ? 'error' : ''}`}
                 style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, cursor: 'pointer' }}
+                autoFocus
+                onKeyDown={handleKeyDown}
                 {...register('supplierName')}
               >
                 <option value="" disabled style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-dim)' }}>Select a supplier...</option>
@@ -164,6 +208,7 @@ function PurchaseOrderFormModal({
                 type="date"
                 className={`form-input ${errors.expectedDate ? 'error' : ''}`}
                 style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, cursor: 'pointer' }}
+                onKeyDown={handleKeyDown}
                 {...register('expectedDate')}
               />
               {errors.expectedDate && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.expectedDate.message}</p>}
@@ -176,6 +221,7 @@ function PurchaseOrderFormModal({
                 className={`form-input ${errors.notes ? 'error' : ''}`}
                 style={{ width: '100%', minHeight: 80, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '12px 16px', color: 'var(--color-text-primary)', fontSize: 14, resize: 'vertical' }}
                 placeholder="E.g. Fast delivery requested."
+                onKeyDown={handleKeyDown}
                 {...register('notes')}
               />
             </div>
@@ -186,6 +232,7 @@ function PurchaseOrderFormModal({
                 type="button"
                 className="button-secondary"
                 onClick={onClose}
+                data-skip-focus="true"
                 style={{ height: 40, padding: '0 24px', fontSize: 14 }}
               >
                 Cancel
@@ -193,6 +240,7 @@ function PurchaseOrderFormModal({
               <button
                 type="submit"
                 className="button-primary"
+                onKeyDown={handleKeyDown}
                 style={{ height: 40, padding: '0 24px', fontSize: 14 }}
               >
                 {po ? 'Save Changes' : 'Create Draft PO'}
