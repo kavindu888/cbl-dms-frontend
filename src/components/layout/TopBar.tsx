@@ -1,11 +1,37 @@
-import * as Separator from '@radix-ui/react-separator'
 import dayjs from 'dayjs'
-import { Bell, Menu } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Bell, Clock3, Menu, User, Settings, LogOut } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 
 import { useAuthStore } from '@stores/authStore'
 import { useUIStore } from '@stores/uiStore'
+import { cn } from '@/utils'
+
+import styles from './TopBar.module.css'
+
+const notifications = [
+  {
+    id: 1,
+    title: '6 overdue accounts',
+    description: 'Collections team needs attention today.',
+    time: '12m ago',
+    tone: 'danger',
+  },
+  {
+    id: 2,
+    title: '1 vehicle in maintenance',
+    description: 'WP-MB-4521 is marked unavailable.',
+    time: '28m ago',
+    tone: 'warning',
+  },
+  {
+    id: 3,
+    title: 'Sales target updated',
+    description: 'Today\'s sales exceeded yesterday by 12%.',
+    time: '1h ago',
+    tone: 'success',
+  },
+] as const
 
 function getInitials(name: string) {
   return name
@@ -21,7 +47,6 @@ function toReadableSegment(segment: string) {
   }
 
   const normalized = segment.replace(/[-_]/g, ' ')
-
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
@@ -52,8 +77,27 @@ function buildBreadcrumb(pathname: string) {
 export default function TopBar() {
   const location = useLocation()
   const { toggleSidebar } = useUIStore()
-  const { user } = useAuthStore()
+  const { user, logout } = useAuthStore()
   const [now, setNow] = useState(() => dayjs())
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const notificationsRef = useRef<HTMLDivElement>(null)
+  const profileRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setIsNotificationsOpen(false)
+      }
+
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -66,69 +110,180 @@ export default function TopBar() {
   }, [])
 
   const breadcrumb = buildBreadcrumb(location.pathname)
-  const displayName = user?.username ?? 'Demo User'
-  const displayRole = user?.roles[0] ?? 'Guest'
+  const displayName = user?.username ?? 'admin'
+  const displayRole = user?.roles[0] ?? 'Admin'
 
   return (
-    <header className="sticky top-0 z-20 flex h-[var(--spacing-layout-topbar)] items-center justify-between border-b border-[var(--color-border)] bg-[rgba(13,27,42,0.92)] px-4 backdrop-blur-xl lg:col-start-2 lg:row-start-1 lg:px-6">
-      <div className="flex min-w-0 items-center gap-3">
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Toggle sidebar"
-          onClick={toggleSidebar}
-        >
-          <Menu className="h-4 w-4" />
-        </button>
+    <header className={styles.topBar}>
+      <div className={styles.topBarInner}>
+        <div className={styles.leftGroup}>
+          <button
+            type="button"
+            className="icon-button shrink-0 lg:hidden"
+            aria-label="Toggle sidebar"
+            onClick={toggleSidebar}
+          >
+            <Menu className="h-4 w-4" />
+          </button>
 
-        <div className="min-w-0">
-          <p className="eyebrow">Navigation</p>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-sm text-[var(--color-text-muted)]">
-            {breadcrumb.map((item, index) => (
-              <span key={`${item}-${index}`} className="truncate">
-                {index > 0 ? <span className="mr-2 text-[var(--color-text-dim)]">/</span> : null}
-                <span
-                  className={
-                    index === breadcrumb.length - 1 ? 'text-[var(--color-text-primary)]' : ''
-                  }
-                >
-                  {item}
+          <div className={styles.breadcrumbWrap}>
+            <div className={styles.breadcrumb}>
+              <span className={styles.breadcrumbLabel}>Navigation</span>
+              {breadcrumb.map((item, index) => (
+                <span key={`${item}-${index}`} className={styles.breadcrumbSegment}>
+                  <span className={styles.breadcrumbSeparator}>/</span>
+                  <span
+                    className={cn(
+                      styles.breadcrumbItem,
+                      index === breadcrumb.length - 1
+                        ? styles.breadcrumbItemActive
+                        : styles.breadcrumbItemInactive
+                    )}
+                  >
+                    {item}
+                  </span>
                 </span>
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="ml-4 flex items-center gap-3">
-        <div className="hidden rounded-xl border border-[var(--color-border)] bg-[rgba(255,255,255,0.02)] px-3 py-2 md:block">
-          <span className="mono text-xs text-[var(--color-text-muted)]">
-            {now.format('ddd, DD MMM YYYY  HH:mm:ss')}
-          </span>
-        </div>
-
-        <button type="button" className="icon-button relative" aria-label="Notifications">
-          <Bell className="h-4 w-4" />
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-danger)] px-1 text-[10px] font-semibold text-white">
-            3
-          </span>
-        </button>
-
-        <Separator.Root
-          decorative
-          orientation="vertical"
-          className="hidden h-8 w-px bg-[var(--color-border)] md:block"
-        />
-
-        <div className="hidden items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[rgba(255,255,255,0.02)] px-3 py-2 md:flex">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(244,166,35,0.12)] font-semibold text-[var(--color-amber)]">
-            {getInitials(displayName)}
-          </div>
-          <div>
-            <p className="text-sm font-medium text-[var(--color-text-primary)]">{displayName}</p>
-            <div className="mt-1">
-              <span className="text-chip">{displayRole}</span>
+              ))}
             </div>
+          </div>
+        </div>
+
+        <div className={styles.rightGroup}>
+          <div className={styles.clockChip}>
+            <Clock3 className={styles.clockIcon} />
+            <span className={styles.clockText}>{now.format('ddd, DD MMM YYYY HH:mm:ss')}</span>
+          </div>
+
+          <div className={styles.notificationWrap} ref={notificationsRef}>
+            <button
+              type="button"
+              className={cn(
+                styles.notificationButton,
+                isNotificationsOpen ? styles.notificationButtonOpen : styles.notificationButtonClosed
+              )}
+              aria-label="Notifications"
+              aria-expanded={isNotificationsOpen}
+              onClick={() => {
+                setIsNotificationsOpen((current) => !current)
+                setIsProfileOpen(false)
+              }}
+            >
+              <Bell className={styles.notificationIcon} />
+              <span className={styles.notificationBadge}>{notifications.length}</span>
+            </button>
+
+            {isNotificationsOpen && (
+              <div className={styles.notificationsDropdown}>
+                <div className={styles.notificationsHeader}>
+                  <div>
+                    <p className={styles.notificationsTitle}>Notifications</p>
+                    <p className={styles.notificationsSubtitle}>
+                      {notifications.length} new alerts
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.notificationsMarkRead}
+                    onClick={() => setIsNotificationsOpen(false)}
+                  >
+                    Mark as read
+                  </button>
+                </div>
+
+                <div className={styles.notificationsList}>
+                  {notifications.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={styles.notificationItem}
+                      onClick={() => setIsNotificationsOpen(false)}
+                    >
+                      <span
+                        className={cn(
+                          styles.notificationDot,
+                          item.tone === 'danger' && styles.notificationDotDanger,
+                          item.tone === 'warning' && styles.notificationDotWarning,
+                          item.tone === 'success' && styles.notificationDotSuccess
+                        )}
+                      />
+                      <span className={styles.notificationBody}>
+                        <span className={styles.notificationItemTitle}>{item.title}</span>
+                        <span className={styles.notificationItemDescription}>
+                          {item.description}
+                        </span>
+                      </span>
+                      <span className={styles.notificationTime}>{item.time}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className={styles.profileWrap} ref={profileRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsProfileOpen((current) => !current)
+                setIsNotificationsOpen(false)
+              }}
+              className={cn(
+                styles.profileButton,
+                isProfileOpen ? styles.profileButtonOpen : styles.profileButtonClosed
+              )}
+            >
+              <div className={styles.profileMeta}>
+                <p className={styles.profileName}>{displayName}</p>
+                <p className={styles.profileRole}>{displayRole}</p>
+              </div>
+              <div className={styles.profileAvatar}>{getInitials(displayName)}</div>
+            </button>
+
+            {isProfileOpen && (
+              <div className={styles.dropdown}>
+                <div className={styles.dropdownMobileHeader}>
+                  <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                    {displayName}
+                  </p>
+                  <p className="mt-0.5 text-xs text-[var(--color-text-dim)]">{displayRole}</p>
+                </div>
+                <div className={styles.dropdownMobileDivider} />
+
+                <div className={styles.dropdownList}>
+                  <Link
+                    to="/profile"
+                    className={styles.dropdownItem}
+                    onClick={() => setIsProfileOpen(false)}
+                  >
+                    <User className={styles.dropdownItemIcon} />
+                    Profile
+                  </Link>
+
+                  <Link
+                    to="/settings"
+                    className={styles.dropdownItem}
+                    onClick={() => setIsProfileOpen(false)}
+                  >
+                    <Settings className={styles.dropdownItemIcon} />
+                    Settings
+                  </Link>
+
+                  <div className={styles.dropdownDivider} />
+
+                  <button
+                    type="button"
+                    className={cn(styles.dropdownItem, styles.dropdownItemDanger)}
+                    onClick={() => {
+                      setIsProfileOpen(false)
+                      logout()
+                    }}
+                  >
+                    <LogOut className={styles.dropdownItemIcon} />
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
