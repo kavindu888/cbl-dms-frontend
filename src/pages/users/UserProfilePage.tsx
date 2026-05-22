@@ -87,20 +87,23 @@ export default function UserProfilePage() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 28,
+        gap: 18,
         width: '100%',
         maxWidth: 1400,
         margin: '0 auto',
-        padding: '8px 8px 24px',
+        height: '100%',
+        minHeight: 0,
+        overflow: 'hidden',
+        padding: '4px 8px 8px',
       }}
     >
       <div style={{ paddingInline: 4, paddingTop: 2, paddingBottom: 2 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <h1
             style={{
-              fontSize: 'clamp(2rem, 3vw, 2.75rem)',
+              fontSize: 26,
               lineHeight: 1.05,
-              fontWeight: 800,
+              fontWeight: 700,
               letterSpacing: '-0.04em',
               color: 'var(--color-text-primary)',
             }}
@@ -124,22 +127,25 @@ export default function UserProfilePage() {
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(300px, 332px) minmax(0, 1fr)',
-          gap: 28,
+          gap: 18,
           alignItems: 'stretch',
+          minHeight: 0,
+          flex: 1,
         }}
       >
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 24,
+            gap: 18,
             height: '100%',
+            minHeight: 0,
           }}
         >
           <div
             className="panel"
             style={{
-              padding: '28px 24px 30px',
+              padding: '20px 22px 18px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -147,6 +153,7 @@ export default function UserProfilePage() {
               position: 'relative',
               overflow: 'hidden',
               height: '100%',
+              minHeight: 0,
             }}
           >
             <div
@@ -163,25 +170,25 @@ export default function UserProfilePage() {
 
             <div
               style={{
-                width: 96,
-                height: 96,
+                width: 82,
+                height: 82,
                 borderRadius: '50%',
                 background: 'rgba(244,166,35,0.12)',
                 border: '2px solid rgba(244,166,35,0.25)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 34,
+                fontSize: 30,
                 fontWeight: 700,
                 color: 'var(--color-amber)',
-                marginBottom: 18,
+                marginBottom: 12,
                 boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
               }}
             >
               {userInitials}
             </div>
 
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text-primary)' }}>
               {fullName}
             </h3>
             <p
@@ -193,7 +200,7 @@ export default function UserProfilePage() {
 
             <div
               style={{
-                marginTop: 14,
+                marginTop: 10,
                 display: 'flex',
                 gap: 6,
                 flexWrap: 'wrap',
@@ -221,13 +228,12 @@ export default function UserProfilePage() {
               style={{
                 width: '100%',
                 borderTop: '1px solid var(--color-border)',
-                marginTop: 24,
-                paddingTop: 22,
+                marginTop: 16,
+                paddingTop: 14,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 16,
+                gap: 12,
                 textAlign: 'left',
-                marginTop: 4,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -266,7 +272,7 @@ export default function UserProfilePage() {
                 background: 'rgba(0,0,0,0.15)',
                 borderRadius: 6,
                 padding: '10px 12px',
-                marginTop: 'auto',
+                marginTop: 14,
                 fontSize: 11,
                 color: 'var(--color-text-dim)',
                 display: 'flex',
@@ -283,7 +289,7 @@ export default function UserProfilePage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 24 }}>
+          <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 0, paddingBottom: 0, alignItems: 'flex-end' }}>
               {[
                 ['general', 'General Info', User],
@@ -295,7 +301,7 @@ export default function UserProfilePage() {
                   onClick={() => setActiveTab(value as 'general' | 'security')}
                   className="settings-inner-tab"
                   style={{
-                    padding: '12px 20px',
+                    padding: '10px 18px',
                     fontSize: 14,
                     fontWeight: 500,
                     cursor: 'pointer',
@@ -322,7 +328,7 @@ export default function UserProfilePage() {
           </div>
 
           {activeTab === 'general' ? (
-            <div className="panel" style={{ padding: '28px 30px 30px', flex: 1, minHeight: 620 }}>
+            <div className="panel" style={{ padding: '20px 22px', flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <h2
                 style={{
                   fontSize: 16,
@@ -338,12 +344,12 @@ export default function UserProfilePage() {
                 delivered correctly.
               </p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                 <div
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                    gap: 22,
+                    gap: 16,
                   }}
                 >
                   <div>
@@ -404,7 +410,7 @@ export default function UserProfilePage() {
               </div>
             </div>
           ) : (
-            <div className="panel" style={{ padding: '28px 30px 30px', flex: 1, minHeight: 620 }}>
+            <div className="panel" style={{ padding: '20px 22px', flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <h2
                 style={{
                   fontSize: 16,
@@ -422,7 +428,7 @@ export default function UserProfilePage() {
 
               <form
                 onSubmit={handlePasswordSubmit(onPasswordSave)}
-                style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
               >
                 <div>
                   <label className="form-label">CURRENT PASSWORD</label>

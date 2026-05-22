@@ -14,6 +14,7 @@ function deriveModule(pathname: string) {
 export default function AppShell() {
   const location = useLocation()
   const { sidebarCollapsed, sidebarMobileOpen, setActiveModule } = useUIStore()
+  const isProfilePage = location.pathname === '/profile'
 
   useEffect(() => {
     setActiveModule(deriveModule(location.pathname))
@@ -38,8 +39,22 @@ export default function AppShell() {
       ) : null}
       <Sidebar />
       <TopBar />
-      <main className="relative row-start-2 min-h-0 overflow-y-auto lg:col-start-2">
-        <div className="page-shell">
+      <main
+        className={`relative row-start-2 min-h-0 lg:col-start-2 ${isProfilePage ? 'overflow-hidden' : 'overflow-y-auto'}`}
+      >
+        <div
+          className="page-shell"
+          style={
+            isProfilePage
+              ? {
+                  gap: 12,
+                  minHeight: '100%',
+                  padding: '14px 20px 18px',
+                  overflow: 'hidden',
+                }
+              : undefined
+          }
+        >
           <Outlet />
         </div>
       </main>
