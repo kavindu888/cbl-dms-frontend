@@ -57,6 +57,10 @@ function buildBreadcrumb(pathname: string) {
     return ['Dashboard']
   }
 
+  if (segments.length === 1 && segments[0] === 'inventory') {
+    return ['Inventory', 'Product']
+  }
+
   return segments.map((segment, index) => {
     if (segment === 'new') {
       return 'New'
