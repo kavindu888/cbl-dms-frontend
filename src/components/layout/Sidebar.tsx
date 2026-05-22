@@ -69,6 +69,7 @@ const navGroups: NavGroup[] = [
     label: 'MASTER',
     items: [
       { label: 'Supplier', to: '/master/suppliers', icon: Store },
+      { label: 'Customer', to: '/master/customers', icon: Users },
       { label: 'Product', to: '/master/products', icon: Package, end: true },
       { label: 'Category', to: '/master/categories', icon: Tags },
       { label: 'Brand', to: '/master/brands', icon: Bookmark },

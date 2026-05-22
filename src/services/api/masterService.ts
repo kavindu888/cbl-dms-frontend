@@ -4,14 +4,17 @@ import type {
   PaginationParams,
   MasterBrandDto,
   MasterCategoryDto,
+  MasterCustomerDto,
   MasterProductDto,
   MasterSupplierDto,
   CreateMasterBrandRequest,
   CreateMasterCategoryRequest,
+  CreateMasterCustomerRequest,
   CreateMasterProductRequest,
   CreateMasterSupplierRequest,
   UpdateMasterBrandRequest,
   UpdateMasterCategoryRequest,
+  UpdateMasterCustomerRequest,
   UpdateMasterProductRequest,
   UpdateMasterSupplierRequest,
 } from '@/types'
@@ -157,5 +160,40 @@ export const masterService = {
 
   async deleteBrand(id: string) {
     await axiosInstance.delete(`/master/brands/${id}`)
+  },
+
+  async listCustomers(params: Partial<PaginationParams> = {}) {
+    const response = await axiosInstance.get<PaginatedResponse<MasterCustomerDto>>(
+      '/master/customers',
+      { params }
+    )
+    return response.data
+  },
+
+  async getCustomer(id: string) {
+    const response = await axiosInstance.get<ApiResponse<MasterCustomerDto>>(
+      `/master/customers/${id}`
+    )
+    return response.data.data
+  },
+
+  async createCustomer(payload: CreateMasterCustomerRequest) {
+    const response = await axiosInstance.post<ApiResponse<MasterCustomerDto>>(
+      '/master/customers',
+      payload
+    )
+    return response.data.data
+  },
+
+  async updateCustomer(id: string, payload: UpdateMasterCustomerRequest) {
+    const response = await axiosInstance.put<ApiResponse<MasterCustomerDto>>(
+      `/master/customers/${id}`,
+      payload
+    )
+    return response.data.data
+  },
+
+  async deleteCustomer(id: string) {
+    await axiosInstance.delete(`/master/customers/${id}`)
   },
 }

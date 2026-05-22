@@ -29,6 +29,28 @@ export interface MasterBrandDto {
   productCount?: number
 }
 
+export interface MasterCustomerDto {
+  id: string
+  code: string
+  name: string
+  contactName: string
+  phone: string
+  email: string
+  addressLine1: string
+  addressLine2?: string
+  city: string
+  taxId?: string
+  customerGroupId: string
+  customerGroupName?: string
+  territoryId: string
+  territoryName?: string
+  routeId: string
+  routeName?: string
+  creditDays: number
+  creditLimit: number
+  isActive: boolean
+}
+
 export interface MasterCategoryDto {
   id: string
   code: string
@@ -85,6 +107,26 @@ export interface CreateMasterBrandRequest {
 }
 
 export interface UpdateMasterBrandRequest extends CreateMasterBrandRequest {}
+
+export interface CreateMasterCustomerRequest {
+  code: string
+  name: string
+  contactName: string
+  phone: string
+  email: string
+  addressLine1: string
+  addressLine2?: string
+  city: string
+  taxId?: string
+  customerGroupId: string
+  territoryId: string
+  routeId: string
+  creditDays: number
+  creditLimit: number
+  isActive?: boolean
+}
+
+export interface UpdateMasterCustomerRequest extends CreateMasterCustomerRequest {}
 
 export interface CreateMasterCategoryRequest {
   code: string

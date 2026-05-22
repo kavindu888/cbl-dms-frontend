@@ -19,6 +19,7 @@ import MonthlyAdjustmentPage from './pages/inventory/MonthlyAdjustmentPage'
 import MovementLogPage from './pages/inventory/MovementLogPage'
 import BrandListPage from './pages/master/BrandListPage'
 import CategoryListPage from './pages/master/CategoryListPage'
+import MasterCustomerListPage from './pages/master/CustomerListPage'
 import StockOverviewPage from './pages/master/StockOverviewPage'
 import PurchaseOrderDetailPage from './pages/purchasing/PurchaseOrderDetailPage'
 import PurchaseOrderListPage from './pages/purchasing/PurchaseOrderListPage'
@@ -127,6 +128,10 @@ export const router = createBrowserRouter([
       {
         path: 'master/suppliers',
         element: <SupplierListPage />,
+      },
+      {
+        path: 'master/customers',
+        element: <MasterCustomerListPage />,
       },
       {
         path: 'master/products',
