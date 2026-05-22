@@ -549,20 +549,20 @@ function CompanyTab() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label className="form-label">COMPANY NAME</label>
+                <label className="form-label">NAME</label>
                 <input className="form-input" defaultValue="CBL Foods International (Pvt) Ltd" />
+              </div>
+              <div>
+                <label className="form-label">LEGAL NAME</label>
+                <input className="form-input" defaultValue="CBL Foods International (Pvt) Ltd" />
+              </div>
+              <div>
+                <label className="form-label">TAX ID</label>
+                <input className="form-input" defaultValue="VAT987654321" />
               </div>
               <div>
                 <label className="form-label">REGISTRATION NO.</label>
                 <input className="form-input" defaultValue="PV 00012345" />
-              </div>
-              <div>
-                <label className="form-label">VAT NUMBER</label>
-                <input className="form-input" defaultValue="VAT-123456789" />
-              </div>
-              <div>
-                <label className="form-label">TAX ID</label>
-                <input className="form-input" defaultValue="TIN-987654321" />
               </div>
             </div>
           </section>
@@ -609,7 +609,7 @@ function CompanyTab() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, flex: 1 }}>
               <div>
-                <label className="form-label">PHONE</label>
+                <label className="form-label">PHONE NO</label>
                 <input className="form-input" defaultValue="+94 11 234 5678" />
               </div>
               <div>
@@ -617,21 +617,22 @@ function CompanyTab() {
                 <input className="form-input" type="email" defaultValue="info@cblfoods.lk" />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">ADDRESS</label>
-                <textarea 
-                  className="form-input" 
-                  defaultValue="117, Sir Chittampalam A. Gardiner Mawatha, Colombo 02, Sri Lanka" 
-                  rows={2} 
-                  style={{ resize: 'none', padding: '10px 12px', height: 72 }}
-                />
+                <label className="form-label">ADDRESS LINE 1</label>
+                <input className="form-input" defaultValue="117, Sir Chittampalam A. Gardiner Mawatha" />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className="form-label">ADDRESS LINE 2</label>
+                <input className="form-input" defaultValue="Colombo 02, Sri Lanka" />
               </div>
               <div>
                 <label className="form-label">CITY</label>
                 <input className="form-input" defaultValue="Colombo" />
               </div>
-              <div>
-                <label className="form-label">COUNTRY</label>
-                <input className="form-input" defaultValue="Sri Lanka" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 24 }}>
+                <input type="checkbox" id="companyIsActive" defaultChecked style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }} />
+                <label htmlFor="companyIsActive" style={{ fontSize: 13, color: 'var(--color-text-primary)', cursor: 'pointer' }}>
+                  IsActive
+                </label>
               </div>
             </div>
           </section>
