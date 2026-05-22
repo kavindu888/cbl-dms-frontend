@@ -1,25 +1,140 @@
-import { zodResolver } from '@hookform/resolvers/zod'
+﻿import { zodResolver } from '@hookform/resolvers/zod'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Eye, Pencil, Plus, Search, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { useFieldArray, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
 import StatusBadge from '@components/ui/StatusBadge'
-import { mockSuppliers } from '@data/mockPurchaseOrders'
+
+type SupplierContact = {
+  name: string
+  designation: string
+  mobileNo: string
+  email: string
+  isActive: boolean
+}
+
+type Supplier = {
+  id: string
+  code: string
+  name: string
+  phone: string
+  email: string
+  address: string
+  vatRegNo: string
+  fax: string
+  businessRegNo: string
+  isActive: boolean
+  contacts: SupplierContact[]
+}
+
+const initialSuppliers: Supplier[] = [
+  {
+    id: 'sup-001',
+    code: 'SUP-001',
+    name: 'CBL Foods International (Pvt) Ltd',
+    phone: '+94117878600',
+    email: 'helpdesk.cbl@muncheelk.com',
+    address: 'Habarakada Road, Ranala, Sri Lanka',
+    vatRegNo: 'VAT-1122334455',
+    fax: '+94 11 787 8601',
+    businessRegNo: 'BRN-2233445566',
+    isActive: true,
+    contacts: [
+      {
+        name: 'D. Wickramasinghe',
+        designation: 'Procurement Manager',
+        mobileNo: '+94 77 123 4567',
+        email: 'd.wickramasinghe@cblfoods.lk',
+        isActive: true,
+      },
+      {
+        name: 'A. Perera',
+        designation: 'Finance Executive',
+        mobileNo: '+94 71 765 4321',
+        email: 'a.perera@cblfoods.lk',
+        isActive: false,
+      },
+    ],
+  },
+  {
+    id: 'sup-002',
+    code: 'SUP-002',
+    name: 'Hemas Consumer Brands',
+    phone: '+94 11 345 6789',
+    email: 'supply@hemas.com',
+    address: 'Colombo 02, Sri Lanka',
+    vatRegNo: 'VAT-6677889900',
+    fax: '+94 11 345 6790',
+    businessRegNo: 'BRN-7788990011',
+    isActive: true,
+    contacts: [
+      {
+        name: 'A. Jayawardena',
+        designation: 'Supply Chain Lead',
+        mobileNo: '+94 77 222 3344',
+        email: 'a.jayawardena@hemas.com',
+        isActive: true,
+      },
+    ],
+  },
+  {
+    id: 'sup-003',
+    code: 'SUP-003',
+    name: 'Maliban Biscuit Mfg',
+    phone: '+94 11 456 7890',
+    email: 'orders@maliban.lk',
+    address: 'Ratmalana, Sri Lanka',
+    vatRegNo: 'VAT-8899001122',
+    fax: '+94 11 456 7891',
+    businessRegNo: 'BRN-9900112233',
+    isActive: true,
+    contacts: [
+      {
+        name: 'P. Gunaratne',
+        designation: 'Sales Coordinator',
+        mobileNo: '+94 77 444 5566',
+        email: 'p.gunaratne@maliban.lk',
+        isActive: true,
+      },
+    ],
+  },
+]
+
+const contactSchema = z.object({
+  name: z.string().min(1, 'Contact name is required'),
+  designation: z.string().min(1, 'Designation is required'),
+  mobileNo: z.string().min(1, 'Mobile number is required'),
+  email: z.string().email('Invalid contact email'),
+  isActive: z.boolean().default(false),
+})
 
 const supplierSchema = z.object({
   code: z.string().min(1, 'Supplier code is required'),
   name: z.string().min(1, 'Supplier name is required'),
-  contactName: z.string().min(1, 'Contact name is required'),
   phone: z.string().min(1, 'Phone number is required'),
   email: z.string().email('Invalid email address'),
   address: z.string().min(1, 'Address is required'),
+  vatRegNo: z.string().optional(),
+  fax: z.string().optional(),
+  businessRegNo: z.string().optional(),
   isActive: z.boolean().default(true),
+  contacts: z.array(contactSchema).default([]),
 })
 
 type SupplierFormValues = z.infer<typeof supplierSchema>
+
+function emptyContact(): SupplierContact {
+  return {
+    name: '',
+    designation: '',
+    mobileNo: '',
+    email: '',
+    isActive: false,
+  }
+}
 
 function SupplierFormModal({
   open,
@@ -28,127 +143,150 @@ function SupplierFormModal({
   onSaved,
 }: {
   open: boolean
-  supplier?: any
+  supplier?: Supplier
   onClose: () => void
-  onSaved: (supplier: any) => void
+  onSaved: (supplier: Supplier) => void
 }) {
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierSchema),
     defaultValues: {
       code: '',
       name: '',
-      contactName: '',
       phone: '',
       email: '',
       address: '',
+      vatRegNo: '',
+      fax: '',
+      businessRegNo: '',
       isActive: true,
+      contacts: [],
     },
   })
 
-  useEffect(() => {
-    if (open) {
-      if (supplier) {
-        reset({
-          code: supplier.code,
-          name: supplier.name,
-          contactName: supplier.contact,
-          phone: supplier.phone,
-          email: supplier.email,
-          address: supplier.city, // Mocking address via city
-          isActive: supplier.status === 'ACTIVE',
-        })
-      } else {
-        reset({
-          code: '',
-          name: '',
-          contactName: '',
-          phone: '',
-          email: '',
-          address: '',
-          isActive: true,
-        })
-      }
-      
-      // Auto-focus Supplier Code on open
-      setTimeout(() => {
-        const firstInput = document.querySelector<HTMLElement>('input[name="code"]')
-        if (firstInput) firstInput.focus()
-      }, 50)
-    }
-  }, [open, supplier, reset])
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'contacts',
+  })
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      const form = e.currentTarget.closest('form')
-      if (!form) return
-      const elements = Array.from(
-        form.querySelectorAll<HTMLElement>(
-          'input, select, textarea, button[type="submit"]'
-        )
-      ).filter(
-        (el) =>
-          !el.hasAttribute('disabled') &&
-          el.tabIndex !== -1 &&
-          !el.hasAttribute('data-skip-focus')
-      )
-      const index = elements.indexOf(e.currentTarget as HTMLElement)
-      if (index > -1 && index < elements.length - 1) {
-        elements[index + 1].focus()
-      } else if (index === elements.length - 1) {
-        if (elements[index] instanceof HTMLButtonElement) {
-          ;(elements[index] as HTMLButtonElement).click()
-        }
-      }
+  function handlePrimaryFieldKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== 'Enter' || event.shiftKey) {
+      return
     }
+
+    const fieldOrder = [
+      'supplier-code',
+      'supplier-name',
+      'supplier-phone',
+      'supplier-email',
+      'supplier-address',
+      'supplier-vat-reg-no',
+      'supplier-fax',
+      'supplier-business-reg-no',
+    ]
+
+    const currentId = event.currentTarget.id
+    const currentIndex = fieldOrder.indexOf(currentId)
+
+    if (currentIndex === -1) {
+      return
+    }
+
+    event.preventDefault()
+
+    const nextId = fieldOrder[currentIndex + 1]
+    if (nextId) {
+      document.getElementById(nextId)?.focus()
+      return
+    }
+
+    document.getElementById('save-supplier-button')?.focus()
   }
 
-  async function onSubmit(values: SupplierFormValues) {
-    // Simulate API delay
-    await new Promise((r) => setTimeout(r, 600))
-    
+  useEffect(() => {
+    if (!open) return
+
     if (supplier) {
-      const updatedSupplier = {
-        ...supplier,
-        ...values,
-        status: values.isActive ? 'ACTIVE' : 'INACTIVE',
-        contact: values.contactName,
-        city: values.address.split(',').pop()?.trim() || values.address, // simple mockup
-      }
-      onSaved(updatedSupplier)
-      toast.success(`Supplier ${values.name} updated successfully.`)
-      onClose()
+      reset({
+        code: supplier.code,
+        name: supplier.name,
+        phone: supplier.phone,
+        email: supplier.email,
+        address: supplier.address,
+        vatRegNo: supplier.vatRegNo,
+        fax: supplier.fax,
+        businessRegNo: supplier.businessRegNo,
+        isActive: supplier.isActive,
+        contacts: supplier.contacts.length ? supplier.contacts : [],
+      })
     } else {
-      const newSupplier = {
-        id: `sup_${Date.now()}`,
-        ...values,
-        status: values.isActive ? 'ACTIVE' : 'INACTIVE',
-        contact: values.contactName,
-        city: values.address.split(',').pop()?.trim() || values.address, // simple mockup
-      }
-      onSaved(newSupplier)
-      toast.success(`Supplier ${values.name} created successfully.`)
-      
       reset({
         code: '',
         name: '',
-        contactName: '',
         phone: '',
         email: '',
         address: '',
+        vatRegNo: '',
+        fax: '',
+        businessRegNo: '',
         isActive: true,
+        contacts: [],
       })
-      
-      setTimeout(() => {
-        const firstInput = document.querySelector<HTMLElement>('input[name="code"]')
-        if (firstInput) firstInput.focus()
-      }, 50)
     }
+
+    setTimeout(() => {
+      const firstInput = document.querySelector<HTMLElement>('input[name="code"]')
+      firstInput?.focus()
+    }, 50)
+  }, [open, supplier, reset])
+
+  async function onSubmit(values: SupplierFormValues) {
+    await new Promise((resolve) => setTimeout(resolve, 600))
+
+    const formatted: Supplier = {
+      id: supplier?.id ?? `sup_${Date.now()}`,
+      code: values.code,
+      name: values.name,
+      phone: values.phone,
+      email: values.email,
+      address: values.address,
+      vatRegNo: values.vatRegNo ?? '',
+      fax: values.fax ?? '',
+      businessRegNo: values.businessRegNo ?? '',
+      isActive: values.isActive,
+      contacts: values.contacts,
+    }
+
+    onSaved(formatted)
+    toast.success(`Supplier ${values.name} saved successfully.`)
+
+    if (supplier) {
+      onClose()
+      return
+    }
+
+    reset({
+      code: '',
+      name: '',
+      phone: '',
+      email: '',
+      address: '',
+      vatRegNo: '',
+      fax: '',
+      businessRegNo: '',
+      isActive: true,
+      contacts: [],
+    })
+
+    setTimeout(() => {
+      const codeInput = document.querySelector<HTMLElement>('input[name="code"]')
+      codeInput?.focus()
+    }, 50)
   }
 
   return (
@@ -161,7 +299,7 @@ function SupplierFormModal({
         <Dialog.Content
           className="fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 shadow-2xl"
           style={{
-            maxWidth: 580,
+            maxWidth: 900,
             background: 'var(--color-bg-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: 12,
@@ -169,36 +307,38 @@ function SupplierFormModal({
             overflowY: 'auto',
           }}
         >
-          {/* Header */}
           <div style={{ padding: '32px 32px 24px 32px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
               <Dialog.Title style={{ fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)' }}>
                 {supplier ? 'Edit Supplier' : 'Create New Supplier'}
               </Dialog.Title>
               <Dialog.Description style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}>
-                {supplier ? 'Update supplier details.' : 'Register a new vendor account into the system.'}
+                {supplier
+                  ? 'Update supplier details, tax data, and contact records.'
+                  : 'Register a new supplier account into the system.'}
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
-              <button aria-label="Close" style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '50%' }}>
+              <button
+                aria-label="Close"
+                style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '50%' }}
+              >
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </Dialog.Close>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '0 32px 32px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-            
-            {/* Code & Name Row */}
             <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 16 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>SUPPLIER CODE</label>
                 <input
+                  id="supplier-code"
                   className={`form-input ${errors.code ? 'error' : ''}`}
                   style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14, fontFamily: 'var(--font-mono)' }}
                   placeholder="SUP-001"
                   autoFocus
-                  onKeyDown={handleKeyDown}
+                  onKeyDown={handlePrimaryFieldKeyDown}
                   {...register('code')}
                 />
                 {errors.code && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.code.message}</p>}
@@ -207,77 +347,101 @@ function SupplierFormModal({
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>COMPANY NAME</label>
                 <input
+                  id="supplier-name"
                   className={`form-input ${errors.name ? 'error' : ''}`}
                   style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
                   placeholder="CBL Foods International (Pvt) Ltd"
-                  onKeyDown={handleKeyDown}
+                  onKeyDown={handlePrimaryFieldKeyDown}
                   {...register('name')}
                 />
                 {errors.name && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.name.message}</p>}
               </div>
             </div>
 
-            {/* Contact Person */}
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>CONTACT PERSON</label>
-              <input
-                className={`form-input ${errors.contactName ? 'error' : ''}`}
-                style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
-                placeholder="Accounts Manager"
-                onKeyDown={handleKeyDown}
-                {...register('contactName')}
-              />
-              {errors.contactName && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.contactName.message}</p>}
-            </div>
-
-            {/* Email & Phone Row */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>PHONE</label>
+                <input
+                  id="supplier-phone"
+                  className={`form-input ${errors.phone ? 'error' : ''}`}
+                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
+                  placeholder="+94117878600"
+                  onKeyDown={handlePrimaryFieldKeyDown}
+                  {...register('phone')}
+                />
+                {errors.phone && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.phone.message}</p>}
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>EMAIL</label>
                 <input
+                  id="supplier-email"
                   className={`form-input ${errors.email ? 'error' : ''}`}
                   type="email"
                   style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
                   placeholder="helpdesk.cbl@muncheelk.com"
-                  onKeyDown={handleKeyDown}
+                  onKeyDown={handlePrimaryFieldKeyDown}
                   {...register('email')}
                 />
                 {errors.email && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.email.message}</p>}
               </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>PHONE</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    className={`form-input ${errors.phone ? 'error' : ''}`}
-                    style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
-                    placeholder="+94117878600"
-                    onKeyDown={handleKeyDown}
-                    {...register('phone')}
-                  />
-                </div>
-                {errors.phone && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.phone.message}</p>}
-              </div>
             </div>
 
-            {/* Address */}
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>ADDRESS</label>
-              <textarea
-                className={`form-input ${errors.address ? 'error' : ''}`}
-                style={{ width: '100%', minHeight: 80, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '12px 16px', color: 'var(--color-text-primary)', fontSize: 14, resize: 'vertical' }}
-                placeholder="Habarakada Road, Ranala, Sri Lanka"
-                onKeyDown={handleKeyDown}
-                {...register('address')}
-              />
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>ADDRESS</label>
+                <textarea
+                  id="supplier-address"
+                  className={`form-input ${errors.address ? 'error' : ''}`}
+                  style={{ width: '100%', minHeight: 80, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '12px 16px', color: 'var(--color-text-primary)', fontSize: 14, resize: 'vertical' }}
+                  placeholder="Habarakada Road, Ranala, Sri Lanka"
+                  onKeyDown={handlePrimaryFieldKeyDown}
+                  {...register('address')}
+                />
               {errors.address && <p className="form-error mt-1" style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.address.message}</p>}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>VAT REG NO</label>
+                <input
+                  id="supplier-vat-reg-no"
+                  className="form-input"
+                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
+                  placeholder="VAT-1122334455"
+                  onKeyDown={handlePrimaryFieldKeyDown}
+                  {...register('vatRegNo')}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>FAX</label>
+                <input
+                  id="supplier-fax"
+                  className="form-input"
+                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
+                  placeholder="+94 11 787 8601"
+                  onKeyDown={handlePrimaryFieldKeyDown}
+                  {...register('fax')}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>BUSINESS REG NO</label>
+                <input
+                  id="supplier-business-reg-no"
+                  className="form-input"
+                  style={{ width: '100%', height: 44, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '0 16px', color: 'var(--color-text-primary)', fontSize: 14 }}
+                  placeholder="BRN-2233445566"
+                  onKeyDown={handlePrimaryFieldKeyDown}
+                  {...register('businessRegNo')}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
               <input
                 type="checkbox"
                 id="isActive"
-                onKeyDown={handleKeyDown}
                 {...register('isActive')}
                 style={{ width: 16, height: 16, accentColor: '#F4A623', cursor: 'pointer' }}
               />
@@ -286,13 +450,122 @@ function SupplierFormModal({
               </label>
             </div>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>
+                  Contact
+                </p>
+                <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-dim)' }}>
+                  Add one or more contact records. Tick the active contact for matching.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => append(emptyContact())}
+                style={{ height: 40, padding: '0 16px', display: 'flex', alignItems: 'center', gap: 8 }}
+              >
+                <Plus style={{ width: 16, height: 16 }} />
+                Add Contact
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {fields.length ? fields.map((field, index) => (
+                <div
+                  key={field.id}
+                  className="panel"
+                  style={{
+                    padding: 16,
+                    display: 'grid',
+                    gridTemplateColumns: '1.3fr 1fr 1fr 1.2fr auto',
+                    gap: 12,
+                    alignItems: 'end',
+                  }}
+                >
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--color-text-dim)', marginBottom: 6, textTransform: 'uppercase' }}>Name</label>
+                    <input
+                      className={`form-input ${errors.contacts?.[index]?.name ? 'error' : ''}`}
+                      placeholder="Contact person"
+                      style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)' }}
+                      {...register(`contacts.${index}.name` as const)}
+                    />
+                    {errors.contacts?.[index]?.name && (
+                      <p style={{ fontSize: 12, color: 'var(--color-red)', marginTop: 4 }}>
+                        {errors.contacts[index]?.name?.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--color-text-dim)', marginBottom: 6, textTransform: 'uppercase' }}>Designation</label>
+                    <input
+                      className={`form-input ${errors.contacts?.[index]?.designation ? 'error' : ''}`}
+                      placeholder="Manager"
+                      style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)' }}
+                      {...register(`contacts.${index}.designation` as const)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--color-text-dim)', marginBottom: 6, textTransform: 'uppercase' }}>MobileNo</label>
+                    <input
+                      className={`form-input ${errors.contacts?.[index]?.mobileNo ? 'error' : ''}`}
+                      placeholder="+94 77 000 0000"
+                      style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)' }}
+                      {...register(`contacts.${index}.mobileNo` as const)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--color-text-dim)', marginBottom: 6, textTransform: 'uppercase' }}>Email</label>
+                    <input
+                      type="email"
+                      className={`form-input ${errors.contacts?.[index]?.email ? 'error' : ''}`}
+                      placeholder="person@supplier.lk"
+                      style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)' }}
+                      {...register(`contacts.${index}.email` as const)}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      <input
+                        type="checkbox"
+                        {...register(`contacts.${index}.isActive` as const)}
+                        style={{ width: 16, height: 16, accentColor: '#F4A623', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>Active</span>
+                    </label>
+                    {fields.length > 1 ? (
+                      <button
+                        type="button"
+                        aria-label={`Remove contact ${index + 1}`}
+                        className="icon-button"
+                        onClick={() => remove(index)}
+                        style={{ width: 32, height: 32 }}
+                      >
+                        <Trash2 style={{ width: 14, height: 14 }} />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )) : (
+                <div className="panel" style={{ padding: 16, color: 'var(--color-text-dim)', fontSize: 13 }}>
+                  No contacts added yet. Use Add Contact if needed.
+                </div>
+              )}
+              {errors.contacts && typeof errors.contacts.message === 'string' ? (
+                <p style={{ fontSize: 12, color: 'var(--color-red)' }}>{errors.contacts.message}</p>
+              ) : null}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
               <button
                 type="button"
                 className="button-secondary"
                 onClick={onClose}
-                data-skip-focus="true"
                 style={{ height: 40, padding: '0 24px', fontSize: 14 }}
               >
                 Cancel
@@ -300,7 +573,7 @@ function SupplierFormModal({
               <button
                 type="submit"
                 className="button-primary"
-                onKeyDown={handleKeyDown}
+                id="save-supplier-button"
                 style={{ height: 40, padding: '0 24px', fontSize: 14 }}
               >
                 Save Supplier
@@ -316,49 +589,59 @@ function SupplierFormModal({
 export default function SupplierListPage() {
   const [search, setSearch] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingSupplier, setEditingSupplier] = useState<any>(null)
-  const [suppliers, setSuppliers] = useState(mockSuppliers)
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | undefined>(undefined)
+  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers)
 
   const filtered = useMemo(
     () =>
-      suppliers.filter(
-        (s) =>
-          !search ||
-          s.name.toLowerCase().includes(search.toLowerCase()) ||
-          s.code.toLowerCase().includes(search.toLowerCase())
-      ),
+      suppliers.filter((supplier) => {
+        if (!search) return true
+        const haystack = [
+          supplier.code,
+          supplier.name,
+          supplier.phone,
+          supplier.email,
+          supplier.address,
+          supplier.vatRegNo,
+          supplier.businessRegNo,
+          supplier.contacts.map((contact) => `${contact.name} ${contact.designation} ${contact.mobileNo} ${contact.email}`).join(' '),
+        ]
+          .join(' ')
+          .toLowerCase()
+
+        return haystack.includes(search.toLowerCase())
+      }),
     [search, suppliers]
   )
 
-  const handleSupplierSaved = (savedSupplier: any) => {
-    const isExisting = suppliers.some(s => s.id === savedSupplier.id)
-    if (isExisting) {
-      setSuppliers(suppliers.map(s => s.id === savedSupplier.id ? savedSupplier : s))
+  function handleSupplierSaved(savedSupplier: Supplier) {
+    const exists = suppliers.some((supplier) => supplier.id === savedSupplier.id)
+    if (exists) {
+      setSuppliers(suppliers.map((supplier) => (supplier.id === savedSupplier.id ? savedSupplier : supplier)))
     } else {
-      setSuppliers([...suppliers, savedSupplier])
+      setSuppliers([savedSupplier, ...suppliers])
     }
   }
 
-  const openNewSupplierModal = () => {
-    setEditingSupplier(null)
+  function openNewSupplierModal() {
+    setEditingSupplier(undefined)
     setIsModalOpen(true)
   }
 
-  const openEditSupplierModal = (supplier: any) => {
+  function openEditSupplierModal(supplier: Supplier) {
     setEditingSupplier(supplier)
     setIsModalOpen(true)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* ── Page Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>
             Suppliers
           </h1>
           <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-            Manage supplier profiles, contact details, and performance.
+            Manage supplier profiles, tax details, and multiple contacts.
           </p>
         </div>
         <button
@@ -371,71 +654,89 @@ export default function SupplierListPage() {
         </button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* ── Filter Bar ── */}
-        <div className="panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ position: 'relative', flex: 1 }}>
-            <Search
-              style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'var(--color-text-dim)' }}
-            />
-            <input
-              className="form-input"
-              placeholder="Search suppliers..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ width: '100%', height: 40, paddingLeft: 36, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', fontSize: 14 }}
-            />
-          </div>
+      <div className="panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search
+            style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'var(--color-text-dim)' }}
+          />
+          <input
+            className="form-input"
+            placeholder="Search suppliers..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            style={{ width: '100%', height: 40, paddingLeft: 36, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', fontSize: 14 }}
+          />
         </div>
+      </div>
 
-        <div className="panel overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>Supplier Name</th>
-                  <th>Contact</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th>City</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => (
-                  <tr key={s.id}>
+      <div className="panel overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Supplier Name</th>
+                <th>Main Contact</th>
+                <th>VAT Reg No</th>
+                <th>Business Reg No</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((supplier) => {
+                const activeContact = supplier.contacts.find((contact) => contact.isActive) ?? supplier.contacts[0]
+
+                return (
+                  <tr key={supplier.id}>
                     <td>
                       <span className="mono text-xs font-medium" style={{ color: 'var(--color-amber)' }}>
-                        {s.code}
+                        {supplier.code}
                       </span>
                     </td>
                     <td className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                      {s.name}
+                      {supplier.name}
                     </td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{s.contact}</td>
-                    <td className="text-sm" style={{ color: 'var(--color-blue)' }}>{s.email}</td>
-                    <td className="mono text-xs" style={{ color: 'var(--color-text-muted)' }}>{s.phone}</td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{s.city}</td>
+                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ color: 'var(--color-text-primary)' }}>{activeContact?.name ?? '—'}</span>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                          {activeContact ? `${activeContact.designation} · ${supplier.contacts.length} contacts` : 'No contacts'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                      {supplier.vatRegNo || 'â€”'}
+                    </td>
+                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                      {supplier.businessRegNo || 'â€”'}
+                    </td>
+                    <td className="mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {supplier.phone}
+                    </td>
+                    <td className="text-sm" style={{ color: 'var(--color-blue)' }}>
+                      {supplier.email}
+                    </td>
                     <td>
-                      <StatusBadge status={s.status} />
+                      <StatusBadge status={supplier.isActive ? 'ACTIVE' : 'INACTIVE'} />
                     </td>
                     <td style={{ padding: '12px 10px', textAlign: 'right' }}>
                       <button
                         className="icon-button"
                         title="Edit supplier"
                         style={{ width: 28, height: 28 }}
-                        onClick={() => openEditSupplierModal(s)}
+                        onClick={() => openEditSupplierModal(supplier)}
                       >
                         <Pencil style={{ width: 13, height: 13 }} />
                       </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -448,3 +749,5 @@ export default function SupplierListPage() {
     </div>
   )
 }
+
+

@@ -1,12 +1,24 @@
+export interface MasterSupplierContactDto {
+  name: string
+  designation: string
+  mobileNo: string
+  email: string
+  isActive: boolean
+}
+
 export interface MasterSupplierDto {
   id: string
   code: string
   name: string
-  contactName: string
   phone: string
   email: string
   address: string
+  vatRegNo?: string
+  fax?: string
+  businessRegNo?: string
   isActive: boolean
+  contactName?: string
+  contacts?: MasterSupplierContactDto[]
 }
 
 export interface MasterBrandDto {
@@ -53,11 +65,15 @@ export interface MasterProductDto {
 export interface CreateMasterSupplierRequest {
   code: string
   name: string
-  contactName: string
   phone: string
   email: string
   address: string
+  vatRegNo?: string
+  fax?: string
+  businessRegNo?: string
   isActive?: boolean
+  contactName?: string
+  contacts?: MasterSupplierContactDto[]
 }
 
 export interface UpdateMasterSupplierRequest extends CreateMasterSupplierRequest {}
