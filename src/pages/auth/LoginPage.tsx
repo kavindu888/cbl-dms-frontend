@@ -196,6 +196,8 @@ export default function LoginPage() {
                 />
                 <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Remember me</span>
               </label>
+              
+               {/*
               <button
                 type="button"
                 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-amber)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
@@ -204,6 +206,8 @@ export default function LoginPage() {
               >
                 Forgot password?
               </button>
+              */}
+
             </div>
 
             {/* ── Sign In button ── */}
