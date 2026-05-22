@@ -15,16 +15,16 @@ import DashboardPage from './pages/dashboard/DashboardPage'
 import FleetOverviewPage from './pages/fleet/FleetOverviewPage'
 import RouteLogPage from './pages/fleet/RouteLogPage'
 import VehicleDetailPage from './pages/fleet/VehicleDetailPage'
-import BrandListPage from './pages/inventory/BrandListPage'
-import CategoryListPage from './pages/inventory/CategoryListPage'
 import MonthlyAdjustmentPage from './pages/inventory/MonthlyAdjustmentPage'
 import MovementLogPage from './pages/inventory/MovementLogPage'
-import StockOverviewPage from './pages/inventory/StockOverviewPage'
+import BrandListPage from './pages/master/BrandListPage'
+import CategoryListPage from './pages/master/CategoryListPage'
+import StockOverviewPage from './pages/master/StockOverviewPage'
 import PurchaseOrderDetailPage from './pages/purchasing/PurchaseOrderDetailPage'
 import PurchaseOrderListPage from './pages/purchasing/PurchaseOrderListPage'
 import PurchaseReturnsPage from './pages/purchasing/PurchaseReturnsPage'
 import ReceiptEntryPage from './pages/purchasing/ReceiptEntryPage'
-import SupplierListPage from './pages/purchasing/SupplierListPage'
+import SupplierListPage from './pages/master/SupplierListPage'
 import ReportHubPage from './pages/reports/ReportHubPage'
 import ReportPreviewPage from './pages/reports/ReportPreviewPage'
 import CustomerDetailPage from './pages/sales/CustomerDetailPage'
@@ -123,6 +123,22 @@ export const router = createBrowserRouter([
       {
         path: 'inventory',
         element: <StockOverviewPage />,
+      },
+      {
+        path: 'master/suppliers',
+        element: <SupplierListPage />,
+      },
+      {
+        path: 'master/products',
+        element: <StockOverviewPage />,
+      },
+      {
+        path: 'master/categories',
+        element: <CategoryListPage />,
+      },
+      {
+        path: 'master/brands',
+        element: <BrandListPage />,
       },
       {
         path: 'inventory/categories',

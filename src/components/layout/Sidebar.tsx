@@ -7,11 +7,11 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  Store,
   Search,
   Settings,
   Shield,
   ShoppingCart,
-  Store,
   Tags,
   Truck,
   Users,
@@ -47,18 +47,10 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'INVENTORY',
-    items: [
-      { label: 'Product', to: '/inventory', icon: Package, end: true },
-      { label: 'Category', to: '/inventory/categories', icon: Tags },
-      { label: 'Brand', to: '/inventory/brands', icon: Bookmark },
-    ],
-  },
-  {
     label: 'PURCHASING',
     items: [
       { label: 'Purchase Order', to: '/purchasing', icon: ShoppingCart, end: true },
-      { label: 'Supplier', to: '/purchasing/suppliers', icon: Store },
+      { label: 'Purchase Returns', to: '/purchasing/returns', icon: Bookmark },
     ],
   },
   {
@@ -72,6 +64,15 @@ const navGroups: NavGroup[] = [
   {
     label: 'ANALYTICS',
     items: [{ label: 'Reports', to: '/reports', icon: BarChart2 }],
+  },
+  {
+    label: 'MASTER',
+    items: [
+      { label: 'Supplier', to: '/master/suppliers', icon: Store },
+      { label: 'Product', to: '/master/products', icon: Package, end: true },
+      { label: 'Category', to: '/master/categories', icon: Tags },
+      { label: 'Brand', to: '/master/brands', icon: Bookmark },
+    ],
   },
   {
     label: 'ADMIN',
