@@ -21,6 +21,7 @@ type Product = {
   sku: string
   barcode: string
   name: string
+  description: string
   category: {
     id: string
     name: string
@@ -52,6 +53,7 @@ const initialProducts: Product[] = [
     sku: 'CBL-MCK-001',
     barcode: '4891234567890',
     name: 'CBL Munchee Coconut Crunch 200g',
+    description: 'Coconut-flavoured biscuit pack',
     category: { id: 'cat_002', name: 'Biscuits' },
     brand: 'Munchee',
     uomBase: 'Packet',
@@ -66,6 +68,7 @@ const initialProducts: Product[] = [
     sku: 'CBL-TBC-001',
     barcode: '4891234567891',
     name: 'CBL Tiara Butter Cake 400g',
+    description: 'Butter cake with a soft crumb texture',
     category: { id: 'cat_001', name: 'Cakes' },
     brand: 'Tiara',
     uomBase: 'Packet',
@@ -80,6 +83,7 @@ const initialProducts: Product[] = [
     sku: 'CBL-RZB-100',
     barcode: '4891234567892',
     name: 'CBL Ritzbury Dark 50g',
+    description: 'Dark chocolate bar',
     category: { id: 'cat_004', name: 'Chocolate' },
     brand: 'Ritzbury',
     uomBase: 'Packet',
@@ -97,6 +101,7 @@ const productSchema = z.object({
   sku: z.string().min(1, 'SKU is required'),
   barcode: z.string().min(1, 'Barcode is required'),
   name: z.string().min(1, 'Product name is required'),
+  description: z.string().optional(),
   categoryId: z.string().min(1, 'Category is required'),
   brand: z.string().min(1, 'Brand is required'),
   uomBase: z.string().min(1, 'Base UOM is required'),
@@ -135,6 +140,7 @@ function ProductFormModal({
       sku: '',
       barcode: '',
       name: '',
+      description: '',
       categoryId: '',
       brand: '',
       uomBase: 'Packet',
@@ -156,6 +162,7 @@ function ProductFormModal({
           sku: product.sku,
           barcode: product.barcode,
           name: product.name,
+          description: product.description,
           categoryId: product.category.id,
           brand: product.brand,
           uomBase: product.uomBase,
@@ -172,6 +179,7 @@ function ProductFormModal({
           sku: '',
           barcode: '',
           name: '',
+          description: '',
           categoryId: '',
           brand: '',
           uomBase: 'Packet',
@@ -197,6 +205,7 @@ function ProductFormModal({
       sku: values.sku,
       barcode: values.barcode,
       name: values.name,
+      description: values.description ?? '',
       category: catObj,
       brand: values.brand,
       uomBase: values.uomBase,
@@ -223,6 +232,7 @@ function ProductFormModal({
         sku: '',
         barcode: '',
         name: '',
+        description: '',
         categoryId: '',
         brand: '',
         uomBase: 'Packet',
@@ -338,6 +348,17 @@ function ProductFormModal({
                 style={{ background: 'rgba(0,0,0,0.15)', height: 44 }}
               />
               {errors.name && <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>{errors.name.message}</p>}
+            </div>
+
+            {/* Description */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>DESCRIPTION</label>
+              <textarea
+                {...register('description')}
+                className="form-input w-full"
+                placeholder="e.g. Chocolate chip biscuits"
+                style={{ background: 'rgba(0,0,0,0.15)', minHeight: 84, paddingTop: 12, paddingBottom: 12 }}
+              />
             </div>
 
             {/* Category and Brand */}
@@ -688,6 +709,9 @@ export default function StockOverviewPage() {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
                               {p.name}
+                            </span>
+                            <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                              {p.description}
                             </span>
                             <span className="mono" style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
                               Barcode: {p.barcode}
