@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  Search,
   Settings,
   Shield,
   ShoppingCart,
@@ -16,6 +17,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
+import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 
 import { useAuthStore } from '@stores/authStore'
@@ -95,6 +97,10 @@ function closeMobileSidebar() {
   }
 }
 
+function normalizeSearch(value: string) {
+  return value.trim().toLowerCase()
+}
+
 function SidebarLink({ collapsed, item }: { collapsed: boolean; item: NavItem }) {
   const Icon = item.icon
   const link = (
@@ -145,9 +151,24 @@ function SidebarLink({ collapsed, item }: { collapsed: boolean; item: NavItem })
 export default function Sidebar() {
   const { sidebarCollapsed, sidebarMobileOpen } = useUIStore()
   const { user, logout } = useAuthStore()
+  const [searchQuery, setSearchQuery] = useState('')
 
   const displayName = user ? `${user.username}` : 'admin'
   const displayRole = user?.roles[0] ?? 'Administrator'
+  const normalizedQuery = normalizeSearch(searchQuery)
+
+  const filteredNavGroups = normalizedQuery
+    ? navGroups
+        .map((group) => {
+          const items = group.items.filter((item) => {
+            const haystack = `${group.label} ${item.label}`.toLowerCase()
+            return haystack.includes(normalizedQuery)
+          })
+
+          return items.length ? { ...group, items } : null
+        })
+        .filter((group): group is NavGroup => Boolean(group))
+    : navGroups
 
   return (
     <Tooltip.Provider>
@@ -170,17 +191,47 @@ export default function Sidebar() {
           ) : null}
         </div>
 
-        <div className={styles.navContent}>
-          {navGroups.map((group) => (
-            <div key={group.label} className={styles.navGroup}>
-              {!sidebarCollapsed ? <p className={styles.navGroupLabel}>{group.label}</p> : null}
-              <div className={styles.navList}>
-                {group.items.map((item) => (
-                  <SidebarLink key={item.to} collapsed={sidebarCollapsed} item={item} />
-                ))}
-              </div>
+        {!sidebarCollapsed ? (
+          <div className={styles.searchWrap}>
+            <div className={styles.searchInputWrap}>
+              <Search className={styles.searchIcon} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search menu..."
+                aria-label="Search menu"
+                className={styles.searchInput}
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  className={styles.searchClear}
+                  aria-label="Clear search"
+                  onClick={() => setSearchQuery('')}
+                >
+                  x
+                </button>
+              ) : null}
             </div>
-          ))}
+          </div>
+        ) : null}
+
+        <div className={styles.navContent}>
+          {filteredNavGroups.length ? (
+            filteredNavGroups.map((group) => (
+              <div key={group.label} className={styles.navGroup}>
+                {!sidebarCollapsed ? <p className={styles.navGroupLabel}>{group.label}</p> : null}
+                <div className={styles.navList}>
+                  {group.items.map((item) => (
+                    <SidebarLink key={item.to} collapsed={sidebarCollapsed} item={item} />
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            !sidebarCollapsed ? <div className={styles.searchEmptyState}>No menu items found.</div> : null
+          )}
         </div>
 
         <div className={styles.footer}>
