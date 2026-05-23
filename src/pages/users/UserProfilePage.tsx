@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import RoleBadge from '@components/ui/RoleBadge'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useAuthStore } from '@stores/authStore'
 import { Role } from '@/types/auth.types'
@@ -207,20 +208,7 @@ export default function UserProfilePage() {
                 justifyContent: 'center',
               }}
             >
-              <span
-                className="text-chip"
-                style={{
-                  background: 'rgba(102,181,250,0.12)',
-                  color: 'var(--color-blue)',
-                  border: '1px solid rgba(102,181,250,0.25)',
-                  padding: '2px 10px',
-                  borderRadius: 6,
-                  fontSize: 11,
-                  fontWeight: 500,
-                }}
-              >
-                {roleLabel}
-              </span>
+              <RoleBadge role={currentUser.roles[0]} />
               <StatusBadge status="ACTIVE" />
             </div>
 

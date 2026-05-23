@@ -262,44 +262,70 @@ export default function DashboardPage() {
       <div className="grid  grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Recent Invoices */}
         <div className="panel xl:col-span-2 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border)]">
-            <h3 className="text-xl font-bold text-[var(--color-text-primary)]">Recent Invoices</h3>
-            <span className="text-[11px] font-bold text-[var(--color-text-dim)] uppercase tracking-widest">
+          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4">
+            <h3 className="text-[1.05rem] font-bold tracking-tight text-[var(--color-text-primary)]">
+              Recent Invoices
+            </h3>
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--color-text-dim)]">
               Last 5 transactions
             </span>
           </div>
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-[var(--color-bg-elevated)]/30">
-                <th className="px-6 py-4 text-[10px] font-bold text-[var(--color-text-dim)] uppercase tracking-wider">INVOICE #</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-[var(--color-text-dim)] uppercase tracking-wider">CUSTOMER</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-[var(--color-text-dim)] uppercase tracking-wider text-right">AMOUNT</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-[var(--color-text-dim)] uppercase tracking-wider">TYPE</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-[var(--color-text-dim)] uppercase tracking-wider text-center">STATUS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-border)]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] table-fixed text-left">
+              <colgroup>
+                <col className="w-[24%]" />
+                <col className="w-[32%]" />
+                <col className="w-[18%]" />
+                <col className="w-[12%]" />
+                <col className="w-[14%]" />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-elevated)]/25">
+                  <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+                    Invoice #
+                  </th>
+                  <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+                    Customer
+                  </th>
+                  <th className="px-6 py-3 text-right text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-center text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-center text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border)]">
               {mockRecentInvoices.map((inv) => (
-                <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors group">
-                  <td className="px-6 py-4 text-sm font-black mono text-[var(--color-amber)] group-hover:underline cursor-pointer">
+                <tr
+                  key={inv.id}
+                  className="group transition-colors hover:bg-white/[0.03]"
+                >
+                  <td className="px-6 py-4 text-sm font-black mono text-[var(--color-amber)] group-hover:underline cursor-pointer whitespace-nowrap">
                     {inv.id}
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-[var(--color-text-primary)]">
                     {inv.customer}
                   </td>
-                  <td className="px-6 py-4 text-sm font-bold mono text-right text-[var(--color-text-primary)]">
+                  <td className="px-6 py-4 text-right text-sm font-bold mono text-[var(--color-text-primary)] whitespace-nowrap">
                     Rs. {inv.amount.toLocaleString()}
                   </td>
-                  <td className="px-6 py-4 text-sm text-[var(--color-text-muted)] font-medium">
-                    {inv.type}
+                  <td className="px-6 py-4 text-center text-sm font-medium text-[var(--color-text-muted)]">
+                    <span className="inline-flex min-w-[56px] justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-1 text-[11px] uppercase tracking-wide text-[var(--color-text-primary)]">
+                      {inv.type}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <StatusBadge status={inv.status} />
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Right Stack: Low Stock & Fleet Status */}

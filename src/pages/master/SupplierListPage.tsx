@@ -136,6 +136,9 @@ function emptyContact(): SupplierContact {
   }
 }
 
+const contactFieldOrder = ['name', 'designation', 'mobileNo', 'email', 'isActive'] as const
+type ContactField = (typeof contactFieldOrder)[number]
+
 function SupplierFormModal({
   open,
   supplier,
@@ -175,6 +178,15 @@ function SupplierFormModal({
   })
 
   function handlePrimaryFieldKeyDown(event: KeyboardEvent<HTMLElement>) {
+    const currentId = event.currentTarget.id
+    const isFinalPrimaryField = currentId === 'supplier-business-reg-no'
+
+    if (event.key === 'Tab' && isFinalPrimaryField && !event.shiftKey) {
+      event.preventDefault()
+      document.getElementById('save-supplier-button')?.focus()
+      return
+    }
+
     if (event.key !== 'Enter' || event.shiftKey) {
       return
     }
@@ -190,7 +202,6 @@ function SupplierFormModal({
       'supplier-business-reg-no',
     ]
 
-    const currentId = event.currentTarget.id
     const currentIndex = fieldOrder.indexOf(currentId)
 
     if (currentIndex === -1) {
@@ -202,6 +213,34 @@ function SupplierFormModal({
     const nextId = fieldOrder[currentIndex + 1]
     if (nextId) {
       document.getElementById(nextId)?.focus()
+      return
+    }
+
+    document.getElementById('save-supplier-button')?.focus()
+  }
+
+  function focusContactField(index: number, field: ContactField) {
+    document.getElementById(`contact-${index}-${field}`)?.focus()
+  }
+
+  function handleContactFieldKeyDown(index: number, field: ContactField, event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter' || event.shiftKey) {
+      return
+    }
+
+    event.preventDefault()
+
+    const currentIndex = contactFieldOrder.indexOf(field)
+    const nextField = contactFieldOrder[currentIndex + 1]
+
+    if (nextField) {
+      focusContactField(index, nextField)
+      return
+    }
+
+    const nextContactName = document.getElementById(`contact-${index + 1}-name`)
+    if (nextContactName) {
+      nextContactName.focus()
       return
     }
 
@@ -486,9 +525,11 @@ function SupplierFormModal({
                   <div>
                     <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--color-text-dim)', marginBottom: 6, textTransform: 'uppercase' }}>Name</label>
                     <input
+                      id={`contact-${index}-name`}
                       className={`form-input ${errors.contacts?.[index]?.name ? 'error' : ''}`}
                       placeholder="Contact person"
                       style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)' }}
+                      onKeyDown={(event) => handleContactFieldKeyDown(index, 'name', event)}
                       {...register(`contacts.${index}.name` as const)}
                     />
                     {errors.contacts?.[index]?.name && (
@@ -501,9 +542,11 @@ function SupplierFormModal({
                   <div>
                     <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--color-text-dim)', marginBottom: 6, textTransform: 'uppercase' }}>Designation</label>
                     <input
+                      id={`contact-${index}-designation`}
                       className={`form-input ${errors.contacts?.[index]?.designation ? 'error' : ''}`}
                       placeholder="Manager"
                       style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)' }}
+                      onKeyDown={(event) => handleContactFieldKeyDown(index, 'designation', event)}
                       {...register(`contacts.${index}.designation` as const)}
                     />
                   </div>
@@ -511,9 +554,11 @@ function SupplierFormModal({
                   <div>
                     <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--color-text-dim)', marginBottom: 6, textTransform: 'uppercase' }}>MobileNo</label>
                     <input
+                      id={`contact-${index}-mobileNo`}
                       className={`form-input ${errors.contacts?.[index]?.mobileNo ? 'error' : ''}`}
                       placeholder="+94 77 000 0000"
                       style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)' }}
+                      onKeyDown={(event) => handleContactFieldKeyDown(index, 'mobileNo', event)}
                       {...register(`contacts.${index}.mobileNo` as const)}
                     />
                   </div>
@@ -521,10 +566,12 @@ function SupplierFormModal({
                   <div>
                     <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--color-text-dim)', marginBottom: 6, textTransform: 'uppercase' }}>Email</label>
                     <input
+                      id={`contact-${index}-email`}
                       type="email"
                       className={`form-input ${errors.contacts?.[index]?.email ? 'error' : ''}`}
                       placeholder="person@supplier.lk"
                       style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)' }}
+                      onKeyDown={(event) => handleContactFieldKeyDown(index, 'email', event)}
                       {...register(`contacts.${index}.email` as const)}
                     />
                   </div>
@@ -532,7 +579,9 @@ function SupplierFormModal({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       <input
+                        id={`contact-${index}-isActive`}
                         type="checkbox"
+                        onKeyDown={(event) => handleContactFieldKeyDown(index, 'isActive', event)}
                         {...register(`contacts.${index}.isActive` as const)}
                         style={{ width: 16, height: 16, accentColor: '#F4A623', cursor: 'pointer' }}
                       />

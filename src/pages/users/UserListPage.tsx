@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import RoleBadge from '@components/ui/RoleBadge'
 import StatusBadge from '@components/ui/StatusBadge'
 import { mockUsers } from '@data/mockUsers'
 import { Role } from '@/types/auth.types'
@@ -458,31 +459,12 @@ function UserRow({ user, isLast, index, onEdit }: { user: UserListItemDto; isLas
 
       {/* ROLE */}
       <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center',
-          padding: '2px 8px', fontSize: 11, fontWeight: 500,
-          background: 'rgba(102,181,250,0.10)',
-          color: 'var(--color-blue)',
-          border: '1px solid rgba(102,181,250,0.25)',
-          borderRadius: 6,
-        }}>
-          {ROLE_LABELS[user.roles[0]] ?? user.roles[0]}
-        </span>
+        <RoleBadge role={user.roles[0]} />
       </td>
 
       {/* STATUS */}
       <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center',
-          padding: '2px 8px', fontSize: 11, fontWeight: 600,
-          borderRadius: 20,
-          background: user.isActive ? 'rgba(32,212,191,0.12)' : 'rgba(148,163,184,0.10)',
-          color: user.isActive ? 'var(--color-teal)' : 'var(--color-text-muted)',
-          border: `1px solid ${user.isActive ? 'rgba(32,212,191,0.30)' : 'rgba(148,163,184,0.20)'}`,
-          letterSpacing: '0.4px',
-        }}>
-          {user.isActive ? 'ACTIVE' : 'INACTIVE'}
-        </span>
+        <StatusBadge status={user.isActive ? 'ACTIVE' : 'INACTIVE'} />
       </td>
 
       {/* LAST LOGIN */}

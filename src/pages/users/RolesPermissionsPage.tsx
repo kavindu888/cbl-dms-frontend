@@ -6,6 +6,8 @@ import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import RoleBadge from '@components/ui/RoleBadge'
+import StatusBadge from '@components/ui/StatusBadge'
 import { Role } from '@/types/auth.types'
 
 /* ── Mock Data & Constants ───────────────────────────────────────── */
@@ -377,7 +379,7 @@ export default function RolesPermissionsPage() {
                     {filteredRoles.map((r) => (
                       <tr key={r.id}>
                         <td className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                          {r.name}
+                          <RoleBadge role={r.name} />
                         </td>
                         <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
                           {r.description}
@@ -397,35 +399,7 @@ export default function RolesPermissionsPage() {
                           </span>
                         </td>
                         <td>
-                          {r.isSystemRole ? (
-                            <span
-                              style={{
-                                display: 'inline-flex', alignItems: 'center',
-                                padding: '2px 8px', fontSize: 11, fontWeight: 600,
-                                borderRadius: 12,
-                                background: 'rgba(32,212,191,0.12)',
-                                color: 'var(--color-teal)',
-                                border: '1px solid rgba(32,212,191,0.30)',
-                                letterSpacing: '0.4px',
-                              }}
-                            >
-                              SYSTEM
-                            </span>
-                          ) : (
-                            <span
-                              style={{
-                                display: 'inline-flex', alignItems: 'center',
-                                padding: '2px 8px', fontSize: 11, fontWeight: 600,
-                                borderRadius: 12,
-                                background: 'rgba(148,163,184,0.10)',
-                                color: 'var(--color-text-muted)',
-                                border: '1px solid rgba(148,163,184,0.20)',
-                                letterSpacing: '0.4px',
-                              }}
-                            >
-                              CUSTOM
-                            </span>
-                          )}
+                          <StatusBadge status={r.isSystemRole ? 'SYSTEM' : 'CUSTOM'} />
                         </td>
                         <td style={{ padding: '12px 10px', textAlign: 'right' }}>
                           <button

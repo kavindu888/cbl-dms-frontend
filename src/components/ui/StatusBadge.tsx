@@ -3,28 +3,30 @@ import { cn } from '@utils/cn'
 type BadgeStyle = { bg: string; text: string; border: string }
 
 const STATUS_STYLES: Record<string, BadgeStyle> = {
-  draft:       { bg: 'transparent',           text: '#94A3B8', border: '#243057' },
-  submitted:   { bg: 'rgba(102,181,250,0.15)', text: '#66B5FA', border: '#66B5FA' },
-  received:    { bg: 'rgba(32,212,191,0.15)',  text: '#20D4BF', border: '#20D4BF' },
-  partial:     { bg: 'rgba(250,204,21,0.15)',  text: '#FACC15', border: '#FACC15' },
-  cancelled:   { bg: 'rgba(244,63,94,0.15)',   text: '#F43F5E', border: '#F43F5E' },
-  overdue:     { bg: 'rgba(244,63,94,0.20)',   text: '#F43F5E', border: '#F43F5E' },
-  cleared:     { bg: 'rgba(32,212,191,0.15)',  text: '#20D4BF', border: '#20D4BF' },
-  on_route:    { bg: 'rgba(32,212,191,0.15)',  text: '#20D4BF', border: '#20D4BF' },
-  pending:     { bg: 'rgba(167,139,250,0.15)', text: '#A78BFA', border: '#A78BFA' },
-  returned:    { bg: 'rgba(244,63,94,0.15)',   text: '#F43F5E', border: '#F43F5E' },
-  active:      { bg: 'rgba(32,212,191,0.15)',  text: '#20D4BF', border: '#20D4BF' },
-  inactive:    { bg: 'rgba(148,163,184,0.15)', text: '#94A3B8', border: '#94A3B8' },
-  expired:     { bg: 'rgba(244,63,94,0.15)',   text: '#F43F5E', border: '#F43F5E' },
-  critical:    { bg: 'rgba(244,63,94,0.20)',   text: '#F43F5E', border: '#F43F5E' },
-  paid:        { bg: 'rgba(32,212,191,0.15)',  text: '#20D4BF', border: '#20D4BF' },
-  in_warehouse:{ bg: 'rgba(102,181,250,0.15)', text: '#66B5FA', border: '#66B5FA' },
-  low:         { bg: 'rgba(250,204,21,0.15)',  text: '#FACC15', border: '#FACC15' },
-  in_transit:  { bg: 'rgba(250,204,21,0.15)',  text: '#FACC15', border: '#FACC15' },
-  maintenance: { bg: 'rgba(244,63,94,0.15)',   text: '#F43F5E', border: '#F43F5E' },
+  draft:       { bg: 'transparent',              text: 'var(--color-text-muted)', border: 'rgba(148,163,184,0.20)' },
+  submitted:   { bg: 'rgba(102,181,250,0.10)',   text: 'var(--color-blue)',       border: 'rgba(102,181,250,0.25)' },
+  received:    { bg: 'rgba(32,212,191,0.12)',    text: 'var(--color-teal)',       border: 'rgba(32,212,191,0.30)' },
+  partial:     { bg: 'rgba(250,204,21,0.10)',    text: 'var(--color-warning)',    border: 'rgba(250,204,21,0.25)' },
+  cancelled:   { bg: 'rgba(244,63,94,0.10)',     text: 'var(--color-danger)',     border: 'rgba(244,63,94,0.25)' },
+  overdue:     { bg: 'rgba(244,63,94,0.15)',     text: 'var(--color-danger)',     border: 'rgba(244,63,94,0.30)' },
+  cleared:     { bg: 'rgba(32,212,191,0.12)',    text: 'var(--color-teal)',       border: 'rgba(32,212,191,0.30)' },
+  on_route:    { bg: 'rgba(32,212,191,0.12)',    text: 'var(--color-teal)',       border: 'rgba(32,212,191,0.30)' },
+  pending:     { bg: 'rgba(167,139,250,0.10)',   text: 'var(--color-purple)',     border: 'rgba(167,139,250,0.25)' },
+  returned:    { bg: 'rgba(244,63,94,0.10)',     text: 'var(--color-danger)',     border: 'rgba(244,63,94,0.25)' },
+  active:      { bg: 'rgba(32,212,191,0.12)',    text: 'var(--color-teal)',       border: 'rgba(32,212,191,0.30)' },
+  inactive:    { bg: 'rgba(148,163,184,0.10)',   text: 'var(--color-text-muted)', border: 'rgba(148,163,184,0.20)' },
+  expired:     { bg: 'rgba(244,63,94,0.10)',     text: 'var(--color-danger)',     border: 'rgba(244,63,94,0.25)' },
+  critical:    { bg: 'rgba(244,63,94,0.15)',     text: 'var(--color-danger)',     border: 'rgba(244,63,94,0.30)' },
+  paid:        { bg: 'rgba(32,212,191,0.12)',    text: 'var(--color-teal)',       border: 'rgba(32,212,191,0.30)' },
+  in_warehouse:{ bg: 'rgba(102,181,250,0.10)',   text: 'var(--color-blue)',       border: 'rgba(102,181,250,0.25)' },
+  low:         { bg: 'rgba(250,204,21,0.10)',    text: 'var(--color-warning)',    border: 'rgba(250,204,21,0.25)' },
+  in_transit:  { bg: 'rgba(250,204,21,0.10)',    text: 'var(--color-warning)',    border: 'rgba(250,204,21,0.25)' },
+  maintenance: { bg: 'rgba(244,63,94,0.10)',     text: 'var(--color-danger)',     border: 'rgba(244,63,94,0.25)' },
+  system:      { bg: 'rgba(32,212,191,0.12)',    text: 'var(--color-teal)',       border: 'rgba(32,212,191,0.30)' },
+  custom:      { bg: 'rgba(148,163,184,0.10)',   text: 'var(--color-text-muted)', border: 'rgba(148,163,184,0.20)' },
 }
 
-const FALLBACK: BadgeStyle = { bg: 'transparent', text: '#94A3B8', border: '#243057' }
+const FALLBACK: BadgeStyle = { bg: 'transparent', text: 'var(--color-text-muted)', border: 'rgba(148,163,184,0.20)' }
 
 type StatusBadgeProps = {
   status: string
@@ -39,10 +41,16 @@ export default function StatusBadge({ status, className }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        'mono inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-[0.5px]',
+        'mono inline-flex items-center',
         className
       )}
       style={{
+        padding: '2px 8px',
+        fontSize: 11,
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.4px',
+        borderRadius: 20,
         backgroundColor: style.bg,
         color: style.text,
         border: `1px solid ${style.border}`,
