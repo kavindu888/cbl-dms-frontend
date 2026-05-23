@@ -7,6 +7,8 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 
 import StatusBadge from '@components/ui/StatusBadge'
+import * as Tooltip from '@radix-ui/react-tooltip'
+import { Mail, Phone, UserRound, UsersRound } from 'lucide-react'
 
 type SupplierContact = {
   name: string
@@ -138,6 +140,184 @@ function emptyContact(): SupplierContact {
 
 const contactFieldOrder = ['name', 'designation', 'mobileNo', 'email', 'isActive'] as const
 type ContactField = (typeof contactFieldOrder)[number]
+
+function getSupplierPrimaryContact(contacts: SupplierContact[]) {
+  return contacts.find((contact) => contact.isActive) ?? contacts[0]
+}
+
+function SupplierContactsCell({ contacts }: { contacts: SupplierContact[] }) {
+  const primaryContact = getSupplierPrimaryContact(contacts)
+
+  if (!primaryContact) {
+    return <span style={{ color: 'var(--color-text-dim)' }}>No contacts</span>
+  }
+
+  const contactCount = contacts.length
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 2, paddingBottom: 2 }}>
+      <span style={{ color: 'var(--color-text-primary)' }}>{primaryContact.name}</span>
+      <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>{primaryContact.designation}</span>
+
+      <div style={{ marginTop: 2 }}>
+        <Tooltip.Root delayDuration={120}>
+          <Tooltip.Trigger asChild>
+            <button
+              type="button"
+              aria-label={`View ${contactCount} supplier contact${contactCount > 1 ? 's' : ''}`}
+              className="button-secondary"
+              style={{
+                height: 24,
+                padding: '0 10px',
+                fontSize: 11,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                borderRadius: 999,
+                width: 'fit-content',
+              }}
+            >
+              <UsersRound style={{ width: 12, height: 12 }} />
+              {contactCount} contact{contactCount > 1 ? 's' : ''}
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              side="bottom"
+              sideOffset={10}
+              align="start"
+              collisionPadding={12}
+              className="shadow-2xl"
+              style={{
+                width: 320,
+                maxWidth: 'calc(100vw - 24px)',
+                background: 'var(--color-bg-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 12,
+                padding: 14,
+                color: 'var(--color-text-primary)',
+                boxShadow: '0 18px 40px rgba(0, 0, 0, 0.45)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Contact List
+                  </p>
+                  <p style={{ marginTop: 2, fontSize: 12, color: 'var(--color-text-dim)' }}>
+                    {contactCount} contact{contactCount > 1 ? 's' : ''} available
+                  </p>
+                </div>
+                <span
+                  style={{
+                    height: 24,
+                    padding: '0 8px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    borderRadius: 999,
+                    background: 'rgba(244, 166, 35, 0.12)',
+                    color: 'var(--color-amber)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                >
+                  {primaryContact.isActive ? 'Active contact' : 'Preview'}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 12,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  maxHeight: 260,
+                  overflowY: 'auto',
+                }}
+              >
+                {contacts.map((contact, index) => (
+                  <div
+                    key={`${contact.name}-${contact.email}-${index}`}
+                    style={{
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 10,
+                      padding: 12,
+                      background: 'rgba(255, 255, 255, 0.02)',
+                    }}
+                  >
+                    <div
+                      style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <UserRound style={{ width: 14, height: 14, color: 'var(--color-amber)', flexShrink: 0 }} />
+                          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                            {contact.name}
+                          </span>
+                          {contact.isActive ? (
+                            <span
+                              style={{
+                                height: 20,
+                                padding: '0 8px',
+                                borderRadius: 999,
+                                background: 'rgba(68, 198, 112, 0.12)',
+                                color: '#5DD08C',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                              }}
+                            >
+                              Active
+                            </span>
+                          ) : null}
+                        </div>
+                        <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>{contact.designation}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          fontSize: 12,
+                          color: 'var(--color-text-muted)',
+                        }}
+                      >
+                        <Phone style={{ width: 13, height: 13, color: 'var(--color-text-dim)', flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{contact.mobileNo}</span>
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          fontSize: 12,
+                          color: 'var(--color-text-muted)',
+                        }}
+                      >
+                        <Mail style={{ width: 13, height: 13, color: 'var(--color-text-dim)', flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{contact.email}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Tooltip.Arrow
+                width={14}
+                height={8}
+                style={{ fill: 'var(--color-bg-surface)', stroke: 'var(--color-border)', strokeWidth: 1 }}
+              />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+      </div>
+    </div>
+  )
+}
 
 function SupplierFormModal({
   open,
@@ -683,7 +863,8 @@ export default function SupplierListPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <Tooltip.Provider delayDuration={120} skipDelayDuration={0}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>
@@ -736,8 +917,6 @@ export default function SupplierListPage() {
             </thead>
             <tbody>
               {filtered.map((supplier) => {
-                const activeContact = supplier.contacts.find((contact) => contact.isActive) ?? supplier.contacts[0]
-
                 return (
                   <tr key={supplier.id}>
                     <td>
@@ -749,18 +928,13 @@ export default function SupplierListPage() {
                       {supplier.name}
                     </td>
                     <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span style={{ color: 'var(--color-text-primary)' }}>{activeContact?.name ?? '—'}</span>
-                        <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-                          {activeContact ? `${activeContact.designation} · ${supplier.contacts.length} contacts` : 'No contacts'}
-                        </span>
-                      </div>
+                      <SupplierContactsCell contacts={supplier.contacts} />
                     </td>
                     <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {supplier.vatRegNo || 'â€”'}
+                      {supplier.vatRegNo || '—'}
                     </td>
                     <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {supplier.businessRegNo || 'â€”'}
+                      {supplier.businessRegNo || '—'}
                     </td>
                     <td className="mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
                       {supplier.phone}
@@ -795,7 +969,8 @@ export default function SupplierListPage() {
         onClose={() => setIsModalOpen(false)}
         onSaved={handleSupplierSaved}
       />
-    </div>
+      </div>
+    </Tooltip.Provider>
   )
 }
 
