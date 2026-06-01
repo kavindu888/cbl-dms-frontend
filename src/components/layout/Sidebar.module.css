@@ -11,7 +11,9 @@
   border-right: 1px solid var(--color-border);
   background: linear-gradient(180deg, var(--color-bg-base) 0%, var(--color-bg-surface) 100%);
   box-shadow: 10px 0 30px rgba(0, 0, 0, 0.28);
-  transition: transform 300ms ease, width 300ms ease;
+  transition:
+    transform 300ms ease,
+    width 300ms ease;
 }
 
 @media (min-width: 1024px) {
@@ -232,7 +234,10 @@
   color: #94a3b8;
   font-size: 13px;
   font-weight: 500;
-  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
 }
 
 .navLinkExpanded {
@@ -421,7 +426,10 @@
   border-radius: 9999px;
   background: rgba(248, 113, 113, 0.14);
   color: #fda4af;
-  transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
 }
 
 .logoutButton:hover {
