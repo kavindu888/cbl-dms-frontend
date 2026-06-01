@@ -16,6 +16,15 @@ const queryClient = new QueryClient({
   },
 })
 const STORAGE_KEY = 'cbl-theme'
+function darkenHex(hex, amount = 24) {
+  const normalized = /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#F4A623'
+  const value = normalized.slice(1)
+  const channels = [0, 2, 4].map((start) => {
+    const channel = parseInt(value.slice(start, start + 2), 16)
+    return Math.max(0, channel - amount).toString(16).padStart(2, '0')
+  })
+  return `#${channels.join('')}`
+}
 function applyStoredTheme() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -56,8 +65,9 @@ function applyStoredTheme() {
     root.style.setProperty('--color-text-primary', presets.textPrimary)
     root.style.setProperty('--color-text-muted', presets.textMuted)
     root.style.setProperty('--color-text-dim', presets.textDim)
-    root.style.setProperty('--color-amber', parsed.accentColor ?? presets.accentColor)
-    root.style.setProperty('--color-amber-dark', presets.accentDark)
+    const accentColor = parsed.accentColor ?? presets.accentColor
+    root.style.setProperty('--color-amber', accentColor)
+    root.style.setProperty('--color-amber-dark', darkenHex(accentColor))
     if (parsed.fontSans) {
       root.style.setProperty('--font-sans', parsed.fontSans)
     }

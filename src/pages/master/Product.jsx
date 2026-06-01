@@ -811,7 +811,16 @@ export default function Product() {
         sortBy: 'createdAt',
         sortDir: 'asc',
       })
-      setProducts(result.items || [])
+
+      const listItems = result.items || []
+      const detailResults = await Promise.allSettled(
+        listItems.map((product) => masterService.getProduct(product.id))
+      )
+      const productsWithConversions = listItems.map((product, index) =>
+        detailResults[index].status === 'fulfilled' ? detailResults[index].value : product
+      )
+
+      setProducts(productsWithConversions)
       setTotalPages(result.totalPages || 1)
       setTotalItems(result.totalItems || 0)
     } catch (err) {
@@ -859,6 +868,23 @@ export default function Product() {
       setEditingProduct(savedProduct)
     }
     loadProducts()
+  }
+
+  async function handleDelete(product) {
+    if (!product.isActive) return
+
+    const confirmed = window.confirm(
+      `Delete ${product.name}? This will mark the product as discontinued.`
+    )
+    if (!confirmed) return
+
+    try {
+      await masterService.updateProductStatus(product.id, false)
+      toast.success('Product deleted.')
+      await loadProducts()
+    } catch (err) {
+      toast.error(err.message || 'Unable to delete product.')
+    }
   }
 
   // Calculate quick metrics
@@ -1223,17 +1249,44 @@ export default function Product() {
                           <StatusBadge status={p.status} />
                         </td>
                         <td style={{ padding: '12px 10px', textAlign: 'right' }}>
-                          <button
-                            className="icon-button"
-                            title="Edit product"
-                            style={{ width: 28, height: 28 }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleEdit(p)
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              justifyContent: 'flex-end',
+                              gap: 6,
                             }}
                           >
-                            <Pencil style={{ width: 13, height: 13 }} />
-                          </button>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              title="Edit product"
+                              style={{ width: 28, height: 28 }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEdit(p)
+                              }}
+                            >
+                              <Pencil style={{ width: 13, height: 13 }} />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              title={p.isActive ? 'Delete product' : 'Product already discontinued'}
+                              disabled={!p.isActive}
+                              style={{
+                                width: 28,
+                                height: 28,
+                                color: 'var(--color-danger)',
+                                opacity: p.isActive ? 1 : 0.45,
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDelete(p)
+                              }}
+                            >
+                              <Trash2 style={{ width: 13, height: 13 }} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )

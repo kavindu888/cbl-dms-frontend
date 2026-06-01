@@ -54,6 +54,15 @@ const THEME_PRESETS = {
     accentDark: '#1D4ED8',
   },
 }
+function darkenHex(hex, amount = 24) {
+  const normalized = /^#[0-9a-f]{6}$/i.test(hex) ? hex : DEFAULTS.accentColor
+  const value = normalized.slice(1)
+  const channels = [0, 2, 4].map((start) => {
+    const channel = parseInt(value.slice(start, start + 2), 16)
+    return Math.max(0, channel - amount).toString(16).padStart(2, '0')
+  })
+  return `#${channels.join('')}`
+}
 function loadTheme() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -83,7 +92,7 @@ function applyTheme(theme) {
   root.style.setProperty('--color-text-muted', preset.textMuted)
   root.style.setProperty('--color-text-dim', preset.textDim)
   root.style.setProperty('--color-amber', theme.accentColor)
-  root.style.setProperty('--color-amber-dark', preset.accentDark)
+  root.style.setProperty('--color-amber-dark', darkenHex(theme.accentColor))
   root.style.setProperty('--font-sans', theme.fontSans)
   root.style.setProperty('--font-mono', theme.fontMono)
   root.style.colorScheme = theme.mode
@@ -179,6 +188,7 @@ function AppearanceTab() {
     applyTheme(next)
   }
   function save() {
+    applyTheme(theme)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(theme))
     toast.success('Appearance saved.')
   }
@@ -195,7 +205,6 @@ function AppearanceTab() {
     OVERDUE: { bg: 'rgba(244,63,94,0.20)', text: '#F43F5E', border: '#F43F5E' },
     ACTIVE: { bg: 'rgba(32,212,191,0.15)', text: '#20D4BF', border: '#20D4BF' },
   }
-  const themePreset = THEME_PRESETS[theme.mode]
   return (
     <div
       style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 32, alignItems: 'start' }}
@@ -293,8 +302,10 @@ function AppearanceTab() {
                     cursor: 'pointer',
                     border: `1px solid ${active ? 'var(--color-amber)' : 'var(--color-border)'}`,
                     borderRadius: RADIUS_VALUES[theme.borderRadius],
-                    background: active ? 'rgba(244,166,35,0.08)' : 'var(--color-bg-elevated)',
-                    boxShadow: active ? '0 0 0 3px rgba(244,166,35,0.12)' : 'none',
+                    background: active
+                      ? `color-mix(in srgb, ${theme.accentColor} 8%, transparent)`
+                      : 'var(--color-bg-elevated)',
+                    boxShadow: active ? `0 0 0 3px ${theme.accentColor}24` : 'none',
                     transition: 'border-color 150ms, background 150ms, box-shadow 150ms',
                   }}
                 >
@@ -410,7 +421,9 @@ function AppearanceTab() {
                     fontSize: 14,
                     fontWeight: 500,
                     cursor: 'pointer',
-                    background: active ? 'rgba(244,166,35,0.10)' : 'transparent',
+                    background: active
+                      ? `color-mix(in srgb, ${theme.accentColor} 10%, transparent)`
+                      : 'transparent',
                     border: `1px solid ${active ? 'var(--color-amber)' : 'var(--color-border)'}`,
                     color: active ? 'var(--color-amber)' : 'var(--color-text-muted)',
                     borderRadius: RADIUS_VALUES[mode],
@@ -474,7 +487,7 @@ function AppearanceTab() {
             style={{
               fontSize: 28,
               fontWeight: 700,
-              color: themePreset.accentColor,
+              color: theme.accentColor,
               marginBottom: 6,
             }}
           >
@@ -502,7 +515,7 @@ function AppearanceTab() {
                 padding: '0 16px',
                 fontSize: 13,
                 fontWeight: 600,
-                background: themePreset.accentColor,
+                background: theme.accentColor,
                 color: '#00182A',
                 border: 'none',
                 borderRadius: RADIUS_VALUES[theme.borderRadius],
@@ -550,8 +563,8 @@ function AppearanceTab() {
             className="form-input"
             defaultValue="Perera Stores"
             style={{
-              borderColor: themePreset.accentColor,
-              boxShadow: `0 0 0 3px ${themePreset.accentColor}28`,
+              borderColor: theme.accentColor,
+              boxShadow: `0 0 0 3px ${theme.accentColor}28`,
             }}
           />
         </div>

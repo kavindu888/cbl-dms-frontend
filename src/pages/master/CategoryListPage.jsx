@@ -255,7 +255,7 @@ export default function CategoryListPage() {
                   <tr>
                     <td
                       colSpan={7}
-                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                      className="py-12 text-center text-sm text-text-muted"
                     >
                       Loading categories...
                     </td>
@@ -264,7 +264,7 @@ export default function CategoryListPage() {
                   <tr>
                     <td
                       colSpan={7}
-                      className="py-12 text-center text-sm text-[var(--color-danger)]"
+                      className="py-12 text-center text-sm text-danger"
                     >
                       {error}
                     </td>
@@ -339,7 +339,7 @@ export default function CategoryListPage() {
                   <tr>
                     <td
                       colSpan={7}
-                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                      className="py-12 text-center text-sm text-text-muted"
                     >
                       No categories found.
                     </td>

@@ -501,7 +501,7 @@ export default function UserProfilePage() {
                     <p className="form-error">{passwordErrors.newPassword.message}</p>
                   )}
                   {newPasswordVal ? (
-                    <p className="mt-2 text-xs text-[var(--color-text-dim)]">
+                    <p className="mt-2 text-xs text-text-dim">
                       Password length: {newPasswordVal.length} characters
                     </p>
                   ) : null}

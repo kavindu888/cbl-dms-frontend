@@ -4,7 +4,7 @@ import {
   // BarChart2,
   Bookmark,
   // ClipboardList,
-  // LayoutDashboard,
+  LayoutDashboard,
   LogOut,
   Package,
   Ruler,
@@ -25,13 +25,10 @@ import { cn } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import styles from './Sidebar.module.css'
 const navGroups = [
-  // {
-  //   label: 'OPERATIONS',
-  //   items: [
-  //     { label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true },
-  //     { label: 'Sales', to: '/sales/invoices', icon: ClipboardList },
-  //   ],
-  // },
+  {
+    label: 'OPERATIONS',
+    items: [{ label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true }],
+  },
   // {
   //   label: 'PURCHASING',
   //   items: [
