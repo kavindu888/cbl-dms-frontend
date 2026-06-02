@@ -7,7 +7,7 @@ export default function EmptyState({
 }) {
   return (
     <div className="panel flex min-h-[220px] flex-col items-center justify-center gap-4 px-6 py-10 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(244,166,35,0.1)] text-[var(--color-amber)]">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--color-amber)_10%,transparent)] text-[var(--color-amber)]">
         {icon}
       </div>
       <div className="space-y-2">

@@ -1080,11 +1080,13 @@ export default function UserListPage() {
                                 gap: 10,
                                 padding: '9px 10px',
                                 border: `1px solid ${
-                                  isChecked ? 'rgba(244,166,35,0.45)' : 'var(--color-border)'
+                                  isChecked
+                                    ? 'color-mix(in srgb, var(--color-amber) 45%, transparent)'
+                                    : 'var(--color-border)'
                                 }`,
                                 borderRadius: 6,
                                 background: isChecked
-                                  ? 'rgba(244,166,35,0.08)'
+                                  ? 'color-mix(in srgb, var(--color-amber) 8%, transparent)'
                                   : 'rgba(0,0,0,0.08)',
                                 cursor: isSavingPermissions ? 'default' : 'pointer',
                                 opacity: isSavingPermissions ? 0.65 : 1,

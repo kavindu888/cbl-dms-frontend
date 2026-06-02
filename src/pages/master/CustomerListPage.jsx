@@ -783,7 +783,12 @@ function CustomerFormModal({ open, customer, onClose, onSaved }) {
                   type="checkbox"
                   id="customer-is-active"
                   {...register('isActive')}
-                  style={{ width: 16, height: 16, accentColor: '#F4A623', cursor: 'pointer' }}
+                  style={{
+                    width: 16,
+                    height: 16,
+                    accentColor: 'var(--color-amber)',
+                    cursor: 'pointer',
+                  }}
                 />
                 <label
                   htmlFor="customer-is-active"

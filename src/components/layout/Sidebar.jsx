@@ -83,7 +83,7 @@ const navGroups = [
         permissions: PERMISSIONS.masterData.productManage,
       },
       {
-        label: 'Units of Measure',
+        label: 'UOM',
         to: '/master/units-of-measure',
         icon: Ruler,
         permissions: PERMISSIONS.masterData.uomManage,

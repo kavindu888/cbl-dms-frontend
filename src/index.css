@@ -10,7 +10,7 @@
 
   /* ── Accent Colors ──────────────────────────────────────────── */
   --color-amber: #f4a623;
-  --color-amber-dark: #c47d0e;
+  --color-amber-dark: color-mix(in srgb, var(--color-amber) 82%, #000);
   --color-teal: #20d4bf;
   --color-danger: #f43f5e;
   --color-warning: #facc15;

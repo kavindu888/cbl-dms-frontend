@@ -23,10 +23,24 @@ export const purchasingService = {
     return response.data
   },
 
-  // Supplier
-  // Create a new supplier
+// Supplier Listing, Creation, and Update
+// Supplier Listing
+  async listSuppliers(params = {}) {
+    const response = await getOnce('/api/v1/suppliers', { params })
+    return getResult(response, 'Unable to load suppliers.')
+  },
+
+  // Supplier Creation 
   async createSupplier(payload) {
     const response = await api.post('/api/v1/suppliers', payload)
     return getResult(response, 'Unable to create supplier.')
+  },
+
+  // Supplier Update
+  async updateSupplier(id, payload) {
+    const response = await api.put('/api/v1/suppliers', payload, {
+      params: { id },
+    })
+    return getResult(response, 'Unable to update supplier.')
   },
 }

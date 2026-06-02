@@ -22,8 +22,8 @@ export default function KPICard({
         <div
           className="flex h-11 w-11 items-center justify-center rounded-xl border"
           style={{
-            borderColor: 'rgba(244, 166, 35, 0.18)',
-            backgroundColor: 'rgba(244, 166, 35, 0.08)',
+            borderColor: 'color-mix(in srgb, var(--color-amber) 18%, transparent)',
+            backgroundColor: 'color-mix(in srgb, var(--color-amber) 8%, transparent)',
             color: iconColor,
           }}
         >

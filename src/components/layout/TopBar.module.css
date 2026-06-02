@@ -275,7 +275,7 @@
 }
 
 .notificationDotWarning {
-  background: #f4a623;
+  background: var(--color-amber);
 }
 
 .notificationDotSuccess {
@@ -380,7 +380,7 @@
   color: #0a0f1d;
   font-size: 15px;
   font-weight: 600;
-  box-shadow: 0 8px 16px rgba(244, 166, 35, 0.16);
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--color-amber) 16%, transparent);
   transition: transform 150ms ease;
 }
 

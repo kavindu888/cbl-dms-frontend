@@ -121,11 +121,11 @@
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: #f4a623;
+  background: var(--color-amber);
   color: #0a0f1d;
   font-size: 20px;
   font-weight: 700;
-  box-shadow: 0 8px 16px rgba(244, 166, 35, 0.16);
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--color-amber) 16%, transparent);
 }
 
 .brandMarkCollapsed {
@@ -376,7 +376,7 @@
   color: #0f172a;
   font-size: 14px;
   font-weight: 600;
-  box-shadow: 0 8px 16px rgba(252, 211, 143, 0.14);
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--color-amber) 14%, transparent);
 }
 
 .sidebarCollapsed .profileAvatar {

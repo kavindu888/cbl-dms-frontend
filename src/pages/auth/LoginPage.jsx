@@ -318,7 +318,7 @@ export default function LoginPage() {
        <button
          type="button"
          style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-amber)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-         onMouseEnter={e => (e.currentTarget.style.color = '#FFB74D')}
+         onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-amber-dark)')}
          onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-amber)')}
        >
          Forgot password?
@@ -347,7 +347,7 @@ export default function LoginPage() {
               }}
               onMouseEnter={(e) => {
                 if (!isLoading) {
-                  e.currentTarget.style.background = '#FFB74D'
+                  e.currentTarget.style.background = 'var(--color-amber-dark)'
                   e.currentTarget.style.transform = 'translateY(-1px)'
                 }
               }}
@@ -379,7 +379,7 @@ export default function LoginPage() {
                   cursor: 'pointer',
                   padding: 0,
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#FFB74D')}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-amber-dark)')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-amber)')}
               >
                 Contact IT Support

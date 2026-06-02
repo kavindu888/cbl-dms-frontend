@@ -410,8 +410,9 @@ export default function RolesPermissionsPage() {
                                   width: 16,
                                   height: 16,
                                   borderRadius: 4,
-                                  border: '1px solid #F4A623',
-                                  background: 'rgba(244,166,35,0.10)',
+                                  border: '1px solid var(--color-amber)',
+                                  background:
+                                    'color-mix(in srgb, var(--color-amber) 10%, transparent)',
                                   flexShrink: 0,
                                   marginTop: 1,
                                 }}

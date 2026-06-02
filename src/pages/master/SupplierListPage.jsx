@@ -1,10 +1,21 @@
-import { Pencil, Plus, Search, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Pencil, Plus, RefreshCw, Search, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { purchasingService } from '@services/api/purchasingService'
 
+const pageSize = 10
+
+const statusOptions = [
+  { label: 'All Statuses', value: '' },
+  { label: 'Active', value: '1' },
+  { label: 'Inactive', value: '2' },
+  { label: 'On Hold', value: '3' },
+  { label: 'Blacklisted', value: '4' },
+]
+
 const emptyForm = {
+  id: '',
   code: '',
   name: '',
   legalName: '',
@@ -35,6 +46,49 @@ const emptyForm = {
 function textOrNull(value) {
   const trimmed = String(value ?? '').trim()
   return trimmed || null
+}
+
+function getAddress(supplier) {
+  return supplier.address || {}
+}
+
+function getPrimaryContact(supplier) {
+  return supplier.primaryContact || {}
+}
+
+function mapSupplierToForm(supplier) {
+  const address = getAddress(supplier)
+  const primaryContact = getPrimaryContact(supplier)
+
+  return {
+    ...emptyForm,
+    id: supplier.id || '',
+    code: supplier.code || '',
+    name: supplier.name || '',
+    legalName: supplier.legalName || '',
+    telephone: supplier.telephone || '',
+    mobile: supplier.mobile || '',
+    email: supplier.email || '',
+    fax: supplier.fax || '',
+    vatRegNo: supplier.vatRegNo || '',
+    businessRegNo: supplier.businessRegNo || '',
+    paymentTermId: supplier.paymentTermId || '',
+    creditLimit: String(supplier.creditLimit ?? 0),
+    website: supplier.website || '',
+    addressLine1: address.line1 || '',
+    addressLine2: address.line2 || '',
+    city: address.city || supplier.city || '',
+    province: address.province || '',
+    postalCode: address.postalCode || '',
+    country: address.country || supplier.country || 'Sri Lanka',
+    primaryContactName: primaryContact.fullName || supplier.primaryContactName || '',
+    primaryContactDesignation: primaryContact.designation || '',
+    primaryContactTelephone: primaryContact.telephone || supplier.primaryContactPhone || '',
+    primaryContactMobile: primaryContact.mobile || '',
+    primaryContactEmail: primaryContact.email || supplier.primaryContactEmail || '',
+    primaryContactFax: primaryContact.fax || '',
+    notes: supplier.notes || '',
+  }
 }
 
 function createSupplierPayload(form) {
@@ -71,10 +125,33 @@ function createSupplierPayload(form) {
   }
 }
 
-function validateSupplier(form) {
+function updateSupplierPayload(form) {
+  return {
+    name: form.name.trim(),
+    legalName: textOrNull(form.legalName),
+    telephone: form.telephone.trim(),
+    mobile: textOrNull(form.mobile),
+    email: form.email.trim(),
+    fax: textOrNull(form.fax),
+    vatRegNo: form.vatRegNo.trim(),
+    businessRegNo: textOrNull(form.businessRegNo),
+    website: textOrNull(form.website),
+    address: {
+      line1: form.addressLine1.trim(),
+      line2: textOrNull(form.addressLine2),
+      city: form.city.trim(),
+      province: textOrNull(form.province),
+      postalCode: textOrNull(form.postalCode),
+      country: form.country.trim(),
+    },
+    notes: textOrNull(form.notes),
+  }
+}
+
+function validateSupplier(form, mode) {
   const errors = {}
 
-  if (!form.code.trim()) errors.code = 'Supplier code is required.'
+  if (mode === 'create' && !form.code.trim()) errors.code = 'Supplier code is required.'
   if (!form.name.trim()) errors.name = 'Supplier name is required.'
   if (!form.telephone.trim()) errors.telephone = 'Telephone is required.'
   if (!form.email.trim()) errors.email = 'Email is required.'
@@ -82,10 +159,14 @@ function validateSupplier(form) {
   if (!form.addressLine1.trim()) errors.addressLine1 = 'Address line 1 is required.'
   if (!form.city.trim()) errors.city = 'City is required.'
   if (!form.country.trim()) errors.country = 'Country is required.'
-  if (!form.primaryContactName.trim()) {
+  if (mode === 'create' && !form.primaryContactName.trim()) {
     errors.primaryContactName = 'Primary contact name is required.'
   }
-  if (!form.primaryContactTelephone.trim() && !form.primaryContactEmail.trim()) {
+  if (
+    mode === 'create' &&
+    !form.primaryContactTelephone.trim() &&
+    !form.primaryContactEmail.trim()
+  ) {
     errors.primaryContactTelephone = 'Enter contact telephone or email.'
     errors.primaryContactEmail = 'Enter contact telephone or email.'
   }
@@ -94,16 +175,14 @@ function validateSupplier(form) {
   return errors
 }
 
-function Field({
-  label,
-  name,
-  value,
-  error,
-  onChange,
-  type = 'text',
-  required = false,
-  placeholder,
-}) {
+function formatMoney(value) {
+  return Number(value || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+function Field({ label, name, value, error, onChange, type = 'text', required = false, disabled }) {
   return (
     <label>
       <span className="form-label">
@@ -115,24 +194,17 @@ function Field({
         name={name}
         type={type}
         value={value}
-        placeholder={placeholder}
         onChange={onChange}
+        disabled={disabled}
       />
       {error ? <span className="form-error">{error}</span> : null}
     </label>
   )
 }
 
-function SupplierTable({ suppliers }) {
+function SupplierTable({ suppliers, isLoading, onEdit }) {
   return (
-    <div
-      className="panel overflow-hidden"
-      style={{
-        borderRadius: 8,
-        background: '#152238',
-        borderColor: '#263854',
-      }}
-    >
+    <div className="panel overflow-hidden" style={{ borderRadius: 8 }}>
       <div className="overflow-x-auto">
         <table className="data-table">
           <thead>
@@ -149,35 +221,33 @@ function SupplierTable({ suppliers }) {
             </tr>
           </thead>
           <tbody>
-            {suppliers.length ? (
+            {isLoading ? (
+              <tr>
+                <td colSpan={9} style={{ padding: 28, color: 'var(--color-text-muted)' }}>
+                  Loading suppliers...
+                </td>
+              </tr>
+            ) : suppliers.length ? (
               suppliers.map((supplier) => (
                 <tr key={supplier.id}>
-                  <td className="mono" style={{ color: '#a78bfa' }}>
+                  <td className="mono" style={{ color: 'var(--color-amber)' }}>
                     {supplier.code}
                   </td>
                   <td style={{ fontWeight: 700 }}>{supplier.name}</td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span>{supplier.primaryContact?.fullName || '-'}</span>
+                      <span>{supplier.primaryContactName || '-'}</span>
                       <span
                         className="mono"
                         style={{ fontSize: 11, color: 'var(--color-text-dim)' }}
                       >
-                        {supplier.primaryContact?.mobile ||
-                          supplier.primaryContact?.telephone ||
-                          supplier.primaryContact?.email ||
-                          '-'}
+                        {supplier.primaryContactPhone || supplier.primaryContactEmail || '-'}
                       </span>
                     </div>
                   </td>
-                  <td>{supplier.address?.city || '-'}</td>
+                  <td>{supplier.city || '-'}</td>
                   <td>{supplier.vatRegNo || '-'}</td>
-                  <td className="mono">
-                    {Number(supplier.creditLimit || 0).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
+                  <td className="mono">{formatMoney(supplier.creditLimit)}</td>
                   <td style={{ color: 'var(--color-text-muted)' }}>{supplier.email}</td>
                   <td>
                     <StatusBadge status={supplier.statusLabel || 'Active'} />
@@ -186,14 +256,9 @@ function SupplierTable({ suppliers }) {
                     <button
                       className="icon-button"
                       type="button"
-                      title="Edit is not available in the backend yet"
-                      disabled
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 999,
-                        opacity: 0.55,
-                      }}
+                      title="Edit supplier"
+                      onClick={() => onEdit(supplier)}
+                      style={{ width: 32, height: 32, borderRadius: 999 }}
                     >
                       <Pencil style={{ width: 14, height: 14 }} />
                     </button>
@@ -203,7 +268,7 @@ function SupplierTable({ suppliers }) {
             ) : (
               <tr>
                 <td colSpan={9} style={{ padding: 28, color: 'var(--color-text-muted)' }}>
-                  No suppliers created in this session.
+                  No suppliers found.
                 </td>
               </tr>
             )}
@@ -214,8 +279,10 @@ function SupplierTable({ suppliers }) {
   )
 }
 
-function SupplierFormModal({ form, errors, isSaving, open, onChange, onClose, onSubmit }) {
+function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClose, onSubmit }) {
   if (!open) return null
+
+  const isEdit = mode === 'edit'
 
   function handleNotesKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -251,9 +318,13 @@ function SupplierFormModal({ form, errors, isSaving, open, onChange, onClose, on
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 700 }}>New Supplier</h2>
+            <h2 style={{ fontSize: 20, fontWeight: 700 }}>
+              {isEdit ? 'Edit Supplier' : 'New Supplier'}
+            </h2>
             <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-              Create a purchasing supplier using the current API fields.
+              {isEdit
+                ? 'Update supplier details supported by the current backend API.'
+                : 'Create a purchasing supplier using the backend supplier contract.'}
             </p>
           </div>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
@@ -275,7 +346,8 @@ function SupplierFormModal({ form, errors, isSaving, open, onChange, onClose, on
             value={form.code}
             error={errors.code}
             onChange={onChange}
-            required
+            required={!isEdit}
+            disabled={isEdit}
           />
           <Field
             label="Name"
@@ -319,20 +391,24 @@ function SupplierFormModal({ form, errors, isSaving, open, onChange, onClose, on
             value={form.businessRegNo}
             onChange={onChange}
           />
-          <Field
-            label="Payment Term Id"
-            name="paymentTermId"
-            value={form.paymentTermId}
-            onChange={onChange}
-          />
-          <Field
-            label="Credit Limit"
-            name="creditLimit"
-            type="number"
-            value={form.creditLimit}
-            error={errors.creditLimit}
-            onChange={onChange}
-          />
+          {!isEdit ? (
+            <>
+              <Field
+                label="Payment Term Id"
+                name="paymentTermId"
+                value={form.paymentTermId}
+                onChange={onChange}
+              />
+              <Field
+                label="Credit Limit"
+                name="creditLimit"
+                type="number"
+                value={form.creditLimit}
+                error={errors.creditLimit}
+                onChange={onChange}
+              />
+            </>
+          ) : null}
           <Field label="Website" name="website" value={form.website} onChange={onChange} />
         </div>
 
@@ -378,58 +454,62 @@ function SupplierFormModal({ form, errors, isSaving, open, onChange, onClose, on
           />
         </div>
 
-        <h3 style={{ marginTop: 22, marginBottom: 12, fontSize: 15, fontWeight: 700 }}>
-          Primary Contact
-        </h3>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 16,
-          }}
-        >
-          <Field
-            label="Full Name"
-            name="primaryContactName"
-            value={form.primaryContactName}
-            error={errors.primaryContactName}
-            onChange={onChange}
-            required
-          />
-          <Field
-            label="Designation"
-            name="primaryContactDesignation"
-            value={form.primaryContactDesignation}
-            onChange={onChange}
-          />
-          <Field
-            label="Telephone"
-            name="primaryContactTelephone"
-            value={form.primaryContactTelephone}
-            error={errors.primaryContactTelephone}
-            onChange={onChange}
-          />
-          <Field
-            label="Mobile"
-            name="primaryContactMobile"
-            value={form.primaryContactMobile}
-            onChange={onChange}
-          />
-          <Field
-            label="Email"
-            name="primaryContactEmail"
-            type="email"
-            value={form.primaryContactEmail}
-            error={errors.primaryContactEmail}
-            onChange={onChange}
-          />
-          <Field
-            label="Fax"
-            name="primaryContactFax"
-            value={form.primaryContactFax}
-            onChange={onChange}
-          />
-        </div>
+        {!isEdit ? (
+          <>
+            <h3 style={{ marginTop: 22, marginBottom: 12, fontSize: 15, fontWeight: 700 }}>
+              Primary Contact
+            </h3>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 16,
+              }}
+            >
+              <Field
+                label="Full Name"
+                name="primaryContactName"
+                value={form.primaryContactName}
+                error={errors.primaryContactName}
+                onChange={onChange}
+                required
+              />
+              <Field
+                label="Designation"
+                name="primaryContactDesignation"
+                value={form.primaryContactDesignation}
+                onChange={onChange}
+              />
+              <Field
+                label="Telephone"
+                name="primaryContactTelephone"
+                value={form.primaryContactTelephone}
+                error={errors.primaryContactTelephone}
+                onChange={onChange}
+              />
+              <Field
+                label="Mobile"
+                name="primaryContactMobile"
+                value={form.primaryContactMobile}
+                onChange={onChange}
+              />
+              <Field
+                label="Email"
+                name="primaryContactEmail"
+                type="email"
+                value={form.primaryContactEmail}
+                error={errors.primaryContactEmail}
+                onChange={onChange}
+              />
+              <Field
+                label="Fax"
+                name="primaryContactFax"
+                value={form.primaryContactFax}
+                onChange={onChange}
+              />
+            </div>
+          </>
+        ) : null}
 
         <label style={{ display: 'block', marginTop: 16 }}>
           <span className="form-label">Notes</span>
@@ -454,7 +534,7 @@ function SupplierFormModal({ form, errors, isSaving, open, onChange, onClose, on
             type="submit"
             disabled={isSaving}
           >
-            {isSaving ? 'Saving...' : 'Save Supplier'}
+            {isSaving ? 'Saving...' : isEdit ? 'Update Supplier' : 'Save Supplier'}
           </button>
         </div>
       </form>
@@ -465,23 +545,53 @@ function SupplierFormModal({ form, errors, isSaving, open, onChange, onClose, on
 export default function SupplierListPage() {
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
+  const [mode, setMode] = useState('create')
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const [suppliers, setSuppliers] = useState([])
+  const [searchText, setSearchText] = useState('')
+  const [appliedSearch, setAppliedSearch] = useState('')
+  const [status, setStatus] = useState('')
+  const [page, setPage] = useState(1)
+  const [suppliersPage, setSuppliersPage] = useState({
+    items: [],
+    page: 1,
+    pageSize,
+    totalItems: 0,
+    totalPages: 1,
+  })
 
-  const filteredSuppliers = useMemo(() => {
-    const keyword = search.trim().toLowerCase()
-    if (!keyword) return suppliers
+  const suppliers = useMemo(() => suppliersPage.items || [], [suppliersPage.items])
 
-    return suppliers.filter((supplier) =>
-      [supplier.code, supplier.name, supplier.email, supplier.telephone, supplier.vatRegNo]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(keyword)
-    )
-  }, [search, suppliers])
+  async function loadSuppliers() {
+    try {
+      setIsLoading(true)
+      const result = await purchasingService.listSuppliers({
+        page,
+        pageSize,
+        search: appliedSearch || undefined,
+        status: status || undefined,
+      })
+
+      setSuppliersPage({
+        items: result.items || [],
+        page: result.page || page,
+        pageSize: result.pageSize || pageSize,
+        totalItems: result.totalItems || 0,
+        totalPages: result.totalPages || 1,
+      })
+    } catch (error) {
+      toast.error(error.message || 'Unable to load suppliers.')
+      setSuppliersPage((current) => ({ ...current, items: [] }))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSuppliers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, appliedSearch, status])
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -489,23 +599,55 @@ export default function SupplierListPage() {
     setErrors((current) => ({ ...current, [name]: undefined }))
   }
 
+  function openCreateModal() {
+    setMode('create')
+    setForm(emptyForm)
+    setErrors({})
+    setIsModalOpen(true)
+  }
+
+  function openEditModal(supplier) {
+    setMode('edit')
+    setForm(mapSupplierToForm(supplier))
+    setErrors({})
+    setIsModalOpen(true)
+  }
+
+  function closeModal() {
+    setIsModalOpen(false)
+    setForm(emptyForm)
+    setErrors({})
+  }
+
+  function applySearch(event) {
+    event.preventDefault()
+    setPage(1)
+    setAppliedSearch(searchText.trim())
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
 
-    const nextErrors = validateSupplier(form)
+    const nextErrors = validateSupplier(form, mode)
     setErrors(nextErrors)
 
     if (Object.keys(nextErrors).length) return
 
     try {
       setIsSaving(true)
-      const savedSupplier = await purchasingService.createSupplier(createSupplierPayload(form))
-      setSuppliers((current) => [savedSupplier, ...current])
-      setForm(emptyForm)
-      setIsModalOpen(false)
-      toast.success('Supplier created successfully.')
+
+      if (mode === 'edit') {
+        await purchasingService.updateSupplier(form.id, updateSupplierPayload(form))
+        toast.success('Supplier updated successfully.')
+      } else {
+        await purchasingService.createSupplier(createSupplierPayload(form))
+        toast.success('Supplier created successfully.')
+      }
+
+      closeModal()
+      await loadSuppliers()
     } catch (error) {
-      toast.error(error.message || 'Unable to create supplier.')
+      toast.error(error.message || 'Unable to save supplier.')
     } finally {
       setIsSaving(false)
     }
@@ -519,13 +661,13 @@ export default function SupplierListPage() {
             Suppliers
           </h1>
           <p style={{ marginTop: 6, fontSize: 15, color: 'var(--color-text-muted)' }}>
-            Manage purchasing supplier records, contacts, tax details, and credit limits.
+            Manage purchasing supplier records using the backend Suppliers API.
           </p>
         </div>
         <button
           className="button-primary"
           type="button"
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           style={{
             height: 40,
             padding: '0 24px',
@@ -540,19 +682,18 @@ export default function SupplierListPage() {
         </button>
       </div>
 
-      <div
+      <form
         className="panel"
+        onSubmit={applySearch}
         style={{
-          padding: 20,
+          padding: 16,
           display: 'flex',
           alignItems: 'center',
           gap: 12,
           borderRadius: 8,
-          background: '#152238',
-          borderColor: '#263854',
         }}
       >
-        <div style={{ position: 'relative', width: '100%' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
           <Search
             style={{
               position: 'absolute',
@@ -566,30 +707,87 @@ export default function SupplierListPage() {
           />
           <input
             className="form-input"
-            value={search}
+            value={searchText}
             placeholder="Search suppliers..."
-            onChange={(event) => setSearch(event.target.value)}
-            style={{
-              height: 50,
-              paddingLeft: 42,
-              borderRadius: 6,
-              background: '#111d30',
-              borderColor: '#2a3b58',
-              fontSize: 15,
-            }}
+            onChange={(event) => setSearchText(event.target.value)}
+            style={{ height: 42, paddingLeft: 42, borderRadius: 6, fontSize: 14 }}
           />
+        </div>
+        <select
+          className="form-input"
+          value={status}
+          onChange={(event) => {
+            setStatus(event.target.value)
+            setPage(1)
+          }}
+          style={{ width: 180, height: 42 }}
+        >
+          {statusOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <button className="button-secondary" type="submit" style={{ height: 42 }}>
+          Search
+        </button>
+        <button
+          className="icon-button"
+          type="button"
+          aria-label="Refresh suppliers"
+          onClick={loadSuppliers}
+          style={{ height: 42, width: 42 }}
+        >
+          <RefreshCw style={{ width: 16, height: 16 }} />
+        </button>
+      </form>
+
+      <SupplierTable suppliers={suppliers} isLoading={isLoading} onEdit={openEditModal} />
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          color: 'var(--color-text-muted)',
+          fontSize: 13,
+        }}
+      >
+        <span>
+          Showing {suppliers.length} of {suppliersPage.totalItems} suppliers
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            className="button-secondary"
+            type="button"
+            disabled={page <= 1 || isLoading}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+          >
+            Previous
+          </button>
+          <span>
+            Page {suppliersPage.page} of {suppliersPage.totalPages}
+          </span>
+          <button
+            className="button-secondary"
+            type="button"
+            disabled={page >= suppliersPage.totalPages || isLoading}
+            onClick={() => setPage((current) => Math.min(suppliersPage.totalPages, current + 1))}
+          >
+            Next
+          </button>
         </div>
       </div>
 
-      <SupplierTable suppliers={filteredSuppliers} />
-
       <SupplierFormModal
+        mode={mode}
         form={form}
         errors={errors}
         isSaving={isSaving}
         open={isModalOpen}
         onChange={handleChange}
-        onClose={() => setIsModalOpen(false)}
+        onClose={closeModal}
         onSubmit={handleSubmit}
       />
     </div>
