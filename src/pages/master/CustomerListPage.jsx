@@ -82,7 +82,7 @@ const customerSchema = z.object({
   name: z.string().min(1, 'Customer name is required'),
   contactName: z.string().min(1, 'Contact name is required'),
   phone: z.string().min(1, 'Phone number is required'),
-  email: z.string().email('Invalid email address'),
+  email: z.email('Invalid email address'),
   addressLine1: z.string().min(1, 'Address line 1 is required'),
   addressLine2: z.string().optional(),
   city: z.string().min(1, 'City is required'),

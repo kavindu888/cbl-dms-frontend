@@ -49,26 +49,26 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen bg-bg-base text-text-primary">
       {/* ── Left Panel: Cinematic Branding ─────────────────────── */}
-      <div className="hidden lg:flex lg:w-3/5 flex-col relative border-r border-[var(--color-border)] overflow-hidden">
+      <div className="hidden lg:flex lg:w-3/5 flex-col relative border-r border-border overflow-hidden">
         {/* Background Image */}
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${loginBg})` }}
         />
-        <div className="absolute inset-0 bg-gradient-to-br from-[#00182A]/90 via-[#00182A]/70 to-transparent" />
+        <div className="absolute inset-0 bg-linear-to-br from-[#00182A]/90 via-[#00182A]/70 to-transparent" />
         <div className="absolute inset-0 bg-black/30" />
 
         {/* Top Branding */}
         <div className="relative z-10 flex items-center gap-3 px-10 py-8">
-          <span className="text-2xl font-bold tracking-tight text-[var(--color-amber)]">CBL</span>
-          <div className="w-[1px] h-5 bg-white/20" />
+          <span className="text-2xl font-bold tracking-tight text-amber">CBL</span>
+          <div className="w-px h-5 bg-white/20" />
           <span className="text-sm text-white/80 font-medium">Foods International</span>
         </div>
 
         {/* Center Content */}
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-12 pb-24">
           <div className="text-center">
-            <h1 className="text-[130px] font-black leading-[0.8] tracking-tighter text-[var(--color-amber)] mb-4 drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
+            <h1 className="text-[130px] font-black leading-[0.8] tracking-tighter text-amber mb-4 drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
               CBL
             </h1>
             <p className="text-[10px] font-bold tracking-[0.6em] text-white/80 mb-10 uppercase">
@@ -111,7 +111,7 @@ export default function LoginPage() {
         */}
       <div className="relative flex w-full lg:w-2/5 items-center justify-center bg-[#00121F]">
         {/* Ambient glow */}
-        <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-[var(--color-amber)]/8 blur-3xl pointer-events-none" />
+        <div className="absolute right-0 top-0 size-72 rounded-full bg-amber/8 blur-3xl pointer-events-none" />
 
         {/* Form card — constrained width, no card background, left-aligned */}
         <div className="relative z-10 w-full" style={{ maxWidth: '360px', padding: '0 0' }}>
@@ -142,7 +142,7 @@ export default function LoginPage() {
               htmlFor="username"
               style={{
                 display: 'block',
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.16em',
@@ -169,7 +169,8 @@ export default function LoginPage() {
                 padding: '0 16px',
                 fontSize: '0.92rem',
                 color: '#ffffff',
-                outline: 'none',
+                outline: '2px solid transparent',
+                outlineOffset: '2px',
                 transition: 'border-color 0.2s, background 0.2s',
                 marginBottom: '20px',
                 boxSizing: 'border-box',
@@ -177,10 +178,13 @@ export default function LoginPage() {
               onFocus={(e) => {
                 e.target.style.borderColor = 'var(--color-amber)'
                 e.target.style.background = '#0f2438'
+                e.target.style.outlineColor =
+                  'color-mix(in srgb, var(--color-amber) 45%, transparent)'
               }}
               onBlur={(e) => {
                 e.target.style.borderColor = '#1a3347'
                 e.target.style.background = '#0d1f2f'
+                e.target.style.outlineColor = 'transparent'
                 void usernameField.onBlur(e)
               }}
               name={usernameField.name}
@@ -205,7 +209,7 @@ export default function LoginPage() {
               htmlFor="password"
               style={{
                 display: 'block',
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.16em',
@@ -233,17 +237,21 @@ export default function LoginPage() {
                   padding: '0 48px 0 16px',
                   fontSize: '0.92rem',
                   color: '#ffffff',
-                  outline: 'none',
+                  outline: '2px solid transparent',
+                  outlineOffset: '2px',
                   transition: 'border-color 0.2s, background 0.2s',
                   boxSizing: 'border-box',
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = 'var(--color-amber)'
                   e.target.style.background = '#0f2438'
+                  e.target.style.outlineColor =
+                    'color-mix(in srgb, var(--color-amber) 45%, transparent)'
                 }}
                 onBlur={(e) => {
                   e.target.style.borderColor = '#1a3347'
                   e.target.style.background = '#0d1f2f'
+                  e.target.style.outlineColor = 'transparent'
                   void passwordField.onBlur(e)
                 }}
                 name={passwordField.name}
@@ -356,7 +364,7 @@ export default function LoginPage() {
                 e.currentTarget.style.transform = 'translateY(0)'
               }}
             >
-              {isLoading ? 'SIGNING IN...' : 'Sign In'}
+              {isLoading ? 'Signing in' : 'Sign In'}
             </button>
 
             {/* ── Having trouble ── */}

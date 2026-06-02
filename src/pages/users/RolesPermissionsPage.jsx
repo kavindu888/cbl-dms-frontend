@@ -162,6 +162,7 @@ export default function RolesPermissionsPage() {
                   }}
                 />
                 <input
+                  aria-label="Search roles or descriptions"
                   className="form-input"
                   placeholder="Search roles or descriptions..."
                   value={search}
@@ -197,16 +198,16 @@ export default function RolesPermissionsPage() {
                       <tr>
                         <td
                           colSpan={5}
-                          className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                          className="py-12 text-center text-sm text-text-muted"
                         >
-                          Loading roles...
+                          Loading roles&hellip;
                         </td>
                       </tr>
                     ) : error ? (
                       <tr>
                         <td
                           colSpan={5}
-                          className="py-12 text-center text-sm text-[var(--color-danger)]"
+                          className="py-12 text-center text-sm text-danger"
                         >
                           {error}
                         </td>
@@ -254,7 +255,7 @@ export default function RolesPermissionsPage() {
                       <tr>
                         <td
                           colSpan={5}
-                          className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                          className="py-12 text-center text-sm text-text-muted"
                         >
                           No roles found.
                         </td>
@@ -301,9 +302,10 @@ export default function RolesPermissionsPage() {
 
               <div style={{ marginTop: 24, maxWidth: 400 }}>
                 <label
+                  htmlFor="role-permission-role"
                   style={{
                     display: 'block',
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: 600,
                     letterSpacing: '0.8px',
                     color: 'var(--color-text-muted)',
@@ -314,6 +316,7 @@ export default function RolesPermissionsPage() {
                   SELECT ROLE
                 </label>
                 <select
+                  id="role-permission-role"
                   className="form-input"
                   value={selectedRoleId}
                   onChange={(event) => setSelectedRoleId(event.target.value)}
@@ -350,7 +353,7 @@ export default function RolesPermissionsPage() {
                   }}
                 >
                   <p style={{ color: 'var(--color-text-dim)', fontSize: 14 }}>
-                    Loading permissions...
+                    Loading permissions&hellip;
                   </p>
                 </div>
               ) : selectedRole ? (
@@ -429,7 +432,7 @@ export default function RolesPermissionsPage() {
                                 </p>
                                 <p
                                   style={{
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     color: 'var(--color-text-muted)',
                                     marginTop: 2,
                                   }}

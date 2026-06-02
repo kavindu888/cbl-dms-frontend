@@ -11,15 +11,15 @@ export default function RegisterPage() {
         />
         <section className="panel placeholder-card">
           <p className="eyebrow">Admin Route</p>
-          <h2>Module: Auth Registration — Coming Soon</h2>
+          <h2>Module: Auth Registration, Coming Soon</h2>
           <p>
             This route is reserved for administrators. The current scaffold confirms access control
             and routing; the user creation form will be added once the backend onboarding contract
             is finalized.
           </p>
-          <p className="text-sm text-[var(--color-text-muted)]">
+          <p className="text-sm text-text-muted">
             Signed in as{' '}
-            <span className="mono text-[var(--color-text-primary)]">
+            <span className="mono text-text-primary">
               {user?.username ?? 'admin'}
             </span>
           </p>

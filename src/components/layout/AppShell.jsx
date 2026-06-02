@@ -8,12 +8,12 @@ function deriveModule(pathname) {
   return firstSegment ?? 'dashboard'
 }
 export default function AppShell() {
-  const location = useLocation()
+  const { pathname } = useLocation()
   const { sidebarCollapsed, sidebarMobileOpen, setActiveModule } = useUIStore()
-  const isProfilePage = location.pathname === '/profile'
+  const isProfilePage = pathname === '/profile'
   useEffect(() => {
-    setActiveModule(deriveModule(location.pathname))
-  }, [location.pathname, setActiveModule])
+    setActiveModule(deriveModule(pathname))
+  }, [pathname, setActiveModule])
   return (
     <div
       className="relative h-screen overflow-hidden bg-[var(--color-bg-base)] text-[var(--color-text-primary)] lg:grid"

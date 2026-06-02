@@ -24,7 +24,10 @@ function mapUser(user) {
     employeeCode: user.employeeId ?? user.employeeCode ?? '',
     phone: user.phone ?? '',
     avatarUrl: user.avatarUrl ?? '',
-    roles: (user.roles || []).map(roleName).filter(Boolean),
+    roles: (user.roles || []).flatMap((role) => {
+      const name = roleName(role)
+      return name ? [name] : []
+    }),
     roleDtos: user.roles || [],
     permissions: user.permissions || [],
     isActive: Boolean(user.isActive),

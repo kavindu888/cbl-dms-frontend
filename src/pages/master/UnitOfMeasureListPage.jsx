@@ -58,7 +58,7 @@ export default function UnitOfMeasureListPage() {
   }, [loadUnits])
 
   const categories = useMemo(() => {
-    const unitCategories = units.map((unit) => unit.category).filter(Boolean)
+    const unitCategories = units.flatMap((unit) => (unit.category ? [unit.category] : []))
     return [...new Set(unitCategories)].sort((a, b) => a.localeCompare(b))
   }, [units])
 
