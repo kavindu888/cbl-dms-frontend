@@ -249,7 +249,7 @@ select {
 }
 .form-input:focus {
   border-color: var(--color-amber);
-  box-shadow: 0 0 0 3px rgba(244, 166, 35, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-amber) 15%, transparent);
 }
 .form-input:disabled {
   opacity: 0.5;

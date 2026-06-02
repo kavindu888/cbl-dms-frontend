@@ -60,7 +60,7 @@ function mapPermission(permission) {
 
 export const usersService = {
   async listUsers(params = {}) {
-    const response = await getOnce('/users', { params })
+    const response = await getOnce('/identity-proxy/users', { params })
     const page = getValue(response, 'Unable to load users.')
     const items = page?.items || []
 
@@ -71,32 +71,32 @@ export const usersService = {
   },
 
   async getUser(id) {
-    const response = await getOnce(`/user/${id}`)
+    const response = await getOnce(`/identity-proxy/user/${id}`)
     return mapUser(getValue(response, 'Unable to load user.'))
   },
 
   async createUser(payload) {
-    const response = await api.post('/users/create', payload)
+    const response = await api.post('/identity-proxy/users/create', payload)
     return mapUser(getValue(response, 'Unable to create user.'))
   },
 
   async assignRoles(userId, roleIds) {
-    const response = await api.post(`/users/${userId}/assign-roles`, { roleIds })
+    const response = await api.post(`/identity-proxy/users/${userId}/assign-roles`, { roleIds })
     return mapUser(getValue(response, 'Unable to assign roles.'))
   },
 
   async removeRole(userId, roleId) {
-    const response = await api.delete(`/users/${userId}/${roleId}`)
+    const response = await api.delete(`/identity-proxy/users/${userId}/${roleId}`)
     return getValue(response, 'Unable to remove role.')
   },
 
   async listRoles() {
-    const response = await getOnce('/roles')
+    const response = await getOnce('/identity-proxy/roles')
     return (getValue(response, 'Unable to load roles.') || []).map(mapRole)
   },
 
   async listPermissions() {
-    const response = await getOnce('/permissions')
+    const response = await getOnce('/identity-proxy/permissions')
     return (getValue(response, 'Unable to load permissions.') || []).map((group) => ({
       module: group.module,
       permissions: (group.permissions || []).map(mapPermission),

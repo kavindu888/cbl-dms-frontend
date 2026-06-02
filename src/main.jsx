@@ -34,7 +34,6 @@ function applyStoredTheme() {
         textMuted: '#93A3BB',
         textDim: '#5B6C86',
         accentColor: '#F4A623',
-        accentDark: '#C47D0E',
       },
       light: {
         bgBase: '#F7FAFF',
@@ -45,7 +44,6 @@ function applyStoredTheme() {
         textMuted: '#4B5568',
         textDim: '#6B7A90',
         accentColor: '#2563EB',
-        accentDark: '#1D4ED8',
       },
     }[mode]
     const root = document.documentElement
@@ -56,8 +54,9 @@ function applyStoredTheme() {
     root.style.setProperty('--color-text-primary', presets.textPrimary)
     root.style.setProperty('--color-text-muted', presets.textMuted)
     root.style.setProperty('--color-text-dim', presets.textDim)
-    root.style.setProperty('--color-amber', parsed.accentColor ?? presets.accentColor)
-    root.style.setProperty('--color-amber-dark', presets.accentDark)
+    const accentColor = parsed.accentColor ?? presets.accentColor
+    root.style.setProperty('--color-amber', accentColor)
+    root.style.setProperty('--color-amber-dark', `color-mix(in srgb, ${accentColor} 82%, #000)`)
     if (parsed.fontSans) {
       root.style.setProperty('--font-sans', parsed.fontSans)
     }

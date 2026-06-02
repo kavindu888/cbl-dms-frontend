@@ -5,6 +5,12 @@ import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const proxyPostToApi = {
+  target: 'http://127.0.0.1:5150',
+  changeOrigin: true,
+  secure: false,
+  bypass: (req) => (req.method === 'POST' ? undefined : req.url),
+}
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -28,12 +34,22 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'https://localhost:7001',
+        target: 'http://127.0.0.1:5150',
         changeOrigin: true,
         secure: false,
       },
+      '/change-password': proxyPostToApi,
+      '/login': proxyPostToApi,
+      '/logout': proxyPostToApi,
+      '/refresh': proxyPostToApi,
+      '/identity-proxy': {
+        target: 'http://127.0.0.1:5150',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (proxyPath) => proxyPath.replace(/^\/identity-proxy/, ''),
+      },
       '/hubs': {
-        target: 'https://localhost:7001',
+        target: 'http://127.0.0.1:5150',
         changeOrigin: true,
         secure: false,
         ws: true,

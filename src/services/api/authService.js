@@ -6,6 +6,13 @@ import {
 } from '@/utils'
 import api from '@/lib/api'
 
+const AUTH_API = {
+  changePassword: '/change-password',
+  login: '/login',
+  logout: '/logout',
+  refresh: '/refresh',
+}
+
 function getResultValue(response, fallbackMessage) {
   const result = response.data?.data
 
@@ -44,7 +51,7 @@ function persistSession(session) {
 
 async function authenticate(endpoint, credentials, fallbackMessage) {
   const response = await api.post(endpoint, credentials, {
-    skipAuthRefresh: endpoint === '/login' || endpoint === '/refresh',
+    skipAuthRefresh: endpoint === AUTH_API.login || endpoint === AUTH_API.refresh,
     withCredentials: true,
   })
   const authResult = getResultValue(response, fallbackMessage)
@@ -56,18 +63,12 @@ async function authenticate(endpoint, credentials, fallbackMessage) {
 
 export const authService = {
   async login(credentials) {
-    return authenticate('/login', credentials, 'Unable to sign in.')
-  },
-
-  async register(payload) {
-    const response = await api.post('/api/v1/auth/register', payload, { withCredentials: true })
-    const resultValue = response.data?.data?.value || response.data?.data
-    return mapBackendUserToFrontendUser(resultValue)
+    return authenticate(AUTH_API.login, credentials, 'Unable to sign in.')
   },
 
   async changePassword(payload) {
     const response = await api.post(
-      '/change-password',
+      AUTH_API.changePassword,
       {
         userId: payload.userId,
         currentPassword: payload.currentPassword,
@@ -81,12 +82,15 @@ export const authService = {
   },
 
   async refreshToken() {
-    return authenticate('/refresh', undefined, 'Token refresh failed.')
+    return authenticate(AUTH_API.refresh, undefined, 'Token refresh failed.')
   },
 
   async logout() {
     try {
-      await api.post('/logout', undefined, { skipAuthRefresh: true, withCredentials: true })
+      await api.post(AUTH_API.logout, undefined, {
+        skipAuthRefresh: true,
+        withCredentials: true,
+      })
     } catch (error) {
       // Swallows logout API failures to make client-side session cleanup deterministic
       console.warn('Backend logout failed or was unreachable:', error)

@@ -40,7 +40,6 @@ const THEME_PRESETS = {
     textMuted: '#93A3BB',
     textDim: '#5B6C86',
     accentColor: '#F4A623',
-    accentDark: '#C47D0E',
   },
   light: {
     bgBase: '#F7FAFF',
@@ -51,7 +50,6 @@ const THEME_PRESETS = {
     textMuted: '#4B5568',
     textDim: '#6B7A90',
     accentColor: '#2563EB',
-    accentDark: '#1D4ED8',
   },
 }
 function loadTheme() {
@@ -83,7 +81,7 @@ function applyTheme(theme) {
   root.style.setProperty('--color-text-muted', preset.textMuted)
   root.style.setProperty('--color-text-dim', preset.textDim)
   root.style.setProperty('--color-amber', theme.accentColor)
-  root.style.setProperty('--color-amber-dark', preset.accentDark)
+  root.style.setProperty('--color-amber-dark', `color-mix(in srgb, ${theme.accentColor} 82%, #000)`)
   root.style.setProperty('--font-sans', theme.fontSans)
   root.style.setProperty('--font-mono', theme.fontMono)
   root.style.colorScheme = theme.mode
@@ -195,7 +193,8 @@ function AppearanceTab() {
     OVERDUE: { bg: 'rgba(244,63,94,0.20)', text: '#F43F5E', border: '#F43F5E' },
     ACTIVE: { bg: 'rgba(32,212,191,0.15)', text: '#20D4BF', border: '#20D4BF' },
   }
-  const themePreset = THEME_PRESETS[theme.mode]
+  const accentWash = `color-mix(in srgb, ${theme.accentColor} 10%, transparent)`
+  const accentRing = `color-mix(in srgb, ${theme.accentColor} 18%, transparent)`
   return (
     <div
       style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 32, alignItems: 'start' }}
@@ -293,8 +292,8 @@ function AppearanceTab() {
                     cursor: 'pointer',
                     border: `1px solid ${active ? 'var(--color-amber)' : 'var(--color-border)'}`,
                     borderRadius: RADIUS_VALUES[theme.borderRadius],
-                    background: active ? 'rgba(244,166,35,0.08)' : 'var(--color-bg-elevated)',
-                    boxShadow: active ? '0 0 0 3px rgba(244,166,35,0.12)' : 'none',
+                    background: active ? accentWash : 'var(--color-bg-elevated)',
+                    boxShadow: active ? `0 0 0 3px ${accentRing}` : 'none',
                     transition: 'border-color 150ms, background 150ms, box-shadow 150ms',
                   }}
                 >
@@ -410,7 +409,7 @@ function AppearanceTab() {
                     fontSize: 14,
                     fontWeight: 500,
                     cursor: 'pointer',
-                    background: active ? 'rgba(244,166,35,0.10)' : 'transparent',
+                    background: active ? accentWash : 'transparent',
                     border: `1px solid ${active ? 'var(--color-amber)' : 'var(--color-border)'}`,
                     color: active ? 'var(--color-amber)' : 'var(--color-text-muted)',
                     borderRadius: RADIUS_VALUES[mode],
@@ -474,7 +473,7 @@ function AppearanceTab() {
             style={{
               fontSize: 28,
               fontWeight: 700,
-              color: themePreset.accentColor,
+              color: theme.accentColor,
               marginBottom: 6,
             }}
           >
@@ -502,7 +501,7 @@ function AppearanceTab() {
                 padding: '0 16px',
                 fontSize: 13,
                 fontWeight: 600,
-                background: themePreset.accentColor,
+                background: theme.accentColor,
                 color: '#00182A',
                 border: 'none',
                 borderRadius: RADIUS_VALUES[theme.borderRadius],
@@ -550,8 +549,8 @@ function AppearanceTab() {
             className="form-input"
             defaultValue="Perera Stores"
             style={{
-              borderColor: themePreset.accentColor,
-              boxShadow: `0 0 0 3px ${themePreset.accentColor}28`,
+              borderColor: theme.accentColor,
+              boxShadow: `0 0 0 3px color-mix(in srgb, ${theme.accentColor} 16%, transparent)`,
             }}
           />
         </div>

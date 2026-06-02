@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -25,7 +25,7 @@ function getErrorMessage(error) {
 }
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { login, isAuthenticated, isLoading } = useAuthStore()
+  const { login, isLoading } = useAuthStore()
   const [showPassword, setShowPassword] = useState(false)
   const {
     register,
@@ -37,9 +37,6 @@ export default function LoginPage() {
   })
   const usernameField = register('username')
   const passwordField = register('password')
-  useEffect(() => {
-    if (isAuthenticated) navigate('/', { replace: true })
-  }, [isAuthenticated, navigate])
   async function onSubmit(values) {
     try {
       const username = values.username.trim()
