@@ -195,7 +195,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'users',
-        element: requirePermission(<UserListPage />, PERMISSIONS.identity.userManage),
+        element: requirePermission(<UserListPage />, PERMISSIONS.identity.roleManage),
       },
       {
         path: 'users/roles',

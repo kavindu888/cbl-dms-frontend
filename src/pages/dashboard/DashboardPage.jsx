@@ -1,24 +1,17 @@
-import {
-  AlertTriangle,
-  ArrowRight,
-  FileDown,
-  Package,
-  ReceiptText,
-  TrendingDown,
-  TrendingUp,
-  Truck,
-  WalletCards,
-} from 'lucide-react'
+import { AlertTriangle, ArrowRight, FileDown } from 'lucide-react'
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip as ChartTooltip,
   XAxis,
   YAxis,
+  Area,
+  AreaChart,
+  Pie,
+  PieChart,
+  Cell,
 } from 'recharts'
 
 const weeklySalesData = [
@@ -42,10 +35,28 @@ const collectionsData = [
 ]
 
 const recentInvoices = [
-  { id: 'INV-2026-0148', customer: 'Perera Stores', amount: 43380, type: 'Credit', status: 'Pending' },
+  {
+    id: 'INV-2026-0148',
+    customer: 'Perera Stores',
+    amount: 43380,
+    type: 'Credit',
+    status: 'Pending',
+  },
   { id: 'INV-2026-0147', customer: 'Silva Mart', amount: 28900, type: 'Cash', status: 'Paid' },
-  { id: 'INV-2026-0146', customer: 'Dissanayake SM', amount: 61200, type: 'Credit', status: 'Overdue' },
-  { id: 'INV-2026-0145', customer: 'Fernando Grocery', amount: 12750, type: 'Cash', status: 'Paid' },
+  {
+    id: 'INV-2026-0146',
+    customer: 'Dissanayake SM',
+    amount: 61200,
+    type: 'Credit',
+    status: 'Overdue',
+  },
+  {
+    id: 'INV-2026-0145',
+    customer: 'Fernando Grocery',
+    amount: 12750,
+    type: 'Cash',
+    status: 'Paid',
+  },
 ]
 
 const lowStockItems = [
@@ -60,11 +71,18 @@ const fleetItems = [
   { reg: 'WP-MB-4521', type: 'Van', status: 'Warehouse', driver: '-' },
 ]
 
+const channelData = [
+  { name: 'Retail Outlets', value: 1560, color: '#3B82F6' },
+  { name: 'Wholesale Distributors', value: 980, color: '#8B5CF6' },
+  { name: 'Direct Delivery', value: 462, color: '#10B981' },
+]
+
 const panelStyle = {
   background: 'var(--color-bg-surface)',
   border: '1px solid var(--color-border)',
-  borderRadius: 8,
-  boxShadow: '0 16px 34px rgba(0, 0, 0, 0.22)',
+  borderRadius: 12,
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)',
+  transition: 'box-shadow 0.2s',
 }
 
 const chartTooltipStyle = {
@@ -105,8 +123,8 @@ function StatusPill({ status }) {
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        minHeight: 24,
-        padding: '2px 8px',
+        minHeight: 20,
+        padding: '1px 7px',
         borderRadius: 6,
         border: `1px solid ${
           isGood
@@ -120,8 +138,12 @@ function StatusPill({ status }) {
           : isBad
             ? 'color-mix(in srgb, var(--color-danger) 12%, transparent)'
             : 'var(--color-bg-elevated)',
-        color: isGood ? 'var(--color-teal)' : isBad ? 'var(--color-danger)' : 'var(--color-text-muted)',
-        fontSize: 11,
+        color: isGood
+          ? 'var(--color-teal)'
+          : isBad
+            ? 'var(--color-danger)'
+            : 'var(--color-text-muted)',
+        fontSize: 10,
         fontWeight: 700,
       }}
     >
@@ -130,7 +152,38 @@ function StatusPill({ status }) {
   )
 }
 
-function MetricCard({ title, value, detail, icon: Icon, tone = 'neutral', trend }) {
+function TrendChip({ trend }) {
+  if (!trend) return null
+  const isUp = trend.direction === 'up'
+  const sign = isUp ? '+' : ''
+  const cleanLabel =
+    trend.label.startsWith('+') || trend.label.startsWith('-')
+      ? trend.label
+      : `${sign}${trend.label}`
+
+  return (
+    <span
+      className="mono"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 2,
+        padding: '2px 6px',
+        borderRadius: 6,
+        fontSize: 10,
+        fontWeight: 700,
+        backgroundColor: isUp
+          ? 'color-mix(in srgb, var(--color-teal) 12%, transparent)'
+          : 'color-mix(in srgb, var(--color-danger) 12%, transparent)',
+        color: isUp ? 'var(--color-teal)' : 'var(--color-danger)',
+      }}
+    >
+      {cleanLabel} {isUp ? '↗' : '↘'}
+    </span>
+  )
+}
+
+function MetricCard({ title, value, detail, tone = 'neutral', trend }) {
   const toneColor =
     tone === 'accent'
       ? 'var(--color-amber)'
@@ -141,82 +194,77 @@ function MetricCard({ title, value, detail, icon: Icon, tone = 'neutral', trend 
           : 'var(--color-text-primary)'
 
   return (
-    <section
+    <div
       style={{
-        ...panelStyle,
-        minHeight: 156,
-        padding: 20,
+        padding: '18px 24px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
+        minHeight: 102,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          <p className="form-label" style={{ marginBottom: 8 }}>
-            {title}
-          </p>
-          <p style={{ color: toneColor, fontSize: 27, lineHeight: 1.1, fontWeight: 800 }}>
-            {value}
-          </p>
-        </div>
-        <div
+      <div>
+        <p
+          className="eyebrow"
           style={{
-            width: 42,
-            height: 42,
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '1px solid color-mix(in srgb, var(--color-amber) 18%, transparent)',
-            background: 'color-mix(in srgb, var(--color-amber) 8%, transparent)',
-            color: 'var(--color-amber)',
-            flexShrink: 0,
+            fontSize: 11,
+            marginBottom: 6,
+            color: 'var(--color-text-dim)',
+            letterSpacing: '0.05em',
           }}
         >
-          <Icon size={20} />
-        </div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {trend ? (
+          {title}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <p
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              color: trend.direction === 'up' ? 'var(--color-teal)' : 'var(--color-danger)',
-              fontSize: 12,
-              fontWeight: 700,
+              color: toneColor,
+              fontSize: 24,
+              fontWeight: 800,
+              letterSpacing: '-0.5px',
+              margin: 0,
+              lineHeight: 1.1,
             }}
           >
-            {trend.direction === 'up' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-            {trend.label}
+            {value}
           </p>
-        ) : null}
-        <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>{detail}</p>
+          <TrendChip trend={trend} />
+        </div>
       </div>
-    </section>
+      <p
+        style={{
+          color: 'var(--color-text-muted)',
+          fontSize: 11,
+          margin: '6px 0 0 0',
+          fontWeight: 500,
+        }}
+      >
+        {detail}
+      </p>
+    </div>
   )
 }
 
 function SectionPanel({ title, subtitle, action, children, style }) {
   return (
-    <section style={{ ...panelStyle, padding: 24, ...style }}>
+    <section style={{ ...panelStyle, padding: 18, ...style }}>
       <div
         style={{
           display: 'flex',
           alignItems: 'flex-start',
           justifyContent: 'space-between',
           gap: 16,
-          marginBottom: 22,
+          marginBottom: 14,
         }}
       >
         <div>
-          <h2 style={{ color: 'var(--color-text-primary)', fontSize: 18, fontWeight: 750 }}>
+          <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 750 }}>
             {title}
           </h2>
           {subtitle ? (
-            <p style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 13 }}>{subtitle}</p>
+            <p style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 13 }}>
+              {subtitle}
+            </p>
           ) : null}
         </div>
         {action}
@@ -228,7 +276,7 @@ function SectionPanel({ title, subtitle, action, children, style }) {
 
 export default function DashboardPage() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 32, paddingBottom: 32 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: 18 }}>
       <header
         style={{
           display: 'flex',
@@ -239,71 +287,86 @@ export default function DashboardPage() {
         }}
       >
         <div>
-          <h1 style={{ color: 'var(--color-text-primary)', fontSize: 30, fontWeight: 800 }}>
+          <h1 style={{ color: 'var(--color-text-primary)', fontSize: 24, fontWeight: 800 }}>
             Dashboard
           </h1>
-          <p style={{ marginTop: 6, color: 'var(--color-text-muted)', fontSize: 14 }}>
+          <p style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 13 }}>
             {getTodayLabel()} - Operational view for sales, collections, stock, and fleet.
           </p>
         </div>
-        <button className="button-primary" type="button" style={{ height: 42, paddingInline: 18 }}>
+        <button className="button-primary" type="button" style={{ height: 36, paddingInline: 14 }}>
           <FileDown size={16} />
           Generate Daily Report
         </button>
       </header>
 
+      {/* Metric Cards Row */}
       <section
+        className="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border"
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: 24,
+          gap: 0,
+          background: 'var(--color-bg-surface)',
+          borderRadius: 12,
         }}
       >
         <MetricCard
           title="Today's Sales"
           value={formatCurrency(2847500)}
-          detail="47 invoices issued today"
-          icon={ReceiptText}
+          detail="Compare to yesterday"
           tone="accent"
-          trend={{ direction: 'up', label: '12% vs yesterday' }}
+          trend={{ direction: 'up', label: '12%' }}
         />
         <MetricCard
           title="Outstanding Credit"
           value={formatCurrency(8230000)}
           detail="6 overdue accounts across 34 customers"
-          icon={WalletCards}
           tone="neutral"
         />
         <MetricCard
           title="Total Stock Value"
           value={formatCurrency(41650000)}
           detail="284 active SKUs in warehouse"
-          icon={Package}
           tone="neutral"
-          trend={{ direction: 'down', label: '3% vs last week' }}
+          trend={{ direction: 'down', label: '-3%' }}
         />
         <MetricCard
           title="Fleet On Road"
           value="3 / 4"
           detail="Routes active since 06:00"
-          icon={Truck}
           tone="success"
         />
       </section>
 
+      {/* First Row of Charts (Sales & Collections) */}
       <section
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))',
-          gap: 28,
+          gap: 16,
         }}
       >
         <SectionPanel title="Sales This Week" subtitle="Mon 22 Apr - Sun 28 Apr, LKR">
-          <div style={{ height: 300 }}>
+          <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklySalesData} margin={{ top: 10, right: 14, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                <XAxis dataKey="day" stroke="var(--color-text-dim)" fontSize={12} tickLine={false} axisLine={false} />
+                <defs>
+                  <linearGradient id="salesBarGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.85} />
+                    <stop offset="100%" stopColor="#6366F1" stopOpacity={0.2} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--color-border)"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="day"
+                  stroke="var(--color-text-dim)"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <YAxis
                   stroke="var(--color-text-dim)"
                   fontSize={12}
@@ -317,18 +380,38 @@ export default function DashboardPage() {
                   formatter={(value) => [formatCurrency(value), 'Sales']}
                   labelStyle={{ color: 'var(--color-text-muted)', fontWeight: 700 }}
                 />
-                <Bar dataKey="sales" fill="var(--color-amber)" radius={[4, 4, 0, 0]} barSize={34} />
+                <Bar dataKey="sales" fill="url(#salesBarGrad)" radius={[6, 6, 0, 0]} barSize={34} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </SectionPanel>
 
         <SectionPanel title="Collections vs Invoiced" subtitle="April 2026 cumulative, LKR">
-          <div style={{ height: 300 }}>
+          <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={collectionsData} margin={{ top: 10, right: 14, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                <XAxis dataKey="date" stroke="var(--color-text-dim)" fontSize={12} tickLine={false} axisLine={false} />
+              <AreaChart data={collectionsData} margin={{ top: 10, right: 14, left: 4, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="collectedAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10B981" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#10B981" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="invoicedAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--color-border)"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="date"
+                  stroke="var(--color-text-dim)"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <YAxis
                   stroke="var(--color-text-dim)"
                   fontSize={12}
@@ -342,25 +425,41 @@ export default function DashboardPage() {
                   formatter={(value, name) => [formatCurrency(value), name]}
                   labelStyle={{ color: 'var(--color-text-muted)', fontWeight: 700 }}
                 />
-                <Line type="monotone" dataKey="collected" stroke="var(--color-teal)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="invoiced" stroke="var(--color-blue)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-              </LineChart>
+                <Area
+                  type="monotone"
+                  dataKey="collected"
+                  stroke="#10B981"
+                  strokeWidth={2.5}
+                  fill="url(#collectedAreaGrad)"
+                  activeDot={{ r: 5 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="invoiced"
+                  stroke="#3B82F6"
+                  strokeWidth={2.5}
+                  fill="url(#invoicedAreaGrad)"
+                  activeDot={{ r: 5 }}
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </SectionPanel>
       </section>
 
+      {/* Second Row (Invoices Table, Gauge Chart, Satisfaction progress bars) */}
       <section
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
-          gap: 28,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+          gap: 16,
           alignItems: 'start',
         }}
       >
+        {/* Recent Invoices Table */}
         <SectionPanel title="Recent Invoices" subtitle="Latest posted sales activity">
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table" style={{ fontSize: 12 }}>
               <thead>
                 <tr>
                   <th>Invoice</th>
@@ -373,11 +472,13 @@ export default function DashboardPage() {
               <tbody>
                 {recentInvoices.map((invoice) => (
                   <tr key={invoice.id}>
-                    <td className="mono" style={{ color: 'var(--color-amber)' }}>
+                    <td className="mono" style={{ color: 'var(--color-amber)', fontWeight: 700 }}>
                       {invoice.id}
                     </td>
                     <td>{invoice.customer}</td>
-                    <td className="mono">{formatCurrency(invoice.amount)}</td>
+                    <td className="mono" style={{ fontWeight: 650 }}>
+                      {formatCurrency(invoice.amount)}
+                    </td>
                     <td style={{ color: 'var(--color-text-muted)' }}>{invoice.type}</td>
                     <td>
                       <StatusPill status={invoice.status} />
@@ -389,82 +490,371 @@ export default function DashboardPage() {
           </div>
         </SectionPanel>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-          <SectionPanel
-            title="Low Stock"
-            subtitle="Items that need attention"
-            action={<AlertTriangle size={18} style={{ color: 'var(--color-danger)' }} />}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {lowStockItems.map((item) => (
+        {/* Dispatch by Channel Gauge */}
+        <SectionPanel title="Dispatch by Channel" subtitle="Active routes by customer segment">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div
+              style={{
+                position: 'relative',
+                height: 124,
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={channelData}
+                    cx="50%"
+                    cy="100%"
+                    startAngle={180}
+                    endAngle={0}
+                    innerRadius={48}
+                    outerRadius={68}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {channelData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 800,
+                    color: 'var(--color-text-primary)',
+                    lineHeight: 1,
+                  }}
+                >
+                  3,002
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: 'var(--color-text-dim)',
+                    marginTop: 4,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  Total Dispatches
+                </span>
+              </div>
+            </div>
+            {/* Custom Legend */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+              {channelData.map((segment) => (
                 <div
-                  key={item.name}
+                  key={segment.name}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: 14,
-                    paddingBottom: 14,
-                    borderBottom: '1px solid var(--color-border)',
+                    fontSize: 12,
                   }}
                 >
-                  <div>
-                    <p style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13 }}>
-                      {item.name}
-                    </p>
-                    <p style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 12 }}>
-                      {item.cases} cases remaining
-                    </p>
-                  </div>
-                  <StatusPill status={item.status} />
+                  <span
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: segment.color,
+                      }}
+                    />
+                    {segment.name}
+                  </span>
+                  <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                    {segment.value} ({Math.round(segment.value / 30.02)}%)
+                  </span>
                 </div>
               ))}
             </div>
-            <button
-              type="button"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                marginTop: 18,
-                color: 'var(--color-amber)',
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
-              View Full Stock
-              <ArrowRight size={14} />
-            </button>
-          </SectionPanel>
+          </div>
+        </SectionPanel>
 
-          <SectionPanel title="Fleet Status" subtitle="Active dispatch vehicles">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {fleetItems.map((vehicle) => (
-                <div
-                  key={vehicle.reg}
+        {/* Customer Satisfaction Rating */}
+        <SectionPanel
+          title="Customer Satisfaction"
+          subtitle="Daily feedback ratings from delivery outlets"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 2 }}>
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 4,
+                }}
+              >
+                <span
                   style={{
                     display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    gap: 14,
-                    paddingBottom: 14,
-                    borderBottom: '1px solid var(--color-border)',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: 'var(--color-text-primary)',
                   }}
                 >
-                  <div>
-                    <p className="mono" style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13 }}>
-                      {vehicle.reg}
-                    </p>
-                    <p style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 12 }}>
-                      {vehicle.type} - {vehicle.driver}
-                    </p>
-                  </div>
-                  <StatusPill status={vehicle.status} />
-                </div>
-              ))}
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: 'var(--color-teal)',
+                    }}
+                  />
+                  Positive
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}>
+                  80%
+                </span>
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  height: 5,
+                  background: 'var(--color-border)',
+                  borderRadius: 3,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: '80%',
+                    height: '100%',
+                    background: 'var(--color-teal)',
+                    borderRadius: 3,
+                  }}
+                />
+              </div>
             </div>
-          </SectionPanel>
-        </div>
+
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 4,
+                }}
+              >
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: 'var(--color-text-primary)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: 'var(--color-amber)',
+                    }}
+                  />
+                  Neutral
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}>
+                  15%
+                </span>
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  height: 5,
+                  background: 'var(--color-border)',
+                  borderRadius: 3,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: '15%',
+                    height: '100%',
+                    background: 'var(--color-amber)',
+                    borderRadius: 3,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 4,
+                }}
+              >
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: 'var(--color-text-primary)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: 'var(--color-danger)',
+                    }}
+                  />
+                  Negative
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}>
+                  5%
+                </span>
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  height: 5,
+                  background: 'var(--color-border)',
+                  borderRadius: 3,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: '5%',
+                    height: '100%',
+                    background: 'var(--color-danger)',
+                    borderRadius: 3,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </SectionPanel>
+      </section>
+
+      {/* Fourth Row (Low Stock & Fleet Alerts side by side) */}
+      <section
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
+          gap: 16,
+        }}
+      >
+        {/* Low Stock Alerts */}
+        <SectionPanel
+          title="Low Stock Alerts"
+          subtitle="Inventory balances requiring immediate replenishment"
+          action={<AlertTriangle size={18} style={{ color: 'var(--color-danger)' }} />}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {lowStockItems.map((item) => (
+              <div
+                key={item.name}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  paddingBottom: 10,
+                  borderBottom: '1px solid var(--color-border)',
+                }}
+              >
+                <div>
+                  <p style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13 }}>
+                    {item.name}
+                  </p>
+                  <p style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 12 }}>
+                    {item.cases} cases remaining in main warehouse
+                  </p>
+                </div>
+                <StatusPill status={item.status} />
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 18,
+              color: 'var(--color-amber)',
+              fontSize: 12,
+              fontWeight: 700,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            View Full Stock Ledger
+            <ArrowRight size={14} />
+          </button>
+        </SectionPanel>
+
+        {/* Fleet Dispatch Status */}
+        <SectionPanel
+          title="Active Dispatch Fleet"
+          subtitle="Vehicles currently running dispatch routes"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {fleetItems.map((vehicle) => (
+              <div
+                key={vehicle.reg}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  paddingBottom: 10,
+                  borderBottom: '1px solid var(--color-border)',
+                }}
+              >
+                <div>
+                  <p
+                    className="mono"
+                    style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13 }}
+                  >
+                    {vehicle.reg}
+                  </p>
+                  <p style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 12 }}>
+                    {vehicle.type} - Assigned to {vehicle.driver}
+                  </p>
+                </div>
+                <StatusPill status={vehicle.status} />
+              </div>
+            ))}
+          </div>
+        </SectionPanel>
       </section>
     </div>
   )

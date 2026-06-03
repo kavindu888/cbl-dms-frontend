@@ -7,17 +7,17 @@ import TerritoriesTab from './TerritoriesTab'
 import BusinessUnitsTab from './BusinessUnitsTab'
 const DEFAULTS = {
   mode: 'dark',
-  accentColor: '#F4A623',
+  accentColor: '#8EE8F0',
   fontSans: "'Inter', system-ui, sans-serif",
   fontMono: "'JetBrains Mono', monospace",
   borderRadius: 'default',
 }
 const ACCENT_PRESETS = [
-  { label: 'Amber', color: '#F4A623' },
-  { label: 'Teal', color: '#20D4BF' },
-  { label: 'Blue', color: '#3B82F6' },
-  { label: 'Purple', color: '#A78BFA' },
-  { label: 'Red', color: '#F43F5E' },
+  { label: 'Windows Cyan', color: '#8EE8F0' },
+  { label: 'Mint', color: '#7DE2D1' },
+  { label: 'Blue', color: '#9FD7FF' },
+  { label: 'Lilac', color: '#C7B9FF' },
+  { label: 'Rose', color: '#FF7B8A' },
 ]
 const RADIUS_VALUES = {
   compact: '4px',
@@ -32,14 +32,14 @@ const RADIUS_LABELS = {
 const STORAGE_KEY = 'cbl-theme'
 const THEME_PRESETS = {
   dark: {
-    bgBase: '#00182A',
-    bgSurface: '#132337',
-    bgElevated: '#1B3050',
-    border: '#25314A',
-    textPrimary: '#F8FAFC',
-    textMuted: '#93A3BB',
-    textDim: '#5B6C86',
-    accentColor: '#F4A623',
+    bgBase: '#111217',
+    bgSurface: '#1A1A22',
+    bgElevated: '#242331',
+    border: '#343241',
+    textPrimary: '#F4F4F6',
+    textMuted: '#C7C5CC',
+    textDim: '#8F8B99',
+    accentColor: '#8EE8F0',
   },
   light: {
     bgBase: '#F7FAFF',
@@ -58,10 +58,18 @@ function loadTheme() {
     if (!raw) return { ...DEFAULTS }
     const parsed = JSON.parse(raw)
     const validModes = ['compact', 'default', 'rounded']
+    const mode = parsed.mode === 'light' ? 'light' : 'dark'
+    const savedAccentColor = parsed.accentColor?.toUpperCase()
+    const accentColor =
+      mode === 'dark' && (!savedAccentColor || savedAccentColor === '#F4A623')
+        ? DEFAULTS.accentColor
+        : parsed.accentColor ?? DEFAULTS.accentColor
+
     return {
       ...DEFAULTS,
       ...parsed,
-      mode: parsed.mode === 'light' ? 'light' : 'dark',
+      mode,
+      accentColor,
       borderRadius: validModes.includes(parsed.borderRadius)
         ? parsed.borderRadius
         : DEFAULTS.borderRadius,
@@ -502,7 +510,7 @@ function AppearanceTab() {
                 fontSize: 13,
                 fontWeight: 600,
                 background: theme.accentColor,
-                color: '#00182A',
+                color: '#111217',
                 border: 'none',
                 borderRadius: RADIUS_VALUES[theme.borderRadius],
                 cursor: 'default',
@@ -595,9 +603,17 @@ function AppearanceTab() {
 /* ── Page ─────────────────────────────────────────────────────── */
 export default function SettingsPage() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div
+      style={{
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+        overflow: 'hidden',
+      }}
+    >
       {/* Page header */}
-      <div>
+      <div style={{ flexShrink: 0 }}>
         <h1
           style={{
             fontSize: 24,
@@ -615,9 +631,18 @@ export default function SettingsPage() {
       </div>
 
       {/* Outer tabs: Organisations | Application */}
-      <Tabs.Root defaultValue="organisations">
+      <Tabs.Root
+        defaultValue="organisations"
+        style={{ minHeight: 0, display: 'flex', flex: 1, flexDirection: 'column' }}
+      >
         {/* Outer underline tab bar */}
-        <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 28 }}>
+        <div
+          style={{
+            flexShrink: 0,
+            borderBottom: '1px solid var(--color-border)',
+            marginBottom: 16,
+          }}
+        >
           <Tabs.List style={{ display: 'flex', gap: 0 }} aria-label="Settings category">
             {[
               ['organisations', 'Organisations'],
@@ -650,22 +675,22 @@ export default function SettingsPage() {
         </div>
 
         {/* Organisations content */}
-        <Tabs.Content value="organisations">
+        <Tabs.Content value="organisations" style={{ minHeight: 0, flex: 1, overflow: 'hidden' }}>
           <OrganisationsTab />
         </Tabs.Content>
 
         {/* Territories content */}
-        <Tabs.Content value="territories">
+        <Tabs.Content value="territories" style={{ minHeight: 0, flex: 1, overflowY: 'auto' }}>
           <TerritoriesTab />
         </Tabs.Content>
 
         {/* Business Units content */}
-        <Tabs.Content value="businessUnits">
+        <Tabs.Content value="businessUnits" style={{ minHeight: 0, flex: 1, overflowY: 'auto' }}>
           <BusinessUnitsTab />
         </Tabs.Content>
 
         {/* Application content → inner tabs */}
-        <Tabs.Content value="application">
+        <Tabs.Content value="application" style={{ minHeight: 0, flex: 1, overflowY: 'auto' }}>
           <Tabs.Root defaultValue="appearance">
             {/* Inner underline tab bar */}
             <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 28 }}>

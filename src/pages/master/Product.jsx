@@ -7,6 +7,8 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@services/api/masterService'
+import { useAuthStore } from '@stores/authStore'
+import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
 // ── Validation Schema ───────────────────────────────────────────────────
 const productSchema = z.object({
@@ -24,8 +26,15 @@ const productSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
+const productPageSize = 10
+
 // ── UOM Conversions Manager (Inline for Edit Mode) ──────────────────────
-function UomConversionsManager({ productId, conversions, onRefresh }) {
+function UomConversionsManager({
+  productId,
+  conversions = [],
+  onRefresh,
+  canManage = false,
+}) {
   const [fromUom, setFromUom] = useState('')
   const [toUom, setToUom] = useState('')
   const [factor, setFactor] = useState(1)
@@ -42,6 +51,7 @@ function UomConversionsManager({ productId, conversions, onRefresh }) {
       toast.error('All conversion fields are required, and factor must be positive.')
       return
     }
+
     setIsAdding(true)
     try {
       await masterService.addUomConversion(productId, {
@@ -143,15 +153,15 @@ function UomConversionsManager({ productId, conversions, onRefresh }) {
                   <input
                     className="form-input"
                     value={editFromUom}
-                    onChange={(e) => setEditFromUom(e.target.value)}
-                    style={{ height: 34, fontSize: 12 }}
+                    onChange={(e) => setEditFromUom(e.target.value.toUpperCase())}
+                    style={{ height: 34, fontSize: 12, textTransform: 'uppercase' }}
                     aria-label="From UOM"
                   />
                   <input
                     className="form-input"
                     value={editToUom}
-                    onChange={(e) => setEditToUom(e.target.value)}
-                    style={{ height: 34, fontSize: 12 }}
+                    onChange={(e) => setEditToUom(e.target.value.toUpperCase())}
+                    style={{ height: 34, fontSize: 12, textTransform: 'uppercase' }}
                     aria-label="To UOM"
                   />
                   <input
@@ -191,6 +201,269 @@ function UomConversionsManager({ productId, conversions, onRefresh }) {
                   >
                     1 {conv.fromUom} = {conv.factor} {conv.toUom}
                   </span>
+                  {canManage ? (
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        onClick={() => startEdit(conv)}
+                        title="Edit conversion"
+                        style={{ width: 28, height: 28 }}
+                      >
+                        <Pencil style={{ width: 14, height: 14 }} />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        onClick={() => handleDelete(conv.id)}
+                        title="Remove conversion"
+                        style={{ color: 'var(--color-red)', width: 28, height: 28 }}
+                      >
+                        <Trash2 style={{ width: 14, height: 14 }} />
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add Conversion Form */}
+      {canManage ? (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr auto',
+            gap: 10,
+            alignItems: 'end',
+            background: 'rgba(0,0,0,0.06)',
+            padding: 12,
+            borderRadius: 8,
+            border: '1px dashed var(--color-border)',
+          }}
+        >
+          <div>
+            <label className="form-label" style={{ fontSize: 9, marginBottom: 4 }}>
+              FROM UOM
+            </label>
+            <input
+              className="form-input"
+              placeholder="e.g. CASE"
+              value={fromUom}
+              onChange={(e) => setFromUom(e.target.value.toUpperCase())}
+              style={{ height: 36, fontSize: 12, textTransform: 'uppercase' }}
+            />
+          </div>
+          <div>
+            <label className="form-label" style={{ fontSize: 9, marginBottom: 4 }}>
+              TO UOM
+            </label>
+            <input
+              className="form-input"
+              placeholder="e.g. PACKET"
+              value={toUom}
+              onChange={(e) => setToUom(e.target.value.toUpperCase())}
+              style={{ height: 36, fontSize: 12, textTransform: 'uppercase' }}
+            />
+          </div>
+          <div>
+            <label className="form-label" style={{ fontSize: 9, marginBottom: 4 }}>
+              FACTOR
+            </label>
+            <input
+              type="number"
+              className="form-input"
+              value={factor}
+              onChange={(e) => setFactor(e.target.value)}
+              style={{ height: 36, fontSize: 12 }}
+            />
+          </div>
+          <button
+            type="button"
+            className="button-primary"
+            onClick={handleAdd}
+            disabled={isAdding}
+            style={{ height: 36, padding: '0 16px', fontSize: 12 }}
+          >
+            {isAdding ? 'Adding...' : 'Add'}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+// ── Form Modal Component ──────────────────────────────────────────────────
+function NewProductUomConversionsManager({ conversions, onChange, canManage = false }) {
+  const [fromUom, setFromUom] = useState('')
+  const [toUom, setToUom] = useState('')
+  const [factor, setFactor] = useState(1)
+  const [editingId, setEditingId] = useState('')
+  const [editFromUom, setEditFromUom] = useState('')
+  const [editToUom, setEditToUom] = useState('')
+  const [editFactor, setEditFactor] = useState(1)
+
+  function hasDuplicate(from, to, ignoredId = '') {
+    return conversions.some(
+      (item) =>
+        item.id !== ignoredId &&
+        item.fromUom.toUpperCase() === from.toUpperCase() &&
+        item.toUom.toUpperCase() === to.toUpperCase()
+    )
+  }
+
+  function handleAdd() {
+    const nextFromUom = fromUom.trim().toUpperCase()
+    const nextToUom = toUom.trim().toUpperCase()
+    const nextFactor = Number(factor)
+
+    if (!nextFromUom || !nextToUom || nextFactor <= 0) {
+      toast.error('All conversion fields are required, and factor must be positive.')
+      return
+    }
+
+    if (hasDuplicate(nextFromUom, nextToUom)) {
+      toast.error('This UOM conversion is already added.')
+      return
+    }
+
+    onChange([
+      ...conversions,
+      {
+        id: `${Date.now()}-${nextFromUom}-${nextToUom}`,
+        fromUom: nextFromUom,
+        toUom: nextToUom,
+        factor: nextFactor,
+      },
+    ])
+    setFromUom('')
+    setToUom('')
+    setFactor(1)
+  }
+
+  function startEdit(conversion) {
+    setEditingId(conversion.id)
+    setEditFromUom(conversion.fromUom)
+    setEditToUom(conversion.toUom)
+    setEditFactor(conversion.factor)
+  }
+
+  function cancelEdit() {
+    setEditingId('')
+    setEditFromUom('')
+    setEditToUom('')
+    setEditFactor(1)
+  }
+
+  function handleUpdate(conversionId) {
+    const nextFromUom = editFromUom.trim().toUpperCase()
+    const nextToUom = editToUom.trim().toUpperCase()
+    const nextFactor = Number(editFactor)
+
+    if (!nextFromUom || !nextToUom || nextFactor <= 0) {
+      toast.error('All conversion fields are required, and factor must be positive.')
+      return
+    }
+
+    if (hasDuplicate(nextFromUom, nextToUom, conversionId)) {
+      toast.error('This UOM conversion is already added.')
+      return
+    }
+
+    onChange(
+      conversions.map((item) =>
+        item.id === conversionId
+          ? { ...item, fromUom: nextFromUom, toUom: nextToUom, factor: nextFactor }
+          : item
+      )
+    )
+    cancelEdit()
+  }
+
+  function handleDelete(conversionId) {
+    onChange(conversions.filter((item) => item.id !== conversionId))
+    if (editingId === conversionId) {
+      cancelEdit()
+    }
+  }
+
+  if (!canManage) return null
+
+  return (
+    <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+      <label className="form-label" style={{ fontSize: 11, fontWeight: 700, marginBottom: 10 }}>
+        UOM CONVERSIONS
+      </label>
+
+      {conversions.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+          {conversions.map((conv) => (
+            <div
+              key={conv.id}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: editingId === conv.id ? '1fr 1fr 1fr auto' : '1fr auto',
+                alignItems: 'end',
+                gap: 10,
+                padding: '8px 12px',
+                background: 'rgba(0,0,0,0.12)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 6,
+              }}
+            >
+              {editingId === conv.id ? (
+                <>
+                  <input
+                    className="form-input"
+                    value={editFromUom}
+                    onChange={(e) => setEditFromUom(e.target.value.toUpperCase())}
+                    style={{ height: 34, fontSize: 12, textTransform: 'uppercase' }}
+                    aria-label="From UOM"
+                  />
+                  <input
+                    className="form-input"
+                    value={editToUom}
+                    onChange={(e) => setEditToUom(e.target.value.toUpperCase())}
+                    style={{ height: 34, fontSize: 12, textTransform: 'uppercase' }}
+                    aria-label="To UOM"
+                  />
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={editFactor}
+                    onChange={(e) => setEditFactor(e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                    aria-label="Conversion factor"
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="button-primary"
+                      onClick={() => handleUpdate(conv.id)}
+                      style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="button-ghost"
+                      onClick={cancelEdit}
+                      style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
+                    1 {conv.fromUom} = {conv.factor} {conv.toUom}
+                  </span>
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                     <button
                       type="button"
@@ -216,9 +489,8 @@ function UomConversionsManager({ productId, conversions, onRefresh }) {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
-      {/* Add Conversion Form */}
       <div
         style={{
           display: 'grid',
@@ -237,10 +509,10 @@ function UomConversionsManager({ productId, conversions, onRefresh }) {
           </label>
           <input
             className="form-input"
-            placeholder="e.g. Case"
+            placeholder="E.G. CASE"
             value={fromUom}
-            onChange={(e) => setFromUom(e.target.value)}
-            style={{ height: 36, fontSize: 12 }}
+            onChange={(e) => setFromUom(e.target.value.toUpperCase())}
+            style={{ height: 36, fontSize: 12, textTransform: 'uppercase' }}
           />
         </div>
         <div>
@@ -249,10 +521,10 @@ function UomConversionsManager({ productId, conversions, onRefresh }) {
           </label>
           <input
             className="form-input"
-            placeholder="e.g. Packet"
+            placeholder="E.G. PACKET"
             value={toUom}
-            onChange={(e) => setToUom(e.target.value)}
-            style={{ height: 36, fontSize: 12 }}
+            onChange={(e) => setToUom(e.target.value.toUpperCase())}
+            style={{ height: 36, fontSize: 12, textTransform: 'uppercase' }}
           />
         </div>
         <div>
@@ -271,19 +543,26 @@ function UomConversionsManager({ productId, conversions, onRefresh }) {
           type="button"
           className="button-primary"
           onClick={handleAdd}
-          disabled={isAdding}
           style={{ height: 36, padding: '0 16px', fontSize: 12 }}
         >
-          {isAdding ? 'Adding...' : 'Add'}
+          Add
         </button>
       </div>
     </div>
   )
 }
 
-// ── Form Modal Component ──────────────────────────────────────────────────
-function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, onSaved }) {
+function ProductFormModal({
+  open,
+  product,
+  categories,
+  unitsOfMeasure,
+  canManageUom,
+  onClose,
+  onSaved,
+}) {
   const [isSaving, setIsSaving] = useState(false)
+  const [newUomConversions, setNewUomConversions] = useState([])
   const defaultUom = unitsOfMeasure[0]?.code || ''
 
   const {
@@ -312,6 +591,7 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
 
   useEffect(() => {
     if (open) {
+      setNewUomConversions([])
       if (product) {
         reset({
           sku: product.sku,
@@ -374,6 +654,16 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
         onClose()
       } else {
         savedProduct = await masterService.createProduct(payload)
+        for (const conversion of newUomConversions) {
+          await masterService.addUomConversion(savedProduct.id, {
+            fromUom: conversion.fromUom,
+            toUom: conversion.toUom,
+            conversionFactor: Number(conversion.factor),
+          })
+        }
+        if (newUomConversions.length > 0) {
+          savedProduct = await masterService.getProduct(savedProduct.id)
+        }
         if (!values.isActive) {
           savedProduct = await masterService.updateProductStatus(savedProduct.id, false)
         }
@@ -393,6 +683,7 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
           imageUrl: '',
           isActive: true,
         })
+        setNewUomConversions([])
         setTimeout(() => setFocus('sku'), 0)
       }
     } catch (err) {
@@ -432,31 +723,38 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
         <Dialog.Content
           className="fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 shadow-2xl"
           style={{
-            maxWidth: 600,
+            width: 'min(940px, calc(100vw - 48px))',
+            height: 'min(720px, calc(100vh - 48px))',
+            maxWidth: 940,
             background: 'var(--color-bg-surface)',
             border: '1px solid var(--color-border)',
-            borderRadius: 12,
-            maxHeight: '92vh',
-            overflowY: 'auto',
+            borderRadius: 10,
+            maxHeight: '88vh',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           {/* Header */}
           <div
             style={{
-              padding: '32px 32px 20px 32px',
+              padding: '20px 24px 12px 24px',
               display: 'flex',
               alignItems: 'flex-start',
               justifyContent: 'space-between',
+              gap: 16,
+              borderBottom: '1px solid var(--color-border)',
+              flexShrink: 0,
             }}
           >
             <div>
               <Dialog.Title
-                style={{ fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)' }}
+                style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)' }}
               >
                 {product ? 'Edit Product' : 'Create New Product'}
               </Dialog.Title>
               <Dialog.Description
-                style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}
+                style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}
               >
                 {product
                   ? 'Modify details and unit conversions for this catalog product.'
@@ -475,21 +773,25 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
             onSubmit={handleSubmit(onSubmit)}
             onKeyDown={handleFormKeyDown}
             style={{
-              padding: '0 32px 32px 32px',
+              padding: '16px 24px 18px 24px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 20,
+              gap: 12,
+              minHeight: 0,
+              overflowY: 'auto',
             }}
           >
             {/* SKU and Barcode */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label className="form-label">SKU CODE</label>
                 <input
-                  {...register('sku')}
+                  {...register('sku', {
+                    setValueAs: (v) => v.toUpperCase(),
+                  })}
                   className="form-input w-full"
                   placeholder="e.g. CBL-MCK-001"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 40 }}
+                  style={{ background: 'rgba(0,0,0,0.15)', height: 36, textTransform: 'uppercase' }}
                 />
                 {errors.sku && (
                   <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
@@ -501,48 +803,67 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
               <div>
                 <label className="form-label">BARCODE</label>
                 <input
-                  {...register('barcode')}
+                  {...register('barcode', {
+                    setValueAs: (v) => v?.toUpperCase(),
+                  })}
                   className="form-input w-full"
                   placeholder="e.g. 4891234567890"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 40 }}
+                  style={{ background: 'rgba(0,0,0,0.15)', height: 36, textTransform: 'uppercase' }}
                 />
               </div>
             </div>
 
-            {/* Name */}
-            <div>
-              <label className="form-label">PRODUCT NAME</label>
-              <input
-                {...register('name')}
-                className="form-input w-full"
-                placeholder="e.g. CBL Munchee Coconut Crunch 200g"
-                style={{ background: 'rgba(0,0,0,0.15)', height: 40 }}
-              />
-              {errors.name && (
-                <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                  {errors.name.message}
-                </p>
-              )}
-            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: 12 }}>
+              {/* Name */}
+              <div>
+                <label className="form-label">PRODUCT NAME</label>
+                <input
+                  {...register('name', {
+                    setValueAs: (v) => v?.toUpperCase(),
+                  })}
+                  className="form-input w-full"
+                  placeholder="e.g. CBL MUNCHEE COCONUT CRUNCH 200G"
+                  style={{ background: 'rgba(0,0,0,0.15)', height: 36, textTransform: 'uppercase' }}
+                />
+                {errors.name && (
+                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
+                    {errors.name.message}
+                  </p>
+                )}
+              </div>
 
-            {/* Description */}
-            <div>
-              <label className="form-label">DESCRIPTION</label>
-              <textarea
-                {...register('description')}
-                className="form-input w-full"
-                placeholder="Description of the catalog item..."
+              {/* Status */}
+              <div
                 style={{
-                  background: 'rgba(0,0,0,0.15)',
-                  minHeight: 64,
-                  paddingTop: 10,
-                  paddingBottom: 10,
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  paddingBottom: 8,
                 }}
-              />
+              >
+                <label
+                  htmlFor="isActive"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    fontSize: 13,
+                    color: 'var(--color-text-primary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    id="isActive"
+                    {...register('isActive')}
+                    style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }}
+                  />
+                  Active Catalog Item
+                </label>
+              </div>
             </div>
 
             {/* Category and Base UOM */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label className="form-label">CATEGORY</label>
                 <select
@@ -550,7 +871,7 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
                   className="form-input w-full"
                   style={{
                     background: 'rgba(0,0,0,0.15)',
-                    height: 40,
+                    height: 36,
                     color: 'var(--color-text-primary)',
                     cursor: 'pointer',
                   }}
@@ -585,7 +906,7 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
                   className="form-input w-full"
                   style={{
                     background: 'rgba(0,0,0,0.15)',
-                    height: 40,
+                    height: 36,
                     color: 'var(--color-text-primary)',
                     cursor: 'pointer',
                   }}
@@ -627,7 +948,7 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
             </div>
 
             {/* Pricing */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
               <div>
                 <label className="form-label">UNIT COST (RS.)</label>
                 <input
@@ -635,7 +956,7 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
                   step="0.01"
                   {...register('unitCost')}
                   className="form-input w-full mono"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 40 }}
+                  style={{ background: 'rgba(0,0,0,0.15)', height: 36 }}
                 />
                 {errors.unitCost && (
                   <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
@@ -651,7 +972,7 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
                   step="0.01"
                   {...register('unitPrice')}
                   className="form-input w-full mono"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 40 }}
+                  style={{ background: 'rgba(0,0,0,0.15)', height: 36 }}
                 />
                 {errors.unitPrice && (
                   <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
@@ -659,10 +980,6 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
                   </p>
                 )}
               </div>
-            </div>
-
-            {/* Reorder Thresholds */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
                 <label className="form-label">REORDER LEVEL</label>
                 <input
@@ -670,7 +987,7 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
                   {...register('reorderLevel')}
                   className="form-input w-full mono"
                   placeholder="Optional"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 40 }}
+                  style={{ background: 'rgba(0,0,0,0.15)', height: 36 }}
                 />
               </div>
 
@@ -681,32 +998,37 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
                   {...register('reorderQty')}
                   className="form-input w-full mono"
                   placeholder="Optional"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 40 }}
+                  style={{ background: 'rgba(0,0,0,0.15)', height: 36 }}
                 />
               </div>
             </div>
 
-            {/* Status */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-              <input
-                type="checkbox"
-                id="isActive"
-                {...register('isActive')}
-                style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }}
+            {/* Description */}
+            <div>
+              <label className="form-label">DESCRIPTION</label>
+              <textarea
+                {...register('description', {
+                  setValueAs: (v) => v?.toUpperCase(),
+                })}
+                className="form-input w-full"
+                placeholder="DESCRIPTION OF THE CATALOG ITEM..."
+                style={{
+                  background: 'rgba(0,0,0,0.15)',
+                  minHeight: 42,
+                  paddingTop: 8,
+                  paddingBottom: 8,
+                  textTransform: 'uppercase',
+                  resize: 'none',
+                }}
               />
-              <label
-                htmlFor="isActive"
-                style={{ fontSize: 13, color: 'var(--color-text-primary)', cursor: 'pointer' }}
-              >
-                Active Catalog Item
-              </label>
             </div>
 
-            {/* UOM Conversions section (only in edit mode) */}
+            {/* UOM Conversions section */}
             {product ? (
               <UomConversionsManager
                 productId={product.id}
                 conversions={product.uomConversions || []}
+                canManage={canManageUom}
                 onRefresh={async () => {
                   try {
                     const updated = await masterService.getProduct(product.id)
@@ -717,26 +1039,29 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
                 }}
               />
             ) : (
-              <p
-                style={{
-                  fontSize: 12,
-                  color: 'var(--color-text-dim)',
-                  fontStyle: 'italic',
-                  marginTop: 4,
-                }}
-              >
-                * UOM Conversions can be configured on this product after it has been created.
-              </p>
+              <NewProductUomConversionsManager
+                conversions={newUomConversions}
+                canManage={canManageUom}
+                onChange={setNewUomConversions}
+              />
             )}
 
             {/* Form Actions */}
-            <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 10,
+                paddingTop: 4,
+                flexShrink: 0,
+              }}
+            >
               <button
                 type="button"
                 data-skip-focus="true"
                 className="button-ghost"
                 onClick={onClose}
-                style={{ flex: 1, height: 38 }}
+                style={{ minWidth: 110, height: 36 }}
               >
                 Cancel
               </button>
@@ -744,7 +1069,7 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
                 type="submit"
                 className="button-primary"
                 disabled={isSaving}
-                style={{ flex: 1, height: 38 }}
+                style={{ minWidth: 150, height: 36 }}
               >
                 {isSaving ? 'Saving...' : product ? 'Save Changes' : 'Create Product'}
               </button>
@@ -758,6 +1083,7 @@ function ProductFormModal({ open, product, categories, unitsOfMeasure, onClose, 
 
 // ── Main Page Component ──────────────────────────────────────────────────
 export default function Product() {
+  const currentUser = useAuthStore((state) => state.user)
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [unitsOfMeasure, setUnitsOfMeasure] = useState([])
@@ -777,6 +1103,8 @@ export default function Product() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState(undefined)
+  const canManageProducts = userHasPermission(currentUser, PERMISSIONS.masterData.productManage)
+  const canManageUom = userHasPermission(currentUser, PERMISSIONS.masterData.uomManage)
 
   // Fetch form reference data on mount
   useEffect(() => {
@@ -804,7 +1132,7 @@ export default function Product() {
       const selectedCategory = categories.find((c) => c.name === category)
       const result = await masterService.listProducts({
         page,
-        pageSize: 15,
+        pageSize: productPageSize,
         search: search.trim() || undefined,
         categoryId: selectedCategory ? selectedCategory.id : undefined,
         status: activeFilter,
@@ -836,11 +1164,15 @@ export default function Product() {
   }, [search, category, activeFilter])
 
   function handleAdd() {
+    if (!canManageProducts) return
+
     setEditingProduct(undefined)
     setIsModalOpen(true)
   }
 
   async function handleEdit(p) {
+    if (!canManageProducts) return
+
     setIsLoading(true)
     try {
       // Get complete product details (with conversions list)
@@ -866,9 +1198,25 @@ export default function Product() {
   const inactiveCount = products.filter((p) => !p.isActive).length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div
+      style={{
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        overflow: 'hidden',
+      }}
+    >
       {/* ── Page Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+        }}
+      >
         <div>
           <h1
             style={{
@@ -884,21 +1232,23 @@ export default function Product() {
             Manage catalog items, barcodes, prices, and unit conversions.
           </p>
         </div>
-        <button
-          className="button-primary"
-          onClick={handleAdd}
-          style={{
-            height: 40,
-            padding: '0 24px',
-            fontSize: 14,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <Plus style={{ width: 16, height: 16 }} />
-          New Product
-        </button>
+        {canManageProducts ? (
+          <button
+            className="button-primary"
+            onClick={handleAdd}
+            style={{
+              height: 40,
+              padding: '0 24px',
+              fontSize: 14,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <Plus style={{ width: 16, height: 16 }} />
+            New Product
+          </button>
+        ) : null}
       </div>
 
       <ProductFormModal
@@ -906,69 +1256,33 @@ export default function Product() {
         product={editingProduct}
         categories={categories}
         unitsOfMeasure={unitsOfMeasure}
+        canManageUom={canManageUom}
         onClose={() => setIsModalOpen(false)}
         onSaved={handleSave}
       />
-
-      {/* ── KPI Strip ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-        {[
-          {
-            label: 'TOTAL PRODUCTS',
-            value: totalItems.toString(),
-            color: 'var(--color-text-primary)',
-          },
-          {
-            label: 'ACTIVE IN PAGE',
-            value: activeCount.toString(),
-            color: 'var(--color-amber)',
-          },
-          {
-            label: 'INACTIVE IN PAGE',
-            value: inactiveCount.toString(),
-            color: 'var(--color-text-muted)',
-          },
-          {
-            label: 'TOTAL CATEGORIES',
-            value: categories.length.toString(),
-            color: 'var(--color-blue)',
-          },
-        ].map(({ label, value, color }) => (
-          <div
-            key={label}
-            className="panel"
-            style={{
-              padding: '20px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-            }}
-          >
-            <p
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: '0.8px',
-                color: 'var(--color-text-dim)',
-                textTransform: 'uppercase',
-              }}
-            >
-              {label}
-            </p>
-            <p className="mono" style={{ marginTop: 4, fontSize: 24, fontWeight: 600, color }}>
-              {value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      
+      <div
+        className="panel"
+        style={{
+          padding: 12,
+          display: 'grid',
+          gridTemplateRows: 'auto minmax(0, 1fr) auto',
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+        }}
+      >
         {/* ── Filter Bar ── */}
         <div
-          className="panel"
-          style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) 200px 160px',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 10,
+          }}
         >
-          <div style={{ position: 'relative', flex: 1 }}>
+          <div style={{ position: 'relative' }}>
             <Search
               style={{
                 position: 'absolute',
@@ -987,31 +1301,23 @@ export default function Product() {
               onChange={(e) => setSearch(e.target.value)}
               style={{
                 width: '100%',
-                height: 40,
+                height: 38,
                 paddingLeft: 36,
                 background: 'rgba(0,0,0,0.15)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 6,
-                color: 'var(--color-text-primary)',
-                fontSize: 14,
               }}
             />
           </div>
 
           {/* Category Dropdown */}
-          <div style={{ position: 'relative', width: 200 }}>
+          <div style={{ position: 'relative' }}>
             <select
               className="form-input"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               style={{
                 width: '100%',
-                height: 40,
+                height: 38,
                 background: 'rgba(0,0,0,0.15)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 6,
-                color: 'var(--color-text-primary)',
-                fontSize: 14,
                 cursor: 'pointer',
                 appearance: 'none',
                 paddingLeft: 12,
@@ -1051,19 +1357,15 @@ export default function Product() {
           </div>
 
           {/* Active Status Dropdown */}
-          <div style={{ position: 'relative', width: 160 }}>
+          <div style={{ position: 'relative' }}>
             <select
               className="form-input"
               value={activeFilter}
               onChange={(e) => setActiveFilter(e.target.value)}
               style={{
                 width: '100%',
-                height: 40,
+                height: 38,
                 background: 'rgba(0,0,0,0.15)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 6,
-                color: 'var(--color-text-primary)',
-                fontSize: 14,
                 cursor: 'pointer',
                 appearance: 'none',
                 paddingLeft: 12,
@@ -1098,7 +1400,7 @@ export default function Product() {
         </div>
 
         {/* ── Table ── */}
-        <div className="panel overflow-hidden">
+        <div style={{ minHeight: 0, overflow: 'hidden' }}>
           {isLoading ? (
             <div
               style={{
@@ -1137,7 +1439,7 @@ export default function Product() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="data-table">
+              <table className="data-table product-table-compact">
                 <thead>
                   <tr>
                     <th>SKU</th>
@@ -1148,7 +1450,7 @@ export default function Product() {
                     <th style={{ textAlign: 'right' }}>Unit Price</th>
                     <th>Conversion</th>
                     <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
+                    {canManageProducts ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -1173,14 +1475,34 @@ export default function Product() {
                               {p.name}
                             </span>
                             {p.description && (
-                              <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                              <span
+                                title={p.description}
+                                style={{
+                                  display: 'block',
+                                  maxWidth: 340,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  fontSize: 11,
+                                  color: 'var(--color-text-dim)',
+                                }}
+                              >
                                 {p.description}
                               </span>
                             )}
                             {p.barcode && (
                               <span
                                 className="mono"
-                                style={{ fontSize: 11, color: 'var(--color-text-dim)' }}
+                                title={`Barcode: ${p.barcode}`}
+                                style={{
+                                  display: 'block',
+                                  maxWidth: 260,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  fontSize: 11,
+                                  color: 'var(--color-text-dim)',
+                                }}
                               >
                                 Barcode: {p.barcode}
                               </span>
@@ -1222,19 +1544,21 @@ export default function Product() {
                         <td>
                           <StatusBadge status={p.status} />
                         </td>
-                        <td style={{ padding: '12px 10px', textAlign: 'right' }}>
-                          <button
-                            className="icon-button"
-                            title="Edit product"
-                            style={{ width: 28, height: 28 }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleEdit(p)
-                            }}
-                          >
-                            <Pencil style={{ width: 13, height: 13 }} />
-                          </button>
-                        </td>
+                        {canManageProducts ? (
+                          <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+                            <button
+                              className="icon-button"
+                              title="Edit product"
+                              style={{ width: 28, height: 28 }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEdit(p)
+                              }}
+                            >
+                              <Pencil style={{ width: 13, height: 13 }} />
+                            </button>
+                          </td>
+                        ) : null}
                       </tr>
                     )
                   })}
@@ -1251,7 +1575,10 @@ export default function Product() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginTop: 8,
+              gap: 12,
+              paddingTop: 10,
+              borderTop: '1px solid var(--color-border)',
+              marginTop: 10,
             }}
           >
             <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>

@@ -28,12 +28,17 @@ function AccessDenied({ requiredPermission }) {
           You do not have permission.
         </h1>
         <p style={{ marginTop: 10, fontSize: 14, color: 'var(--color-text-muted)' }}>
-          Your account cannot access {location.pathname}. Ask an administrator to grant the
-          required permission.
+          Your account cannot access {location.pathname}. Ask an administrator to grant the required
+          permission.
         </p>
         {requiredPermission ? (
-          <p className="mono" style={{ marginTop: 14, fontSize: 12, color: 'var(--color-text-dim)' }}>
-            {Array.isArray(requiredPermission) ? requiredPermission.join(' or ') : requiredPermission}
+          <p
+            className="mono"
+            style={{ marginTop: 14, fontSize: 12, color: 'var(--color-text-dim)' }}
+          >
+            {Array.isArray(requiredPermission)
+              ? requiredPermission.join(' or ')
+              : requiredPermission}
           </p>
         ) : null}
         <Link

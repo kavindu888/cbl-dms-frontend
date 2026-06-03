@@ -1,10 +1,18 @@
 import api, { getOnce } from '@/lib/api'
 
+const identityPath = (path) => `/identity-proxy/${path.replace(/^\//, '')}`
+
 function getValue(response, fallbackMessage = 'Request failed') {
   const result = response.data?.data
 
   if (!response.data?.success || result?.isFailure) {
-    throw new Error(result?.errorMessage || response.data?.errorMessage || fallbackMessage)
+    throw new Error(
+      result?.validationErrors?.[0]?.message ||
+        result?.errorMessage ||
+        response.data?.errorMessage ||
+        response.data?.message ||
+        fallbackMessage
+    )
   }
 
   return result?.value ?? result
@@ -63,7 +71,7 @@ function mapPermission(permission) {
 
 export const usersService = {
   async listUsers(params = {}) {
-    const response = await getOnce('/identity-proxy/users', { params })
+    const response = await getOnce(identityPath('/users'), { params })
     const page = getValue(response, 'Unable to load users.')
     const items = page?.items || []
 
@@ -73,49 +81,60 @@ export const usersService = {
     }
   },
 
+// User Details, Creation, and Role Management
+  // User Details
   async getUser(id) {
-    const response = await getOnce(`/identity-proxy/user/${id}`)
+    const response = await getOnce(identityPath(`/user/${id}`))
     return mapUser(getValue(response, 'Unable to load user.'))
   },
 
+  // User Creation
   async createUser(payload) {
-    const response = await api.post('/identity-proxy/users/create', payload)
+    const response = await api.post(identityPath('/users/create'), payload)
     return mapUser(getValue(response, 'Unable to create user.'))
   },
 
+  // Role Assignment and Removal
   async assignRoles(userId, roleIds) {
-    const response = await api.post(`/identity-proxy/users/${userId}/assign-roles`, { roleIds })
+    const response = await api.post(identityPath(`/users/${userId}/assign-roles`), { roleIds })
     return mapUser(getValue(response, 'Unable to assign roles.'))
   },
 
+  // Note: Role removal endpoint is assumed to be a DELETE request to /users/{userId}/{roleId}
   async removeRole(userId, roleId) {
-    const response = await api.delete(`/identity-proxy/users/${userId}/${roleId}`)
+    const response = await api.delete(identityPath(`/users/${userId}/${roleId}`))
     return getValue(response, 'Unable to remove role.')
   },
 
+  // Role and Permission Management
+  // Role Listing
   async listRoles() {
-    const response = await getOnce('/identity-proxy/roles')
+    const response = await getOnce(identityPath('/roles'))
     return (getValue(response, 'Unable to load roles.') || []).map(mapRole)
   },
 
+  // Permission Listing
   async listPermissions() {
-    const response = await getOnce('/identity-proxy/permissions')
+    const response = await getOnce(identityPath('/permissions'))
     return (getValue(response, 'Unable to load permissions.') || []).map((group) => ({
       module: group.module,
       permissions: (group.permissions || []).map(mapPermission),
     }))
   },
 
+  // User Permissions Management
   async getDirectPermissions(userId) {
     const response = await getOnce(`/api/v1/users/${userId}/get-direct-permissions`)
     return getValue(response, 'Unable to load user permissions.') || []
   },
 
+  // Direct Permission Assignment and Revocation
   async assignDirectPermission(userId, payload) {
     const response = await api.post(`/api/v1/users/${userId}/create-direct-permission`, payload)
     return getValue(response, 'Unable to assign permission.')
   },
 
+  // Note: Direct permission revocation endpoint is assumed to be a DELETE request to /users/{userId}/direct-permissions/{directPermissionId}
   async revokeDirectPermission(userId, directPermissionId) {
     const response = await api.delete(
       `/api/v1/users/${userId}/direct-permissions/${directPermissionId}`

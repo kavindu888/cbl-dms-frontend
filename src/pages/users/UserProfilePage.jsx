@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import RoleBadge from '@components/ui/RoleBadge'
 import StatusBadge from '@components/ui/StatusBadge'
+import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { authService } from '@services/api/authService'
 import { usersService } from '@services/api/usersService'
 import { useAuthStore } from '@stores/authStore'
@@ -32,15 +33,6 @@ const passwordSchema = z
     message: 'Passwords do not match',
     path: ['confirmPassword'],
   })
-
-function getInitials(name = '') {
-  const parts = name
-    .split(/[.\s_-]/)
-    .filter(Boolean)
-    .slice(0, 2)
-
-  return parts.map((part) => part.charAt(0).toUpperCase()).join('') || 'U'
-}
 
 function formatDate(value) {
   if (!value) return '-'
@@ -61,7 +53,9 @@ function mergeUserDetails(sessionUser, fetchedUser) {
     ...sessionUser,
     ...fetchedUser,
     orgId: fetchedUser.orgId || sessionUser?.orgId || '',
-    permissions: fetchedUser.permissions?.length ? fetchedUser.permissions : sessionUser?.permissions || [],
+    permissions: fetchedUser.permissions?.length
+      ? fetchedUser.permissions
+      : sessionUser?.permissions || [],
     roles: fetchedUser.roles?.length ? fetchedUser.roles : sessionUser?.roles || [],
   }
 }
@@ -76,6 +70,7 @@ function InfoField({ label, value, mono = false }) {
         readOnly
         tabIndex={-1}
         aria-readonly="true"
+        style={{ height: 36, fontSize: 13 }}
       />
     </div>
   )
@@ -120,6 +115,57 @@ function PasswordInput({ label, error, show, onToggle, ...inputProps }) {
   )
 }
 
+function ProfileDetailRow({ icon: Icon, label, value, mono = false }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '32px minmax(0, 1fr)',
+        gap: 10,
+        alignItems: 'center',
+        width: '100%',
+        padding: '10px 12px',
+        border: '1px solid var(--color-border)',
+        borderRadius: 8,
+        background: 'color-mix(in srgb, var(--color-bg-elevated) 70%, transparent)',
+      }}
+    >
+      <span
+        style={{
+          width: 32,
+          height: 32,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 8,
+          background: 'color-mix(in srgb, var(--color-amber) 10%, transparent)',
+          color: 'var(--color-amber)',
+        }}
+      >
+        <Icon size={15} />
+      </span>
+      <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span className="form-label" style={{ marginBottom: 0, fontSize: 9 }}>
+          {label}
+        </span>
+        <span
+          className={mono ? 'mono' : undefined}
+          title={value || '-'}
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            color: 'var(--color-text-primary)',
+            fontSize: 12,
+          }}
+        >
+          {value || '-'}
+        </span>
+      </span>
+    </div>
+  )
+}
+
 export default function UserProfilePage() {
   const navigate = useNavigate()
   const sessionUser = useAuthStore((state) => state.user)
@@ -147,7 +193,6 @@ export default function UserProfilePage() {
   const displayName = currentUser?.username || currentUser?.email || 'User'
   const roles = currentUser?.roles || []
   const permissions = currentUser?.permissions || []
-  const userInitials = getInitials(displayName)
 
   useEffect(() => {
     if (!sessionUserId) {
@@ -220,19 +265,22 @@ export default function UserProfilePage() {
   return (
     <div
       style={{
+        height: '100%',
+        minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: 24,
+        gap: 12,
         width: '100%',
-        maxWidth: 1180,
+        maxWidth: 1200,
         margin: '0 auto',
+        overflow: 'hidden',
       }}
     >
-      <div>
-        <h1 style={{ fontSize: 26, fontWeight: 750, color: 'var(--color-text-primary)' }}>
+      <div style={{ flexShrink: 0 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 750, color: 'var(--color-text-primary)' }}>
           My Profile
         </h1>
-        <p style={{ marginTop: 6, fontSize: 14, color: 'var(--color-text-muted)' }}>
+        <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
           View your account details and update your password.
         </p>
       </div>
@@ -241,9 +289,10 @@ export default function UserProfilePage() {
         <div
           className="panel"
           style={{
-            padding: '10px 14px',
+            flexShrink: 0,
+            padding: '8px 12px',
             color: 'var(--color-text-muted)',
-            fontSize: 13,
+            fontSize: 12,
             borderRadius: 8,
           }}
         >
@@ -254,100 +303,110 @@ export default function UserProfilePage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
-          gap: 24,
-          alignItems: 'start',
+          gridTemplateColumns: 'minmax(280px, 0.85fr) minmax(0, 1.15fr)',
+          gap: 16,
+          flex: 1,
+          minHeight: 0,
+          alignItems: 'stretch',
         }}
       >
         <aside
           className="panel"
           style={{
-            padding: 22,
+            minHeight: 0,
+            height: '100%',
+            padding: 0,
             borderRadius: 8,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             textAlign: 'center',
-            gap: 14,
+            overflow: 'hidden',
           }}
         >
           <div
             style={{
-              width: 88,
-              height: 88,
-              borderRadius: '50%',
-              background: 'color-mix(in srgb, var(--color-amber) 12%, transparent)',
-              border: '2px solid color-mix(in srgb, var(--color-amber) 25%, transparent)',
+              width: '100%',
+              padding: '20px 18px 16px',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--color-amber)',
-              fontSize: 32,
-              fontWeight: 800,
-              overflow: 'hidden',
+              gap: 12,
+              background:
+                'linear-gradient(180deg, color-mix(in srgb, var(--color-amber) 12%, transparent), transparent)',
             }}
           >
-            {currentUser.avatarUrl ? (
-              <img
-                src={currentUser.avatarUrl}
-                alt=""
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            ) : (
-              userInitials
-            )}
-          </div>
+            <div className="profile-avatar-static" aria-hidden="true">
+              <UserAvatarIcon size={48} />
+            </div>
 
-          <div>
-            <h2 style={{ fontSize: 18, fontWeight: 750, color: 'var(--color-text-primary)' }}>
+            <h2 style={{ fontSize: 17, fontWeight: 750, color: 'var(--color-text-primary)' }}>
               {displayName}
             </h2>
-            <p className="mono" style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
+            <p
+              className="mono"
+              style={{ marginTop: 3, fontSize: 12, color: 'var(--color-text-muted)' }}
+            >
               {currentUser.email || '-'}
             </p>
-          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-            <StatusBadge status={currentUser.isLocked ? 'LOCKED' : currentUser.isActive === false ? 'INACTIVE' : 'ACTIVE'} />
-            {roles.slice(0, 2).map((role) => (
-              <RoleBadge key={role} role={role} />
-            ))}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+              <StatusBadge
+                status={
+                  currentUser.isLocked
+                    ? 'LOCKED'
+                    : currentUser.isActive === false
+                      ? 'INACTIVE'
+                      : 'ACTIVE'
+                }
+              />
+              {roles.slice(0, 2).map((role) => (
+                <RoleBadge key={role} role={role} />
+              ))}
+            </div>
+
           </div>
 
           <div
             style={{
               width: '100%',
-              borderTop: '1px solid var(--color-border)',
-              paddingTop: 16,
+              padding: '14px 16px 16px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 12,
+              gap: 8,
               textAlign: 'left',
-              fontSize: 13,
+              fontSize: 12,
               color: 'var(--color-text-muted)',
+              overflow: 'hidden',
             }}
           >
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <Mail size={15} color="var(--color-text-dim)" />
-              <span style={{ wordBreak: 'break-all' }}>{currentUser.email || '-'}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <Phone size={15} color="var(--color-text-dim)" />
-              <span className="mono">{currentUser.phone || '-'}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <Globe size={15} color="var(--color-text-dim)" />
-              <span className="mono">{currentUser.orgId || '-'}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <ShieldCheck size={15} color="var(--color-text-dim)" />
-              <span>{permissions.length} permissions</span>
-            </div>
+            <ProfileDetailRow icon={Mail} label="Email" value={currentUser.email} />
+            <ProfileDetailRow icon={Phone} label="Phone" value={currentUser.phone} mono />
+            <ProfileDetailRow icon={Globe} label="Organization" value={currentUser.orgId} mono />
+            <ProfileDetailRow
+              icon={ShieldCheck}
+              label="Access"
+              value={`${permissions.length} permissions`}
+            />
           </div>
         </aside>
 
-        <main style={{ minWidth: 0 }}>
-          <div style={{ borderBottom: '1px solid var(--color-border)', marginBottom: 20 }}>
+        <main
+          style={{
+            minWidth: 0,
+            minHeight: 0,
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div
+            style={{
+              flexShrink: 0,
+              borderBottom: '1px solid var(--color-border)',
+              marginBottom: 12,
+            }}
+          >
             <div style={{ display: 'flex', gap: 0 }}>
               {[
                 { value: 'general', label: 'General Info', icon: User },
@@ -382,14 +441,25 @@ export default function UserProfilePage() {
           </div>
 
           {activeTab === 'general' ? (
-            <section className="panel" style={{ padding: 24, borderRadius: 8 }}>
+            <section
+              className="panel"
+              style={{
+                minHeight: 0,
+                flex: 1,
+                padding: 18,
+                borderRadius: 8,
+                overflow: 'hidden',
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
                 <div>
                   <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text-primary)' }}>
                     Account Identity
                   </h2>
                   <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-                    {isLoadingProfile ? 'Loading latest profile...' : 'Account details for the signed-in user.'}
+                    {isLoadingProfile
+                      ? 'Loading latest profile...'
+                      : 'Account details for the signed-in user.'}
                   </p>
                 </div>
               </div>
@@ -397,9 +467,9 @@ export default function UserProfilePage() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                  gap: 18,
-                  marginTop: 24,
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: 12,
+                  marginTop: 16,
                 }}
               >
                 <InfoField label="User ID" value={currentUser.id} mono />
@@ -412,14 +482,16 @@ export default function UserProfilePage() {
                 <InfoField label="Created At" value={formatDate(currentUser.createdAt)} />
               </div>
 
-              <div style={{ marginTop: 26, display: 'grid', gap: 18 }}>
+              <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
                 <div>
                   <label className="form-label">Roles</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {roles.length ? (
                       roles.map((role) => <RoleBadge key={role} role={role} />)
                     ) : (
-                      <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>No roles returned.</span>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
+                        No roles returned.
+                      </span>
                     )}
                   </div>
                 </div>
@@ -430,8 +502,8 @@ export default function UserProfilePage() {
                     style={{
                       display: 'flex',
                       flexWrap: 'wrap',
-                      gap: 8,
-                      maxHeight: 116,
+                      gap: 6,
+                      maxHeight: 78,
                       overflowY: 'auto',
                       paddingRight: 4,
                     }}
@@ -442,11 +514,11 @@ export default function UserProfilePage() {
                           key={permission}
                           className="mono"
                           style={{
-                            padding: '3px 8px',
+                            padding: '2px 7px',
                             borderRadius: 6,
                             border: '1px solid var(--color-border)',
                             color: 'var(--color-text-muted)',
-                            fontSize: 11,
+                            fontSize: 10,
                           }}
                         >
                           {permission}
@@ -462,11 +534,27 @@ export default function UserProfilePage() {
               </div>
             </section>
           ) : (
-            <section className="panel" style={{ padding: 24, borderRadius: 8 }}>
+            <section
+              className="panel"
+              style={{
+                minHeight: 0,
+                flex: 1,
+                padding: 18,
+                borderRadius: 8,
+                overflow: 'hidden',
+              }}
+            >
               <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text-primary)' }}>
                 Change Account Password
               </h2>
-              <p style={{ marginTop: 4, marginBottom: 24, fontSize: 13, color: 'var(--color-text-muted)' }}>
+              <p
+                style={{
+                  marginTop: 4,
+                  marginBottom: 24,
+                  fontSize: 13,
+                  color: 'var(--color-text-muted)',
+                }}
+              >
                 After changing your password, sign in again with the new password.
               </p>
 

@@ -1,8 +1,10 @@
-import { Pencil, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@services/api/masterService'
+
+const pageSize = 4
 
 const emptyForm = {
   code: '',
@@ -19,7 +21,13 @@ const emptyForm = {
 }
 
 function getErrorMessage(error, fallback = 'Something went wrong') {
-  return error?.message || fallback
+  return (
+    error?.response?.data?.data?.errorMessage ||
+    error?.response?.data?.errorMessage ||
+    error?.response?.data?.message ||
+    error?.message ||
+    fallback
+  )
 }
 
 function toApiPayload(values) {
@@ -33,13 +41,34 @@ function toApiPayload(values) {
     addressLine2: values.addressLine2.trim() || null,
     city: values.city.trim(),
     country: values.country.trim(),
-    vatRegNo: values.vatRegNo.trim() || null,
+    vatRegNo: values.vatRegNo.trim(),
   }
+}
+
+function matchesSearch(organisation, query) {
+  if (!query) return true
+
+  return [
+    organisation.code,
+    organisation.name,
+    organisation.legalName,
+    organisation.email,
+    organisation.telephone,
+    organisation.addressLine1,
+    organisation.addressLine2,
+    organisation.city,
+    organisation.country,
+    organisation.vatRegNo,
+  ]
+    .join(' ')
+    .toLowerCase()
+    .includes(query)
 }
 
 export default function OrganisationsTab() {
   const [organisations, setOrganisations] = useState([])
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [editingOrganisation, setEditingOrganisation] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [isLoading, setIsLoading] = useState(true)
@@ -64,26 +93,26 @@ export default function OrganisationsTab() {
     loadOrganisations()
   }, [])
 
+  useEffect(() => {
+    setPage(1)
+  }, [search])
+
   const filteredOrganisations = useMemo(() => {
     const query = search.trim().toLowerCase()
-
-    return organisations.filter((organisation) => {
-      if (!query) return true
-
-      return [
-        organisation.code,
-        organisation.name,
-        organisation.legalName,
-        organisation.email,
-        organisation.telephone,
-        organisation.city,
-        organisation.country,
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
-    })
+    return organisations.filter((organisation) => matchesSearch(organisation, query))
   }, [organisations, search])
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrganisations.length / pageSize))
+  const pagedOrganisations = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredOrganisations.slice(start, start + pageSize)
+  }, [filteredOrganisations, page])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
 
   function updateField(field, value) {
     setForm((currentForm) => ({ ...currentForm, [field]: value }))
@@ -111,19 +140,40 @@ export default function OrganisationsTab() {
     })
   }
 
+  function validateForm() {
+    return (
+      form.code.trim() &&
+      form.name.trim() &&
+      form.telephone.trim() &&
+      form.email.trim() &&
+      form.addressLine1.trim() &&
+      form.city.trim() &&
+      form.country.trim() &&
+      form.vatRegNo.trim()
+    )
+  }
+
+  function saveOrganisationInList(savedOrganisation) {
+    setOrganisations((currentItems) => {
+      const exists = currentItems.some((item) => item.id === savedOrganisation.id)
+
+      if (exists) {
+        return currentItems.map((item) =>
+          item.id === savedOrganisation.id ? savedOrganisation : item
+        )
+      }
+
+      return [savedOrganisation, ...currentItems]
+    })
+  }
+
   async function handleSave(event) {
     event.preventDefault()
 
-    if (
-      !form.code ||
-      !form.name ||
-      !form.telephone ||
-      !form.email ||
-      !form.addressLine1 ||
-      !form.city ||
-      !form.country
-    ) {
-      toast.error('Code, Name, Telephone, Email, Address, City, and Country are required.')
+    if (!validateForm()) {
+      toast.error(
+        'Code, Name, Telephone, Email, Address, City, Country, and VAT Reg No are required.'
+      )
       return
     }
 
@@ -140,16 +190,7 @@ export default function OrganisationsTab() {
           ? savedOrganisation
           : await masterService.updateOrganisationStatus(savedOrganisation.id, form.isActive)
 
-      setOrganisations((currentItems) => {
-        const exists = currentItems.some((item) => item.id === finalOrganisation.id)
-        if (exists) {
-          return currentItems.map((item) =>
-            item.id === finalOrganisation.id ? finalOrganisation : item
-          )
-        }
-        return [finalOrganisation, ...currentItems]
-      })
-
+      saveOrganisationInList(finalOrganisation)
       toast.success(editingOrganisation ? 'Organisation updated.' : 'Organisation created.')
       resetForm()
     } catch (saveError) {
@@ -170,11 +211,7 @@ export default function OrganisationsTab() {
         editingOrganisation.id,
         nextIsActive
       )
-      setOrganisations((currentItems) =>
-        currentItems.map((item) =>
-          item.id === updatedOrganisation.id ? updatedOrganisation : item
-        )
-      )
+      saveOrganisationInList(updatedOrganisation)
       setEditingOrganisation(updatedOrganisation)
       toast.success('Organisation status updated.')
     } catch (statusError) {
@@ -183,25 +220,73 @@ export default function OrganisationsTab() {
     }
   }
 
+  function handleEnterToNext(event) {
+    if (event.key !== 'Enter' || event.shiftKey) return
+
+    event.preventDefault()
+
+    const currentInput = event.currentTarget
+    const formElement = currentInput.form
+    if (!formElement) return
+
+    const orderedInputs = Array.from(formElement.querySelectorAll('[data-enter-field]'))
+    const currentIndex = orderedInputs.indexOf(currentInput)
+    const nextInput = orderedInputs[currentIndex + 1]
+
+    if (nextInput) {
+      nextInput.focus()
+      return
+    }
+
+    formElement.querySelector('#save-organisation-button')?.focus()
+  }
+
+  const enterKeyProps = {
+    'data-enter-field': true,
+    onKeyDown: handleEnterToNext,
+  }
+
   return (
     <div
-      style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'stretch' }}
+      style={{
+        height: 'calc(100vh - 300px)',
+        minHeight: 440,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) 360px',
+        gap: 16,
+        overflow: 'hidden',
+      }}
     >
-      <div
+      <section
         className="panel"
-        style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}
+        style={{
+          minWidth: 0,
+          padding: 16,
+          display: 'grid',
+          gridTemplateRows: 'auto auto minmax(0, 1fr) auto',
+          gap: 12,
+          overflow: 'hidden',
+        }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            Organisations
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 650, color: 'var(--color-text-primary)' }}>
+              Organisations
+            </h2>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              Showing backend organisation master records.
+            </p>
+          </div>
+          <span className="mono" style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+            {filteredOrganisations.length} total
+          </span>
         </div>
 
         <div style={{ position: 'relative' }}>
           <Search
             style={{
               position: 'absolute',
-              left: 12,
+              left: 10,
               top: '50%',
               transform: 'translateY(-50%)',
               width: 14,
@@ -211,50 +296,42 @@ export default function OrganisationsTab() {
           />
           <input
             className="form-input"
-            placeholder="Search organisations..."
+            aria-label="Search organisations"
+            placeholder="Search organisations"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            style={{
-              width: '100%',
-              height: 36,
-              paddingLeft: 36,
-              background: 'rgba(0,0,0,0.15)',
-              fontSize: 13,
-            }}
+            style={{ height: 34, paddingLeft: 32, fontSize: 13 }}
           />
         </div>
 
-        <div className="overflow-x-auto" style={{ marginTop: 4 }}>
-          <table className="data-table">
+        <div style={{ minHeight: 0, overflow: 'hidden' }}>
+          <table className="data-table" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Telephone</th>
-                <th>Email</th>
-                <th>City</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th style={{ width: 76 }}>Code</th>
+                <th>Organisation</th>
+                <th>Contact</th>
+                <th>Address</th>
+                <th style={{ width: 118 }}>VAT</th>
+                <th style={{ width: 96 }}>Status</th>
+                <th style={{ width: 54, textAlign: 'right' }}>Edit</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="py-12 text-center text-sm text-[var(--color-text-muted)]"
-                  >
-                    Loading organisations...
+                  <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
+                    Loading organisations
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-[var(--color-danger)]">
+                  <td colSpan={7} className="py-12 text-center text-sm text-danger">
                     {error}
                   </td>
                 </tr>
-              ) : filteredOrganisations.length ? (
-                filteredOrganisations.map((organisation) => (
+              ) : pagedOrganisations.length ? (
+                pagedOrganisations.map((organisation) => (
                   <tr key={organisation.id}>
                     <td>
                       <span
@@ -264,20 +341,116 @@ export default function OrganisationsTab() {
                         {organisation.code}
                       </span>
                     </td>
-                    <td
-                      className="text-sm font-medium"
-                      style={{ color: 'var(--color-text-primary)' }}
-                    >
-                      {organisation.name}
+                    <td>
+                      <div style={{ minWidth: 0 }}>
+                        <p
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: 'var(--color-text-primary)',
+                          }}
+                          title={organisation.name}
+                        >
+                          {organisation.name}
+                        </p>
+                        <p
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 12,
+                            color: 'var(--color-text-muted)',
+                          }}
+                          title={organisation.legalName || 'No legal name'}
+                        >
+                          {organisation.legalName || 'No legal name'}
+                        </p>
+                      </div>
                     </td>
-                    <td className="mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                      {organisation.telephone}
+                    <td>
+                      <div style={{ minWidth: 0 }}>
+                        <p
+                          className="mono"
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 12,
+                            color: 'var(--color-text-primary)',
+                          }}
+                          title={organisation.telephone}
+                        >
+                          {organisation.telephone}
+                        </p>
+                        <p
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 12,
+                            color: 'var(--color-blue)',
+                          }}
+                          title={organisation.email}
+                        >
+                          {organisation.email}
+                        </p>
+                      </div>
                     </td>
-                    <td className="text-sm" style={{ color: 'var(--color-blue)' }}>
-                      {organisation.email}
+                    <td>
+                      <div style={{ minWidth: 0 }}>
+                        <p
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 12,
+                            color: 'var(--color-text-primary)',
+                          }}
+                          title={[
+                            organisation.addressLine1,
+                            organisation.addressLine2,
+                            organisation.city,
+                            organisation.country,
+                          ]
+                            .filter(Boolean)
+                            .join(', ')}
+                        >
+                          {[organisation.addressLine1, organisation.addressLine2]
+                            .filter(Boolean)
+                            .join(', ')}
+                        </p>
+                        <p
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 12,
+                            color: 'var(--color-text-muted)',
+                          }}
+                        >
+                          {[organisation.city, organisation.country].filter(Boolean).join(', ')}
+                        </p>
+                      </div>
                     </td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {organisation.city}
+                    <td>
+                      <div style={{ minWidth: 0 }}>
+                        <p
+                          className="mono"
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 12,
+                            color: 'var(--color-text-primary)',
+                          }}
+                          title={organisation.vatRegNo || 'No VAT number'}
+                        >
+                          {organisation.vatRegNo || '-'}
+                        </p>
+                      </div>
                     </td>
                     <td>
                       <StatusBadge status={organisation.status} />
@@ -286,20 +459,19 @@ export default function OrganisationsTab() {
                       <button
                         type="button"
                         className="icon-button"
-                        style={{ width: 26, height: 26 }}
+                        aria-label={`Edit ${organisation.name}`}
+                        title="Edit organisation"
+                        style={{ width: 28, height: 28 }}
                         onClick={() => openEdit(organisation)}
                       >
-                        <Pencil style={{ width: 12, height: 12 }} />
+                        <Pencil style={{ width: 13, height: 13 }} />
                       </button>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="py-12 text-center text-sm text-[var(--color-text-muted)]"
-                  >
+                  <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
                     No organisations found.
                   </td>
                 </tr>
@@ -307,208 +479,232 @@ export default function OrganisationsTab() {
             </tbody>
           </table>
         </div>
-      </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            paddingTop: 10,
+            borderTop: '1px solid var(--color-border)',
+          }}
+        >
+          <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+            Page {page} of {totalPages}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Previous page"
+              disabled={page <= 1}
+              style={{ width: 30, height: 30, opacity: page <= 1 ? 0.45 : 1 }}
+              onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+            >
+              <ChevronLeft style={{ width: 15, height: 15 }} />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Next page"
+              disabled={page >= totalPages}
+              style={{ width: 30, height: 30, opacity: page >= totalPages ? 0.45 : 1 }}
+              onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+            >
+              <ChevronRight style={{ width: 15, height: 15 }} />
+            </button>
+          </div>
+        </div>
+      </section>
 
       <form
         onSubmit={handleSave}
         className="panel"
-        style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}
+        style={{
+          minWidth: 0,
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          overflow: 'hidden',
+        }}
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 4,
-          }}
-        >
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            {editingOrganisation ? 'Edit Organisation' : 'Add New Organisation'}
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 650, color: 'var(--color-text-primary)' }}>
+            {editingOrganisation ? 'Edit Organisation' : 'Add Organisation'}
+          </h2>
           {editingOrganisation ? (
             <button
               type="button"
               className="button-ghost"
               onClick={resetForm}
-              style={{ padding: '4px 8px', height: 'auto', fontSize: 12 }}
+              style={{ height: 28, padding: '0 8px', fontSize: 12 }}
             >
               Clear
             </button>
           ) : null}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 12 }}>
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              CODE
-            </label>
+        <div style={{ display: 'grid', gridTemplateColumns: '92px 1fr', gap: 8 }}>
+          <FormField label="Code" required>
             <input
+              {...enterKeyProps}
               className="form-input"
-              placeholder="CBL"
+              placeholder="FlowLink"
               value={form.code}
               onChange={(event) => updateField('code', event.target.value)}
-              style={{ height: 38 }}
+              style={{ height: 30, fontSize: 13 }}
             />
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              NAME
-            </label>
+          </FormField>
+          <FormField label="Name" required>
             <input
+              {...enterKeyProps}
               className="form-input"
-              placeholder="CBL Foods International"
+              placeholder="FlowLink Hub"
               value={form.name}
               onChange={(event) => updateField('name', event.target.value)}
-              style={{ height: 38 }}
+              style={{ height: 30, fontSize: 13 }}
             />
-          </div>
+          </FormField>
         </div>
 
-        <div>
-          <label className="form-label" style={{ fontSize: 10 }}>
-            LEGAL NAME
-          </label>
+        <FormField label="Legal name">
           <input
+            {...enterKeyProps}
             className="form-input"
-            placeholder="CBL Foods International (Pvt) Ltd"
+            placeholder="FlowLink Distribution (Pvt) Ltd"
             value={form.legalName}
             onChange={(event) => updateField('legalName', event.target.value)}
-            style={{ height: 38 }}
+            style={{ height: 30, fontSize: 13 }}
           />
-        </div>
+        </FormField>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              TELEPHONE
-            </label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <FormField label="Telephone" required>
             <input
+              {...enterKeyProps}
               className="form-input"
               placeholder="+94 11 234 5678"
               value={form.telephone}
               onChange={(event) => updateField('telephone', event.target.value)}
-              style={{ height: 38 }}
+              style={{ height: 30, fontSize: 13 }}
             />
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              EMAIL
-            </label>
+          </FormField>
+          <FormField label="Email" required>
             <input
+              {...enterKeyProps}
               className="form-input"
               type="email"
               placeholder="info@company.lk"
               value={form.email}
               onChange={(event) => updateField('email', event.target.value)}
-              style={{ height: 38 }}
+              style={{ height: 30, fontSize: 13 }}
             />
-          </div>
+          </FormField>
         </div>
 
-        <div>
-          <label className="form-label" style={{ fontSize: 10 }}>
-            ADDRESS LINE 1
-          </label>
+        <FormField label="Address" required>
           <input
+            {...enterKeyProps}
             className="form-input"
             placeholder="Street address"
             value={form.addressLine1}
             onChange={(event) => updateField('addressLine1', event.target.value)}
-            style={{ height: 38 }}
+            style={{ height: 30, fontSize: 13 }}
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className="form-label" style={{ fontSize: 10 }}>
-            ADDRESS LINE 2
-          </label>
-          <input
-            className="form-input"
-            placeholder="Optional address line"
-            value={form.addressLine2}
-            onChange={(event) => updateField('addressLine2', event.target.value)}
-            style={{ height: 38 }}
-          />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              CITY
-            </label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <FormField label="City" required>
             <input
+              {...enterKeyProps}
               className="form-input"
               placeholder="Colombo"
               value={form.city}
               onChange={(event) => updateField('city', event.target.value)}
-              style={{ height: 38 }}
+              style={{ height: 30, fontSize: 13 }}
             />
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              COUNTRY
-            </label>
+          </FormField>
+          <FormField label="Country" required>
             <input
+              {...enterKeyProps}
               className="form-input"
               placeholder="Sri Lanka"
               value={form.country}
               onChange={(event) => updateField('country', event.target.value)}
-              style={{ height: 38 }}
+              style={{ height: 30, fontSize: 13 }}
             />
+          </FormField>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 8 }}>
+          <FormField label="VAT reg no" required>
+            <input
+              {...enterKeyProps}
+              className="form-input"
+              placeholder="VAT987654321"
+              value={form.vatRegNo}
+              onChange={(event) => updateField('vatRegNo', event.target.value)}
+              style={{ height: 30, fontSize: 13 }}
+            />
+          </FormField>
+          <div style={{ paddingTop: 18 }}>
+            <label
+              htmlFor="organisationIsActive"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 13,
+                color: 'var(--color-text-primary)',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                id="organisationIsActive"
+                checked={form.isActive}
+                onChange={handleStatusChange}
+                style={{ width: 15, height: 15, accentColor: 'var(--color-amber)' }}
+              />
+              Active
+            </label>
           </div>
         </div>
 
-        <div>
-          <label className="form-label" style={{ fontSize: 10 }}>
-            VAT REG NO
-          </label>
-          <input
-            className="form-input"
-            placeholder="VAT987654321"
-            value={form.vatRegNo}
-            onChange={(event) => updateField('vatRegNo', event.target.value)}
-            style={{ height: 38 }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-          <input
-            type="checkbox"
-            id="organisationIsActive"
-            checked={form.isActive}
-            onChange={handleStatusChange}
-            style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }}
-          />
-          <label
-            htmlFor="organisationIsActive"
-            style={{ fontSize: 13, color: 'var(--color-text-primary)', cursor: 'pointer' }}
-          >
-            Active Organisation
-          </label>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
           <button
             type="button"
             className="button-ghost"
             onClick={resetForm}
-            style={{ flex: 1, height: 36, fontSize: 13 }}
+            style={{ flex: 1, height: 34, fontSize: 13 }}
           >
             Cancel
           </button>
           <button
+            id="save-organisation-button"
             type="submit"
             className="button-primary"
             disabled={isSaving}
-            style={{ flex: 1, height: 36, fontSize: 13 }}
+            style={{ flex: 1, height: 34, fontSize: 13 }}
           >
-            {isSaving ? 'Saving...' : editingOrganisation ? 'Save Changes' : 'Save'}
+            {isSaving ? 'Saving' : editingOrganisation ? 'Save Changes' : 'Save'}
           </button>
         </div>
       </form>
     </div>
+  )
+}
+
+function FormField({ label, children, required = false }) {
+  return (
+    <label style={{ display: 'block', minWidth: 0 }}>
+      <span className="form-label" style={{ marginBottom: 4, fontSize: 10 }}>
+        {label}
+        {required ? <span style={{ color: 'var(--color-danger)' }}> *</span> : null}
+      </span>
+      {children}
+    </label>
   )
 }

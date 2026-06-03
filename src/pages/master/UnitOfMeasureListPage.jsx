@@ -158,8 +158,24 @@ export default function UnitOfMeasureListPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div
+      style={{
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+        }}
+      >
         <div>
           <h1
             style={{
@@ -183,15 +199,18 @@ export default function UnitOfMeasureListPage() {
           gridTemplateColumns: 'minmax(0, 1fr) 380px',
           gap: 16,
           alignItems: 'stretch',
+          flex: 1,
+          minHeight: 0,
         }}
       >
         <div
           className="panel"
           style={{
-            padding: '16px',
+            padding: 12,
             display: 'grid',
             gridTemplateRows: 'auto minmax(0, 1fr) auto',
-            minHeight: 520,
+            minHeight: 0,
+            overflow: 'hidden',
           }}
         >
           <div
@@ -199,7 +218,7 @@ export default function UnitOfMeasureListPage() {
               display: 'grid',
               gridTemplateColumns: 'minmax(0, 1fr) 200px',
               gap: 12,
-              marginBottom: 12,
+              marginBottom: 10,
             }}
           >
             <div style={{ position: 'relative' }}>
@@ -244,7 +263,7 @@ export default function UnitOfMeasureListPage() {
           </div>
 
           <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
-            <table className="data-table">
+            <table className="data-table master-table-compact">
               <thead>
                 <tr>
                   <th>Code</th>
@@ -260,7 +279,7 @@ export default function UnitOfMeasureListPage() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                      className="py-12 text-center text-sm text-text-muted"
                     >
                       Loading units of measure...
                     </td>
@@ -269,7 +288,7 @@ export default function UnitOfMeasureListPage() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="py-12 text-center text-sm text-[var(--color-danger)]"
+                      className="py-12 text-center text-sm text-danger"
                     >
                       {error}
                     </td>
@@ -338,7 +357,7 @@ export default function UnitOfMeasureListPage() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                      className="py-12 text-center text-sm text-text-muted"
                     >
                       No units of measure found.
                     </td>
@@ -354,9 +373,9 @@ export default function UnitOfMeasureListPage() {
               justifyContent: 'space-between',
               alignItems: 'center',
               gap: 12,
-              paddingTop: 12,
+              paddingTop: 10,
               borderTop: '1px solid var(--color-border)',
-              marginTop: 12,
+              marginTop: 10,
             }}
           >
             <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
@@ -392,11 +411,12 @@ export default function UnitOfMeasureListPage() {
           onSubmit={handleSave}
           className="panel"
           style={{
-            padding: '18px 20px',
+            padding: '14px 18px',
             display: 'flex',
             flexDirection: 'column',
-            gap: 14,
-            minHeight: 520,
+            gap: 12,
+            minHeight: 0,
+            overflow: 'hidden',
           }}
         >
           <div>

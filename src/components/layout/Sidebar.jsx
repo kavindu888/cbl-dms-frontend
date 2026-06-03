@@ -21,6 +21,7 @@ import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuthStore } from '@stores/authStore'
 import { useUIStore } from '@stores/uiStore'
+import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { cn } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import styles from './Sidebar.module.css'
@@ -114,13 +115,6 @@ const navGroups = [
     ],
   },
 ]
-function getInitials(name) {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('')
-}
 function closeMobileSidebar() {
   if (typeof window !== 'undefined' && window.innerWidth < 1024) {
     useUIStore.setState({ sidebarMobileOpen: false })
@@ -179,6 +173,7 @@ export default function Sidebar() {
   const [searchQuery, setSearchQuery] = useState('')
   const displayName = user ? `${user.username}` : 'admin'
   const displayRole = user?.roles[0] ?? 'Administrator'
+
   const normalizedQuery = normalizeSearch(searchQuery)
   const accessibleNavGroups = navGroups
     .map((group) => {
@@ -207,13 +202,24 @@ export default function Sidebar() {
         )}
       >
         <div className={cn(styles.header, sidebarCollapsed && styles.headerCollapsed)}>
-          <div className={cn(styles.brandMark, sidebarCollapsed && styles.brandMarkCollapsed)}>
-            C
+          <div className={cn(styles.brandMark, sidebarCollapsed && styles.brandMarkCollapsed)} style={{ background: 'transparent', boxShadow: 'none' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#flowLinkIconGrad)" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 2px 8px rgba(139, 92, 246, 0.4))' }}>
+              <defs>
+                <linearGradient id="flowLinkIconGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="var(--color-amber)" />
+                  <stop offset="100%" stopColor="var(--color-purple)" />
+                </linearGradient>
+              </defs>
+              <path d="M5 12h14" />
+              <path d="M12 5l7 7-7 7" />
+              <circle cx="5" cy="12" r="2.5" fill="var(--color-amber)" stroke="none" />
+              <circle cx="19" cy="12" r="2.5" fill="var(--color-purple)" stroke="none" />
+            </svg>
           </div>
           {!sidebarCollapsed ? (
             <div className={styles.brandText}>
-              <p className={styles.brandTitle}>CBL FOODS</p>
-              <p className={styles.brandSubtitle}>Distribution</p>
+              <p className={styles.brandTitle} style={{ fontWeight: 800, letterSpacing: '-0.3px', background: 'linear-gradient(to right, var(--color-amber), var(--color-purple))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>FlowLink</p>
+              <p className={styles.brandSubtitle} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-dim)', fontWeight: 700 }}>Distribution Hub</p>
             </div>
           ) : null}
         </div>
@@ -264,7 +270,9 @@ export default function Sidebar() {
         <div className={styles.footer}>
           <div className={cn(styles.profileCard, sidebarCollapsed && styles.profileCardCollapsed)}>
             <Link to="/profile" onClick={closeMobileSidebar} className={styles.profileLink}>
-              <div className={styles.profileAvatar}>{getInitials(displayName)}</div>
+              <div className={styles.profileAvatar}>
+                <UserAvatarIcon size={20} />
+              </div>
               {!sidebarCollapsed ? (
                 <div className={styles.profileText}>
                   <p className={styles.profileName}>{displayName}</p>

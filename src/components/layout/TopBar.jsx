@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@stores/authStore'
 import { useUIStore } from '@stores/uiStore'
+import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { cn } from '@/utils'
 import styles from './TopBar.module.css'
 const notifications = [
@@ -29,13 +30,6 @@ const notifications = [
     tone: 'success',
   },
 ]
-function getInitials(name) {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('')
-}
 function toReadableSegment(segment) {
   if (!segment) {
     return 'Dashboard'
@@ -221,7 +215,9 @@ export default function TopBar() {
                 <p className={styles.profileName}>{displayName}</p>
                 <p className={styles.profileRole}>{displayRole}</p>
               </div>
-              <div className={styles.profileAvatar}>{getInitials(displayName)}</div>
+              <div className={styles.profileAvatar}>
+                <UserAvatarIcon size={22} />
+              </div>
             </button>
 
             {isProfileOpen && (

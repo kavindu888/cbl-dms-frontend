@@ -6,12 +6,7 @@
   align-items: center;
   min-height: var(--spacing-layout-topbar);
   border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(
-    180deg,
-    var(--color-bg-base) 0%,
-    color-mix(in srgb, var(--color-bg-base) 92%, var(--color-bg-surface)) 100%
-  );
-  backdrop-filter: blur(18px);
+  background: var(--color-bg-base);
 }
 
 @media (min-width: 1024px) {
@@ -69,7 +64,7 @@
 
 .breadcrumbLabel {
   border: 1px solid var(--color-border);
-  border-radius: 9999px;
+  border-radius: 6px;
   background: var(--color-bg-surface);
   padding: 4px 10px;
   color: var(--color-text-dim);
@@ -120,7 +115,7 @@
   align-items: center;
   gap: 8px;
   border: 1px solid var(--color-border);
-  border-radius: 9999px;
+  border-radius: 6px;
   background: var(--color-bg-surface);
   padding: 0 14px;
   font-size: 12px;
@@ -152,7 +147,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--color-border);
-  border-radius: 9999px;
+  border-radius: 6px;
   background: var(--color-bg-surface);
   color: var(--color-text-muted);
   transition:
@@ -202,10 +197,9 @@
   width: 340px;
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: 8px;
   background: var(--color-bg-surface);
-  box-shadow: 0 18px 34px -10px rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-modal);
 }
 
 .notificationsHeader {
@@ -380,6 +374,7 @@
   color: #0a0f1d;
   font-size: 15px;
   font-weight: 600;
+  overflow: hidden;
   box-shadow: 0 8px 16px color-mix(in srgb, var(--color-amber) 16%, transparent);
   transition: transform 150ms ease;
 }

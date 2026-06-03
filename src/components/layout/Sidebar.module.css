@@ -9,8 +9,8 @@
   flex-direction: column;
   overflow: hidden;
   border-right: 1px solid var(--color-border);
-  background: linear-gradient(180deg, var(--color-bg-base) 0%, var(--color-bg-surface) 100%);
-  box-shadow: 10px 0 30px rgba(0, 0, 0, 0.28);
+  background: var(--color-bg-base);
+  box-shadow: none;
   transition:
     transform 300ms ease,
     width 300ms ease;
@@ -152,7 +152,7 @@
 
 .brandSubtitle {
   margin-top: 4px;
-  color: #dcb17a;
+  color: var(--color-text-muted);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.22em;
@@ -211,7 +211,7 @@
 
 .navGroupLabel {
   padding: 0 8px 6px;
-  color: #64748b;
+  color: var(--color-text-dim);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -230,8 +230,8 @@
   align-items: center;
   gap: 10px;
   border-left: 4px solid transparent;
-  border-radius: 0 16px 16px 0;
-  color: #94a3b8;
+  border-radius: 6px;
+  color: var(--color-text-muted);
   font-size: 13px;
   font-weight: 500;
   transition:
@@ -257,7 +257,7 @@
   border-left-color: var(--color-amber);
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow: none;
 }
 
 .navLinkInactive:hover {
@@ -294,7 +294,7 @@
 }
 
 .sidebarCollapsed .navLinkActive {
-  background: rgba(30, 41, 59, 0.72);
+  background: var(--color-bg-elevated);
   box-shadow: inset 3px 0 0 var(--color-amber);
 }
 
@@ -313,7 +313,7 @@
   padding: 8px 12px;
   color: var(--color-text-primary);
   font-size: 12px;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-modal);
 }
 
 .footer {
@@ -334,7 +334,7 @@
   align-items: center;
   gap: 10px;
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: 8px;
   background: var(--color-bg-surface);
   padding: 10px;
 }
@@ -373,10 +373,11 @@
   justify-content: center;
   border-radius: 9999px;
   background: var(--color-amber);
-  color: #0f172a;
+  color: #1f1d29;
   font-size: 14px;
   font-weight: 600;
-  box-shadow: 0 8px 16px color-mix(in srgb, var(--color-amber) 14%, transparent);
+  overflow: hidden;
+  box-shadow: none;
 }
 
 .sidebarCollapsed .profileAvatar {

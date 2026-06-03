@@ -57,5 +57,8 @@ export function userHasPermission(user, requiredPermissions) {
 
   const userPermissions = user?.permissions || []
 
-  return userPermissions.includes('*') || required.some((permission) => userPermissions.includes(permission))
+  return (
+    userPermissions.includes('*') ||
+    required.some((permission) => userPermissions.includes(permission))
+  )
 }

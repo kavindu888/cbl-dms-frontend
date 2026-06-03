@@ -1,5 +1,5 @@
 import { Pencil, Plus, RefreshCw, Search, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { purchasingService } from '@services/api/purchasingService'
@@ -182,7 +182,17 @@ function formatMoney(value) {
   })
 }
 
-function Field({ label, name, value, error, onChange, type = 'text', required = false, disabled }) {
+function Field({
+  label,
+  name,
+  value,
+  error,
+  onChange,
+  type = 'text',
+  required = false,
+  disabled,
+  inputRef,
+}) {
   return (
     <label>
       <span className="form-label">
@@ -196,6 +206,7 @@ function Field({ label, name, value, error, onChange, type = 'text', required = 
         value={value}
         onChange={onChange}
         disabled={disabled}
+        ref={inputRef}
       />
       {error ? <span className="form-error">{error}</span> : null}
     </label>
@@ -204,9 +215,8 @@ function Field({ label, name, value, error, onChange, type = 'text', required = 
 
 function SupplierTable({ suppliers, isLoading, onEdit }) {
   return (
-    <div className="panel overflow-hidden" style={{ borderRadius: 8 }}>
-      <div className="overflow-x-auto">
-        <table className="data-table">
+    <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+        <table className="data-table master-table-compact">
           <thead>
             <tr>
               <th>Code</th>
@@ -274,12 +284,21 @@ function SupplierTable({ suppliers, isLoading, onEdit }) {
             )}
           </tbody>
         </table>
-      </div>
     </div>
   )
 }
 
 function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClose, onSubmit }) {
+  const codeInputRef = useRef(null)
+
+  useEffect(() => {
+    if (!open || mode !== 'create') return
+
+    window.setTimeout(() => {
+      codeInputRef.current?.focus()
+    }, 0)
+  }, [mode, open])
+
   if (!open) return null
 
   const isEdit = mode === 'edit'
@@ -288,6 +307,26 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       document.getElementById('save-supplier-button')?.focus()
+    }
+  }
+
+  function handleFormKeyDown(e) {
+    if (e.key === 'Enter') {
+      const target = e.target
+      if (target.tagName === 'BUTTON' || target.tagName === 'TEXTAREA') {
+        return
+      }
+      e.preventDefault()
+      const formElement = e.currentTarget
+      const focusable = Array.from(
+        formElement.querySelectorAll(
+          'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([data-skip-focus="true"])'
+        )
+      )
+      const index = focusable.indexOf(target)
+      if (index > -1 && index < focusable.length - 1) {
+        focusable[index + 1].focus()
+      }
     }
   }
 
@@ -302,23 +341,35 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
-        background: 'rgba(2, 8, 23, 0.72)',
+        background: 'rgba(0,4,12,0.75)',
+        backdropFilter: 'blur(2px)',
       }}
     >
       <form
         className="panel"
         onSubmit={onSubmit}
+        onKeyDown={handleFormKeyDown}
         style={{
-          width: 'min(980px, 100%)',
-          maxHeight: 'calc(100vh - 48px)',
+          width: 'min(940px, calc(100vw - 48px))',
+          height: 'min(720px, calc(100vh - 48px))',
+          maxHeight: '88vh',
           overflowY: 'auto',
-          padding: 20,
-          borderRadius: 8,
+          padding: 0,
+          borderRadius: 10,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 16,
+            padding: '20px 24px 12px 24px',
+            borderBottom: '1px solid var(--color-border)',
+          }}
+        >
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 700 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)' }}>
               {isEdit ? 'Edit Supplier' : 'New Supplier'}
             </h2>
             <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
@@ -327,7 +378,13 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
                 : 'Create a purchasing supplier using the backend supplier contract.'}
             </p>
           </div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
+          <button
+            className="icon-button"
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            data-skip-focus="true"
+          >
             <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
@@ -337,7 +394,7 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
             gap: 16,
-            marginTop: 20,
+            padding: '16px 24px 0 24px',
           }}
         >
           <Field
@@ -348,6 +405,7 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
             onChange={onChange}
             required={!isEdit}
             disabled={isEdit}
+            inputRef={codeInputRef}
           />
           <Field
             label="Name"
@@ -412,12 +470,22 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
           <Field label="Website" name="website" value={form.website} onChange={onChange} />
         </div>
 
-        <h3 style={{ marginTop: 22, marginBottom: 12, fontSize: 15, fontWeight: 700 }}>Address</h3>
+        <h3
+          style={{
+            margin: '22px 24px 12px 24px',
+            fontSize: 15,
+            fontWeight: 700,
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          Address
+        </h3>
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
             gap: 16,
+            padding: '0 24px',
           }}
         >
           <Field
@@ -456,7 +524,14 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
 
         {!isEdit ? (
           <>
-            <h3 style={{ marginTop: 22, marginBottom: 12, fontSize: 15, fontWeight: 700 }}>
+            <h3
+              style={{
+                margin: '22px 24px 12px 24px',
+                fontSize: 15,
+                fontWeight: 700,
+                color: 'var(--color-text-primary)',
+              }}
+            >
               Primary Contact
             </h3>
             <div
@@ -464,6 +539,7 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                 gap: 16,
+                padding: '0 24px',
               }}
             >
               <Field
@@ -511,7 +587,7 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
           </>
         ) : null}
 
-        <label style={{ display: 'block', marginTop: 16 }}>
+        <label style={{ display: 'block', margin: '16px 24px 0 24px' }}>
           <span className="form-label">Notes</span>
           <textarea
             className="form-input"
@@ -524,8 +600,22 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
           />
         </label>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 }}>
-          <button className="button-secondary" type="button" onClick={onClose}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 12,
+            marginTop: 20,
+            padding: '16px 24px 18px 24px',
+            borderTop: '1px solid var(--color-border)',
+          }}
+        >
+          <button
+            className="button-secondary"
+            type="button"
+            onClick={onClose}
+            data-skip-focus="true"
+          >
             Cancel
           </button>
           <button
@@ -654,13 +744,36 @@ export default function SupplierListPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div
+      style={{
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+        }}
+      >
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text-primary)' }}>
+          <h1
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: 'var(--color-text-primary)',
+              lineHeight: 1.2,
+            }}
+          >
             Suppliers
           </h1>
-          <p style={{ marginTop: 6, fontSize: 15, color: 'var(--color-text-muted)' }}>
+          <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
             Manage purchasing supplier records using the backend Suppliers API.
           </p>
         </div>
@@ -682,101 +795,120 @@ export default function SupplierListPage() {
         </button>
       </div>
 
-      <form
-        className="panel"
-        onSubmit={applySearch}
-        style={{
-          padding: 16,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          borderRadius: 8,
-        }}
-      >
-        <div style={{ position: 'relative', flex: 1 }}>
-          <Search
-            style={{
-              position: 'absolute',
-              left: 14,
-              top: '50%',
-              width: 18,
-              height: 18,
-              transform: 'translateY(-50%)',
-              color: 'var(--color-text-dim)',
-            }}
-          />
-          <input
-            className="form-input"
-            value={searchText}
-            placeholder="Search suppliers..."
-            onChange={(event) => setSearchText(event.target.value)}
-            style={{ height: 42, paddingLeft: 42, borderRadius: 6, fontSize: 14 }}
-          />
-        </div>
-        <select
-          className="form-input"
-          value={status}
-          onChange={(event) => {
-            setStatus(event.target.value)
-            setPage(1)
-          }}
-          style={{ width: 180, height: 42 }}
-        >
-          {statusOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <button className="button-secondary" type="submit" style={{ height: 42 }}>
-          Search
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label="Refresh suppliers"
-          onClick={loadSuppliers}
-          style={{ height: 42, width: 42 }}
-        >
-          <RefreshCw style={{ width: 16, height: 16 }} />
-        </button>
-      </form>
-
-      <SupplierTable suppliers={suppliers} isLoading={isLoading} onEdit={openEditModal} />
-
       <div
+        className="panel"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          color: 'var(--color-text-muted)',
-          fontSize: 13,
+          padding: 12,
+          display: 'grid',
+          gridTemplateRows: 'auto minmax(0, 1fr) auto',
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
         }}
       >
-        <span>
-          Showing {suppliers.length} of {suppliersPage.totalItems} suppliers
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            className="button-secondary"
-            type="button"
-            disabled={page <= 1 || isLoading}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
+        <form
+          onSubmit={applySearch}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) 180px auto auto',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 10,
+          }}
+        >
+          <div style={{ position: 'relative' }}>
+            <Search
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: '50%',
+                width: 16,
+                height: 16,
+                transform: 'translateY(-50%)',
+                color: 'var(--color-text-dim)',
+              }}
+            />
+            <input
+              className="form-input"
+              value={searchText}
+              placeholder="Search suppliers..."
+              onChange={(event) => setSearchText(event.target.value)}
+              style={{
+                width: '100%',
+                height: 38,
+                paddingLeft: 36,
+                background: 'rgba(0,0,0,0.15)',
+              }}
+            />
+          </div>
+          <select
+            className="form-input"
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value)
+              setPage(1)
+            }}
+            style={{ height: 38, cursor: 'pointer' }}
           >
-            Previous
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <button className="button-secondary" type="submit" style={{ height: 38 }}>
+            Search
           </button>
-          <span>
-            Page {suppliersPage.page} of {suppliersPage.totalPages}
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="Refresh suppliers"
+            onClick={loadSuppliers}
+            style={{ height: 38, width: 38 }}
+          >
+            <RefreshCw style={{ width: 15, height: 15 }} />
+          </button>
+        </form>
+
+        <SupplierTable suppliers={suppliers} isLoading={isLoading} onEdit={openEditModal} />
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            paddingTop: 10,
+            borderTop: '1px solid var(--color-border)',
+            marginTop: 10,
+          }}
+        >
+          <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+            Showing {suppliers.length} of {suppliersPage.totalItems} suppliers
           </span>
-          <button
-            className="button-secondary"
-            type="button"
-            disabled={page >= suppliersPage.totalPages || isLoading}
-            onClick={() => setPage((current) => Math.min(suppliersPage.totalPages, current + 1))}
-          >
-            Next
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              className="button-secondary"
+              type="button"
+              disabled={page <= 1 || isLoading}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+            >
+              Previous
+            </button>
+            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              Page {suppliersPage.page} of {suppliersPage.totalPages}
+            </span>
+            <button
+              className="button-secondary"
+              type="button"
+              disabled={page >= suppliersPage.totalPages || isLoading}
+              onClick={() => setPage((current) => Math.min(suppliersPage.totalPages, current + 1))}
+              style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
 

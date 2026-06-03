@@ -55,30 +55,119 @@ export default function LoginPage() {
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${loginBg})` }}
         />
-        <div className="absolute inset-0 bg-linear-to-br from-[#00182A]/90 via-[#00182A]/70 to-transparent" />
-        <div className="absolute inset-0 bg-black/30" />
+        {/* Modern dark gradient overlay with subtle purple/violet tones */}
+        <div className="absolute inset-0 bg-linear-to-br from-[#0c0d12]/95 via-[#181524]/85 to-[#0b0c10]/75" />
+        <div className="absolute inset-0 bg-black/25" />
 
         {/* Top Branding */}
         <div className="relative z-10 flex items-center gap-3 px-10 py-8">
-          <span className="text-2xl font-bold tracking-tight text-amber">CBL</span>
-          <div className="w-px h-5 bg-white/20" />
-          <span className="text-sm text-white/80 font-medium">Foods International</span>
+          {/* Small Brand Logo */}
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="url(#flowLinkLogoGrad)"
+            strokeWidth="2.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ filter: 'drop-shadow(0 2px 6px rgba(139, 92, 246, 0.4))' }}
+          >
+            <defs>
+              <linearGradient id="flowLinkLogoGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="var(--color-amber)" />
+                <stop offset="100%" stopColor="var(--color-purple)" />
+              </linearGradient>
+            </defs>
+            <path d="M5 12h14" />
+            <path d="M12 5l7 7-7 7" />
+            <circle cx="5" cy="12" r="2.5" fill="var(--color-amber)" stroke="none" />
+            <circle cx="19" cy="12" r="2.5" fill="var(--color-purple)" stroke="none" />
+          </svg>
+          <span className="text-lg font-bold tracking-tight bg-linear-to-r from-amber to-purple bg-clip-text text-transparent">
+            FlowLink
+          </span>
+          <div className="w-px h-4 bg-white/20" />
+          <span className="text-xs text-white/60 font-semibold uppercase tracking-wider">
+            Distribution Hub
+          </span>
         </div>
 
         {/* Center Content */}
-        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-12 pb-24">
-          <div className="text-center">
-            <h1 className="text-[130px] font-black leading-[0.8] tracking-tighter text-amber mb-4 drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
-              CBL
+        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-12 pb-16">
+          <div className="text-center w-full max-w-[500px]">
+            {/* Glowing Hub Tech Graph SVG */}
+            <div className="flex justify-center mb-8">
+              <svg width="180" height="100" viewBox="0 0 180 100" className="opacity-90">
+                <defs>
+                  <linearGradient id="flowLineGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="var(--color-amber)" />
+                    <stop offset="100%" stopColor="var(--color-purple)" />
+                  </linearGradient>
+                  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="4" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+                {/* Connecting paths */}
+                <path
+                  d="M30 50 Q 65 20, 100 50 T 150 50"
+                  fill="none"
+                  stroke="url(#flowLineGrad)"
+                  strokeWidth="3"
+                  filter="url(#glow)"
+                />
+                <path
+                  d="M30 50 Q 80 80, 150 50"
+                  fill="none"
+                  stroke="url(#flowLineGrad)"
+                  strokeWidth="2"
+                  strokeDasharray="4 4"
+                  opacity="0.6"
+                />
+                <line
+                  x1="90"
+                  y1="10"
+                  x2="100"
+                  y2="50"
+                  stroke="var(--color-blue)"
+                  strokeWidth="1.5"
+                  opacity="0.5"
+                />
+                <line
+                  x1="90"
+                  y1="90"
+                  x2="100"
+                  y2="50"
+                  stroke="var(--color-blue)"
+                  strokeWidth="1.5"
+                  opacity="0.5"
+                />
+
+                {/* Grid nodes */}
+                <circle cx="30" cy="50" r="7" fill="var(--color-amber)" filter="url(#glow)" />
+                <circle cx="30" cy="50" r="3" fill="#fff" />
+
+                <circle cx="100" cy="50" r="9" fill="var(--color-blue)" filter="url(#glow)" />
+                <circle cx="100" cy="50" r="4" fill="#fff" />
+
+                <circle cx="150" cy="50" r="7" fill="var(--color-purple)" filter="url(#glow)" />
+                <circle cx="150" cy="50" r="3" fill="#fff" />
+
+                <circle cx="90" cy="10" r="4" fill="var(--color-teal)" />
+                <circle cx="90" cy="90" r="4" fill="var(--color-warning)" />
+              </svg>
+            </div>
+
+            <h1 className="text-5xl lg:text-6xl font-black mb-4 tracking-tight bg-linear-to-r from-amber via-blue to-purple bg-clip-text text-transparent drop-shadow-[0_4px_12px_rgba(0,0,0,0.4)]">
+              FlowLink
             </h1>
-            <p className="text-[10px] font-bold tracking-[0.6em] text-white/80 mb-10 uppercase">
-              FOODS INTERNATIONAL
+            <p className="text-[11px] font-bold tracking-[0.4em] text-white/50 mb-8 uppercase">
+              Intelligent Distribution Platform
             </p>
-            <h2 className="text-5xl lg:text-6xl font-black mb-6 tracking-tight text-white leading-tight">
-              Distribution Management <br /> System
-            </h2>
-            <p className="text-lg text-white/70 mx-auto leading-relaxed font-medium text-center">
-              Streamlining Sri Lanka's FMCG Supply Chain
+            <p className="text-base text-white/70 leading-relaxed font-medium">
+              Connecting fleet operations, logistics networks, and business intelligence in real
+              time.
             </p>
           </div>
         </div>
@@ -86,32 +175,15 @@ export default function LoginPage() {
         {/* Bottom Footer */}
         <div className="relative z-10 px-10 pb-8">
           <p className="text-[11px] text-white/40 font-medium tracking-wide">
-            v1.0.0 · © 2026 CBL Foods International (Pvt) Ltd
+            v1.0.0 · © 2026 FlowLink Systems. All rights reserved.
           </p>
         </div>
       </div>
 
       {/* ── Right Panel: Login Form ─────────────────────────────── */}
-      {/* (right panel is lg:w-2/5 = 40%) */}
-      {/*
-          Layout analysis from reference screenshot:
-          - "Welcome Back"  ~36–38px bold, left-aligned
-          - "Sign in to your account"  ~14px muted, 4px below heading
-          - ~32px gap before USERNAME label
-          - USERNAME label  11px uppercase spaced, 8px above input
-          - username input  52px tall, rounded-xl
-          - ~20px gap before PASSWORD label
-          - PASSWORD label  11px uppercase spaced, 8px above input
-          - password input  52px tall, rounded-xl, eye icon right
-          - ~14px gap before Remember me row
-          - Remember me row + Forgot password on same line
-          - ~20px gap before Sign In button
-          - Sign In button  52px tall, amber, rounded-xl
-          - ~16px gap before Having trouble text, centered
-        */}
-      <div className="relative flex w-full lg:w-2/5 items-center justify-center bg-[#00121F]">
-        {/* Ambient glow */}
-        <div className="absolute right-0 top-0 size-72 rounded-full bg-amber/8 blur-3xl pointer-events-none" />
+      <div className="relative flex w-full lg:w-2/5 items-center justify-center bg-bg-base">
+        {/* Ambient glow matching theme colors */}
+        <div className="absolute right-0 top-0 size-80 rounded-full bg-linear-to-br from-purple/10 to-amber/5 blur-3xl pointer-events-none" />
 
         {/* Form card — constrained width, no card background, left-aligned */}
         <div className="relative z-10 w-full" style={{ maxWidth: '360px', padding: '0 0' }}>
@@ -142,11 +214,11 @@ export default function LoginPage() {
               htmlFor="username"
               style={{
                 display: 'block',
-                fontSize: '12px',
+                fontSize: '11px',
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.16em',
-                color: 'var(--color-text-muted)',
+                color: 'var(--color-text-dim)',
                 marginBottom: '8px',
               }}
             >
@@ -164,8 +236,8 @@ export default function LoginPage() {
                 width: '100%',
                 height: '52px',
                 borderRadius: '10px',
-                border: '1px solid #1a3347',
-                background: '#0d1f2f',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-bg-surface)',
                 padding: '0 16px',
                 fontSize: '0.92rem',
                 color: '#ffffff',
@@ -177,13 +249,13 @@ export default function LoginPage() {
               }}
               onFocus={(e) => {
                 e.target.style.borderColor = 'var(--color-amber)'
-                e.target.style.background = '#0f2438'
+                e.target.style.background = 'color-mix(in srgb, var(--color-bg-surface) 92%, #fff)'
                 e.target.style.outlineColor =
-                  'color-mix(in srgb, var(--color-amber) 45%, transparent)'
+                  'color-mix(in srgb, var(--color-amber) 30%, transparent)'
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = '#1a3347'
-                e.target.style.background = '#0d1f2f'
+                e.target.style.borderColor = 'var(--color-border)'
+                e.target.style.background = 'var(--color-bg-surface)'
                 e.target.style.outlineColor = 'transparent'
                 void usernameField.onBlur(e)
               }}
@@ -209,11 +281,11 @@ export default function LoginPage() {
               htmlFor="password"
               style={{
                 display: 'block',
-                fontSize: '12px',
+                fontSize: '11px',
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.16em',
-                color: 'var(--color-text-muted)',
+                color: 'var(--color-text-dim)',
                 marginBottom: '8px',
               }}
             >
@@ -232,8 +304,8 @@ export default function LoginPage() {
                   width: '100%',
                   height: '52px',
                   borderRadius: '10px',
-                  border: '1px solid #1a3347',
-                  background: '#0d1f2f',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-bg-surface)',
                   padding: '0 48px 0 16px',
                   fontSize: '0.92rem',
                   color: '#ffffff',
@@ -244,13 +316,14 @@ export default function LoginPage() {
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = 'var(--color-amber)'
-                  e.target.style.background = '#0f2438'
+                  e.target.style.background =
+                    'color-mix(in srgb, var(--color-bg-surface) 92%, #fff)'
                   e.target.style.outlineColor =
-                    'color-mix(in srgb, var(--color-amber) 45%, transparent)'
+                    'color-mix(in srgb, var(--color-amber) 30%, transparent)'
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = '#1a3347'
-                  e.target.style.background = '#0d1f2f'
+                  e.target.style.borderColor = 'var(--color-border)'
+                  e.target.style.background = 'var(--color-bg-surface)'
                   e.target.style.outlineColor = 'transparent'
                   void passwordField.onBlur(e)
                 }}
@@ -270,13 +343,13 @@ export default function LoginPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#5a7a99',
+                  color: 'var(--color-text-dim)',
                   background: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#5a7a99')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-dim)')}
               >
                 {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
@@ -294,7 +367,7 @@ export default function LoginPage() {
               </p>
             ) : null}
 
-            {/* ── Remember me + Forgot password ── */}
+            {/* ── Remember me ── */}
             <div
               style={{
                 display: 'flex',
@@ -309,8 +382,8 @@ export default function LoginPage() {
                 <input
                   type="checkbox"
                   style={{
-                    width: '17px',
-                    height: '17px',
+                    width: '16px',
+                    height: '16px',
                     borderRadius: '4px',
                     accentColor: 'var(--color-amber)',
                     cursor: 'pointer',
@@ -321,17 +394,6 @@ export default function LoginPage() {
                   Remember me
                 </span>
               </label>
-
-              {/*
-       <button
-         type="button"
-         style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-amber)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-         onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-amber-dark)')}
-         onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-amber)')}
-       >
-         Forgot password?
-       </button>
-       */}
             </div>
 
             {/* ── Sign In button ── */}
@@ -343,28 +405,31 @@ export default function LoginPage() {
                 width: '100%',
                 height: '52px',
                 borderRadius: '10px',
-                background: 'var(--color-amber)',
+                background: 'linear-gradient(to right, var(--color-amber), var(--color-purple))',
                 border: 'none',
                 fontSize: '1rem',
                 fontWeight: 700,
-                color: '#00182A',
+                color: '#111217',
                 cursor: 'pointer',
-                transition: 'background 0.2s, transform 0.1s',
+                transition: 'opacity 0.2s, transform 0.1s, box-shadow 0.2s',
                 marginBottom: '20px',
                 opacity: isLoading ? 0.6 : 1,
+                boxShadow: '0 4px 14px rgba(142, 232, 240, 0.15)',
               }}
               onMouseEnter={(e) => {
                 if (!isLoading) {
-                  e.currentTarget.style.background = 'var(--color-amber-dark)'
+                  e.currentTarget.style.opacity = '0.9'
                   e.currentTarget.style.transform = 'translateY(-1px)'
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(142, 232, 240, 0.3)'
                 }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--color-amber)'
+                e.currentTarget.style.opacity = '1'
                 e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(142, 232, 240, 0.15)'
               }}
             >
-              {isLoading ? 'Signing in' : 'Sign In'}
+              {isLoading ? 'Signing in...' : 'Sign In'}
             </button>
 
             {/* ── Having trouble ── */}
@@ -372,7 +437,7 @@ export default function LoginPage() {
               style={{
                 textAlign: 'center',
                 fontSize: '0.83rem',
-                color: 'var(--color-text-muted)',
+                color: 'var(--color-text-dim)',
                 margin: 0,
               }}
             >
@@ -386,8 +451,9 @@ export default function LoginPage() {
                   border: 'none',
                   cursor: 'pointer',
                   padding: 0,
+                  transition: 'color 0.2s',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-amber-dark)')}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-purple)')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-amber)')}
               >
                 Contact IT Support

@@ -18,10 +18,7 @@ export default function RegisterPage() {
             is finalized.
           </p>
           <p className="text-sm text-text-muted">
-            Signed in as{' '}
-            <span className="mono text-text-primary">
-              {user?.username ?? 'admin'}
-            </span>
+            Signed in as <span className="mono text-text-primary">{user?.username ?? 'admin'}</span>
           </p>
         </section>
       </div>

@@ -26,14 +26,14 @@ function applyStoredTheme() {
     const mode = parsed.mode === 'light' ? 'light' : 'dark'
     const presets = {
       dark: {
-        bgBase: '#00182A',
-        bgSurface: '#132337',
-        bgElevated: '#1B3050',
-        border: '#25314A',
-        textPrimary: '#F8FAFC',
-        textMuted: '#93A3BB',
-        textDim: '#5B6C86',
-        accentColor: '#F4A623',
+        bgBase: '#111217',
+        bgSurface: '#1A1A22',
+        bgElevated: '#242331',
+        border: '#343241',
+        textPrimary: '#F4F4F6',
+        textMuted: '#C7C5CC',
+        textDim: '#8F8B99',
+        accentColor: '#8EE8F0',
       },
       light: {
         bgBase: '#F7FAFF',
@@ -54,7 +54,11 @@ function applyStoredTheme() {
     root.style.setProperty('--color-text-primary', presets.textPrimary)
     root.style.setProperty('--color-text-muted', presets.textMuted)
     root.style.setProperty('--color-text-dim', presets.textDim)
-    const accentColor = parsed.accentColor ?? presets.accentColor
+    const savedAccentColor = parsed.accentColor?.toUpperCase()
+    const accentColor =
+      mode === 'dark' && (!savedAccentColor || savedAccentColor === '#F4A623')
+        ? presets.accentColor
+        : parsed.accentColor ?? presets.accentColor
     root.style.setProperty('--color-amber', accentColor)
     root.style.setProperty('--color-amber-dark', `color-mix(in srgb, ${accentColor} 82%, #000)`)
     if (parsed.fontSans) {

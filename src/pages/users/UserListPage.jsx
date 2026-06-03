@@ -2,17 +2,18 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Tabs from '@radix-ui/react-tabs'
 import { Eye, EyeOff, Pencil, Plus, Search, Shield, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import RoleBadge from '@components/ui/RoleBadge'
 import StatusBadge from '@components/ui/StatusBadge'
+import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { usersService } from '@services/api/usersService'
 import { useAuthStore } from '@stores/authStore'
+import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
-const DEFAULT_ORG_ID = '01JXDEFAULTORGID0000000000' // org id ek pre fetch krnn oni nathi nisa hardcoded krla thiyenawa
-
+const DEFAULT_ORG_ID = '01JXDEFAULTORGID0000000000' 
 const userSchema = z.object({
   employeeId: z.string().optional(),
   username: z.string().trim().min(3, 'Username must be at least 3 characters'),
@@ -30,16 +31,11 @@ const usersPageSize = 6
 const permissionUsersPageSize = 1000
 
 function getErrorMessage(error, fallback = 'Something went wrong') {
-  return error?.message || fallback
-}
+  if (error?.message === 'You do not have permission to perform this action.') {
+    return 'You need user and role management permissions to load users.'
+  }
 
-function getInitials(username = '') {
-  return username
-    .split(/[.\s_-]/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('')
+  return error?.message || fallback
 }
 
 function formatDate(value) {
@@ -95,6 +91,7 @@ function sortUsersByAddedOrder(users) {
 function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
   const currentUser = useAuthStore((state) => state.user)
   const [showPassword, setShowPassword] = useState(false)
+  const formRef = useRef(null)
   const schema = mode === 'edit' ? editRoleSchema : userSchema
 
   const {
@@ -126,6 +123,14 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
     })
   }, [mode, open, reset, roles, user])
 
+  useEffect(() => {
+    if (!open) return
+
+    window.setTimeout(() => {
+      formRef.current?.querySelector('[data-auto-focus-field]')?.focus()
+    }, 0)
+  }, [open])
+
   async function onSubmit(values) {
     try {
       const savedUser =
@@ -148,6 +153,32 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
     } catch (error) {
       toast.error(getErrorMessage(error, 'Unable to save user.'))
     }
+  }
+
+  function handleEnterToNext(event) {
+    if (event.key !== 'Enter' || event.shiftKey) return
+
+    event.preventDefault()
+
+    const currentField = event.currentTarget
+    const formElement = currentField.form
+    if (!formElement) return
+
+    const fields = Array.from(formElement.querySelectorAll('[data-enter-field]'))
+    const currentIndex = fields.indexOf(currentField)
+    const nextField = fields[currentIndex + 1]
+
+    if (nextField) {
+      nextField.focus()
+      return
+    }
+
+    formElement.querySelector('#save-user-button')?.focus()
+  }
+
+  const enterKeyProps = {
+    'data-enter-field': true,
+    onKeyDown: handleEnterToNext,
   }
 
   return (
@@ -202,6 +233,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
           </div>
 
           <form
+            ref={formRef}
             onSubmit={handleSubmit(onSubmit)}
             style={{
               display: 'flex',
@@ -214,13 +246,20 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
               <>
                 <div>
                   <label className="form-label">Employee Code</label>
-                  <input className="form-input" placeholder="EMP-001" {...register('employeeId')} />
+                  <input
+                    className="form-input"
+                    placeholder="EMP-001"
+                    data-auto-focus-field
+                    {...enterKeyProps}
+                    {...register('employeeId')}
+                  />
                 </div>
                 <div>
                   <label className="form-label">Username</label>
                   <input
                     className="form-input"
                     placeholder="john.silva"
+                    {...enterKeyProps}
                     {...register('username')}
                   />
                   {errors.username ? (
@@ -235,6 +274,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                     className="form-input"
                     type="email"
                     placeholder="john.silva@cblfoods.lk"
+                    {...enterKeyProps}
                     {...register('email')}
                   />
                   {errors.email ? (
@@ -245,7 +285,12 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                 </div>
                 <div>
                   <label className="form-label">Phone</label>
-                  <input className="form-input" placeholder="+94771234567" {...register('phone')} />
+                  <input
+                    className="form-input"
+                    placeholder="+94771234567"
+                    {...enterKeyProps}
+                    {...register('phone')}
+                  />
                 </div>
                 <div>
                   <label className="form-label">Password</label>
@@ -254,6 +299,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                       className="form-input pr-11"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Minimum 6 characters"
+                      {...enterKeyProps}
                       {...register('password')}
                     />
                     <button
@@ -275,7 +321,12 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
 
             <div>
               <label className="form-label">Role</label>
-              <select className="form-input" {...register('roleId')}>
+              <select
+                className="form-input"
+                {...(mode === 'edit' ? { 'data-auto-focus-field': true } : {})}
+                {...enterKeyProps}
+                {...register('roleId')}
+              >
                 <option value="">Select role</option>
                 {roles.map((role) => (
                   <option key={role.id} value={role.id}>
@@ -292,7 +343,12 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
               <button type="button" className="button-secondary" onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" className="button-primary" disabled={isSubmitting}>
+              <button
+                id="save-user-button"
+                type="submit"
+                className="button-primary"
+                disabled={isSubmitting}
+              >
                 {isSubmitting ? 'Saving...' : 'Save'}
               </button>
             </div>
@@ -308,8 +364,11 @@ function UserRow({ user, onEdit }) {
     <tr>
       <td style={{ padding: '15px 14px' }}>
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-bg-elevated)] text-xs font-bold text-[var(--color-amber)]">
-            {getInitials(user.username)}
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-bg-elevated)] text-xs font-bold text-[var(--color-amber)]"
+            title={user.username}
+          >
+            <UserAvatarIcon size={20} />
           </div>
           <div style={{ minWidth: 0 }}>
             <p className="text-sm font-semibold text-[var(--color-text-primary)]">
@@ -392,6 +451,17 @@ export default function UserListPage() {
   const [modalState, setModalState] = useState({ open: false, mode: 'create', user: null })
 
   const orgId = currentUser?.orgId || DEFAULT_ORG_ID
+  const canCreateUsers = userHasPermission(currentUser, PERMISSIONS.identity.userManage)
+  const canManagePermissions = userHasPermission(
+    currentUser,
+    PERMISSIONS.identity.permissionManage
+  )
+
+  useEffect(() => {
+    if (activeTab === 'permission' && !canManagePermissions) {
+      setActiveTab('management')
+    }
+  }, [activeTab, canManagePermissions])
 
   const loadUsers = useCallback(async () => {
     setIsLoading(true)
@@ -486,16 +556,30 @@ export default function UserListPage() {
   }, [page, totalPages])
 
   useEffect(() => {
+    if (!canManagePermissions) return
+
     if (activeTab === 'permission' && permissionGroups.length === 0) {
       loadPermissions()
     }
     if (activeTab === 'permission' && permissionUsers.length === 0) {
       loadPermissionUsers()
     }
-  }, [activeTab, loadPermissionUsers, permissionGroups.length, permissionUsers.length])
+  }, [
+    activeTab,
+    canManagePermissions,
+    loadPermissionUsers,
+    permissionGroups.length,
+    permissionUsers.length,
+  ])
 
   useEffect(() => {
     async function loadDirectPermissions() {
+      if (!canManagePermissions) {
+        setDirectPermissions([])
+        setSelectedPermissionIds([])
+        return
+      }
+
       if (!selectedPermissionUserId) {
         setDirectPermissions([])
         setSelectedPermissionIds([])
@@ -505,7 +589,9 @@ export default function UserListPage() {
       setIsPermissionLoading(true)
       try {
         const items = await usersService.getDirectPermissions(selectedPermissionUserId)
-        const activePermissionIds = items.filter(isDirectPermissionActive).map(getDirectPermissionId)
+        const activePermissionIds = items
+          .filter(isDirectPermissionActive)
+          .map(getDirectPermissionId)
 
         setDirectPermissions(items)
         setSelectedPermissionIds(activePermissionIds)
@@ -517,14 +603,16 @@ export default function UserListPage() {
     }
 
     loadDirectPermissions()
-  }, [selectedPermissionUserId])
+  }, [canManagePermissions, selectedPermissionUserId])
 
   const flatPermissions = useMemo(
     () => permissionGroups.flatMap((group) => group.permissions),
     [permissionGroups]
   )
 
-  const selectedPermissionUser = permissionUsers.find((user) => user.id === selectedPermissionUserId)
+  const selectedPermissionUser = permissionUsers.find(
+    (user) => user.id === selectedPermissionUserId
+  )
 
   const directPermissionMap = useMemo(() => {
     const entries = directPermissions
@@ -582,6 +670,8 @@ export default function UserListPage() {
   }
 
   async function handleSavePermissions() {
+    if (!canManagePermissions) return
+
     if (!selectedPermissionUserId || !hasPermissionChanges) return
 
     const permissionIdsToAdd = [...selectedPermissionSet].filter(
@@ -649,7 +739,7 @@ export default function UserListPage() {
           </p>
         </div>
 
-        {activeTab === 'management' ? (
+        {activeTab === 'management' && canCreateUsers ? (
           <button
             type="button"
             className="button-primary"
@@ -676,7 +766,7 @@ export default function UserListPage() {
           <Tabs.List style={{ display: 'flex', gap: 0 }} aria-label="User sections">
             {[
               ['management', 'User Management'],
-              ['permission', 'User Permission'],
+              ...(canManagePermissions ? [['permission', 'User Permission']] : []),
             ].map(([value, label]) => (
               <Tabs.Trigger
                 key={value}
@@ -998,7 +1088,9 @@ export default function UserListPage() {
                     </p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <StatusBadge status={selectedPermissionUser?.isActive ? 'ACTIVE' : 'INACTIVE'} />
+                    <StatusBadge
+                      status={selectedPermissionUser?.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    />
                     <button
                       type="button"
                       className="button-primary"

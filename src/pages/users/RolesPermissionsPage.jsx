@@ -196,19 +196,13 @@ export default function RolesPermissionsPage() {
                   <tbody>
                     {isLoading ? (
                       <tr>
-                        <td
-                          colSpan={5}
-                          className="py-12 text-center text-sm text-text-muted"
-                        >
+                        <td colSpan={5} className="py-12 text-center text-sm text-text-muted">
                           Loading roles&hellip;
                         </td>
                       </tr>
                     ) : error ? (
                       <tr>
-                        <td
-                          colSpan={5}
-                          className="py-12 text-center text-sm text-danger"
-                        >
+                        <td colSpan={5} className="py-12 text-center text-sm text-danger">
                           {error}
                         </td>
                       </tr>
@@ -253,10 +247,7 @@ export default function RolesPermissionsPage() {
                       ))
                     ) : (
                       <tr>
-                        <td
-                          colSpan={5}
-                          className="py-12 text-center text-sm text-text-muted"
-                        >
+                        <td colSpan={5} className="py-12 text-center text-sm text-text-muted">
                           No roles found.
                         </td>
                       </tr>

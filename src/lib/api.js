@@ -109,7 +109,9 @@ api.interceptors.response.use(
       result?.errorMessage ||
       responseData?.errorMessage ||
       responseData?.message ||
-      (isNetworkFailure(error) ? 'Network error. Please check your connection and try again.' : null) ||
+      (isNetworkFailure(error)
+        ? 'Network error. Please check your connection and try again.'
+        : null) ||
       error.message ||
       'Request failed'
 

@@ -241,30 +241,34 @@ function CustomerFormModal({ open, customer, onClose, onSaved }) {
         <Dialog.Content
           className="fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 shadow-2xl"
           style={{
+            width: 'min(940px, calc(100vw - 48px))',
+            height: 'min(720px, calc(100vh - 48px))',
             maxWidth: 940,
             background: 'var(--color-bg-surface)',
             border: '1px solid var(--color-border)',
-            borderRadius: 12,
-            maxHeight: '92vh',
+            borderRadius: 10,
+            maxHeight: '88vh',
             overflowY: 'auto',
           }}
         >
           <div
             style={{
-              padding: '32px 32px 24px 32px',
+              padding: '20px 24px 12px 24px',
               display: 'flex',
               alignItems: 'flex-start',
               justifyContent: 'space-between',
+              gap: 16,
+              borderBottom: '1px solid var(--color-border)',
             }}
           >
             <div>
               <Dialog.Title
-                style={{ fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)' }}
+                style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)' }}
               >
                 {customer ? 'Edit Customer' : 'Create New Customer'}
               </Dialog.Title>
               <Dialog.Description
-                style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}
+                style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}
               >
                 {customer
                   ? 'Update customer master details, routing, and credit terms.'
@@ -295,10 +299,10 @@ function CustomerFormModal({ open, customer, onClose, onSaved }) {
           <form
             onSubmit={handleSubmit(onSubmit)}
             style={{
-              padding: '0 32px 32px 32px',
+              padding: '16px 24px 18px 24px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 24,
+              gap: 20,
             }}
           >
             <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 16 }}>
@@ -871,8 +875,24 @@ export default function CustomerListPage() {
     setIsModalOpen(true)
   }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div
+      style={{
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+        }}
+      >
         <div>
           <h1
             style={{
@@ -907,9 +927,16 @@ export default function CustomerListPage() {
 
       <div
         className="panel"
-        style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}
+        style={{
+          padding: 12,
+          display: 'grid',
+          gridTemplateRows: 'auto minmax(0, 1fr) auto',
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+        }}
       >
-        <div style={{ position: 'relative', flex: 1 }}>
+        <div style={{ position: 'relative', marginBottom: 10 }}>
           <Search
             style={{
               position: 'absolute',
@@ -928,21 +955,15 @@ export default function CustomerListPage() {
             onChange={(event) => setSearch(event.target.value)}
             style={{
               width: '100%',
-              height: 40,
+              height: 38,
               paddingLeft: 36,
               background: 'rgba(0,0,0,0.15)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 6,
-              color: 'var(--color-text-primary)',
-              fontSize: 14,
             }}
           />
         </div>
-      </div>
 
-      <div className="panel overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="data-table">
+        <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <table className="data-table master-table-compact">
             <thead>
               <tr>
                 <th>Code</th>
@@ -1026,6 +1047,23 @@ export default function CustomerListPage() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            paddingTop: 10,
+            borderTop: '1px solid var(--color-border)',
+            marginTop: 10,
+          }}
+        >
+          <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+            Showing {filtered.length} of {customers.length} customers
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Page 1 of 1</span>
         </div>
       </div>
 

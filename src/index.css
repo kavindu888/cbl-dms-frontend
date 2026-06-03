@@ -3,24 +3,24 @@
 
 @theme {
   /* ── Backgrounds ────────────────────────────────────────────── */
-  --color-bg-base: #050915;
-  --color-bg-surface: #111a2b;
-  --color-bg-elevated: #17233a;
-  --color-border: #25314a;
+  --color-bg-base: #111217;
+  --color-bg-surface: #1a1a22;
+  --color-bg-elevated: #242331;
+  --color-border: #343241;
 
   /* ── Accent Colors ──────────────────────────────────────────── */
-  --color-amber: #f4a623;
+  --color-amber: #8ee8f0;
   --color-amber-dark: color-mix(in srgb, var(--color-amber) 82%, #000);
-  --color-teal: #20d4bf;
-  --color-danger: #f43f5e;
+  --color-teal: #7de2d1;
+  --color-danger: #ff7b8a;
   --color-warning: #facc15;
-  --color-purple: #a78bfa;
-  --color-blue: #66b5fa;
+  --color-purple: #c7b9ff;
+  --color-blue: #9fd7ff;
 
   /* ── Text ───────────────────────────────────────────────────── */
-  --color-text-primary: #f8fafc;
-  --color-text-muted: #93a3bb;
-  --color-text-dim: #5b6c86;
+  --color-text-primary: #f4f4f6;
+  --color-text-muted: #c7c5cc;
+  --color-text-dim: #8f8b99;
 
   /* ── Fonts ──────────────────────────────────────────────────── */
   --font-sans: 'Geist Variable', system-ui, sans-serif;
@@ -41,9 +41,9 @@
   --spacing-layout-topbar: 80px;
 
   /* ── Shadows ────────────────────────────────────────────────── */
-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
-  --shadow-modal: 0 24px 48px rgba(0, 0, 0, 0.6);
-  --shadow-drawer: -8px 0 32px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-modal: 0 24px 48px rgba(0, 0, 0, 0.45);
+  --shadow-drawer: -8px 0 32px rgba(0, 0, 0, 0.32);
 }
 
 * {
@@ -135,8 +135,7 @@ select {
   border: 1px solid var(--color-border);
   background: var(--color-bg-surface);
   border-radius: var(--radius-card);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-card);
 }
 
 /* ── Buttons ─────────────────────────────────────────────────── */
@@ -166,7 +165,7 @@ select {
   height: 36px;
   padding: 0 16px;
   background: var(--color-amber);
-  color: #00182a;
+  color: #111217;
   font-weight: 600;
   border-color: var(--color-amber);
 }
@@ -331,6 +330,22 @@ select.form-input option {
   background: color-mix(in srgb, var(--color-text-primary) 5%, transparent);
 }
 
+.master-table-compact th,
+.product-table-compact th {
+  padding: 8px 10px;
+}
+
+.master-table-compact td,
+.product-table-compact td {
+  padding: 8px 10px;
+  line-height: 1.25;
+}
+
+.product-table-compact td {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
 /* ── Skeleton ─────────────────────────────────────────────────── */
 
 @keyframes shimmer {
@@ -356,6 +371,29 @@ select.form-input option {
 
 /* ── Page Shell ───────────────────────────────────────────────── */
 
+/* Profile Avatar */
+
+.profile-avatar-static {
+  width: 92px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, var(--color-amber) 32%, var(--color-border));
+  background:
+    radial-gradient(
+      circle at 32% 24%,
+      color-mix(in srgb, var(--color-amber) 18%, transparent),
+      transparent 38%
+    ),
+    linear-gradient(145deg, var(--color-bg-elevated), var(--color-bg-surface));
+  color: var(--color-amber);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 18px 34px rgba(0, 0, 0, 0.32);
+}
+
 .page-shell {
   display: flex;
   flex-direction: column;
@@ -365,19 +403,7 @@ select.form-input option {
 }
 
 .gradient-orb {
-  position: fixed;
-  bottom: -20%;
-  right: -10%;
-  width: 320px;
-  height: 320px;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--color-amber) 10%, transparent),
-    transparent 68%
-  );
-  pointer-events: none;
-  filter: blur(6px);
-  z-index: 0;
+  display: none;
 }
 
 /* ── Tooltip ──────────────────────────────────────────────────── */

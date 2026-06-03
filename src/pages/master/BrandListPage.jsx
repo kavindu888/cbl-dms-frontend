@@ -1,10 +1,8 @@
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as Dialog from '@radix-ui/react-dialog'
-import { Pencil, Plus, Search, X } from 'lucide-react'
+import { Pencil, Search, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { z } from 'zod'
+import StatusBadge from '@components/ui/StatusBadge'
+
 const initialBrands = [
   { id: 'brd-001', code: 'BRD-001', name: 'Munchee', productCount: 45, isActive: true },
   { id: 'brd-002', code: 'BRD-002', name: 'Ritzbury', productCount: 28, isActive: true },
@@ -12,301 +10,170 @@ const initialBrands = [
   { id: 'brd-004', code: 'BRD-004', name: 'Samaposha', productCount: 5, isActive: true },
   { id: 'brd-005', code: 'BRD-005', name: 'Lanka Soy', productCount: 15, isActive: false },
 ]
-// ── Schema ───────────────────────────────────────────────────────────────
-const brandSchema = z.object({
-  code: z.string().min(1, 'Brand code is required'),
-  name: z.string().min(1, 'Brand name is required'),
-  isActive: z.boolean().default(true),
-})
-// ── Form Modal Component ──────────────────────────────────────────────────
-function BrandFormModal({ open, brand, onClose, onSaved }) {
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(brandSchema),
-    defaultValues: {
-      code: '',
-      name: '',
-      isActive: true,
-    },
-  })
-  useEffect(() => {
-    if (open) {
-      if (brand) {
-        reset({
-          code: brand.code,
-          name: brand.name,
-          isActive: brand.isActive,
-        })
-      } else {
-        reset({
-          code: '',
-          name: '',
-          isActive: true,
-        })
-      }
-    }
-  }, [open, brand, reset])
-  async function onSubmit(values) {
-    // Simulate API delay
-    await new Promise((r) => setTimeout(r, 600))
-    if (brand) {
-      onSaved({
-        ...brand,
-        ...values,
-      })
-      toast.success(`Brand ${values.name} updated successfully.`)
-      onClose()
-    } else {
-      onSaved({
-        id: `brd-${Date.now()}`,
-        ...values,
-        productCount: 0,
-      })
-      toast.success(`Brand ${values.name} created successfully.`)
-      reset({
-        code: '',
-        name: '',
-        isActive: true,
-      })
-      setTimeout(() => {
-        const codeInput = document.querySelector('input[name="code"]')
-        if (codeInput) {
-          codeInput.focus()
-        }
-      }, 10)
-    }
-  }
-  const handleFormKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      const target = e.target
-      if (target.tagName === 'BUTTON') {
-        return
-      }
-      e.preventDefault()
-      const form = e.currentTarget
-      const focusable = Array.from(
-        form.querySelectorAll(
-          'input:not([type="hidden"]):not([disabled]), select:not([disabled]), button:not([disabled]):not([data-skip-focus="true"])'
-        )
-      )
-      const index = focusable.indexOf(target)
-      if (index > -1 && index < focusable.length - 1) {
-        focusable[index + 1].focus()
-      }
-    }
-  }
-  return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay
-          className="fixed inset-0 z-50"
-          style={{ background: 'rgba(0,4,12,0.75)', backdropFilter: 'blur(2px)' }}
-        />
-        <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 shadow-2xl"
-          style={{
-            maxWidth: 500,
-            background: 'var(--color-bg-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 12,
-            maxHeight: '92vh',
-            overflowY: 'auto',
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              padding: '32px 32px 24px 32px',
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
-              <Dialog.Title
-                style={{ fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)' }}
-              >
-                {brand ? 'Edit Brand' : 'Create New Brand'}
-              </Dialog.Title>
-              <Dialog.Description
-                style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}
-              >
-                {brand ? 'Update brand details.' : 'Register a new product brand into the system.'}
-              </Dialog.Description>
-            </div>
-            <Dialog.Close asChild>
-              <button
-                aria-label="Close"
-                style={{
-                  width: 32,
-                  height: 32,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--color-text-muted)',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  borderRadius: '50%',
-                }}
-              >
-                <X style={{ width: 18, height: 18 }} />
-              </button>
-            </Dialog.Close>
-          </div>
 
-          {/* Form */}
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            onKeyDown={handleFormKeyDown}
-            style={{
-              padding: '0 32px 32px 32px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 24,
-            }}
-          >
-            {/* Code Row */}
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.8px',
-                  color: 'var(--color-text-muted)',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                }}
-              >
-                BRAND CODE
-              </label>
-              <input
-                {...register('code')}
-                autoFocus
-                className="form-input w-full"
-                placeholder="e.g. BRD-001"
-                style={{ background: 'rgba(0,0,0,0.15)', height: 44 }}
-              />
-              {errors.code && (
-                <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                  {errors.code.message}
-                </p>
-              )}
-            </div>
-
-            {/* Name Row */}
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.8px',
-                  color: 'var(--color-text-muted)',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                }}
-              >
-                BRAND NAME
-              </label>
-              <input
-                {...register('name')}
-                className="form-input w-full"
-                placeholder="e.g. Munchee"
-                style={{ background: 'rgba(0,0,0,0.15)', height: 44 }}
-              />
-              {errors.name && (
-                <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                  {errors.name.message}
-                </p>
-              )}
-            </div>
-
-            {/* Status */}
-            <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  {...register('isActive')}
-                  style={{ width: 18, height: 18, accentColor: 'var(--color-amber)' }}
-                />
-                <span style={{ fontSize: 14, color: 'var(--color-text-primary)' }}>
-                  Active Brand
-                </span>
-              </label>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-              <Dialog.Close asChild>
-                <button
-                  type="button"
-                  data-skip-focus="true"
-                  className="button-ghost"
-                  style={{ flex: 1, padding: '10px 0', height: 44 }}
-                >
-                  Cancel
-                </button>
-              </Dialog.Close>
-              <button
-                type="submit"
-                className="button-primary"
-                style={{ flex: 1, padding: '10px 0', height: 44 }}
-              >
-                {brand ? 'Update Brand' : 'Create Brand'}
-              </button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  )
+const emptyForm = {
+  code: '',
+  name: '',
+  isActive: true,
 }
-import StatusBadge from '@components/ui/StatusBadge'
-// ── Main Page Component ──────────────────────────────────────────────────
+
+const pageSize = 10
+
+function toBrandCode(value) {
+  return value.trim().toUpperCase()
+}
+
 export default function BrandListPage() {
   const [brands, setBrands] = useState(initialBrands)
   const [search, setSearch] = useState('')
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingBrand, setEditingBrand] = useState(undefined)
-  const filtered = useMemo(
-    () =>
-      brands.filter((b) => {
-        if (!search) return true
-        const s = search.toLowerCase()
-        return b.name.toLowerCase().includes(s) || b.code.toLowerCase().includes(s)
-      }),
-    [brands, search]
-  )
-  function handleAdd() {
-    setEditingBrand(undefined)
-    setIsModalOpen(true)
+  const [editingBrand, setEditingBrand] = useState(null)
+  const [form, setForm] = useState(emptyForm)
+  const [isSaving, setIsSaving] = useState(false)
+  const [page, setPage] = useState(1)
+
+  const filteredBrands = useMemo(() => {
+    const query = search.trim().toLowerCase()
+
+    return brands.filter((brand) => {
+      if (!query) return true
+      return [brand.code, brand.name].join(' ').toLowerCase().includes(query)
+    })
+  }, [brands, search])
+
+  const totalPages = Math.max(1, Math.ceil(filteredBrands.length / pageSize))
+  const pagedBrands = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredBrands.slice(start, start + pageSize)
+  }, [filteredBrands, page])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
+  function updateField(field, value) {
+    setForm((currentForm) => ({ ...currentForm, [field]: value }))
   }
-  function handleEdit(b) {
-    setEditingBrand(b)
-    setIsModalOpen(true)
+
+  function resetForm() {
+    setEditingBrand(null)
+    setForm(emptyForm)
   }
-  function handleSave(b) {
-    if (editingBrand) {
-      setBrands(brands.map((item) => (item.id === b.id ? b : item)))
-    } else {
-      setBrands([b, ...brands])
+
+  function openEdit(brand) {
+    setEditingBrand(brand)
+    setForm({
+      code: brand.code,
+      name: brand.name,
+      isActive: brand.isActive,
+    })
+  }
+
+  async function handleSave(event) {
+    event.preventDefault()
+
+    const code = toBrandCode(form.code)
+    const name = form.name.trim()
+
+    if (!code || !name) {
+      toast.error('Brand code and name are required.')
+      return
+    }
+
+    const isDuplicate = brands.some(
+      (brand) =>
+        brand.id !== editingBrand?.id &&
+        (brand.code.toLowerCase() === code.toLowerCase() ||
+          brand.name.toLowerCase() === name.toLowerCase())
+    )
+
+    if (isDuplicate) {
+      toast.error('A brand with this code or name already exists.')
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 300))
+
+      if (editingBrand) {
+        setBrands((currentBrands) =>
+          currentBrands.map((brand) =>
+            brand.id === editingBrand.id
+              ? {
+                  ...brand,
+                  code,
+                  name,
+                  isActive: form.isActive,
+                }
+              : brand
+          )
+        )
+        toast.success('Brand updated.')
+      } else {
+        setBrands((currentBrands) => [
+          {
+            id: `brd-${Date.now()}`,
+            code,
+            name,
+            productCount: 0,
+            isActive: form.isActive,
+          },
+          ...currentBrands,
+        ])
+        toast.success('Brand created.')
+      }
+
+      resetForm()
+    } finally {
+      setIsSaving(false)
     }
   }
+
+  function handleDeactivate(brand) {
+    if (!brand.isActive) return
+    if (!window.confirm(`Deactivate ${brand.name}?`)) return
+
+    setBrands((currentBrands) =>
+      currentBrands.map((item) => (item.id === brand.id ? { ...item, isActive: false } : item))
+    )
+
+    if (editingBrand?.id === brand.id) {
+      resetForm()
+    }
+
+    toast.success('Brand deactivated.')
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* ── Page Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div
+      style={{
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+        }}
+      >
         <div>
           <h1
             style={{
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: 700,
               color: 'var(--color-text-primary)',
               lineHeight: 1.2,
@@ -315,40 +182,32 @@ export default function BrandListPage() {
             Brands
           </h1>
           <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-            Manage product brands and portfolios.
+            Manage product brands and portfolio labels.
           </p>
         </div>
-        <button
-          className="button-primary"
-          onClick={handleAdd}
-          style={{
-            height: 40,
-            padding: '0 24px',
-            fontSize: 14,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <Plus style={{ width: 16, height: 16 }} />
-          New Brand
-        </button>
       </div>
 
-      <BrandFormModal
-        open={isModalOpen}
-        brand={editingBrand}
-        onClose={() => setIsModalOpen(false)}
-        onSaved={handleSave}
-      />
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* ── Filter Bar ── */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) 360px',
+          gap: 16,
+          alignItems: 'stretch',
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
         <div
           className="panel"
-          style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}
+          style={{
+            padding: 12,
+            display: 'grid',
+            gridTemplateRows: 'auto minmax(0, 1fr) auto',
+            minHeight: 0,
+            overflow: 'hidden',
+          }}
         >
-          <div style={{ position: 'relative', flex: 1 }}>
+          <div style={{ position: 'relative', marginBottom: 10 }}>
             <Search
               style={{
                 position: 'absolute',
@@ -364,25 +223,18 @@ export default function BrandListPage() {
               className="form-input"
               placeholder="Search brands..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               style={{
                 width: '100%',
-                height: 40,
+                height: 38,
                 paddingLeft: 36,
                 background: 'rgba(0,0,0,0.15)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 6,
-                color: 'var(--color-text-primary)',
-                fontSize: 14,
               }}
             />
           </div>
-        </div>
 
-        {/* ── Table ── */}
-        <div className="panel overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="data-table">
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+            <table className="data-table master-table-compact">
               <thead>
                 <tr>
                   <th>Code</th>
@@ -393,47 +245,215 @@ export default function BrandListPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((b) => (
-                  <tr key={b.id}>
-                    <td>
-                      <span
-                        className="mono text-xs font-medium"
-                        style={{ color: 'var(--color-amber)' }}
+                {pagedBrands.length ? (
+                  pagedBrands.map((brand) => (
+                    <tr key={brand.id}>
+                      <td>
+                        <span
+                          className="mono text-xs font-semibold"
+                          style={{ color: 'var(--color-amber)' }}
+                        >
+                          {brand.code}
+                        </span>
+                      </td>
+                      <td
+                        className="text-sm font-medium"
+                        style={{ color: 'var(--color-text-primary)' }}
                       >
-                        {b.code}
-                      </span>
-                    </td>
+                        {brand.name}
+                      </td>
+                      <td className="mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                        {brand.productCount}
+                      </td>
+                      <td>
+                        <StatusBadge status={brand.isActive ? 'ACTIVE' : 'INACTIVE'} />
+                      </td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          title="Edit brand"
+                          style={{ width: 28, height: 28, marginRight: 6 }}
+                          onClick={() => openEdit(brand)}
+                        >
+                          <Pencil style={{ width: 13, height: 13 }} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          title="Deactivate brand"
+                          disabled={!brand.isActive}
+                          style={{ width: 28, height: 28, opacity: brand.isActive ? 1 : 0.45 }}
+                          onClick={() => handleDeactivate(brand)}
+                        >
+                          <Trash2 style={{ width: 13, height: 13 }} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
                     <td
-                      className="text-sm font-medium"
-                      style={{ color: 'var(--color-text-primary)' }}
+                      colSpan={5}
+                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
                     >
-                      {b.name}
-                    </td>
-                    <td className="mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                      {b.productCount}
-                    </td>
-                    <td>
-                      <StatusBadge status={b.isActive ? 'ACTIVE' : 'INACTIVE'} />
-                    </td>
-                    <td style={{ padding: '12px 10px', textAlign: 'right' }}>
-                      <button
-                        className="icon-button"
-                        title="Edit brand"
-                        style={{ width: 28, height: 28 }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleEdit(b)
-                        }}
-                      >
-                        <Pencil style={{ width: 13, height: 13 }} />
-                      </button>
+                      No brands found.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              paddingTop: 10,
+              borderTop: '1px solid var(--color-border)',
+              marginTop: 10,
+            }}
+          >
+            <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+              Showing {pagedBrands.length} of {filteredBrands.length} brands
+            </span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              >
+                Previous
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page >= totalPages}
+                onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
+
+        <form
+          onSubmit={handleSave}
+          className="panel"
+          style={{
+            padding: '14px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            minHeight: 0,
+            overflow: 'hidden',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <p style={{ fontSize: 16, fontWeight: 650, color: 'var(--color-text-primary)' }}>
+                {editingBrand ? 'Edit Brand' : 'Add New Brand'}
+              </p>
+              {editingBrand ? (
+                <button
+                  type="button"
+                  className="button-ghost"
+                  onClick={resetForm}
+                  style={{ padding: '5px 10px', height: 'auto', fontSize: 12 }}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+            <p style={{ marginTop: 5, fontSize: 12, color: 'var(--color-text-muted)' }}>
+              Keep brand codes short and unique.
+            </p>
+          </div>
+
+          <div>
+            <label className="form-label" style={{ fontSize: 10 }}>
+              BRAND CODE
+            </label>
+            <input
+              className="form-input"
+              placeholder="e.g. MUN"
+              value={form.code}
+              maxLength={20}
+              onChange={(event) => updateField('code', event.target.value.toUpperCase())}
+              style={{ height: 38, textTransform: 'uppercase' }}
+            />
+          </div>
+
+          <div>
+            <label className="form-label" style={{ fontSize: 10 }}>
+              BRAND NAME
+            </label>
+            <input
+              className="form-input"
+              placeholder="e.g. Munchee"
+              value={form.name}
+              maxLength={150}
+              onChange={(event) => updateField('name', event.target.value)}
+              style={{ height: 38 }}
+            />
+          </div>
+
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 2,
+              color: 'var(--color-text-primary)',
+              cursor: 'pointer',
+              fontSize: 13,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={form.isActive}
+              onChange={(event) => updateField('isActive', event.target.checked)}
+              style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }}
+            />
+            Active Brand
+          </label>
+
+          <div style={{ flex: 1 }} />
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              paddingTop: 8,
+              borderTop: '1px solid var(--color-border)',
+            }}
+          >
+            <button
+              type="button"
+              className="button-ghost"
+              onClick={resetForm}
+              style={{ flex: 1, height: 38, fontSize: 13 }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="button-primary"
+              disabled={isSaving}
+              style={{ flex: 1, height: 38, fontSize: 13 }}
+            >
+              {isSaving ? 'Saving...' : editingBrand ? 'Save Changes' : 'Save'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )

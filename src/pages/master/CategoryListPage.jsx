@@ -44,6 +44,7 @@ function toApiPayload(values) {
 export default function CategoryListPage() {
   const [categories, setCategories] = useState([])
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('All')
   const [editingCategory, setEditingCategory] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [isLoading, setIsLoading] = useState(true)
@@ -75,14 +76,19 @@ export default function CategoryListPage() {
     const query = search.trim().toLowerCase()
 
     return flatCategories.filter((category) => {
-      if (!query) return true
-
-      return [category.code, category.name, category.description, category.parentCategory?.name]
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
+      const matchesSearch =
+        !query ||
+        [category.code, category.name, category.description, category.parentCategory?.name]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      const matchesStatus =
+        statusFilter === 'All' ||
+        (statusFilter === 'Active' && category.isActive) ||
+        (statusFilter === 'Inactive' && !category.isActive)
+      return matchesSearch && matchesStatus
     })
-  }, [flatCategories, search])
+  }, [flatCategories, search, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredCategories.length / pageSize))
   const pagedCategories = useMemo(() => {
@@ -92,7 +98,7 @@ export default function CategoryListPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search])
+  }, [search, statusFilter])
 
   useEffect(() => {
     if (page > totalPages) {
@@ -175,9 +181,10 @@ export default function CategoryListPage() {
       style={{
         display: 'grid',
         gridTemplateRows: 'auto minmax(0, 1fr)',
-        gap: 14,
+        gap: 12,
         height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
         minHeight: 0,
+        overflow: 'hidden',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -210,13 +217,14 @@ export default function CategoryListPage() {
         <div
           className="panel"
           style={{
-            padding: '14px 16px',
+            padding: 12,
             display: 'grid',
             gridTemplateRows: 'auto minmax(0, 1fr) auto',
             minHeight: 0,
+            overflow: 'hidden',
           }}
         >
-          <div style={{ position: 'relative', marginBottom: 12 }}>
+          <div style={{ position: 'relative', marginBottom: 10 }}>
             <Search
               style={{
                 position: 'absolute',
@@ -238,7 +246,7 @@ export default function CategoryListPage() {
           </div>
 
           <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
-            <table className="data-table">
+            <table className="data-table master-table-compact">
               <thead>
                 <tr>
                   <th>Code</th>
@@ -253,19 +261,13 @@ export default function CategoryListPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td
-                      colSpan={7}
-                      className="py-12 text-center text-sm text-text-muted"
-                    >
+                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
                       Loading categories...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td
-                      colSpan={7}
-                      className="py-12 text-center text-sm text-danger"
-                    >
+                    <td colSpan={7} className="py-12 text-center text-sm text-danger">
                       {error}
                     </td>
                   </tr>
@@ -337,10 +339,7 @@ export default function CategoryListPage() {
                   ))
                 ) : (
                   <tr>
-                    <td
-                      colSpan={7}
-                      className="py-12 text-center text-sm text-text-muted"
-                    >
+                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
                       No categories found.
                     </td>
                   </tr>
@@ -355,9 +354,9 @@ export default function CategoryListPage() {
               justifyContent: 'space-between',
               alignItems: 'center',
               gap: 12,
-              paddingTop: 12,
+              paddingTop: 10,
               borderTop: '1px solid var(--color-border)',
-              marginTop: 12,
+              marginTop: 10,
             }}
           >
             <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>

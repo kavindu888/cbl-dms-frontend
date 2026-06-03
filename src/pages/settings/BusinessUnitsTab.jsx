@@ -177,6 +177,32 @@ export default function BusinessUnitsTab() {
     }
   }
 
+  function handleEnterToNext(event) {
+    if (event.key !== 'Enter' || event.shiftKey) return
+
+    event.preventDefault()
+
+    const currentField = event.currentTarget
+    const formElement = currentField.form
+    if (!formElement) return
+
+    const orderedFields = Array.from(formElement.querySelectorAll('[data-enter-field]'))
+    const currentIndex = orderedFields.indexOf(currentField)
+    const nextField = orderedFields[currentIndex + 1]
+
+    if (nextField) {
+      nextField.focus()
+      return
+    }
+
+    formElement.querySelector('#save-business-unit-button')?.focus()
+  }
+
+  const enterKeyProps = {
+    'data-enter-field': true,
+    onKeyDown: handleEnterToNext,
+  }
+
   return (
     <div
       style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'stretch' }}
@@ -336,6 +362,7 @@ export default function BusinessUnitsTab() {
             ORGANISATION
           </label>
           <select
+            {...enterKeyProps}
             className="form-input"
             value={form.organisationId}
             onChange={(event) => updateField('organisationId', event.target.value)}
@@ -355,6 +382,7 @@ export default function BusinessUnitsTab() {
             CODE
           </label>
           <input
+            {...enterKeyProps}
             className="form-input"
             placeholder="e.g. BU-MAIN"
             value={form.code}
@@ -368,6 +396,7 @@ export default function BusinessUnitsTab() {
             NAME
           </label>
           <input
+            {...enterKeyProps}
             className="form-input"
             placeholder="e.g. Main Operations"
             value={form.name}
@@ -381,6 +410,7 @@ export default function BusinessUnitsTab() {
             DESCRIPTION
           </label>
           <textarea
+            {...enterKeyProps}
             className="form-input"
             placeholder="Optional description"
             value={form.description}
@@ -415,6 +445,7 @@ export default function BusinessUnitsTab() {
             Cancel
           </button>
           <button
+            id="save-business-unit-button"
             type="submit"
             className="button-primary"
             disabled={isSaving}
