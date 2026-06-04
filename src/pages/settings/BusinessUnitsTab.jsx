@@ -421,6 +421,7 @@ export default function BusinessUnitsTab() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
           <input
+            {...enterKeyProps}
             type="checkbox"
             id="isActiveBU"
             checked={form.isActive}

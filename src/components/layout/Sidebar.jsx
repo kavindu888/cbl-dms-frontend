@@ -202,8 +202,21 @@ export default function Sidebar() {
         )}
       >
         <div className={cn(styles.header, sidebarCollapsed && styles.headerCollapsed)}>
-          <div className={cn(styles.brandMark, sidebarCollapsed && styles.brandMarkCollapsed)} style={{ background: 'transparent', boxShadow: 'none' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#flowLinkIconGrad)" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 2px 8px rgba(139, 92, 246, 0.4))' }}>
+          <div
+            className={cn(styles.brandMark, sidebarCollapsed && styles.brandMarkCollapsed)}
+            style={{ background: 'transparent', boxShadow: 'none' }}
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="url(#flowLinkIconGrad)"
+              strokeWidth="2.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ filter: 'drop-shadow(0 2px 8px rgba(139, 92, 246, 0.4))' }}
+            >
               <defs>
                 <linearGradient id="flowLinkIconGrad" x1="0" y1="0" x2="1" y2="1">
                   <stop offset="0%" stopColor="var(--color-amber)" />
@@ -218,8 +231,30 @@ export default function Sidebar() {
           </div>
           {!sidebarCollapsed ? (
             <div className={styles.brandText}>
-              <p className={styles.brandTitle} style={{ fontWeight: 800, letterSpacing: '-0.3px', background: 'linear-gradient(to right, var(--color-amber), var(--color-purple))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>FlowLink</p>
-              <p className={styles.brandSubtitle} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-dim)', fontWeight: 700 }}>Distribution Hub</p>
+              <p
+                className={styles.brandTitle}
+                style={{
+                  fontWeight: 800,
+                  letterSpacing: '-0.3px',
+                  background: 'linear-gradient(to right, var(--color-amber), var(--color-purple))',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                FlowLink
+              </p>
+              <p
+                className={styles.brandSubtitle}
+                style={{
+                  fontSize: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: 'var(--color-text-dim)',
+                  fontWeight: 700,
+                }}
+              >
+                Distribution Hub
+              </p>
             </div>
           ) : null}
         </div>

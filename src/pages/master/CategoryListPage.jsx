@@ -161,6 +161,26 @@ export default function CategoryListPage() {
     }
   }
 
+  function handleFormKeyDown(event) {
+    if (event.key !== 'Enter' || event.shiftKey) return
+
+    const target = event.target
+    if (target.tagName === 'BUTTON') return
+
+    event.preventDefault()
+
+    const focusable = Array.from(
+      event.currentTarget.querySelectorAll(
+        'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([data-skip-focus="true"])'
+      )
+    )
+    const currentIndex = focusable.indexOf(target)
+
+    if (currentIndex > -1 && currentIndex < focusable.length - 1) {
+      focusable[currentIndex + 1].focus()
+    }
+  }
+
   async function handleDeactivate(category) {
     if (!window.confirm(`Deactivate ${category.name}?`)) return
 
@@ -179,12 +199,11 @@ export default function CategoryListPage() {
   return (
     <div
       style={{
-        display: 'grid',
-        gridTemplateRows: 'auto minmax(0, 1fr)',
-        gap: 12,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
         height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
         minHeight: 0,
-        overflow: 'hidden',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -205,46 +224,92 @@ export default function CategoryListPage() {
         </div>
       </div>
 
+      {/* ── Filter Bar ── */}
+      <div
+        className="panel"
+        style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}
+      >
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 16,
+              height: 16,
+              color: 'var(--color-text-dim)',
+            }}
+          />
+          <input
+            className="form-input"
+            placeholder="Search categories..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              paddingLeft: 36,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
+          />
+        </div>
+
+        <div style={{ position: 'relative', width: 160 }}>
+          <select
+            className="form-input"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
+            }}
+          >
+            <option value="All" style={{ background: 'var(--color-bg-elevated)' }}>
+              All Statuses
+            </option>
+            <option value="Active" style={{ background: 'var(--color-bg-elevated)' }}>
+              Active
+            </option>
+            <option value="Inactive" style={{ background: 'var(--color-bg-elevated)' }}>
+              Inactive
+            </option>
+          </select>
+        </div>
+      </div>
+
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(0, 1fr) 400px',
           gap: 16,
           alignItems: 'stretch',
+          flex: 1,
           minHeight: 0,
         }}
       >
         <div
           className="panel"
           style={{
-            padding: 12,
+            padding: '14px 16px',
             display: 'grid',
-            gridTemplateRows: 'auto minmax(0, 1fr) auto',
+            gridTemplateRows: 'minmax(0, 1fr) auto',
             minHeight: 0,
-            overflow: 'hidden',
           }}
         >
-          <div style={{ position: 'relative', marginBottom: 10 }}>
-            <Search
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: 16,
-                height: 16,
-                color: 'var(--color-text-dim)',
-              }}
-            />
-            <input
-              className="form-input"
-              placeholder="Search categories..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              style={{ width: '100%', height: 36, paddingLeft: 36, background: 'rgba(0,0,0,0.15)' }}
-            />
-          </div>
-
           <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
             <table className="data-table master-table-compact">
               <thead>
@@ -390,6 +455,7 @@ export default function CategoryListPage() {
 
         <form
           onSubmit={handleSave}
+          onKeyDown={handleFormKeyDown}
           className="panel"
           style={{
             padding: '16px 20px',
@@ -523,6 +589,7 @@ export default function CategoryListPage() {
           >
             <button
               type="button"
+              data-skip-focus="true"
               className="button-ghost"
               onClick={resetForm}
               style={{ flex: 1, height: 38, fontSize: 13 }}
@@ -530,6 +597,7 @@ export default function CategoryListPage() {
               Cancel
             </button>
             <button
+              id="category-save-button"
               type="submit"
               className="button-primary"
               disabled={isSaving}

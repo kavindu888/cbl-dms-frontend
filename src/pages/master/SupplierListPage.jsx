@@ -216,74 +216,71 @@ function Field({
 function SupplierTable({ suppliers, isLoading, onEdit }) {
   return (
     <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
-        <table className="data-table master-table-compact">
-          <thead>
+      <table className="data-table master-table-compact">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Supplier Name</th>
+            <th>Contact</th>
+            <th>City</th>
+            <th>VAT Reg No</th>
+            <th>Credit Limit</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th style={{ textAlign: 'right' }}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {isLoading ? (
             <tr>
-              <th>Code</th>
-              <th>Supplier Name</th>
-              <th>Contact</th>
-              <th>City</th>
-              <th>VAT Reg No</th>
-              <th>Credit Limit</th>
-              <th>Email</th>
-              <th>Status</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
+              <td colSpan={9} style={{ padding: 28, color: 'var(--color-text-muted)' }}>
+                Loading suppliers...
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={9} style={{ padding: 28, color: 'var(--color-text-muted)' }}>
-                  Loading suppliers...
+          ) : suppliers.length ? (
+            suppliers.map((supplier) => (
+              <tr key={supplier.id}>
+                <td className="mono" style={{ color: 'var(--color-amber)' }}>
+                  {supplier.code}
+                </td>
+                <td style={{ fontWeight: 700 }}>{supplier.name}</td>
+                <td>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span>{supplier.primaryContactName || '-'}</span>
+                    <span className="mono" style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                      {supplier.primaryContactPhone || supplier.primaryContactEmail || '-'}
+                    </span>
+                  </div>
+                </td>
+                <td>{supplier.city || '-'}</td>
+                <td>{supplier.vatRegNo || '-'}</td>
+                <td className="mono">{formatMoney(supplier.creditLimit)}</td>
+                <td style={{ color: 'var(--color-text-muted)' }}>{supplier.email}</td>
+                <td>
+                  <StatusBadge status={supplier.statusLabel || 'Active'} />
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    title="Edit supplier"
+                    onClick={() => onEdit(supplier)}
+                    style={{ width: 32, height: 32, borderRadius: 999 }}
+                  >
+                    <Pencil style={{ width: 14, height: 14 }} />
+                  </button>
                 </td>
               </tr>
-            ) : suppliers.length ? (
-              suppliers.map((supplier) => (
-                <tr key={supplier.id}>
-                  <td className="mono" style={{ color: 'var(--color-amber)' }}>
-                    {supplier.code}
-                  </td>
-                  <td style={{ fontWeight: 700 }}>{supplier.name}</td>
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span>{supplier.primaryContactName || '-'}</span>
-                      <span
-                        className="mono"
-                        style={{ fontSize: 11, color: 'var(--color-text-dim)' }}
-                      >
-                        {supplier.primaryContactPhone || supplier.primaryContactEmail || '-'}
-                      </span>
-                    </div>
-                  </td>
-                  <td>{supplier.city || '-'}</td>
-                  <td>{supplier.vatRegNo || '-'}</td>
-                  <td className="mono">{formatMoney(supplier.creditLimit)}</td>
-                  <td style={{ color: 'var(--color-text-muted)' }}>{supplier.email}</td>
-                  <td>
-                    <StatusBadge status={supplier.statusLabel || 'Active'} />
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="icon-button"
-                      type="button"
-                      title="Edit supplier"
-                      onClick={() => onEdit(supplier)}
-                      style={{ width: 32, height: 32, borderRadius: 999 }}
-                    >
-                      <Pencil style={{ width: 14, height: 14 }} />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={9} style={{ padding: 28, color: 'var(--color-text-muted)' }}>
-                  No suppliers found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={9} style={{ padding: 28, color: 'var(--color-text-muted)' }}>
+                No suppliers found.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   )
 }

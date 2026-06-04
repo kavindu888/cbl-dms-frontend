@@ -78,11 +78,10 @@ const channelData = [
 ]
 
 const panelStyle = {
-  background: 'var(--color-bg-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 12,
-  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)',
-  transition: 'box-shadow 0.2s',
+  background: 'transparent',
+  border: 'none',
+  borderRadius: 0,
+  boxShadow: 'none',
 }
 
 const chartTooltipStyle = {
@@ -196,47 +195,42 @@ function MetricCard({ title, value, detail, tone = 'neutral', trend }) {
   return (
     <div
       style={{
-        padding: '18px 24px',
+        padding: '16px 24px',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
-        minHeight: 102,
+        gap: 6,
       }}
     >
-      <div>
+      <p
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          color: 'var(--color-text-dim)',
+          margin: 0,
+        }}
+      >
+        {title}
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <p
-          className="eyebrow"
           style={{
-            fontSize: 11,
-            marginBottom: 6,
-            color: 'var(--color-text-dim)',
-            letterSpacing: '0.05em',
+            color: toneColor,
+            fontSize: 26,
+            fontWeight: 800,
+            letterSpacing: '-0.5px',
+            margin: 0,
+            lineHeight: 1.1,
           }}
         >
-          {title}
+          {value}
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <p
-            style={{
-              color: toneColor,
-              fontSize: 24,
-              fontWeight: 800,
-              letterSpacing: '-0.5px',
-              margin: 0,
-              lineHeight: 1.1,
-            }}
-          >
-            {value}
-          </p>
-          <TrendChip trend={trend} />
-        </div>
+        <TrendChip trend={trend} />
       </div>
       <p
         style={{
           color: 'var(--color-text-muted)',
-          fontSize: 11,
-          margin: '6px 0 0 0',
-          fontWeight: 500,
+          fontSize: 12,
+          margin: 0,
         }}
       >
         {detail}
@@ -247,7 +241,7 @@ function MetricCard({ title, value, detail, tone = 'neutral', trend }) {
 
 function SectionPanel({ title, subtitle, action, children, style }) {
   return (
-    <section style={{ ...panelStyle, padding: 18, ...style }}>
+    <section style={{ ...panelStyle, padding: '16px 0', ...style }}>
       <div
         style={{
           display: 'flex',
@@ -294,276 +288,393 @@ export default function DashboardPage() {
             {getTodayLabel()} - Operational view for sales, collections, stock, and fleet.
           </p>
         </div>
-        <button className="button-primary" type="button" style={{ height: 36, paddingInline: 14 }}>
-          <FileDown size={16} />
-          Generate Daily Report
-        </button>
       </header>
 
       {/* Metric Cards Row */}
       <section
-        className="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border"
+        className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-y-0"
         style={{
-          gap: 0,
-          background: 'var(--color-bg-surface)',
-          borderRadius: 12,
+          background: 'transparent',
+          padding: '8px 0',
         }}
       >
-        <MetricCard
-          title="Today's Sales"
-          value={formatCurrency(2847500)}
-          detail="Compare to yesterday"
-          tone="accent"
-          trend={{ direction: 'up', label: '12%' }}
-        />
-        <MetricCard
-          title="Outstanding Credit"
-          value={formatCurrency(8230000)}
-          detail="6 overdue accounts across 34 customers"
-          tone="neutral"
-        />
-        <MetricCard
-          title="Total Stock Value"
-          value={formatCurrency(41650000)}
-          detail="284 active SKUs in warehouse"
-          tone="neutral"
-          trend={{ direction: 'down', label: '-3%' }}
-        />
-        <MetricCard
-          title="Fleet On Road"
-          value="3 / 4"
-          detail="Routes active since 06:00"
-          tone="success"
-        />
+        <div className="relative">
+          <MetricCard
+            title="Today's Sales"
+            value={formatCurrency(2847500)}
+            detail="Compare to yesterday"
+            tone="accent"
+            trend={{ direction: 'up', label: '12%' }}
+          />
+          <div
+            className="hidden md:block absolute right-0 top-3 bottom-3 w-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+          <div
+            className="block md:hidden absolute bottom-0 left-6 right-6 h-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+        </div>
+
+        <div className="relative">
+          <MetricCard
+            title="Outstanding Credit"
+            value={formatCurrency(8230000)}
+            detail="6 overdue accounts across 34 customers"
+            tone="neutral"
+          />
+          <div
+            className="hidden md:block absolute right-0 top-3 bottom-3 w-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+          <div
+            className="block md:hidden absolute bottom-0 left-6 right-6 h-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+        </div>
+
+        <div className="relative">
+          <MetricCard
+            title="Total Stock Value"
+            value={formatCurrency(41650000)}
+            detail="284 active SKUs in warehouse"
+            tone="neutral"
+            trend={{ direction: 'down', label: '-3%' }}
+          />
+          <div
+            className="hidden md:block absolute right-0 top-3 bottom-3 w-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+          <div
+            className="block md:hidden absolute bottom-0 left-6 right-6 h-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+        </div>
+
+        <div className="relative">
+          <MetricCard
+            title="Fleet On Road"
+            value="3 / 4"
+            detail="Routes active since 06:00"
+            tone="success"
+          />
+        </div>
       </section>
 
       {/* First Row of Charts (Sales & Collections) */}
       <section
+        className="grid grid-cols-1 md:grid-cols-2 gap-8"
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))',
-          gap: 16,
+          padding: '8px 0',
         }}
       >
-        <SectionPanel title="Sales This Week" subtitle="Mon 22 Apr - Sun 28 Apr, LKR">
-          <div style={{ height: 220 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklySalesData} margin={{ top: 10, right: 14, left: 4, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="salesBarGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.85} />
-                    <stop offset="100%" stopColor="#6366F1" stopOpacity={0.2} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="var(--color-border)"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="day"
-                  stroke="var(--color-text-dim)"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="var(--color-text-dim)"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={formatAxisMoney}
-                  width={64}
-                />
-                <ChartTooltip
-                  contentStyle={chartTooltipStyle}
-                  formatter={(value) => [formatCurrency(value), 'Sales']}
-                  labelStyle={{ color: 'var(--color-text-muted)', fontWeight: 700 }}
-                />
-                <Bar dataKey="sales" fill="url(#salesBarGrad)" radius={[6, 6, 0, 0]} barSize={34} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </SectionPanel>
+        <div className="relative">
+          <SectionPanel title="Sales This Week" subtitle="Mon 22 Apr - Sun 28 Apr, LKR">
+            <div style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={weeklySalesData}
+                  margin={{ top: 10, right: 14, left: 4, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="salesBarGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.85} />
+                      <stop offset="100%" stopColor="#6366F1" stopOpacity={0.2} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="var(--color-border)"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="day"
+                    stroke="var(--color-text-dim)"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="var(--color-text-dim)"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={formatAxisMoney}
+                    width={64}
+                  />
+                  <ChartTooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(value) => [formatCurrency(value), 'Sales']}
+                    labelStyle={{ color: 'var(--color-text-muted)', fontWeight: 700 }}
+                  />
+                  <Bar
+                    dataKey="sales"
+                    fill="url(#salesBarGrad)"
+                    radius={[6, 6, 0, 0]}
+                    barSize={34}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </SectionPanel>
+          <div
+            className="hidden md:block absolute -right-4 top-3 bottom-3 w-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+          <div
+            className="block md:hidden absolute bottom-0 left-6 right-6 h-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+        </div>
 
-        <SectionPanel title="Collections vs Invoiced" subtitle="April 2026 cumulative, LKR">
-          <div style={{ height: 220 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={collectionsData} margin={{ top: 10, right: 14, left: 4, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="collectedAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10B981" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#10B981" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="invoicedAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="var(--color-border)"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="date"
-                  stroke="var(--color-text-dim)"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="var(--color-text-dim)"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={formatAxisMoney}
-                  width={64}
-                />
-                <ChartTooltip
-                  contentStyle={chartTooltipStyle}
-                  formatter={(value, name) => [formatCurrency(value), name]}
-                  labelStyle={{ color: 'var(--color-text-muted)', fontWeight: 700 }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="collected"
-                  stroke="#10B981"
-                  strokeWidth={2.5}
-                  fill="url(#collectedAreaGrad)"
-                  activeDot={{ r: 5 }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="invoiced"
-                  stroke="#3B82F6"
-                  strokeWidth={2.5}
-                  fill="url(#invoicedAreaGrad)"
-                  activeDot={{ r: 5 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </SectionPanel>
+        <div className="relative">
+          <SectionPanel title="Collections vs Invoiced" subtitle="April 2026 cumulative, LKR">
+            <div style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={collectionsData}
+                  margin={{ top: 10, right: 14, left: 4, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="collectedAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10B981" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#10B981" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="invoicedAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="var(--color-border)"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="date"
+                    stroke="var(--color-text-dim)"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="var(--color-text-dim)"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={formatAxisMoney}
+                    width={64}
+                  />
+                  <ChartTooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(value, name) => [formatCurrency(value), name]}
+                    labelStyle={{ color: 'var(--color-text-muted)', fontWeight: 700 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="collected"
+                    stroke="#10B981"
+                    strokeWidth={2.5}
+                    fill="url(#collectedAreaGrad)"
+                    activeDot={{ r: 5 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="invoiced"
+                    stroke="#3B82F6"
+                    strokeWidth={2.5}
+                    fill="url(#invoicedAreaGrad)"
+                    activeDot={{ r: 5 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </SectionPanel>
+        </div>
       </section>
 
       {/* Second Row (Invoices Table, Gauge Chart, Satisfaction progress bars) */}
       <section
+        className="grid grid-cols-1 lg:grid-cols-3 gap-8"
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
-          gap: 16,
           alignItems: 'start',
+          padding: '8px 0',
         }}
       >
         {/* Recent Invoices Table */}
-        <SectionPanel title="Recent Invoices" subtitle="Latest posted sales activity">
-          <div className="overflow-x-auto">
-            <table className="data-table" style={{ fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th>Invoice</th>
-                  <th>Customer</th>
-                  <th>Amount</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentInvoices.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td className="mono" style={{ color: 'var(--color-amber)', fontWeight: 700 }}>
-                      {invoice.id}
-                    </td>
-                    <td>{invoice.customer}</td>
-                    <td className="mono" style={{ fontWeight: 650 }}>
-                      {formatCurrency(invoice.amount)}
-                    </td>
-                    <td style={{ color: 'var(--color-text-muted)' }}>{invoice.type}</td>
-                    <td>
-                      <StatusPill status={invoice.status} />
-                    </td>
+        <div className="relative">
+          <SectionPanel title="Recent Invoices" subtitle="Latest posted sales activity">
+            <div className="overflow-x-auto">
+              <table className="data-table" style={{ fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th style={{ background: 'transparent', paddingLeft: 0 }}>Invoice</th>
+                    <th style={{ background: 'transparent' }}>Customer</th>
+                    <th style={{ background: 'transparent' }}>Amount</th>
+                    <th style={{ background: 'transparent' }}>Type</th>
+                    <th style={{ background: 'transparent', paddingRight: 0 }}>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </SectionPanel>
+                </thead>
+                <tbody>
+                  {recentInvoices.map((invoice) => (
+                    <tr key={invoice.id}>
+                      <td
+                        className="mono"
+                        style={{ color: 'var(--color-amber)', fontWeight: 700, paddingLeft: 0 }}
+                      >
+                        {invoice.id}
+                      </td>
+                      <td>{invoice.customer}</td>
+                      <td className="mono" style={{ fontWeight: 650 }}>
+                        {formatCurrency(invoice.amount)}
+                      </td>
+                      <td style={{ color: 'var(--color-text-muted)' }}>{invoice.type}</td>
+                      <td style={{ paddingRight: 0 }}>
+                        <StatusPill status={invoice.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SectionPanel>
+          <div
+            className="hidden lg:block absolute -right-4 top-3 bottom-3 w-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+          <div
+            className="block lg:hidden absolute bottom-0 left-6 right-6 h-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+        </div>
 
         {/* Dispatch by Channel Gauge */}
-        <SectionPanel title="Dispatch by Channel" subtitle="Active routes by customer segment">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div
-              style={{
-                position: 'relative',
-                height: 124,
-                display: 'flex',
-                justifyContent: 'center',
-              }}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={channelData}
-                    cx="50%"
-                    cy="100%"
-                    startAngle={180}
-                    endAngle={0}
-                    innerRadius={48}
-                    outerRadius={68}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {channelData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
+        <div className="relative">
+          <SectionPanel title="Dispatch by Channel" subtitle="Active routes by customer segment">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div
                 style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  textAlign: 'center',
+                  position: 'relative',
+                  height: 124,
                   display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
-                <span
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={channelData}
+                      cx="50%"
+                      cy="100%"
+                      startAngle={180}
+                      endAngle={0}
+                      innerRadius={48}
+                      outerRadius={68}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {channelData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div
                   style={{
-                    fontSize: 22,
-                    fontWeight: 800,
-                    color: 'var(--color-text-primary)',
-                    lineHeight: 1,
+                    position: 'absolute',
+                    bottom: 0,
+                    textAlign: 'center',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
                   }}
                 >
-                  3,002
-                </span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: 'var(--color-text-dim)',
-                    marginTop: 4,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                  }}
-                >
-                  Total Dispatches
-                </span>
+                  <span
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 800,
+                      color: 'var(--color-text-primary)',
+                      lineHeight: 1,
+                    }}
+                  >
+                    3,002
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: 'var(--color-text-dim)',
+                      marginTop: 4,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                    }}
+                  >
+                    Total Dispatches
+                  </span>
+                </div>
+              </div>
+              {/* Custom Legend */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                {channelData.map((segment) => (
+                  <div
+                    key={segment.name}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: 12,
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        color: 'var(--color-text-muted)',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: segment.color,
+                        }}
+                      />
+                      {segment.name}
+                    </span>
+                    <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                      {segment.value} ({Math.round(segment.value / 30.02)}%)
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
-            {/* Custom Legend */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-              {channelData.map((segment) => (
+          </SectionPanel>
+          <div
+            className="hidden lg:block absolute -right-4 top-3 bottom-3 w-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+          <div
+            className="block lg:hidden absolute bottom-0 left-6 right-6 h-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+        </div>
+
+        {/* Customer Satisfaction Rating */}
+        <div className="relative">
+          <SectionPanel
+            title="Customer Satisfaction"
+            subtitle="Daily feedback ratings from delivery outlets"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 2 }}>
+              <div>
                 <div
-                  key={segment.name}
                   style={{
                     display: 'flex',
-                    alignItems: 'center',
                     justifyContent: 'space-between',
-                    fontSize: 12,
+                    alignItems: 'center',
+                    marginBottom: 4,
                   }}
                 >
                   <span
@@ -571,7 +682,9 @@ export default function DashboardPage() {
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
-                      color: 'var(--color-text-muted)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: 'var(--color-text-primary)',
                     }}
                   >
                     <span
@@ -579,282 +692,262 @@ export default function DashboardPage() {
                         width: 8,
                         height: 8,
                         borderRadius: '50%',
-                        background: segment.color,
+                        background: 'var(--color-teal)',
                       }}
                     />
-                    {segment.name}
+                    Positive
                   </span>
-                  <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                    {segment.value} ({Math.round(segment.value / 30.02)}%)
+                  <span
+                    style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}
+                  >
+                    80%
                   </span>
                 </div>
-              ))}
-            </div>
-          </div>
-        </SectionPanel>
-
-        {/* Customer Satisfaction Rating */}
-        <SectionPanel
-          title="Customer Satisfaction"
-          subtitle="Daily feedback ratings from delivery outlets"
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 2 }}>
-            <div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 4,
-                }}
-              >
-                <span
+                <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'var(--color-text-primary)',
+                    width: '100%',
+                    height: 5,
+                    background: 'var(--color-border)',
+                    borderRadius: 3,
+                    overflow: 'hidden',
                   }}
                 >
-                  <span
+                  <div
                     style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
+                      width: '80%',
+                      height: '100%',
                       background: 'var(--color-teal)',
+                      borderRadius: 3,
                     }}
                   />
-                  Positive
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}>
-                  80%
-                </span>
+                </div>
               </div>
-              <div
-                style={{
-                  width: '100%',
-                  height: 5,
-                  background: 'var(--color-border)',
-                  borderRadius: 3,
-                  overflow: 'hidden',
-                }}
-              >
+
+              <div>
                 <div
                   style={{
-                    width: '80%',
-                    height: '100%',
-                    background: 'var(--color-teal)',
-                    borderRadius: 3,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 4,
-                }}
-              >
-                <span
-                  style={{
                     display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    gap: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'var(--color-text-primary)',
+                    marginBottom: 4,
                   }}
                 >
                   <span
                     style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: 'var(--color-text-primary)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: 'var(--color-amber)',
+                      }}
+                    />
+                    Neutral
+                  </span>
+                  <span
+                    style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}
+                  >
+                    15%
+                  </span>
+                </div>
+                <div
+                  style={{
+                    width: '100%',
+                    height: 5,
+                    background: 'var(--color-border)',
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '15%',
+                      height: '100%',
                       background: 'var(--color-amber)',
+                      borderRadius: 3,
                     }}
                   />
-                  Neutral
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}>
-                  15%
-                </span>
+                </div>
               </div>
-              <div
-                style={{
-                  width: '100%',
-                  height: 5,
-                  background: 'var(--color-border)',
-                  borderRadius: 3,
-                  overflow: 'hidden',
-                }}
-              >
+
+              <div>
                 <div
                   style={{
-                    width: '15%',
-                    height: '100%',
-                    background: 'var(--color-amber)',
-                    borderRadius: 3,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 4,
-                }}
-              >
-                <span
-                  style={{
                     display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    gap: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'var(--color-text-primary)',
+                    marginBottom: 4,
                   }}
                 >
                   <span
                     style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: 'var(--color-danger)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: 'var(--color-text-primary)',
                     }}
-                  />
-                  Negative
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}>
-                  5%
-                </span>
-              </div>
-              <div
-                style={{
-                  width: '100%',
-                  height: 5,
-                  background: 'var(--color-border)',
-                  borderRadius: 3,
-                  overflow: 'hidden',
-                }}
-              >
+                  >
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: 'var(--color-danger)',
+                      }}
+                    />
+                    Negative
+                  </span>
+                  <span
+                    style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}
+                  >
+                    5%
+                  </span>
+                </div>
                 <div
                   style={{
-                    width: '5%',
-                    height: '100%',
-                    background: 'var(--color-danger)',
+                    width: '100%',
+                    height: 5,
+                    background: 'var(--color-border)',
                     borderRadius: 3,
+                    overflow: 'hidden',
                   }}
-                />
+                >
+                  <div
+                    style={{
+                      width: '5%',
+                      height: '100%',
+                      background: 'var(--color-danger)',
+                      borderRadius: 3,
+                    }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </SectionPanel>
+          </SectionPanel>
+        </div>
       </section>
 
       {/* Fourth Row (Low Stock & Fleet Alerts side by side) */}
       <section
+        className="grid grid-cols-1 md:grid-cols-2 gap-8"
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
-          gap: 16,
+          padding: '8px 0',
         }}
       >
         {/* Low Stock Alerts */}
-        <SectionPanel
-          title="Low Stock Alerts"
-          subtitle="Inventory balances requiring immediate replenishment"
-          action={<AlertTriangle size={18} style={{ color: 'var(--color-danger)' }} />}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {lowStockItems.map((item) => (
-              <div
-                key={item.name}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  paddingBottom: 10,
-                  borderBottom: '1px solid var(--color-border)',
-                }}
-              >
-                <div>
-                  <p style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13 }}>
-                    {item.name}
-                  </p>
-                  <p style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 12 }}>
-                    {item.cases} cases remaining in main warehouse
-                  </p>
-                </div>
-                <StatusPill status={item.status} />
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              marginTop: 18,
-              color: 'var(--color-amber)',
-              fontSize: 12,
-              fontWeight: 700,
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 0,
-            }}
+        <div className="relative">
+          <SectionPanel
+            title="Low Stock Alerts"
+            subtitle="Inventory balances requiring immediate replenishment"
+            action={<AlertTriangle size={18} style={{ color: 'var(--color-danger)' }} />}
           >
-            View Full Stock Ledger
-            <ArrowRight size={14} />
-          </button>
-        </SectionPanel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {lowStockItems.map((item) => (
+                <div
+                  key={item.name}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    paddingBottom: 10,
+                    paddingLeft: 0,
+                    paddingRight: 0,
+                    borderBottom: '1px solid var(--color-border)',
+                  }}
+                >
+                  <div>
+                    <p
+                      style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13 }}
+                    >
+                      {item.name}
+                    </p>
+                    <p style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 12 }}>
+                      {item.cases} cases remaining in main warehouse
+                    </p>
+                  </div>
+                  <StatusPill status={item.status} />
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                marginTop: 18,
+                color: 'var(--color-amber)',
+                fontSize: 12,
+                fontWeight: 700,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              View Full Stock Ledger
+              <ArrowRight size={14} />
+            </button>
+          </SectionPanel>
+          <div
+            className="hidden md:block absolute -right-4 top-3 bottom-3 w-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+          <div
+            className="block md:hidden absolute bottom-0 left-6 right-6 h-px"
+            style={{ backgroundColor: 'var(--color-border)' }}
+          />
+        </div>
 
         {/* Fleet Dispatch Status */}
-        <SectionPanel
-          title="Active Dispatch Fleet"
-          subtitle="Vehicles currently running dispatch routes"
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {fleetItems.map((vehicle) => (
-              <div
-                key={vehicle.reg}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  paddingBottom: 10,
-                  borderBottom: '1px solid var(--color-border)',
-                }}
-              >
-                <div>
-                  <p
-                    className="mono"
-                    style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13 }}
-                  >
-                    {vehicle.reg}
-                  </p>
-                  <p style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 12 }}>
-                    {vehicle.type} - Assigned to {vehicle.driver}
-                  </p>
+        <div className="relative">
+          <SectionPanel
+            title="Active Dispatch Fleet"
+            subtitle="Vehicles currently running dispatch routes"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {fleetItems.map((vehicle) => (
+                <div
+                  key={vehicle.reg}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    paddingBottom: 10,
+                    paddingLeft: 0,
+                    paddingRight: 0,
+                    borderBottom: '1px solid var(--color-border)',
+                  }}
+                >
+                  <div>
+                    <p
+                      className="mono"
+                      style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13 }}
+                    >
+                      {vehicle.reg}
+                    </p>
+                    <p style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 12 }}>
+                      {vehicle.type} - Assigned to {vehicle.driver}
+                    </p>
+                  </div>
+                  <StatusPill status={vehicle.status} />
                 </div>
-                <StatusPill status={vehicle.status} />
-              </div>
-            ))}
-          </div>
-        </SectionPanel>
+              ))}
+            </div>
+          </SectionPanel>
+        </div>
       </section>
     </div>
   )

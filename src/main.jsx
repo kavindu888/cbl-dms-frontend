@@ -58,7 +58,7 @@ function applyStoredTheme() {
     const accentColor =
       mode === 'dark' && (!savedAccentColor || savedAccentColor === '#F4A623')
         ? presets.accentColor
-        : parsed.accentColor ?? presets.accentColor
+        : (parsed.accentColor ?? presets.accentColor)
     root.style.setProperty('--color-amber', accentColor)
     root.style.setProperty('--color-amber-dark', `color-mix(in srgb, ${accentColor} 82%, #000)`)
     if (parsed.fontSans) {

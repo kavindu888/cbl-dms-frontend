@@ -63,7 +63,7 @@ function loadTheme() {
     const accentColor =
       mode === 'dark' && (!savedAccentColor || savedAccentColor === '#F4A623')
         ? DEFAULTS.accentColor
-        : parsed.accentColor ?? DEFAULTS.accentColor
+        : (parsed.accentColor ?? DEFAULTS.accentColor)
 
     return {
       ...DEFAULTS,

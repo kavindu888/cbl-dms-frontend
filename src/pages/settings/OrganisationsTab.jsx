@@ -523,15 +523,15 @@ export default function OrganisationsTab() {
         className="panel"
         style={{
           minWidth: 0,
-          padding: 16,
+          padding: 24,
           display: 'flex',
           flexDirection: 'column',
-          gap: 6,
+          gap: 16,
           overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 650, color: 'var(--color-text-primary)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
             {editingOrganisation ? 'Edit Organisation' : 'Add Organisation'}
           </h2>
           {editingOrganisation ? (
@@ -546,7 +546,7 @@ export default function OrganisationsTab() {
           ) : null}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '92px 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 12 }}>
           <FormField label="Code" required>
             <input
               {...enterKeyProps}
@@ -554,7 +554,7 @@ export default function OrganisationsTab() {
               placeholder="FlowLink"
               value={form.code}
               onChange={(event) => updateField('code', event.target.value)}
-              style={{ height: 30, fontSize: 13 }}
+              style={{ height: 36, fontSize: 13 }}
             />
           </FormField>
           <FormField label="Name" required>
@@ -564,7 +564,7 @@ export default function OrganisationsTab() {
               placeholder="FlowLink Hub"
               value={form.name}
               onChange={(event) => updateField('name', event.target.value)}
-              style={{ height: 30, fontSize: 13 }}
+              style={{ height: 36, fontSize: 13 }}
             />
           </FormField>
         </div>
@@ -576,11 +576,11 @@ export default function OrganisationsTab() {
             placeholder="FlowLink Distribution (Pvt) Ltd"
             value={form.legalName}
             onChange={(event) => updateField('legalName', event.target.value)}
-            style={{ height: 30, fontSize: 13 }}
+            style={{ height: 36, fontSize: 13 }}
           />
         </FormField>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <FormField label="Telephone" required>
             <input
               {...enterKeyProps}
@@ -588,7 +588,7 @@ export default function OrganisationsTab() {
               placeholder="+94 11 234 5678"
               value={form.telephone}
               onChange={(event) => updateField('telephone', event.target.value)}
-              style={{ height: 30, fontSize: 13 }}
+              style={{ height: 36, fontSize: 13 }}
             />
           </FormField>
           <FormField label="Email" required>
@@ -599,7 +599,7 @@ export default function OrganisationsTab() {
               placeholder="info@company.lk"
               value={form.email}
               onChange={(event) => updateField('email', event.target.value)}
-              style={{ height: 30, fontSize: 13 }}
+              style={{ height: 36, fontSize: 13 }}
             />
           </FormField>
         </div>
@@ -611,11 +611,11 @@ export default function OrganisationsTab() {
             placeholder="Street address"
             value={form.addressLine1}
             onChange={(event) => updateField('addressLine1', event.target.value)}
-            style={{ height: 30, fontSize: 13 }}
+            style={{ height: 36, fontSize: 13 }}
           />
         </FormField>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <FormField label="City" required>
             <input
               {...enterKeyProps}
@@ -623,7 +623,7 @@ export default function OrganisationsTab() {
               placeholder="Colombo"
               value={form.city}
               onChange={(event) => updateField('city', event.target.value)}
-              style={{ height: 30, fontSize: 13 }}
+              style={{ height: 36, fontSize: 13 }}
             />
           </FormField>
           <FormField label="Country" required>
@@ -633,12 +633,12 @@ export default function OrganisationsTab() {
               placeholder="Sri Lanka"
               value={form.country}
               onChange={(event) => updateField('country', event.target.value)}
-              style={{ height: 30, fontSize: 13 }}
+              style={{ height: 36, fontSize: 13 }}
             />
           </FormField>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 12 }}>
           <FormField label="VAT reg no" required>
             <input
               {...enterKeyProps}
@@ -646,10 +646,10 @@ export default function OrganisationsTab() {
               placeholder="VAT987654321"
               value={form.vatRegNo}
               onChange={(event) => updateField('vatRegNo', event.target.value)}
-              style={{ height: 30, fontSize: 13 }}
+              style={{ height: 36, fontSize: 13 }}
             />
           </FormField>
-          <div style={{ paddingTop: 18 }}>
+          <div style={{ paddingTop: 20 }}>
             <label
               htmlFor="organisationIsActive"
               style={{
@@ -662,23 +662,24 @@ export default function OrganisationsTab() {
               }}
             >
               <input
+                {...enterKeyProps}
                 type="checkbox"
                 id="organisationIsActive"
                 checked={form.isActive}
                 onChange={handleStatusChange}
-                style={{ width: 15, height: 15, accentColor: 'var(--color-amber)' }}
+                style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }}
               />
               Active
             </label>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+        <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 8 }}>
           <button
             type="button"
             className="button-ghost"
             onClick={resetForm}
-            style={{ flex: 1, height: 34, fontSize: 13 }}
+            style={{ flex: 1, height: 38, fontSize: 13 }}
           >
             Cancel
           </button>
@@ -687,9 +688,9 @@ export default function OrganisationsTab() {
             type="submit"
             className="button-primary"
             disabled={isSaving}
-            style={{ flex: 1, height: 34, fontSize: 13 }}
+            style={{ flex: 1, height: 38, fontSize: 13 }}
           >
-            {isSaving ? 'Saving' : editingOrganisation ? 'Save Changes' : 'Save'}
+            {isSaving ? 'Saving...' : editingOrganisation ? 'Save Changes' : 'Save'}
           </button>
         </div>
       </form>

@@ -26,6 +26,7 @@ function toBrandCode(value) {
 export default function BrandListPage() {
   const [brands, setBrands] = useState(initialBrands)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('All')
   const [editingBrand, setEditingBrand] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [isSaving, setIsSaving] = useState(false)
@@ -35,10 +36,15 @@ export default function BrandListPage() {
     const query = search.trim().toLowerCase()
 
     return brands.filter((brand) => {
-      if (!query) return true
-      return [brand.code, brand.name].join(' ').toLowerCase().includes(query)
+      const matchesSearch =
+        !query || [brand.code, brand.name].join(' ').toLowerCase().includes(query)
+      const matchesStatus =
+        statusFilter === 'All' ||
+        (statusFilter === 'Active' && brand.isActive) ||
+        (statusFilter === 'Inactive' && !brand.isActive)
+      return matchesSearch && matchesStatus
     })
-  }, [brands, search])
+  }, [brands, search, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredBrands.length / pageSize))
   const pagedBrands = useMemo(() => {
@@ -48,7 +54,7 @@ export default function BrandListPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search])
+  }, [search, statusFilter])
 
   useEffect(() => {
     if (page > totalPages) {
@@ -136,6 +142,26 @@ export default function BrandListPage() {
     }
   }
 
+  function handleFormKeyDown(event) {
+    if (event.key !== 'Enter' || event.shiftKey) return
+
+    const target = event.target
+    if (target.tagName === 'BUTTON') return
+
+    event.preventDefault()
+
+    const focusable = Array.from(
+      event.currentTarget.querySelectorAll(
+        'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([data-skip-focus="true"])'
+      )
+    )
+    const currentIndex = focusable.indexOf(target)
+
+    if (currentIndex > -1 && currentIndex < focusable.length - 1) {
+      focusable[currentIndex + 1].focus()
+    }
+  }
+
   function handleDeactivate(brand) {
     if (!brand.isActive) return
     if (!window.confirm(`Deactivate ${brand.name}?`)) return
@@ -154,12 +180,11 @@ export default function BrandListPage() {
   return (
     <div
       style={{
-        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
-        minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
-        overflow: 'hidden',
+        gap: 16,
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
       }}
     >
       <div
@@ -187,6 +212,73 @@ export default function BrandListPage() {
         </div>
       </div>
 
+      {/* ── Filter Bar ── */}
+      <div
+        className="panel"
+        style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}
+      >
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 16,
+              height: 16,
+              color: 'var(--color-text-dim)',
+            }}
+          />
+          <input
+            className="form-input"
+            placeholder="Search brands..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              paddingLeft: 36,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
+          />
+        </div>
+
+        <div style={{ position: 'relative', width: 160 }}>
+          <select
+            className="form-input"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
+            }}
+          >
+            <option value="All" style={{ background: 'var(--color-bg-elevated)' }}>
+              All Statuses
+            </option>
+            <option value="Active" style={{ background: 'var(--color-bg-elevated)' }}>
+              Active
+            </option>
+            <option value="Inactive" style={{ background: 'var(--color-bg-elevated)' }}>
+              Inactive
+            </option>
+          </select>
+        </div>
+      </div>
+
       <div
         style={{
           display: 'grid',
@@ -200,39 +292,12 @@ export default function BrandListPage() {
         <div
           className="panel"
           style={{
-            padding: 12,
+            padding: '14px 16px',
             display: 'grid',
-            gridTemplateRows: 'auto minmax(0, 1fr) auto',
+            gridTemplateRows: 'minmax(0, 1fr) auto',
             minHeight: 0,
-            overflow: 'hidden',
           }}
         >
-          <div style={{ position: 'relative', marginBottom: 10 }}>
-            <Search
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: 16,
-                height: 16,
-                color: 'var(--color-text-dim)',
-              }}
-            />
-            <input
-              className="form-input"
-              placeholder="Search brands..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              style={{
-                width: '100%',
-                height: 38,
-                paddingLeft: 36,
-                background: 'rgba(0,0,0,0.15)',
-              }}
-            />
-          </div>
-
           <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
             <table className="data-table master-table-compact">
               <thead>
@@ -293,10 +358,7 @@ export default function BrandListPage() {
                   ))
                 ) : (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
-                    >
+                    <td colSpan={5} className="py-12 text-center text-sm text-text-muted">
                       No brands found.
                     </td>
                   </tr>
@@ -347,6 +409,7 @@ export default function BrandListPage() {
 
         <form
           onSubmit={handleSave}
+          onKeyDown={handleFormKeyDown}
           className="panel"
           style={{
             padding: '14px 18px',
@@ -438,6 +501,7 @@ export default function BrandListPage() {
           >
             <button
               type="button"
+              data-skip-focus="true"
               className="button-ghost"
               onClick={resetForm}
               style={{ flex: 1, height: 38, fontSize: 13 }}
@@ -445,6 +509,7 @@ export default function BrandListPage() {
               Cancel
             </button>
             <button
+              id="brand-save-button"
               type="submit"
               className="button-primary"
               disabled={isSaving}

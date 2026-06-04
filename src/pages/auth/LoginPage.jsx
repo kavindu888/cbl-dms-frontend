@@ -95,7 +95,7 @@ export default function LoginPage() {
 
         {/* Center Content */}
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-12 pb-16">
-          <div className="text-center w-full max-w-[500px]">
+          <div className="text-center w-full max-w-125">
             {/* Glowing Hub Tech Graph SVG */}
             <div className="flex justify-center mb-8">
               <svg width="180" height="100" viewBox="0 0 180 100" className="opacity-90">

@@ -13,7 +13,7 @@ import { usersService } from '@services/api/usersService'
 import { useAuthStore } from '@stores/authStore'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
-const DEFAULT_ORG_ID = '01JXDEFAULTORGID0000000000' 
+const DEFAULT_ORG_ID = '01JXDEFAULTORGID0000000000'
 const userSchema = z.object({
   employeeId: z.string().optional(),
   username: z.string().trim().min(3, 'Username must be at least 3 characters'),
@@ -263,9 +263,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                     {...register('username')}
                   />
                   {errors.username ? (
-                    <p className="mt-1 text-xs text-[var(--color-danger)]">
-                      {errors.username.message}
-                    </p>
+                    <p className="mt-1 text-xs text-danger">{errors.username.message}</p>
                   ) : null}
                 </div>
                 <div>
@@ -278,9 +276,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                     {...register('email')}
                   />
                   {errors.email ? (
-                    <p className="mt-1 text-xs text-[var(--color-danger)]">
-                      {errors.email.message}
-                    </p>
+                    <p className="mt-1 text-xs text-danger">{errors.email.message}</p>
                   ) : null}
                 </div>
                 <div>
@@ -304,16 +300,14 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-dim)]"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-dim"
                       onClick={() => setShowPassword((value) => !value)}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                   {errors.password ? (
-                    <p className="mt-1 text-xs text-[var(--color-danger)]">
-                      {errors.password.message}
-                    </p>
+                    <p className="mt-1 text-xs text-danger">{errors.password.message}</p>
                   ) : null}
                 </div>
               </>
@@ -335,7 +329,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                 ))}
               </select>
               {errors.roleId ? (
-                <p className="mt-1 text-xs text-[var(--color-danger)]">{errors.roleId.message}</p>
+                <p className="mt-1 text-xs text-danger">{errors.roleId.message}</p>
               ) : null}
             </div>
 
@@ -365,17 +359,15 @@ function UserRow({ user, onEdit }) {
       <td style={{ padding: '15px 14px' }}>
         <div className="flex items-center gap-3">
           <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-bg-elevated)] text-xs font-bold text-[var(--color-amber)]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg-elevated text-xs font-bold text-amber"
             title={user.username}
           >
             <UserAvatarIcon size={20} />
           </div>
           <div style={{ minWidth: 0 }}>
-            <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-              {user.username}
-            </p>
+            <p className="text-sm font-semibold text-text-primary">{user.username}</p>
             <p
-              className="text-xs text-[var(--color-text-dim)]"
+              className="text-xs text-text-dim"
               style={{ marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}
               title={user.phone || user.id}
             >
@@ -403,7 +395,7 @@ function UserRow({ user, onEdit }) {
           {user.roles.length ? (
             user.roles.map((role) => <RoleBadge key={role} role={role} />)
           ) : (
-            <span className="text-xs text-[var(--color-text-dim)]">No role</span>
+            <span className="text-xs text-text-dim">No role</span>
           )}
         </div>
       </td>
@@ -452,10 +444,7 @@ export default function UserListPage() {
 
   const orgId = currentUser?.orgId || DEFAULT_ORG_ID
   const canCreateUsers = userHasPermission(currentUser, PERMISSIONS.identity.userManage)
-  const canManagePermissions = userHasPermission(
-    currentUser,
-    PERMISSIONS.identity.permissionManage
-  )
+  const canManagePermissions = userHasPermission(currentUser, PERMISSIONS.identity.permissionManage)
 
   useEffect(() => {
     if (activeTab === 'permission' && !canManagePermissions) {
@@ -900,19 +889,13 @@ export default function UserListPage() {
                 <tbody>
                   {isLoading ? (
                     <tr>
-                      <td
-                        colSpan={7}
-                        className="py-12 text-center text-sm text-[var(--color-text-muted)]"
-                      >
+                      <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
                         Loading users...
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td
-                        colSpan={7}
-                        className="py-12 text-center text-sm text-[var(--color-danger)]"
-                      >
+                      <td colSpan={7} className="py-12 text-center text-sm text-danger">
                         {error}
                       </td>
                     </tr>
@@ -928,10 +911,7 @@ export default function UserListPage() {
                     ))
                   ) : (
                     <tr>
-                      <td
-                        colSpan={7}
-                        className="py-12 text-center text-sm text-[var(--color-text-muted)]"
-                      >
+                      <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
                         No users match your filters.
                       </td>
                     </tr>

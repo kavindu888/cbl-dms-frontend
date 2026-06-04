@@ -30,6 +30,7 @@ export default function UnitOfMeasureListPage() {
   const [units, setUnits] = useState([])
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All')
+  const [statusFilter, setStatusFilter] = useState('All')
   const [editingUnit, setEditingUnit] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [isLoading, setIsLoading] = useState(true)
@@ -66,14 +67,19 @@ export default function UnitOfMeasureListPage() {
     const query = search.trim().toLowerCase()
 
     return units.filter((unit) => {
-      if (!query) return true
-
-      return [unit.code, unit.name, unit.category, unit.description]
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
+      const matchesSearch =
+        !query ||
+        [unit.code, unit.name, unit.category, unit.description]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      const matchesStatus =
+        statusFilter === 'All' ||
+        (statusFilter === 'Active' && unit.isActive) ||
+        (statusFilter === 'Inactive' && !unit.isActive)
+      return matchesSearch && matchesStatus
     })
-  }, [units, search])
+  }, [units, search, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredUnits.length / pageSize))
   const pagedUnits = useMemo(() => {
@@ -83,7 +89,7 @@ export default function UnitOfMeasureListPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, categoryFilter])
+  }, [search, categoryFilter, statusFilter])
 
   useEffect(() => {
     if (page > totalPages) {
@@ -140,6 +146,26 @@ export default function UnitOfMeasureListPage() {
     }
   }
 
+  function handleFormKeyDown(event) {
+    if (event.key !== 'Enter' || event.shiftKey) return
+
+    const target = event.target
+    if (target.tagName === 'BUTTON') return
+
+    event.preventDefault()
+
+    const focusable = Array.from(
+      event.currentTarget.querySelectorAll(
+        'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([data-skip-focus="true"])'
+      )
+    )
+    const currentIndex = focusable.indexOf(target)
+
+    if (currentIndex > -1 && currentIndex < focusable.length - 1) {
+      focusable[currentIndex + 1].focus()
+    }
+  }
+
   async function handleDeactivate(unit) {
     if (!unit.isActive) return
     if (!window.confirm(`Deactivate ${unit.name}?`)) return
@@ -160,12 +186,11 @@ export default function UnitOfMeasureListPage() {
   return (
     <div
       style={{
-        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
-        minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
-        overflow: 'hidden',
+        gap: 16,
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
       }}
     >
       <div
@@ -193,6 +218,110 @@ export default function UnitOfMeasureListPage() {
         </div>
       </div>
 
+      {/* ── Filter Bar ── */}
+      <div
+        className="panel"
+        style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}
+      >
+        {/* Search Input */}
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 16,
+              height: 16,
+              color: 'var(--color-text-dim)',
+            }}
+          />
+          <input
+            className="form-input"
+            placeholder="Search units..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              paddingLeft: 36,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
+          />
+        </div>
+
+        {/* Category Filter */}
+        <div style={{ position: 'relative', width: 200 }}>
+          <select
+            className="form-input"
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
+            }}
+          >
+            <option value="All" style={{ background: 'var(--color-bg-elevated)' }}>
+              All Categories
+            </option>
+            {categories.map((category) => (
+              <option
+                key={category}
+                value={category}
+                style={{ background: 'var(--color-bg-elevated)' }}
+              >
+                {category}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Status Filter */}
+        <div style={{ position: 'relative', width: 160 }}>
+          <select
+            className="form-input"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
+            }}
+          >
+            <option value="All" style={{ background: 'var(--color-bg-elevated)' }}>
+              All Statuses
+            </option>
+            <option value="Active" style={{ background: 'var(--color-bg-elevated)' }}>
+              Active
+            </option>
+            <option value="Inactive" style={{ background: 'var(--color-bg-elevated)' }}>
+              Inactive
+            </option>
+          </select>
+        </div>
+      </div>
+
       <div
         style={{
           display: 'grid',
@@ -206,62 +335,12 @@ export default function UnitOfMeasureListPage() {
         <div
           className="panel"
           style={{
-            padding: 12,
+            padding: '14px 16px',
             display: 'grid',
-            gridTemplateRows: 'auto minmax(0, 1fr) auto',
+            gridTemplateRows: 'minmax(0, 1fr) auto',
             minHeight: 0,
-            overflow: 'hidden',
           }}
         >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr) 200px',
-              gap: 12,
-              marginBottom: 10,
-            }}
-          >
-            <div style={{ position: 'relative' }}>
-              <Search
-                style={{
-                  position: 'absolute',
-                  left: 12,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  width: 16,
-                  height: 16,
-                  color: 'var(--color-text-dim)',
-                }}
-              />
-              <input
-                className="form-input"
-                placeholder="Search units..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                style={{
-                  width: '100%',
-                  height: 38,
-                  paddingLeft: 36,
-                  background: 'rgba(0,0,0,0.15)',
-                }}
-              />
-            </div>
-
-            <select
-              className="form-input"
-              value={categoryFilter}
-              onChange={(event) => setCategoryFilter(event.target.value)}
-              style={{ height: 38, cursor: 'pointer' }}
-            >
-              <option value="All">All Categories</option>
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
             <table className="data-table master-table-compact">
               <thead>
@@ -277,19 +356,13 @@ export default function UnitOfMeasureListPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="py-12 text-center text-sm text-text-muted"
-                    >
+                    <td colSpan={6} className="py-12 text-center text-sm text-text-muted">
                       Loading units of measure...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="py-12 text-center text-sm text-danger"
-                    >
+                    <td colSpan={6} className="py-12 text-center text-sm text-danger">
                       {error}
                     </td>
                   </tr>
@@ -355,10 +428,7 @@ export default function UnitOfMeasureListPage() {
                   ))
                 ) : (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="py-12 text-center text-sm text-text-muted"
-                    >
+                    <td colSpan={6} className="py-12 text-center text-sm text-text-muted">
                       No units of measure found.
                     </td>
                   </tr>
@@ -409,6 +479,7 @@ export default function UnitOfMeasureListPage() {
 
         <form
           onSubmit={handleSave}
+          onKeyDown={handleFormKeyDown}
           className="panel"
           style={{
             padding: '14px 18px',
@@ -528,6 +599,7 @@ export default function UnitOfMeasureListPage() {
           >
             <button
               type="button"
+              data-skip-focus="true"
               className="button-ghost"
               onClick={resetForm}
               style={{ flex: 1, height: 38, fontSize: 13 }}
@@ -535,6 +607,7 @@ export default function UnitOfMeasureListPage() {
               Cancel
             </button>
             <button
+              id="unit-save-button"
               type="submit"
               className="button-primary"
               disabled={isSaving}

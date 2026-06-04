@@ -29,12 +29,7 @@ const productSchema = z.object({
 const productPageSize = 10
 
 // ── UOM Conversions Manager (Inline for Edit Mode) ──────────────────────
-function UomConversionsManager({
-  productId,
-  conversions = [],
-  onRefresh,
-  canManage = false,
-}) {
+function UomConversionsManager({ productId, conversions = [], onRefresh, canManage = false }) {
   const [fromUom, setFromUom] = useState('')
   const [toUom, setToUom] = useState('')
   const [factor, setFactor] = useState(1)
@@ -296,7 +291,7 @@ function UomConversionsManager({
 }
 
 // ── Form Modal Component ──────────────────────────────────────────────────
-function NewProductUomConversionsManager({ conversions, onChange, canManage = false }) {
+function NewProductUomConversionsManager({ conversions, onChange, onAfterAdd, canManage = false }) {
   const [fromUom, setFromUom] = useState('')
   const [toUom, setToUom] = useState('')
   const [factor, setFactor] = useState(1)
@@ -341,6 +336,7 @@ function NewProductUomConversionsManager({ conversions, onChange, canManage = fa
     setFromUom('')
     setToUom('')
     setFactor(1)
+    onAfterAdd?.()
   }
 
   function startEdit(conversion) {
@@ -590,41 +586,43 @@ function ProductFormModal({
   })
 
   useEffect(() => {
-    if (open) {
-      setNewUomConversions([])
-      if (product) {
-        reset({
-          sku: product.sku,
-          barcode: product.barcode,
-          name: product.name,
-          description: product.description,
-          categoryId: product.category?.id || '',
-          uomBase: product.uomBase,
-          unitCost: product.unitCost,
-          unitPrice: product.unitPrice,
-          reorderLevel: product.reorderLevel,
-          reorderQty: product.reorderQty,
-          imageUrl: product.imageUrl || '',
-          isActive: product.isActive,
-        })
-      } else {
-        reset({
-          sku: '',
-          barcode: '',
-          name: '',
-          description: '',
-          categoryId: categories[0]?.id || '',
-          uomBase: defaultUom,
-          unitCost: 0,
-          unitPrice: 0,
-          reorderLevel: null,
-          reorderQty: null,
-          imageUrl: '',
-          isActive: true,
-        })
-      }
+    if (!open) return
+
+    setNewUomConversions([])
+    if (product) {
+      reset({
+        sku: product.sku,
+        barcode: product.barcode,
+        name: product.name,
+        description: product.description,
+        categoryId: product.category?.id || '',
+        uomBase: product.uomBase,
+        unitCost: product.unitCost,
+        unitPrice: product.unitPrice,
+        reorderLevel: product.reorderLevel,
+        reorderQty: product.reorderQty,
+        imageUrl: product.imageUrl || '',
+        isActive: product.isActive,
+      })
+    } else {
+      reset({
+        sku: '',
+        barcode: '',
+        name: '',
+        description: '',
+        categoryId: categories[0]?.id || '',
+        uomBase: defaultUom,
+        unitCost: 0,
+        unitPrice: 0,
+        reorderLevel: null,
+        reorderQty: null,
+        imageUrl: '',
+        isActive: true,
+      })
     }
-  }, [open, product, categories, defaultUom, reset])
+
+    window.setTimeout(() => setFocus('sku'), 0)
+  }, [open, product, categories, defaultUom, reset, setFocus])
 
   async function onSubmit(values) {
     setIsSaving(true)
@@ -1043,6 +1041,11 @@ function ProductFormModal({
                 conversions={newUomConversions}
                 canManage={canManageUom}
                 onChange={setNewUomConversions}
+                onAfterAdd={() => {
+                  window.setTimeout(() => {
+                    document.getElementById('product-submit-button')?.focus()
+                  }, 0)
+                }}
               />
             )}
 
@@ -1066,6 +1069,7 @@ function ProductFormModal({
                 Cancel
               </button>
               <button
+                id="product-submit-button"
                 type="submit"
                 className="button-primary"
                 disabled={isSaving}
@@ -1260,7 +1264,7 @@ export default function Product() {
         onClose={() => setIsModalOpen(false)}
         onSaved={handleSave}
       />
-      
+
       <div
         className="panel"
         style={{

@@ -1,15 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import {
-  Eye,
-  EyeOff,
-  Globe,
-  KeyRound,
-  Mail,
-  Phone,
-  Save,
-  ShieldCheck,
-  User,
-} from 'lucide-react'
+import { Eye, EyeOff, Globe, KeyRound, Mail, Phone, Save, ShieldCheck, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
@@ -364,7 +354,6 @@ export default function UserProfilePage() {
                 <RoleBadge key={role} role={role} />
               ))}
             </div>
-
           </div>
 
           <div

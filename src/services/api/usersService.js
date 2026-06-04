@@ -81,7 +81,7 @@ export const usersService = {
     }
   },
 
-// User Details, Creation, and Role Management
+  // User Details, Creation, and Role Management
   // User Details
   async getUser(id) {
     const response = await getOnce(identityPath(`/user/${id}`))

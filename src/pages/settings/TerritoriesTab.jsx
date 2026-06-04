@@ -167,6 +167,32 @@ export default function TerritoriesTab() {
     }
   }
 
+  function handleEnterToNext(event) {
+    if (event.key !== 'Enter' || event.shiftKey) return
+
+    event.preventDefault()
+
+    const currentField = event.currentTarget
+    const formElement = currentField.form
+    if (!formElement) return
+
+    const orderedFields = Array.from(formElement.querySelectorAll('[data-enter-field]'))
+    const currentIndex = orderedFields.indexOf(currentField)
+    const nextField = orderedFields[currentIndex + 1]
+
+    if (nextField) {
+      nextField.focus()
+      return
+    }
+
+    formElement.querySelector('#save-territory-button')?.focus()
+  }
+
+  const enterKeyProps = {
+    'data-enter-field': true,
+    onKeyDown: handleEnterToNext,
+  }
+
   return (
     <div
       style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'stretch' }}
@@ -322,6 +348,7 @@ export default function TerritoriesTab() {
             BUSINESS UNIT
           </label>
           <select
+            {...enterKeyProps}
             className="form-input"
             value={form.businessUnitId}
             onChange={(event) => updateField('businessUnitId', event.target.value)}
@@ -341,6 +368,7 @@ export default function TerritoriesTab() {
             CODE
           </label>
           <input
+            {...enterKeyProps}
             className="form-input"
             placeholder="e.g. NWP"
             value={form.code}
@@ -354,6 +382,7 @@ export default function TerritoriesTab() {
             NAME
           </label>
           <input
+            {...enterKeyProps}
             className="form-input"
             placeholder="e.g. North Western Province"
             value={form.name}
@@ -367,6 +396,7 @@ export default function TerritoriesTab() {
             DESCRIPTION
           </label>
           <textarea
+            {...enterKeyProps}
             className="form-input"
             placeholder="Optional description"
             value={form.description}
@@ -377,6 +407,7 @@ export default function TerritoriesTab() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
           <input
+            {...enterKeyProps}
             type="checkbox"
             id="isActiveTerritory"
             checked={form.isActive}
@@ -401,6 +432,7 @@ export default function TerritoriesTab() {
             Cancel
           </button>
           <button
+            id="save-territory-button"
             type="submit"
             className="button-primary"
             disabled={isSaving}
