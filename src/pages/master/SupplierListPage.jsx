@@ -2,6 +2,7 @@ import { Pencil, Plus, RefreshCw, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
+import { masterService } from '@services/api/masterService'
 import { purchasingService } from '@services/api/purchasingService'
 
 const pageSize = 10
@@ -111,7 +112,7 @@ function createSupplierPayload(form) {
       city: form.city.trim(),
       province: textOrNull(form.province),
       postalCode: textOrNull(form.postalCode),
-      country: form.country.trim(),
+      country: form.country.trim() || 'Sri Lanka',
     },
     primaryContact: {
       fullName: form.primaryContactName.trim(),
@@ -142,7 +143,7 @@ function updateSupplierPayload(form) {
       city: form.city.trim(),
       province: textOrNull(form.province),
       postalCode: textOrNull(form.postalCode),
-      country: form.country.trim(),
+      country: form.country.trim() || 'Sri Lanka',
     },
     notes: textOrNull(form.notes),
   }
@@ -158,7 +159,6 @@ function validateSupplier(form, mode) {
   if (!form.vatRegNo.trim()) errors.vatRegNo = 'VAT registration number is required.'
   if (!form.addressLine1.trim()) errors.addressLine1 = 'Address line 1 is required.'
   if (!form.city.trim()) errors.city = 'City is required.'
-  if (!form.country.trim()) errors.country = 'Country is required.'
   if (mode === 'create' && !form.primaryContactName.trim()) {
     errors.primaryContactName = 'Primary contact name is required.'
   }
@@ -180,6 +180,12 @@ function formatMoney(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
+}
+
+function getPaymentTermLabel(term) {
+  const name = term.name || term.code || 'Payment mode'
+  if (Number(term.dueDays) <= 0) return name
+  return `${name} - ${term.dueDays} Days`
 }
 
 function Field({
@@ -207,6 +213,7 @@ function Field({
         onChange={onChange}
         disabled={disabled}
         ref={inputRef}
+        style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
       />
       {error ? <span className="form-error">{error}</span> : null}
     </label>
@@ -285,7 +292,18 @@ function SupplierTable({ suppliers, isLoading, onEdit }) {
   )
 }
 
-function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClose, onSubmit }) {
+function SupplierFormModal({
+  mode,
+  form,
+  errors,
+  isSaving,
+  open,
+  isLoadingPaymentTerms,
+  paymentTerms,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
   const codeInputRef = useRef(null)
 
   useEffect(() => {
@@ -347,22 +365,28 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
         onSubmit={onSubmit}
         onKeyDown={handleFormKeyDown}
         style={{
-          width: 'min(940px, calc(100vw - 48px))',
-          height: 'min(720px, calc(100vh - 48px))',
-          maxHeight: '88vh',
-          overflowY: 'auto',
-          padding: 0,
+          width: 'min(1060px, calc(100vw - 48px))',
+          height: 'auto',
+          maxHeight: 'min(820px, calc(100vh - 48px))',
           borderRadius: 10,
+          background: 'var(--color-bg-surface)',
+          border: '1px solid var(--color-border)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: 0,
         }}
       >
+        {/* Header */}
         <div
           style={{
             display: 'flex',
             alignItems: 'flex-start',
             justifyContent: 'space-between',
             gap: 16,
-            padding: '20px 24px 12px 24px',
+            padding: '24px 24px 16px 24px',
             borderBottom: '1px solid var(--color-border)',
+            flexShrink: 0,
           }}
         >
           <div>
@@ -381,230 +405,266 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
             onClick={onClose}
             aria-label="Close"
             data-skip-focus="true"
+            style={{ width: 32, height: 32 }}
           >
             <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
 
+        {/* Scrollable Content */}
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 16,
-            padding: '16px 24px 0 24px',
+            flex: 1,
+            overflowY: 'auto',
+            padding: '24px 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 20,
           }}
         >
-          <Field
-            label="Code"
-            name="code"
-            value={form.code}
-            error={errors.code}
-            onChange={onChange}
-            required={!isEdit}
-            disabled={isEdit}
-            inputRef={codeInputRef}
-          />
-          <Field
-            label="Name"
-            name="name"
-            value={form.name}
-            error={errors.name}
-            onChange={onChange}
-            required
-          />
-          <Field label="Legal Name" name="legalName" value={form.legalName} onChange={onChange} />
-          <Field
-            label="Telephone"
-            name="telephone"
-            value={form.telephone}
-            error={errors.telephone}
-            onChange={onChange}
-            required
-          />
-          <Field label="Mobile" name="mobile" value={form.mobile} onChange={onChange} />
-          <Field
-            label="Email"
-            name="email"
-            type="email"
-            value={form.email}
-            error={errors.email}
-            onChange={onChange}
-            required
-          />
-          <Field label="Fax" name="fax" value={form.fax} onChange={onChange} />
-          <Field
-            label="VAT Reg No"
-            name="vatRegNo"
-            value={form.vatRegNo}
-            error={errors.vatRegNo}
-            onChange={onChange}
-            required
-          />
-          <Field
-            label="Business Reg No"
-            name="businessRegNo"
-            value={form.businessRegNo}
-            onChange={onChange}
-          />
+          {/* General Information Grid */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+              gap: 20,
+            }}
+          >
+            <Field
+              label="Code"
+              name="code"
+              value={form.code}
+              error={errors.code}
+              onChange={onChange}
+              required={!isEdit}
+              disabled={isEdit}
+              inputRef={codeInputRef}
+            />
+            <Field
+              label="Nick Name"
+              name="name"
+              value={form.name}
+              error={errors.name}
+              onChange={onChange}
+              required
+            />
+            <Field label="Legal Name" name="legalName" value={form.legalName} onChange={onChange} />
+            <Field
+              label="Telephone"
+              name="telephone"
+              value={form.telephone}
+              error={errors.telephone}
+              onChange={onChange}
+              required
+            />
+            <Field label="Mobile" name="mobile" value={form.mobile} onChange={onChange} />
+            <Field
+              label="Email"
+              name="email"
+              type="email"
+              value={form.email}
+              error={errors.email}
+              onChange={onChange}
+              required
+            />
+            <Field label="Fax" name="fax" value={form.fax} onChange={onChange} />
+            <Field
+              label="VAT Reg No"
+              name="vatRegNo"
+              value={form.vatRegNo}
+              error={errors.vatRegNo}
+              onChange={onChange}
+              required
+            />
+            <Field
+              label="Business Reg No"
+              name="businessRegNo"
+              value={form.businessRegNo}
+              onChange={onChange}
+            />
+            {!isEdit ? (
+              <>
+                <label>
+                  <span className="form-label">Payment Mode</span>
+                  <select
+                    className="form-input"
+                    name="paymentTermId"
+                    value={form.paymentTermId}
+                    onChange={onChange}
+                    disabled={isLoadingPaymentTerms || !paymentTerms.length}
+                    style={{ height: 42, background: 'rgba(0,0,0,0.15)', cursor: 'pointer' }}
+                  >
+                    <option value="">
+                      {isLoadingPaymentTerms
+                        ? 'Loading payment modes...'
+                        : paymentTerms.length
+                          ? 'Select payment mode'
+                          : 'No payment modes available'}
+                    </option>
+                    {paymentTerms.map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {getPaymentTermLabel(term)}
+                        {term.isDefault ? ' (Default)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <span
+                    style={{
+                      display: 'block',
+                      marginTop: 5,
+                      fontSize: 11,
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    Select a mode. The system saves its payment term ID.
+                  </span>
+                </label>
+                <Field
+                  label="Credit Limit"
+                  name="creditLimit"
+                  type="number"
+                  value={form.creditLimit}
+                  error={errors.creditLimit}
+                  onChange={onChange}
+                />
+              </>
+            ) : null}
+            <Field label="Website" name="website" value={form.website} onChange={onChange} />
+          </div>
+
+          <h3
+            style={{
+              margin: '12px 0 0 0',
+              fontSize: 15,
+              fontWeight: 700,
+              color: 'var(--color-text-primary)',
+              borderBottom: '1px solid var(--color-border)',
+              paddingBottom: 6,
+            }}
+          >
+            Address
+          </h3>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+              gap: 20,
+            }}
+          >
+            <Field
+              label="Line 1"
+              name="addressLine1"
+              value={form.addressLine1}
+              error={errors.addressLine1}
+              onChange={onChange}
+              required
+            />
+            <Field label="Line 2" name="addressLine2" value={form.addressLine2} onChange={onChange} />
+            <Field
+              label="City"
+              name="city"
+              value={form.city}
+              error={errors.city}
+              onChange={onChange}
+              required
+            />
+          </div>
+
           {!isEdit ? (
             <>
-              <Field
-                label="Payment Term Id"
-                name="paymentTermId"
-                value={form.paymentTermId}
-                onChange={onChange}
-              />
-              <Field
-                label="Credit Limit"
-                name="creditLimit"
-                type="number"
-                value={form.creditLimit}
-                error={errors.creditLimit}
-                onChange={onChange}
-              />
+              <h3
+                style={{
+                  margin: '12px 0 0 0',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: 'var(--color-text-primary)',
+                  borderBottom: '1px solid var(--color-border)',
+                  paddingBottom: 6,
+                }}
+              >
+                Primary Contact
+              </h3>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                  gap: 20,
+                }}
+              >
+                <Field
+                  label="Full Name"
+                  name="primaryContactName"
+                  value={form.primaryContactName}
+                  error={errors.primaryContactName}
+                  onChange={onChange}
+                  required
+                />
+                <Field
+                  label="Designation"
+                  name="primaryContactDesignation"
+                  value={form.primaryContactDesignation}
+                  onChange={onChange}
+                />
+                <Field
+                  label="Telephone"
+                  name="primaryContactTelephone"
+                  value={form.primaryContactTelephone}
+                  error={errors.primaryContactTelephone}
+                  onChange={onChange}
+                />
+                <Field
+                  label="Mobile"
+                  name="primaryContactMobile"
+                  value={form.primaryContactMobile}
+                  onChange={onChange}
+                />
+                <Field
+                  label="Email"
+                  name="primaryContactEmail"
+                  type="email"
+                  value={form.primaryContactEmail}
+                  error={errors.primaryContactEmail}
+                  onChange={onChange}
+                />
+                <Field
+                  label="Fax"
+                  name="primaryContactFax"
+                  value={form.primaryContactFax}
+                  onChange={onChange}
+                />
+              </div>
             </>
           ) : null}
-          <Field label="Website" name="website" value={form.website} onChange={onChange} />
+
+          <label style={{ display: 'block' }}>
+            <span className="form-label">Notes</span>
+            <textarea
+              className="form-input"
+              name="notes"
+              value={form.notes}
+              onChange={onChange}
+              onKeyDown={handleNotesKeyDown}
+              rows={3}
+              style={{
+                height: 'auto',
+                minHeight: 60,
+                paddingTop: 10,
+                resize: 'vertical',
+                background: 'rgba(0,0,0,0.15)',
+              }}
+            />
+          </label>
         </div>
 
-        <h3
-          style={{
-            margin: '22px 24px 12px 24px',
-            fontSize: 15,
-            fontWeight: 700,
-            color: 'var(--color-text-primary)',
-          }}
-        >
-          Address
-        </h3>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 16,
-            padding: '0 24px',
-          }}
-        >
-          <Field
-            label="Line 1"
-            name="addressLine1"
-            value={form.addressLine1}
-            error={errors.addressLine1}
-            onChange={onChange}
-            required
-          />
-          <Field label="Line 2" name="addressLine2" value={form.addressLine2} onChange={onChange} />
-          <Field
-            label="City"
-            name="city"
-            value={form.city}
-            error={errors.city}
-            onChange={onChange}
-            required
-          />
-          <Field label="Province" name="province" value={form.province} onChange={onChange} />
-          <Field
-            label="Postal Code"
-            name="postalCode"
-            value={form.postalCode}
-            onChange={onChange}
-          />
-          <Field
-            label="Country"
-            name="country"
-            value={form.country}
-            error={errors.country}
-            onChange={onChange}
-            required
-          />
-        </div>
-
-        {!isEdit ? (
-          <>
-            <h3
-              style={{
-                margin: '22px 24px 12px 24px',
-                fontSize: 15,
-                fontWeight: 700,
-                color: 'var(--color-text-primary)',
-              }}
-            >
-              Primary Contact
-            </h3>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: 16,
-                padding: '0 24px',
-              }}
-            >
-              <Field
-                label="Full Name"
-                name="primaryContactName"
-                value={form.primaryContactName}
-                error={errors.primaryContactName}
-                onChange={onChange}
-                required
-              />
-              <Field
-                label="Designation"
-                name="primaryContactDesignation"
-                value={form.primaryContactDesignation}
-                onChange={onChange}
-              />
-              <Field
-                label="Telephone"
-                name="primaryContactTelephone"
-                value={form.primaryContactTelephone}
-                error={errors.primaryContactTelephone}
-                onChange={onChange}
-              />
-              <Field
-                label="Mobile"
-                name="primaryContactMobile"
-                value={form.primaryContactMobile}
-                onChange={onChange}
-              />
-              <Field
-                label="Email"
-                name="primaryContactEmail"
-                type="email"
-                value={form.primaryContactEmail}
-                error={errors.primaryContactEmail}
-                onChange={onChange}
-              />
-              <Field
-                label="Fax"
-                name="primaryContactFax"
-                value={form.primaryContactFax}
-                onChange={onChange}
-              />
-            </div>
-          </>
-        ) : null}
-
-        <label style={{ display: 'block', margin: '16px 24px 0 24px' }}>
-          <span className="form-label">Notes</span>
-          <textarea
-            className="form-input"
-            name="notes"
-            value={form.notes}
-            onChange={onChange}
-            onKeyDown={handleNotesKeyDown}
-            rows={3}
-            style={{ height: 'auto', paddingTop: 10, resize: 'vertical' }}
-          />
-        </label>
-
+        {/* Footer */}
         <div
           style={{
             display: 'flex',
             justifyContent: 'flex-end',
             gap: 12,
-            marginTop: 20,
             padding: '16px 24px 18px 24px',
             borderTop: '1px solid var(--color-border)',
+            flexShrink: 0,
           }}
         >
           <button
@@ -612,6 +672,7 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
             type="button"
             onClick={onClose}
             data-skip-focus="true"
+            style={{ minWidth: 110, height: 42 }}
           >
             Cancel
           </button>
@@ -620,6 +681,7 @@ function SupplierFormModal({ mode, form, errors, isSaving, open, onChange, onClo
             id="save-supplier-button"
             type="submit"
             disabled={isSaving}
+            style={{ minWidth: 150, height: 42 }}
           >
             {isSaving ? 'Saving...' : isEdit ? 'Update Supplier' : 'Save Supplier'}
           </button>
@@ -640,6 +702,7 @@ export default function SupplierListPage() {
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
+  const [isLoadingPaymentTerms, setIsLoadingPaymentTerms] = useState(false)
   const [suppliersPage, setSuppliersPage] = useState({
     items: [],
     page: 1,
@@ -647,8 +710,13 @@ export default function SupplierListPage() {
     totalItems: 0,
     totalPages: 1,
   })
+  const [paymentTerms, setPaymentTerms] = useState([])
 
   const suppliers = useMemo(() => suppliersPage.items || [], [suppliersPage.items])
+  const defaultPaymentTermId = useMemo(
+    () => paymentTerms.find((term) => term.isDefault)?.id || '',
+    [paymentTerms]
+  )
 
   async function loadSuppliers() {
     try {
@@ -680,6 +748,27 @@ export default function SupplierListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, appliedSearch, status])
 
+  useEffect(() => {
+    async function loadPaymentTerms() {
+      try {
+        setIsLoadingPaymentTerms(true)
+        const terms = await masterService.listPaymentTerms()
+        setPaymentTerms(terms.filter((term) => term.isActive))
+      } catch {
+        setPaymentTerms([])
+      } finally {
+        setIsLoadingPaymentTerms(false)
+      }
+    }
+
+    loadPaymentTerms()
+  }, [])
+
+  useEffect(() => {
+    if (mode !== 'create' || !isModalOpen || form.paymentTermId || !defaultPaymentTermId) return
+    setForm((current) => ({ ...current, paymentTermId: defaultPaymentTermId }))
+  }, [defaultPaymentTermId, form.paymentTermId, isModalOpen, mode])
+
   function handleChange(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
@@ -688,7 +777,7 @@ export default function SupplierListPage() {
 
   function openCreateModal() {
     setMode('create')
-    setForm(emptyForm)
+    setForm({ ...emptyForm, paymentTermId: defaultPaymentTermId })
     setErrors({})
     setIsModalOpen(true)
   }
@@ -959,6 +1048,8 @@ export default function SupplierListPage() {
         errors={errors}
         isSaving={isSaving}
         open={isModalOpen}
+        isLoadingPaymentTerms={isLoadingPaymentTerms}
+        paymentTerms={paymentTerms}
         onChange={handleChange}
         onClose={closeModal}
         onSubmit={handleSubmit}
