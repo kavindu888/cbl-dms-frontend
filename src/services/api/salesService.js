@@ -68,7 +68,7 @@ export const salesService = {
   // Create new customer group
   async createCustomerGroup(payload) {
     const response = await api.post('/api/v1/sales/customer-groups', payload)
-    return response.data
+    return formatCustomerGroup(getValue(response, 'Unable to create customer group.'))
   },
 
   // Update existing customer group
