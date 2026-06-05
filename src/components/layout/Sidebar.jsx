@@ -52,12 +52,6 @@ const navGroups = [
         permissions: PERMISSIONS.purchasing.supplierManage,
       },
       {
-        label: 'Customer',
-        to: '/master/customers',
-        icon: Users,
-        permissions: [PERMISSIONS.sales.customerRead, PERMISSIONS.sales.customerManage],
-      },
-      {
         label: 'Product',
         to: '/master/products',
         icon: Package,
@@ -87,6 +81,12 @@ const navGroups = [
   {
     label: 'SALES',
     items: [
+      {
+        label: 'Customer',
+        to: '/sales/customers',
+        icon: Users,
+        permissions: [PERMISSIONS.sales.customerRead, PERMISSIONS.sales.customerManage],
+      },
       {
         label: 'Customer Groups',
         to: '/sales/customer-groups',

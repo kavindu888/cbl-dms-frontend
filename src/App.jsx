@@ -113,6 +113,10 @@ export const router = createBrowserRouter([
       },
       {
         path: 'master/customers',
+        element: <Navigate to="/sales/customers" replace />,
+      },
+      {
+        path: 'sales/customers',
         element: <MasterCustomerListPage />,
       },
       {

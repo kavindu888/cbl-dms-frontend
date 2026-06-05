@@ -52,9 +52,7 @@ export default function SalesRouteListPage() {
   const filteredRoutes = useMemo(() => {
     if (statusFilter === 'All') return routes
 
-    return routes.filter((route) =>
-      statusFilter === 'Active' ? route.isActive : !route.isActive
-    )
+    return routes.filter((route) => (statusFilter === 'Active' ? route.isActive : !route.isActive))
   }, [routes, statusFilter])
 
   const loadTerritories = useCallback(async () => {
@@ -219,6 +217,7 @@ export default function SalesRouteListPage() {
 
   return (
     <div
+      className="responsive-page"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -253,7 +252,7 @@ export default function SalesRouteListPage() {
       </div>
 
       <div
-        className="panel"
+        className="panel responsive-toolbar"
         style={{ padding: 16, display: 'grid', gridTemplateColumns: '260px 1fr 160px', gap: 16 }}
       >
         <select
@@ -305,6 +304,7 @@ export default function SalesRouteListPage() {
       </div>
 
       <div
+        className="responsive-split"
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(0, 1fr) 380px',
@@ -323,7 +323,10 @@ export default function SalesRouteListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div
+            className="overflow-x-auto responsive-table-wrap"
+            style={{ minHeight: 0, overflowY: 'auto' }}
+          >
             <table className="data-table master-table-compact">
               <thead>
                 <tr>
@@ -487,20 +490,38 @@ export default function SalesRouteListPage() {
             </p>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              gap: 10,
-              alignItems: 'center',
-              padding: '10px 12px',
-              border: '1px solid var(--color-border)',
-              borderRadius: 6,
-              color: 'var(--color-text-muted)',
-              fontSize: 12,
-            }}
-          >
-            <MapPinned style={{ width: 16, height: 16, color: 'var(--color-amber)' }} />
-            <span>{selectedTerritory ? selectedTerritory.name : 'No territory selected'}</span>
+          <div>
+            <label className="form-label" style={{ fontSize: 10 }}>
+              TERRITORY
+            </label>
+            <div style={{ position: 'relative' }}>
+              <MapPinned
+                style={{
+                  position: 'absolute',
+                  left: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: 16,
+                  height: 16,
+                  color: 'var(--color-amber)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <select
+                className="form-input"
+                value={selectedTerritoryId}
+                disabled={isLoadingTerritories || Boolean(editingRoute)}
+                onChange={(event) => setSelectedTerritoryId(event.target.value)}
+                style={{ height: 38, paddingLeft: 36 }}
+              >
+                <option value="">Select territory</option>
+                {territories.map((territory) => (
+                  <option key={territory.id} value={territory.id}>
+                    {territory.name} ({territory.code})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>

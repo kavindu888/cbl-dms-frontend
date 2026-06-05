@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@services/api/masterService'
 import {
+  getCloudinaryImageUrl,
   isCloudinaryConfigured,
   uploadCustomerImageToCloudinary,
   validateCustomerImage,
@@ -144,7 +145,6 @@ export default function CustomerListPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isLoadingLookups, setIsLoadingLookups] = useState(true)
   const [isLoadingRoutes, setIsLoadingRoutes] = useState(false)
-  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [imageType, setImageType] = useState('2')
   const [imageFile, setImageFile] = useState(null)
   const [error, setError] = useState('')
@@ -355,11 +355,11 @@ export default function CustomerListPage() {
 
     try {
       if (!editingCustomer && imageFile) {
-        const imageUrl = await uploadCustomerImageToCloudinary(imageFile)
+        const imagePath = await uploadCustomerImageToCloudinary(imageFile)
         payload.images = [
           {
             imageType: Number(imageType),
-            imageUrl,
+            imageUrl: imagePath,
           },
         ]
       }
@@ -424,22 +424,17 @@ export default function CustomerListPage() {
       return
     }
 
-    setIsUploadingImage(true)
-
     try {
       validateCustomerImage(imageFile)
-      await salesService.uploadCustomerImage(editingCustomer.id, Number(imageType), imageFile)
-      toast.success('Customer image uploaded.')
-      setImageFile(null)
-    } catch (uploadError) {
-      toast.error(getErrorMessage(uploadError, 'Unable to upload image.'))
-    } finally {
-      setIsUploadingImage(false)
+      toast.error('Existing customer image upload needs backend support for saving a Cloudinary URL.')
+    } catch (validationError) {
+      toast.error(getErrorMessage(validationError, 'Unable to upload image.'))
     }
   }
 
   return (
     <div
+      className="responsive-page"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -449,6 +444,7 @@ export default function CustomerListPage() {
       }}
     >
       <div
+        className="responsive-toolbar"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -490,7 +486,7 @@ export default function CustomerListPage() {
       </div>
 
       <div
-        className="panel"
+        className="panel responsive-toolbar"
         style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 160px', gap: 16 }}
       >
         <div style={{ position: 'relative' }}>
@@ -544,7 +540,10 @@ export default function CustomerListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div
+            className="overflow-x-auto responsive-table-wrap"
+            style={{ minHeight: 0, overflowY: 'auto' }}
+          >
             <table className="data-table master-table-compact">
               <thead>
                 <tr>
@@ -886,6 +885,7 @@ export default function CustomerListPage() {
           {!editingCustomer ? (
             <>
               <div
+                className="responsive-form-grid"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
@@ -1028,7 +1028,7 @@ export default function CustomerListPage() {
                   {editingCustomer.images.map((image) => (
                     <img
                       key={image.id || image.imageUrl}
-                      src={image.imageUrl}
+                      src={getCloudinaryImageUrl(image.imageUrl)}
                       alt="Customer"
                       style={{
                         width: 72,
@@ -1063,15 +1063,16 @@ export default function CustomerListPage() {
               <button
                 type="button"
                 className="button-secondary"
-                disabled={isUploadingImage || !imageFile}
+                disabled
                 onClick={handleUploadImage}
                 style={{ height: 36, fontSize: 12, display: 'inline-flex', gap: 6 }}
               >
                 <ImageUp style={{ width: 14, height: 14 }} />
-                {isUploadingImage ? 'Uploading...' : 'Upload Image'}
+                Upload Image
               </button>
               <p style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-                Existing customer images are saved through the backend upload endpoint.
+                Adding images to an existing customer needs a backend endpoint that accepts a
+                Cloudinary image path.
               </p>
             </div>
           )}

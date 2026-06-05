@@ -21,6 +21,31 @@ export function validateCustomerImage(file) {
   }
 }
 
+export function getCloudinaryImageUrl(imagePath) {
+  if (!imagePath) return ''
+  if (imagePath.startsWith('http')) return imagePath
+
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
+
+  if (!cloudName) return imagePath
+
+  return `https://res.cloudinary.com/${cloudName}/${imagePath}`
+}
+
+function getCloudinaryImagePath(uploadResult) {
+  const resourceType = uploadResult.resource_type || 'image'
+  const deliveryType = uploadResult.type || 'upload'
+  const version = uploadResult.version ? `v${uploadResult.version}` : null
+  const publicId = uploadResult.public_id
+  const format = uploadResult.format
+
+  if (!publicId || !format) {
+    throw new Error('Cloudinary did not return an image path.')
+  }
+
+  return [resourceType, deliveryType, version, `${publicId}.${format}`].filter(Boolean).join('/')
+}
+
 export async function uploadCustomerImageToCloudinary(file) {
   validateCustomerImage(file)
 
@@ -47,9 +72,5 @@ export async function uploadCustomerImageToCloudinary(file) {
 
   const result = await response.json()
 
-  if (!result.secure_url) {
-    throw new Error('Cloudinary did not return an image URL.')
-  }
-
-  return result.secure_url
+  return getCloudinaryImagePath(result)
 }

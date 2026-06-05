@@ -1199,6 +1199,7 @@ export default function Product() {
 
   return (
     <div
+      className="responsive-page"
       style={{
         height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
         minHeight: 0,
@@ -1210,6 +1211,7 @@ export default function Product() {
     >
       {/* ── Page Header ── */}
       <div
+        className="responsive-toolbar"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -1263,7 +1265,7 @@ export default function Product() {
 
       {/* ── Filter Bar ── */}
       <div
-        className="panel"
+        className="panel responsive-toolbar"
         style={{
           padding: '16px',
           display: 'flex',
@@ -1451,7 +1453,7 @@ export default function Product() {
               <p style={{ color: 'var(--color-text-muted)' }}>No products match your filters.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto responsive-table-wrap">
               <table className="data-table product-table-compact">
                 <thead>
                   <tr>
