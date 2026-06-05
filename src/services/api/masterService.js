@@ -75,6 +75,22 @@ function formatSalesRoute(route) {
   }
 }
 
+function formatPaymentTerm(term) {
+  if (!term) return null
+  return {
+    id: term.id,
+    code: term.code ?? '',
+    name: term.name ?? '',
+    dueDays: term.dueDays ?? 0,
+    discountPercent: term.discountPercent ?? 0,
+    discountDays: term.discountDays ?? null,
+    description: term.description ?? '',
+    isDefault: Boolean(term.isDefault),
+    status: term.status ?? 'Inactive',
+    isActive: term.status === 'Active',
+  }
+}
+
 function formatProduct(product) {
   if (!product) return null
   return {
@@ -258,7 +274,7 @@ export const masterService = {
   // Sales Routes Create
   async createSalesRoute(payload) {
     const response = await api.post('/api/v1/master/sales-routes', payload)
-    return response.data
+    return formatSalesRoute(getValue(response, 'Unable to create sales route.'))
   },
 
   // Sales Routes Update
@@ -271,6 +287,12 @@ export const masterService = {
   async deactivateSalesRoute(id) {
     const response = await api.delete(`/api/v1/master/sales-routes/${id}`)
     return getValue(response, 'Unable to deactivate sales route.')
+  },
+
+  // Payment Terms List
+  async listPaymentTerms() {
+    const response = await getOnce('/api/v1/master-data/payment-terms')
+    return (getValue(response, 'Unable to load payment terms.') || []).map(formatPaymentTerm)
   },
 
   //Product List, Get, Create, Update, Activate/Deactivate
