@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, FileDown } from 'lucide-react'
+import { AlertTriangle, ArrowRight } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -370,8 +370,13 @@ export default function DashboardPage() {
       >
         <div className="relative">
           <SectionPanel title="Sales This Week" subtitle="Mon 22 Apr - Sun 28 Apr, LKR">
-            <div style={{ height: 220 }}>
-              <ResponsiveContainer width="100%" height="100%">
+            <div style={{ width: '100%', minWidth: 0, height: 220 }}>
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                minWidth={0}
+                initialDimension={{ width: 1, height: 220 }}
+              >
                 <BarChart
                   data={weeklySalesData}
                   margin={{ top: 10, right: 14, left: 4, bottom: 0 }}
@@ -429,8 +434,13 @@ export default function DashboardPage() {
 
         <div className="relative">
           <SectionPanel title="Collections vs Invoiced" subtitle="April 2026 cumulative, LKR">
-            <div style={{ height: 220 }}>
-              <ResponsiveContainer width="100%" height="100%">
+            <div style={{ width: '100%', minWidth: 0, height: 220 }}>
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                minWidth={0}
+                initialDimension={{ width: 1, height: 220 }}
+              >
                 <AreaChart
                   data={collectionsData}
                   margin={{ top: 10, right: 14, left: 4, bottom: 0 }}
@@ -555,12 +565,19 @@ export default function DashboardPage() {
               <div
                 style={{
                   position: 'relative',
+                  width: '100%',
+                  minWidth: 0,
                   height: 124,
                   display: 'flex',
                   justifyContent: 'center',
                 }}
               >
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={0}
+                  initialDimension={{ width: 1, height: 124 }}
+                >
                   <PieChart>
                     <Pie
                       data={channelData}

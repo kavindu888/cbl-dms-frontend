@@ -46,8 +46,7 @@ function formatCustomer(customer) {
 }
 
 export const salesService = {
-  
-//Customer group related APIs
+  //Customer group related APIs
   // List customer groups with optional filters and pagination
   async listCustomerGroups(params = {}) {
     const response = await getOnce('/api/v1/sales/customer-groups', { params })
@@ -58,7 +57,7 @@ export const salesService = {
       items: (page?.items || []).map(formatCustomerGroup),
     }
   },
- 
+
   // Get single customer group by ID
   async getCustomerGroup(id) {
     const response = await getOnce(`/api/v1/sales/customer-groups/${id}`)
@@ -94,7 +93,7 @@ export const salesService = {
     }
   },
 
-//  
+  //
   // Get single customer by ID
   async getCustomer(id) {
     const response = await getOnce(`/api/v1/sales/customers/${id}`)
@@ -118,19 +117,23 @@ export const salesService = {
     const response = await api.delete(`/api/v1/sales/customers/${id}`)
     return response.data
   },
-  // Upload customer image
-  async uploadCustomerImage(id, imageType, file) {
+  // Upload one or more customer images. imageTypes and files are paired by index.
+  async uploadCustomerImages(id, images) {
     const formData = new FormData()
-    formData.append('imageType', imageType)
-    formData.append('file', file)
 
-    const response = await api.post(`/api/v1/sales/customers/${id}/images`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    images.forEach(({ imageType, file }) => {
+      formData.append('imageTypes', String(imageType))
+      formData.append('files', file)
     })
 
-    return getValue(response, 'Unable to upload customer image.')
+    const response = await api.post(`/api/v1/sales/customers/${id}/images`, formData)
+
+    return getValue(response, 'Unable to upload customer images.')
   },
 
+  async uploadCustomerImage(id, imageType, file) {
+    return salesService.uploadCustomerImages(id, [{ imageType, file }])
+  },
 
   async listInvoices(params = {}) {
     const response = await getOnce('/api/v1/sales/invoices', {

@@ -1,5 +1,5 @@
 const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp']
-const maxImageSize = 5 * 1024 * 1024
+const maxImageSize = 10 * 1024 * 1024
 
 export function isCloudinaryConfigured() {
   return Boolean(
@@ -17,7 +17,7 @@ export function validateCustomerImage(file) {
   }
 
   if (file.size > maxImageSize) {
-    throw new Error('Image must not exceed 5 MB.')
+    throw new Error('Image must not exceed 10 MB.')
   }
 }
 
@@ -30,6 +30,16 @@ export function getCloudinaryImageUrl(imagePath) {
   if (!cloudName) return imagePath
 
   return `https://res.cloudinary.com/${cloudName}/${imagePath}`
+}
+
+export function getR2ImageUrl(objectKey) {
+  if (!objectKey) return ''
+  if (objectKey.startsWith('http')) return objectKey
+
+  const baseUrl = import.meta.env.VITE_R2_PUBLIC_BASE_URL
+  if (!baseUrl) return objectKey
+
+  return `${baseUrl.replace(/\/$/, '')}/${objectKey}`
 }
 
 function getCloudinaryImagePath(uploadResult) {

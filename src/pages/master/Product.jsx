@@ -11,20 +11,31 @@ import { useAuthStore } from '@stores/authStore'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
 // ── Validation Schema ───────────────────────────────────────────────────
-const productSchema = z.object({
-  sku: z.string().trim().min(1, 'SKU is required'),
-  barcode: z.string().trim().optional().or(z.literal('')),
-  name: z.string().trim().min(1, 'Product name is required'),
-  description: z.string().trim().optional().or(z.literal('')),
-  categoryId: z.string().min(1, 'Category is required'),
-  uomBase: z.string().trim().min(1, 'Base UOM is required'),
-  unitCost: z.coerce.number().min(0, 'Unit cost must be non-negative'),
-  unitPrice: z.coerce.number().min(0, 'Unit price must be non-negative'),
-  reorderLevel: z.coerce.number().optional().nullable(),
-  reorderQty: z.coerce.number().optional().nullable(),
-  imageUrl: z.string().trim().optional().or(z.literal('')),
-  isActive: z.boolean().default(true),
-})
+const productSchema = z
+  .object({
+    sku: z.string().trim().min(1, 'SKU is required'),
+    barcode: z.string().trim().optional().or(z.literal('')),
+    name: z.string().trim().min(1, 'Product name is required'),
+    description: z.string().trim().optional().or(z.literal('')),
+    categoryId: z.string().min(1, 'Category is required'),
+    uomBase: z.string().trim().min(1, 'Base UOM is required'),
+    unitCost: z.coerce.number().min(0, 'Unit cost must be non-negative'),
+    unitPrice: z.coerce.number().min(0, 'Unit price must be non-negative'),
+    minValue: z.coerce.number().min(0, 'Minimum value must be non-negative').optional().nullable(),
+    maxValue: z.coerce.number().min(0, 'Maximum value must be non-negative').optional().nullable(),
+    imageUrl: z.string().trim().optional().or(z.literal('')),
+    isActive: z.boolean().default(true),
+  })
+  .refine(
+    (product) =>
+      product.minValue == null ||
+      product.maxValue == null ||
+      product.maxValue >= product.minValue,
+    {
+      message: 'Maximum value cannot be less than minimum value',
+      path: ['maxValue'],
+    },
+  )
 
 const productPageSize = 10
 
@@ -578,8 +589,8 @@ function ProductFormModal({
       uomBase: '',
       unitCost: 0,
       unitPrice: 0,
-      reorderLevel: null,
-      reorderQty: null,
+      minValue: null,
+      maxValue: null,
       imageUrl: '',
       isActive: true,
     },
@@ -599,8 +610,8 @@ function ProductFormModal({
         uomBase: product.uomBase,
         unitCost: product.unitCost,
         unitPrice: product.unitPrice,
-        reorderLevel: product.reorderLevel,
-        reorderQty: product.reorderQty,
+        minValue: product.minValue,
+        maxValue: product.maxValue,
         imageUrl: product.imageUrl || '',
         isActive: product.isActive,
       })
@@ -614,8 +625,8 @@ function ProductFormModal({
         uomBase: defaultUom,
         unitCost: 0,
         unitPrice: 0,
-        reorderLevel: null,
-        reorderQty: null,
+        minValue: null,
+        maxValue: null,
         imageUrl: '',
         isActive: true,
       })
@@ -635,8 +646,8 @@ function ProductFormModal({
         baseUom: values.uomBase.trim(),
         costPrice: Number(values.unitCost),
         sellingPrice: Number(values.unitPrice),
-        reorderLevel: values.reorderLevel ? Number(values.reorderLevel) : null,
-        reorderQty: values.reorderQty ? Number(values.reorderQty) : null,
+        minValue: values.minValue == null ? null : Number(values.minValue),
+        maxValue: values.maxValue == null ? null : Number(values.maxValue),
         description: values.description?.trim() || null,
         imageUrl: values.imageUrl?.trim() || null,
       }
@@ -676,8 +687,8 @@ function ProductFormModal({
           uomBase: values.uomBase || defaultUom,
           unitCost: 0,
           unitPrice: 0,
-          reorderLevel: null,
-          reorderQty: null,
+          minValue: null,
+          maxValue: null,
           imageUrl: '',
           isActive: true,
         })
@@ -979,25 +990,41 @@ function ProductFormModal({
                 )}
               </div>
               <div>
-                <label className="form-label">REORDER LEVEL</label>
+                <label className="form-label">MINIMUM VALUE</label>
                 <input
                   type="number"
-                  {...register('reorderLevel')}
+                  step="0.01"
+                  {...register('minValue', {
+                    setValueAs: (value) => (value === '' ? null : Number(value)),
+                  })}
                   className="form-input w-full mono"
                   placeholder="Optional"
                   style={{ background: 'rgba(0,0,0,0.15)', height: 36 }}
                 />
+                {errors.minValue && (
+                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
+                    {errors.minValue.message}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="form-label">REORDER QTY</label>
+                <label className="form-label">MAXIMUM VALUE</label>
                 <input
                   type="number"
-                  {...register('reorderQty')}
+                  step="0.01"
+                  {...register('maxValue', {
+                    setValueAs: (value) => (value === '' ? null : Number(value)),
+                  })}
                   className="form-input w-full mono"
                   placeholder="Optional"
                   style={{ background: 'rgba(0,0,0,0.15)', height: 36 }}
                 />
+                {errors.maxValue && (
+                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
+                    {errors.maxValue.message}
+                  </p>
+                )}
               </div>
             </div>
 

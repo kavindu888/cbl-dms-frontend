@@ -3,12 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@services/api/masterService'
-import {
-  getCloudinaryImageUrl,
-  isCloudinaryConfigured,
-  uploadCustomerImageToCloudinary,
-  validateCustomerImage,
-} from '@services/cloudinary/customerImageUpload'
+import { getR2ImageUrl, validateCustomerImage } from '@services/cloudinary/customerImageUpload'
 import { salesService } from '@services/api/salesService'
 import { useAuthStore } from '@stores/authStore'
 
@@ -54,6 +49,10 @@ const imageTypes = [
   { value: '4', label: 'Other' },
 ]
 
+function getImageTypeLabel(value) {
+  return imageTypes.find((type) => type.value === String(value))?.label || 'Other'
+}
+
 function getErrorMessage(error, fallback = 'Something went wrong') {
   return error?.message || fallback
 }
@@ -76,7 +75,7 @@ function getGroupName(groups, id) {
   return groups.find((group) => group.id === id)?.name || id || '-'
 }
 
-function buildCreatePayload(form, organizationId, imageUrl = null, selectedImageType = 2) {
+function buildCreatePayload(form, organizationId) {
   const contacts =
     form.contactFullName.trim() || form.contactPhone.trim()
       ? [
@@ -89,14 +88,6 @@ function buildCreatePayload(form, organizationId, imageUrl = null, selectedImage
           },
         ]
       : null
-  const images = imageUrl
-    ? [
-        {
-          imageType: Number(selectedImageType),
-          imageUrl,
-        },
-      ]
-    : null
 
   return {
     organizationId,
@@ -111,7 +102,6 @@ function buildCreatePayload(form, organizationId, imageUrl = null, selectedImage
     geoLatitude: toOptionalDecimal(form.geoLatitude),
     geoLongitude: toOptionalDecimal(form.geoLongitude),
     contacts,
-    images,
   }
 }
 
@@ -130,7 +120,6 @@ function buildUpdatePayload(form) {
 export default function CustomerListPage() {
   const currentUser = useAuthStore((state) => state.user)
   const organizationId = currentUser?.orgId || ''
-  const cloudinaryConfigured = isCloudinaryConfigured()
 
   const [customers, setCustomers] = useState([])
   const [groups, setGroups] = useState([])
@@ -146,7 +135,7 @@ export default function CustomerListPage() {
   const [isLoadingLookups, setIsLoadingLookups] = useState(true)
   const [isLoadingRoutes, setIsLoadingRoutes] = useState(false)
   const [imageType, setImageType] = useState('2')
-  const [imageFile, setImageFile] = useState(null)
+  const [pendingImages, setPendingImages] = useState([])
   const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
@@ -269,8 +258,35 @@ export default function CustomerListPage() {
   function resetForm() {
     setEditingCustomer(null)
     setForm(emptyForm)
-    setImageFile(null)
+    setPendingImages([])
     setImageType('2')
+  }
+
+  function handleImageSelection(event) {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ''
+
+    if (!files.length) return
+    if (pendingImages.length + files.length > 10) {
+      toast.error('You can upload up to 10 images at a time.')
+      return
+    }
+
+    try {
+      files.forEach(validateCustomerImage)
+    } catch (validationError) {
+      toast.error(getErrorMessage(validationError, 'Invalid image.'))
+      return
+    }
+
+    setPendingImages((currentImages) => [
+      ...currentImages,
+      ...files.map((file) => ({ imageType, file })),
+    ])
+  }
+
+  function removePendingImage(indexToRemove) {
+    setPendingImages((currentImages) => currentImages.filter((_, index) => index !== indexToRemove))
   }
 
   function openCreateModal() {
@@ -347,28 +363,27 @@ export default function CustomerListPage() {
 
     const payload = editingCustomer
       ? buildUpdatePayload(form)
-      : buildCreatePayload(form, organizationId, null, imageType)
+      : buildCreatePayload(form, organizationId)
 
     if (!validatePayload(payload)) return
 
     setIsSaving(true)
 
     try {
-      if (!editingCustomer && imageFile) {
-        const imagePath = await uploadCustomerImageToCloudinary(imageFile)
-        payload.images = [
-          {
-            imageType: Number(imageType),
-            imageUrl: imagePath,
-          },
-        ]
-      }
-
       if (editingCustomer) {
         await salesService.updateCustomer(editingCustomer.id, payload)
         toast.success('Customer updated.')
       } else {
-        await salesService.createCustomer(payload)
+        const newCustomerId = await salesService.createCustomer(payload)
+        if (pendingImages.length && newCustomerId) {
+          try {
+            await salesService.uploadCustomerImages(newCustomerId, pendingImages)
+          } catch (uploadError) {
+            toast.warning(
+              `Customer created but image upload failed: ${getErrorMessage(uploadError)}`
+            )
+          }
+        }
         toast.success('Customer created.')
       }
 
@@ -419,16 +434,32 @@ export default function CustomerListPage() {
   }
 
   async function handleUploadImage() {
-    if (!editingCustomer || !imageFile) {
-      toast.error('Select a customer and image first.')
+    if (!editingCustomer || !pendingImages.length) {
+      toast.error('Select one or more images first.')
       return
     }
 
     try {
-      validateCustomerImage(imageFile)
-      toast.error('Existing customer image upload needs backend support for saving a Cloudinary URL.')
+      pendingImages.forEach(({ file }) => validateCustomerImage(file))
     } catch (validationError) {
-      toast.error(getErrorMessage(validationError, 'Unable to upload image.'))
+      toast.error(getErrorMessage(validationError, 'Invalid image.'))
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      await salesService.uploadCustomerImages(editingCustomer.id, pendingImages)
+      toast.success(
+        `${pendingImages.length} image${pendingImages.length === 1 ? '' : 's'} uploaded.`
+      )
+      const updated = await salesService.getCustomer(editingCustomer.id)
+      setEditingCustomer(updated)
+      setPendingImages([])
+    } catch (uploadError) {
+      toast.error(getErrorMessage(uploadError, 'Unable to upload image.'))
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -699,404 +730,479 @@ export default function CustomerListPage() {
                 borderRadius: 10,
               }}
             >
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <p style={{ fontSize: 16, fontWeight: 650, color: 'var(--color-text-primary)' }}>
-                {editingCustomer ? 'Edit Customer' : 'New Customer'}
-              </p>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={closeModal}
-                aria-label="Close"
-                data-skip-focus="true"
-                style={{ width: 32, height: 32 }}
-              >
-                <X style={{ width: 16, height: 16 }} />
-              </button>
-            </div>
-            <p style={{ marginTop: 5, fontSize: 12, color: 'var(--color-text-muted)' }}>
-              Customer organization is taken from your signed-in session.
-            </p>
-          </div>
+              <div>
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <p style={{ fontSize: 16, fontWeight: 650, color: 'var(--color-text-primary)' }}>
+                    {editingCustomer ? 'Edit Customer' : 'New Customer'}
+                  </p>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    onClick={closeModal}
+                    aria-label="Close"
+                    data-skip-focus="true"
+                    style={{ width: 32, height: 32 }}
+                  >
+                    <X style={{ width: 16, height: 16 }} />
+                  </button>
+                </div>
+                <p style={{ marginTop: 5, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  Customer organization is taken from your signed-in session.
+                </p>
+              </div>
 
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              CUSTOMER CODE
-            </label>
-            <input
-              autoFocus
-              className="form-input"
-              placeholder="e.g. CUST-0001"
-              value={form.code}
-              maxLength={30}
-              onChange={(event) => updateField('code', event.target.value)}
-              style={{ height: 38 }}
-            />
-          </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  CUSTOMER CODE
+                </label>
+                <input
+                  autoFocus
+                  className="form-input"
+                  placeholder="e.g. CUST-0001"
+                  value={form.code}
+                  maxLength={30}
+                  onChange={(event) => updateField('code', event.target.value)}
+                  style={{ height: 38 }}
+                />
+              </div>
 
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              CUSTOMER NAME
-            </label>
-            <input
-              className="form-input"
-              placeholder="e.g. Fresh Mart Kandy"
-              value={form.name}
-              maxLength={200}
-              onChange={(event) => updateField('name', event.target.value)}
-              style={{ height: 38 }}
-            />
-          </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  CUSTOMER NAME
+                </label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. Fresh Mart Kandy"
+                  value={form.name}
+                  maxLength={200}
+                  onChange={(event) => updateField('name', event.target.value)}
+                  style={{ height: 38 }}
+                />
+              </div>
 
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              CUSTOMER GROUP
-            </label>
-            <select
-              className="form-input"
-              value={form.customerGroupId}
-              disabled={isLoadingLookups}
-              onChange={(event) => updateField('customerGroupId', event.target.value)}
-              style={{ height: 38 }}
-            >
-              <option value="">Select group</option>
-              {customerGroupOptions.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name} ({group.code})
-                </option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  CUSTOMER GROUP
+                </label>
+                <select
+                  className="form-input"
+                  value={form.customerGroupId}
+                  disabled={isLoadingLookups}
+                  onChange={(event) => updateField('customerGroupId', event.target.value)}
+                  style={{ height: 38 }}
+                >
+                  <option value="">Select group</option>
+                  {customerGroupOptions.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name} ({group.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              TERRITORY
-            </label>
-            <select
-              className="form-input"
-              value={form.territoryId}
-              disabled={isLoadingLookups}
-              onChange={(event) => updateField('territoryId', event.target.value)}
-              style={{ height: 38 }}
-            >
-              <option value="">Select territory for route</option>
-              {territoryOptions.map((territory) => (
-                <option key={territory.id} value={territory.id}>
-                  {territory.name} ({territory.code})
-                </option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  TERRITORY
+                </label>
+                <select
+                  className="form-input"
+                  value={form.territoryId}
+                  disabled={isLoadingLookups}
+                  onChange={(event) => updateField('territoryId', event.target.value)}
+                  style={{ height: 38 }}
+                >
+                  <option value="">Select territory for route</option>
+                  {territoryOptions.map((territory) => (
+                    <option key={territory.id} value={territory.id}>
+                      {territory.name} ({territory.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              SALES ROUTE
-            </label>
-            <select
-              className="form-input"
-              value={form.salesRouteId}
-              disabled={isLoadingRoutes}
-              onChange={(event) => updateField('salesRouteId', event.target.value)}
-              style={{ height: 38 }}
-            >
-              <option value="">{isLoadingRoutes ? 'Loading routes...' : 'Select route'}</option>
-              {form.salesRouteId && !routeOptions.some((route) => route.id === form.salesRouteId) ? (
-                <option value={form.salesRouteId}>Current route ({form.salesRouteId})</option>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  SALES ROUTE
+                </label>
+                <select
+                  className="form-input"
+                  value={form.salesRouteId}
+                  disabled={isLoadingRoutes}
+                  onChange={(event) => updateField('salesRouteId', event.target.value)}
+                  style={{ height: 38 }}
+                >
+                  <option value="">{isLoadingRoutes ? 'Loading routes...' : 'Select route'}</option>
+                  {form.salesRouteId &&
+                  !routeOptions.some((route) => route.id === form.salesRouteId) ? (
+                    <option value={form.salesRouteId}>Current route ({form.salesRouteId})</option>
+                  ) : null}
+                  {routeOptions.map((route) => (
+                    <option key={route.id} value={route.id}>
+                      {route.name} ({route.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {!editingCustomer ? (
+                <div>
+                  <label className="form-label" style={{ fontSize: 10 }}>
+                    PREFERRED PAYMENT
+                  </label>
+                  <select
+                    className="form-input"
+                    value={form.preferredPaymentMethod}
+                    onChange={(event) => updateField('preferredPaymentMethod', event.target.value)}
+                    style={{ height: 38 }}
+                  >
+                    {paymentMethods.map((method) => (
+                      <option key={method.value} value={method.value}>
+                        {method.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               ) : null}
-              {routeOptions.map((route) => (
-                <option key={route.id} value={route.id}>
-                  {route.name} ({route.code})
-                </option>
-              ))}
-            </select>
-          </div>
 
-          {!editingCustomer ? (
-            <div>
-              <label className="form-label" style={{ fontSize: 10 }}>
-                PREFERRED PAYMENT
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 12,
+                  color: 'var(--color-text-muted)',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={form.isVatRegistered}
+                  onChange={(event) => updateField('isVatRegistered', event.target.checked)}
+                />
+                VAT registered
               </label>
-              <select
-                className="form-input"
-                value={form.preferredPaymentMethod}
-                onChange={(event) => updateField('preferredPaymentMethod', event.target.value)}
-                style={{ height: 38 }}
-              >
-                {paymentMethods.map((method) => (
-                  <option key={method.value} value={method.value}>
-                    {method.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
 
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: 12,
-              color: 'var(--color-text-muted)',
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={form.isVatRegistered}
-              onChange={(event) => updateField('isVatRegistered', event.target.checked)}
-            />
-            VAT registered
-          </label>
-
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              REGISTRATION NUMBER
-            </label>
-            <input
-              className="form-input"
-              placeholder="Optional"
-              value={form.registrationNumber}
-              maxLength={50}
-              onChange={(event) => updateField('registrationNumber', event.target.value)}
-              style={{ height: 38 }}
-            />
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: 10 }}>
-              TIN
-            </label>
-            <input
-              className="form-input"
-              placeholder={form.isVatRegistered ? '9 digits required' : 'Optional'}
-              value={form.taxNumber}
-              maxLength={9}
-              onChange={(event) => updateField('taxNumber', event.target.value.replace(/\D/g, ''))}
-              style={{ height: 38 }}
-            />
-          </div>
-
-          {!editingCustomer ? (
-            <>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 10,
-                }}
-              >
-                <div>
-                  <label className="form-label" style={{ fontSize: 10 }}>
-                    LATITUDE
-                  </label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    step="0.000001"
-                    placeholder="Optional"
-                    value={form.geoLatitude}
-                    onChange={(event) => updateField('geoLatitude', event.target.value)}
-                    style={{ height: 38 }}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: 10 }}>
-                    LONGITUDE
-                  </label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    step="0.000001"
-                    placeholder="Optional"
-                    value={form.geoLongitude}
-                    onChange={(event) => updateField('geoLongitude', event.target.value)}
-                    style={{ height: 38 }}
-                  />
-                </div>
-              </div>
-
-              <div
-                style={{
-                  padding: 10,
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 6,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                }}
-              >
-                <p style={{ fontSize: 12, fontWeight: 650, color: 'var(--color-text-primary)' }}>
-                  Primary Contact
-                </p>
-                <select
-                  className="form-input"
-                  value={form.contactType}
-                  onChange={(event) => updateField('contactType', event.target.value)}
-                  style={{ height: 38 }}
-                >
-                  {contactTypes.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  REGISTRATION NUMBER
+                </label>
                 <input
                   className="form-input"
-                  placeholder="Contact name"
-                  value={form.contactFullName}
-                  onChange={(event) => updateField('contactFullName', event.target.value)}
-                  style={{ height: 38 }}
-                />
-                <input
-                  className="form-input"
-                  placeholder="Phone"
-                  value={form.contactPhone}
-                  onChange={(event) => updateField('contactPhone', event.target.value)}
-                  style={{ height: 38 }}
-                />
-                <input
-                  className="form-input"
-                  placeholder="Email"
-                  value={form.contactEmail}
-                  onChange={(event) => updateField('contactEmail', event.target.value)}
+                  placeholder="Optional"
+                  value={form.registrationNumber}
+                  maxLength={50}
+                  onChange={(event) => updateField('registrationNumber', event.target.value)}
                   style={{ height: 38 }}
                 />
               </div>
 
-              <div
-                style={{
-                  padding: 10,
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 6,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                }}
-              >
-                <p style={{ fontSize: 12, fontWeight: 650, color: 'var(--color-text-primary)' }}>
-                  Customer Image
-                </p>
-                <select
-                  className="form-input"
-                  value={imageType}
-                  onChange={(event) => setImageType(event.target.value)}
-                  style={{ height: 38 }}
-                >
-                  {imageTypes.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  TIN
+                </label>
                 <input
                   className="form-input"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) => setImageFile(event.target.files?.[0] || null)}
-                  style={{ height: 38, paddingTop: 8 }}
+                  placeholder={form.isVatRegistered ? '9 digits required' : 'Optional'}
+                  value={form.taxNumber}
+                  maxLength={9}
+                  onChange={(event) =>
+                    updateField('taxNumber', event.target.value.replace(/\D/g, ''))
+                  }
+                  style={{ height: 38 }}
                 />
-                <p style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-                  {cloudinaryConfigured
-                    ? 'Image will upload to Cloudinary when you save the customer.'
-                    : 'Add Cloudinary cloud name and unsigned preset in .env to enable upload.'}
-                </p>
               </div>
-            </>
-          ) : (
-            <div
-              style={{
-                padding: 10,
-                border: '1px solid var(--color-border)',
-                borderRadius: 6,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
-              }}
-            >
-              <p style={{ fontSize: 12, fontWeight: 650, color: 'var(--color-text-primary)' }}>
-                Upload Image
-              </p>
-              {editingCustomer.images?.length ? (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {editingCustomer.images.map((image) => (
-                    <img
-                      key={image.id || image.imageUrl}
-                      src={getCloudinaryImageUrl(image.imageUrl)}
-                      alt="Customer"
-                      style={{
-                        width: 72,
-                        height: 72,
-                        objectFit: 'cover',
-                        borderRadius: 6,
-                        border: '1px solid var(--color-border)',
-                      }}
+
+              {!editingCustomer ? (
+                <>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 10,
+                    }}
+                  >
+                    <div>
+                      <label className="form-label" style={{ fontSize: 10 }}>
+                        LATITUDE
+                      </label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        step="0.000001"
+                        placeholder="Optional"
+                        value={form.geoLatitude}
+                        onChange={(event) => updateField('geoLatitude', event.target.value)}
+                        style={{ height: 38 }}
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: 10 }}>
+                        LONGITUDE
+                      </label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        step="0.000001"
+                        placeholder="Optional"
+                        value={form.geoLongitude}
+                        onChange={(event) => updateField('geoLongitude', event.target.value)}
+                        style={{ height: 38 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: 10,
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 6,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}
+                  >
+                    <p
+                      style={{ fontSize: 12, fontWeight: 650, color: 'var(--color-text-primary)' }}
+                    >
+                      Primary Contact
+                    </p>
+                    <select
+                      className="form-input"
+                      value={form.contactType}
+                      onChange={(event) => updateField('contactType', event.target.value)}
+                      style={{ height: 38 }}
+                    >
+                      {contactTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className="form-input"
+                      placeholder="Contact name"
+                      value={form.contactFullName}
+                      onChange={(event) => updateField('contactFullName', event.target.value)}
+                      style={{ height: 38 }}
                     />
-                  ))}
-                </div>
-              ) : null}
-              <select
-                className="form-input"
-                value={imageType}
-                onChange={(event) => setImageType(event.target.value)}
-                style={{ height: 38 }}
-              >
-                {imageTypes.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="form-input"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(event) => setImageFile(event.target.files?.[0] || null)}
-                style={{ height: 38, paddingTop: 8 }}
-              />
-              <button
-                type="button"
-                className="button-secondary"
-                disabled
-                onClick={handleUploadImage}
-                style={{ height: 36, fontSize: 12, display: 'inline-flex', gap: 6 }}
-              >
-                <ImageUp style={{ width: 14, height: 14 }} />
-                Upload Image
-              </button>
-              <p style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-                Adding images to an existing customer needs a backend endpoint that accepts a
-                Cloudinary image path.
-              </p>
-            </div>
-          )}
+                    <input
+                      className="form-input"
+                      placeholder="Phone"
+                      value={form.contactPhone}
+                      onChange={(event) => updateField('contactPhone', event.target.value)}
+                      style={{ height: 38 }}
+                    />
+                    <input
+                      className="form-input"
+                      placeholder="Email"
+                      value={form.contactEmail}
+                      onChange={(event) => updateField('contactEmail', event.target.value)}
+                      style={{ height: 38 }}
+                    />
+                  </div>
 
-          <div
-            style={{
-              display: 'flex',
-              gap: 10,
-              paddingTop: 8,
-              borderTop: '1px solid var(--color-border)',
-            }}
-          >
-            <button
-              type="button"
-              data-skip-focus="true"
-              className="button-ghost"
-              onClick={closeModal}
-              style={{ flex: 1, height: 38, fontSize: 13 }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="button-primary"
-              disabled={isSaving}
-              style={{ flex: 1, height: 38, fontSize: 13 }}
-            >
-              {isSaving ? 'Saving...' : editingCustomer ? 'Save Changes' : 'Save'}
-            </button>
-          </div>
+                  <div
+                    style={{
+                      padding: 10,
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 6,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}
+                  >
+                    <p
+                      style={{ fontSize: 12, fontWeight: 650, color: 'var(--color-text-primary)' }}
+                    >
+                      Customer Image
+                    </p>
+                    <select
+                      className="form-input"
+                      value={imageType}
+                      onChange={(event) => setImageType(event.target.value)}
+                      style={{ height: 38 }}
+                    >
+                      {imageTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className="form-input"
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleImageSelection}
+                      style={{ height: 38, paddingTop: 8 }}
+                    />
+                    {pendingImages.length ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {pendingImages.map((image, index) => (
+                          <div
+                            key={`${image.file.name}-${image.file.lastModified}-${index}`}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 8,
+                              fontSize: 11,
+                              color: 'var(--color-text-muted)',
+                            }}
+                          >
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {image.file.name} ({getImageTypeLabel(image.imageType)})
+                            </span>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              aria-label={`Remove ${image.file.name}`}
+                              onClick={() => removePendingImage(index)}
+                              style={{ width: 24, height: 24, flexShrink: 0 }}
+                            >
+                              <X style={{ width: 12, height: 12 }} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                      Select a type, then choose one or more files. Change the type and choose more
+                      files to build the upload queue. JPEG, PNG, and WebP supported (max 10 MB
+                      each).
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div
+                  style={{
+                    padding: 10,
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 6,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}
+                >
+                  <p style={{ fontSize: 12, fontWeight: 650, color: 'var(--color-text-primary)' }}>
+                    Upload Image
+                  </p>
+                  {editingCustomer.images?.length ? (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {editingCustomer.images.map((image) => (
+                        <img
+                          key={image.id || image.imageUrl}
+                          src={getR2ImageUrl(image.imageUrl)}
+                          alt="Customer"
+                          style={{
+                            width: 72,
+                            height: 72,
+                            objectFit: 'cover',
+                            borderRadius: 6,
+                            border: '1px solid var(--color-border)',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                  <select
+                    className="form-input"
+                    value={imageType}
+                    onChange={(event) => setImageType(event.target.value)}
+                    style={{ height: 38 }}
+                  >
+                    {imageTypes.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="form-input"
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleImageSelection}
+                    style={{ height: 38, paddingTop: 8 }}
+                  />
+                  {pendingImages.length ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {pendingImages.map((image, index) => (
+                        <div
+                          key={`${image.file.name}-${image.file.lastModified}-${index}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                            fontSize: 11,
+                            color: 'var(--color-text-muted)',
+                          }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {image.file.name} ({getImageTypeLabel(image.imageType)})
+                          </span>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            aria-label={`Remove ${image.file.name}`}
+                            onClick={() => removePendingImage(index)}
+                            style={{ width: 24, height: 24, flexShrink: 0 }}
+                          >
+                            <X style={{ width: 12, height: 12 }} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={isSaving || !pendingImages.length}
+                    onClick={handleUploadImage}
+                    style={{ height: 36, fontSize: 12, display: 'inline-flex', gap: 6 }}
+                  >
+                    <ImageUp style={{ width: 14, height: 14 }} />
+                    {isSaving
+                      ? 'Uploading...'
+                      : pendingImages.length
+                        ? `Upload ${pendingImages.length} Image${pendingImages.length === 1 ? '' : 's'}`
+                        : 'Upload Images'}
+                  </button>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                    Select a type, then choose one or more files. Change the type and choose more
+                    files to build the upload queue.
+                  </p>
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  paddingTop: 8,
+                  borderTop: '1px solid var(--color-border)',
+                }}
+              >
+                <button
+                  type="button"
+                  data-skip-focus="true"
+                  className="button-ghost"
+                  onClick={closeModal}
+                  style={{ flex: 1, height: 38, fontSize: 13 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="button-primary"
+                  disabled={isSaving}
+                  style={{ flex: 1, height: 38, fontSize: 13 }}
+                >
+                  {isSaving ? 'Saving...' : editingCustomer ? 'Save Changes' : 'Save'}
+                </button>
+              </div>
             </form>
           </div>
         ) : null}

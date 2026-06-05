@@ -53,6 +53,15 @@ async function refreshAccessToken() {
 api.interceptors.request.use((config) => {
   const token = getAccessToken()
 
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    if (typeof config.headers.delete === 'function') {
+      config.headers.delete('Content-Type')
+    } else {
+      delete config.headers['Content-Type']
+      delete config.headers['content-type']
+    }
+  }
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
