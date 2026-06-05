@@ -434,7 +434,6 @@ export default function CustomerListPage() {
 
   return (
     <div
-      className="responsive-page"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -444,7 +443,6 @@ export default function CustomerListPage() {
       }}
     >
       <div
-        className="responsive-toolbar"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -486,7 +484,7 @@ export default function CustomerListPage() {
       </div>
 
       <div
-        className="panel responsive-toolbar"
+        className="panel"
         style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 160px', gap: 16 }}
       >
         <div style={{ position: 'relative' }}>
@@ -540,10 +538,7 @@ export default function CustomerListPage() {
             minHeight: 0,
           }}
         >
-          <div
-            className="overflow-x-auto responsive-table-wrap"
-            style={{ minHeight: 0, overflowY: 'auto' }}
-          >
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>
@@ -885,7 +880,6 @@ export default function CustomerListPage() {
           {!editingCustomer ? (
             <>
               <div
-                className="responsive-form-grid"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',

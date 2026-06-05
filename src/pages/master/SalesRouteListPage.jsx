@@ -217,7 +217,6 @@ export default function SalesRouteListPage() {
 
   return (
     <div
-      className="responsive-page"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -252,7 +251,7 @@ export default function SalesRouteListPage() {
       </div>
 
       <div
-        className="panel responsive-toolbar"
+        className="panel"
         style={{ padding: 16, display: 'grid', gridTemplateColumns: '260px 1fr 160px', gap: 16 }}
       >
         <select
@@ -304,7 +303,6 @@ export default function SalesRouteListPage() {
       </div>
 
       <div
-        className="responsive-split"
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(0, 1fr) 380px',
@@ -323,10 +321,7 @@ export default function SalesRouteListPage() {
             minHeight: 0,
           }}
         >
-          <div
-            className="overflow-x-auto responsive-table-wrap"
-            style={{ minHeight: 0, overflowY: 'auto' }}
-          >
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>

@@ -185,7 +185,6 @@ export default function UnitOfMeasureListPage() {
 
   return (
     <div
-      className="responsive-page"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -195,7 +194,6 @@ export default function UnitOfMeasureListPage() {
       }}
     >
       <div
-        className="responsive-toolbar"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -222,7 +220,7 @@ export default function UnitOfMeasureListPage() {
 
       {/* ── Filter Bar ── */}
       <div
-        className="panel responsive-toolbar"
+        className="panel"
         style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}
       >
         {/* Search Input */}
@@ -325,7 +323,6 @@ export default function UnitOfMeasureListPage() {
       </div>
 
       <div
-        className="responsive-split"
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(0, 1fr) 380px',
@@ -344,10 +341,7 @@ export default function UnitOfMeasureListPage() {
             minHeight: 0,
           }}
         >
-          <div
-            className="overflow-x-auto responsive-table-wrap"
-            style={{ minHeight: 0, overflowY: 'auto' }}
-          >
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>

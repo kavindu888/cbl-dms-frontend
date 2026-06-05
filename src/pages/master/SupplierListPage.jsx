@@ -215,10 +215,7 @@ function Field({
 
 function SupplierTable({ suppliers, isLoading, onEdit }) {
   return (
-    <div
-      className="overflow-x-auto responsive-table-wrap"
-      style={{ minHeight: 0, overflowY: 'auto' }}
-    >
+    <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
       <table className="data-table master-table-compact">
         <thead>
           <tr>
@@ -745,7 +742,6 @@ export default function SupplierListPage() {
 
   return (
     <div
-      className="responsive-page"
       style={{
         height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
         minHeight: 0,
@@ -756,7 +752,6 @@ export default function SupplierListPage() {
       }}
     >
       <div
-        className="responsive-toolbar"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -800,7 +795,7 @@ export default function SupplierListPage() {
       {/* ── Filter Bar ── */}
       <form
         onSubmit={applySearch}
-        className="panel responsive-toolbar"
+        className="panel"
         style={{
           padding: '16px',
           display: 'flex',
