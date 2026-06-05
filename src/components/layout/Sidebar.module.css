@@ -401,7 +401,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #ffffff;
+  color: var(--color-text-primary);
   font-size: 13px;
   font-weight: 700;
 }
@@ -470,4 +470,30 @@
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+:root[data-theme='light'] .profileCard {
+  background: #f8fbff;
+  border-color: #b7c8e4;
+}
+
+:root[data-theme='light'] .profileLink:hover {
+  opacity: 1;
+}
+
+:root[data-theme='light'] .profileRole {
+  color: #49617f;
+}
+
+:root[data-theme='light'] .logoutButton {
+  background: #fff1f2;
+  color: #e11d48;
+}
+
+:root[data-theme='light'] .logoutButton:hover {
+  background: #ffe4e6;
+}
+
+:root[data-theme='light'] .logoutButton:hover .logoutIcon {
+  color: #e11d48;
 }
