@@ -68,6 +68,7 @@ function matchesSearch(organisation, query) {
 export default function OrganisationsTab() {
   const [organisations, setOrganisations] = useState([])
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('All')
   const [page, setPage] = useState(1)
   const [editingOrganisation, setEditingOrganisation] = useState(null)
   const [form, setForm] = useState(emptyForm)
@@ -95,12 +96,19 @@ export default function OrganisationsTab() {
 
   useEffect(() => {
     setPage(1)
-  }, [search])
+  }, [search, statusFilter])
 
   const filteredOrganisations = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return organisations.filter((organisation) => matchesSearch(organisation, query))
-  }, [organisations, search])
+    return organisations.filter((organisation) => {
+      const matchesText = matchesSearch(organisation, query)
+      const matchesStatus =
+        statusFilter === 'All' ||
+        (statusFilter === 'Active' && organisation.isActive) ||
+        (statusFilter === 'Inactive' && !organisation.isActive)
+      return matchesText && matchesStatus
+    })
+  }, [organisations, search, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredOrganisations.length / pageSize))
   const pagedOrganisations = useMemo(() => {
@@ -249,451 +257,529 @@ export default function OrganisationsTab() {
   return (
     <div
       style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
         height: 'calc(100vh - 300px)',
         minHeight: 440,
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 360px',
-        gap: 16,
         overflow: 'hidden',
       }}
     >
-      <section
+      {/* ── Filter Bar ── */}
+      <div
         className="panel"
         style={{
-          minWidth: 0,
-          padding: 16,
-          display: 'grid',
-          gridTemplateRows: 'auto auto minmax(0, 1fr) auto',
-          gap: 12,
-          overflow: 'hidden',
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 650, color: 'var(--color-text-primary)' }}>
-              Organisations
-            </h2>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-              Showing backend organisation master records.
-            </p>
-          </div>
-          <span className="mono" style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
-            {filteredOrganisations.length} total
-          </span>
-        </div>
-
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
           <Search
             style={{
               position: 'absolute',
-              left: 10,
+              left: 12,
               top: '50%',
               transform: 'translateY(-50%)',
-              width: 14,
-              height: 14,
+              width: 16,
+              height: 16,
               color: 'var(--color-text-dim)',
             }}
           />
           <input
             className="form-input"
-            aria-label="Search organisations"
-            placeholder="Search organisations"
+            placeholder="Search organisations..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            style={{ height: 34, paddingLeft: 32, fontSize: 13 }}
+            style={{
+              width: '100%',
+              height: 40,
+              paddingLeft: 36,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
           />
         </div>
 
-        <div style={{ minHeight: 0, overflow: 'hidden' }}>
-          <table className="data-table" style={{ tableLayout: 'fixed' }}>
-            <thead>
-              <tr>
-                <th style={{ width: 76 }}>Code</th>
-                <th>Organisation</th>
-                <th>Contact</th>
-                <th>Address</th>
-                <th style={{ width: 118 }}>VAT</th>
-                <th style={{ width: 96 }}>Status</th>
-                <th style={{ width: 54, textAlign: 'right' }}>Edit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
-                    Loading organisations
-                  </td>
-                </tr>
-              ) : error ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-danger">
-                    {error}
-                  </td>
-                </tr>
-              ) : pagedOrganisations.length ? (
-                pagedOrganisations.map((organisation) => (
-                  <tr key={organisation.id}>
-                    <td>
-                      <span
-                        className="mono text-xs font-semibold"
-                        style={{ color: 'var(--color-amber)' }}
-                      >
-                        {organisation.code}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ minWidth: 0 }}>
-                        <p
-                          style={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: 'var(--color-text-primary)',
-                          }}
-                          title={organisation.name}
-                        >
-                          {organisation.name}
-                        </p>
-                        <p
-                          style={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 12,
-                            color: 'var(--color-text-muted)',
-                          }}
-                          title={organisation.legalName || 'No legal name'}
-                        >
-                          {organisation.legalName || 'No legal name'}
-                        </p>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ minWidth: 0 }}>
-                        <p
-                          className="mono"
-                          style={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 12,
-                            color: 'var(--color-text-primary)',
-                          }}
-                          title={organisation.telephone}
-                        >
-                          {organisation.telephone}
-                        </p>
-                        <p
-                          style={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 12,
-                            color: 'var(--color-blue)',
-                          }}
-                          title={organisation.email}
-                        >
-                          {organisation.email}
-                        </p>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ minWidth: 0 }}>
-                        <p
-                          style={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 12,
-                            color: 'var(--color-text-primary)',
-                          }}
-                          title={[
-                            organisation.addressLine1,
-                            organisation.addressLine2,
-                            organisation.city,
-                            organisation.country,
-                          ]
-                            .filter(Boolean)
-                            .join(', ')}
-                        >
-                          {[organisation.addressLine1, organisation.addressLine2]
-                            .filter(Boolean)
-                            .join(', ')}
-                        </p>
-                        <p
-                          style={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 12,
-                            color: 'var(--color-text-muted)',
-                          }}
-                        >
-                          {[organisation.city, organisation.country].filter(Boolean).join(', ')}
-                        </p>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ minWidth: 0 }}>
-                        <p
-                          className="mono"
-                          style={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 12,
-                            color: 'var(--color-text-primary)',
-                          }}
-                          title={organisation.vatRegNo || 'No VAT number'}
-                        >
-                          {organisation.vatRegNo || '-'}
-                        </p>
-                      </div>
-                    </td>
-                    <td>
-                      <StatusBadge status={organisation.status} />
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        type="button"
-                        className="icon-button"
-                        aria-label={`Edit ${organisation.name}`}
-                        title="Edit organisation"
-                        style={{ width: 28, height: 28 }}
-                        onClick={() => openEdit(organisation)}
-                      >
-                        <Pencil style={{ width: 13, height: 13 }} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
-                    No organisations found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            paddingTop: 10,
-            borderTop: '1px solid var(--color-border)',
-          }}
-        >
-          <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
-            Page {page} of {totalPages}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Previous page"
-              disabled={page <= 1}
-              style={{ width: 30, height: 30, opacity: page <= 1 ? 0.45 : 1 }}
-              onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
-            >
-              <ChevronLeft style={{ width: 15, height: 15 }} />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Next page"
-              disabled={page >= totalPages}
-              style={{ width: 30, height: 30, opacity: page >= totalPages ? 0.45 : 1 }}
-              onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
-            >
-              <ChevronRight style={{ width: 15, height: 15 }} />
-            </button>
+        <div style={{ position: 'relative', width: 160 }}>
+          <select
+            className="form-input"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
+            }}
+          >
+            <option value="All" style={{ background: 'var(--color-bg-elevated)' }}>
+              All Statuses
+            </option>
+            <option value="Active" style={{ background: 'var(--color-bg-elevated)' }}>
+              Active
+            </option>
+            <option value="Inactive" style={{ background: 'var(--color-bg-elevated)' }}>
+              Inactive
+            </option>
+          </select>
+          <div
+            style={{
+              pointerEvents: 'none',
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-dim)',
+            }}
+          >
+            <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
           </div>
         </div>
-      </section>
+      </div>
 
-      <form
-        onSubmit={handleSave}
-        className="panel"
+      <div
         style={{
-          minWidth: 0,
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) 360px',
           gap: 16,
+          flex: 1,
+          minHeight: 0,
           overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-            {editingOrganisation ? 'Edit Organisation' : 'Add Organisation'}
-          </h2>
-          {editingOrganisation ? (
+        <section
+          className="panel"
+          style={{
+            minWidth: 0,
+            padding: 16,
+            display: 'grid',
+            gridTemplateRows: 'auto minmax(0, 1fr) auto',
+            gap: 12,
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 650, color: 'var(--color-text-primary)' }}>
+                Organisations
+              </h2>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                Showing backend organisation master records.
+              </p>
+            </div>
+            <span className="mono" style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+              {filteredOrganisations.length} total
+            </span>
+          </div>
+
+          <div style={{ minHeight: 0, overflow: 'hidden' }}>
+            <table className="data-table" style={{ tableLayout: 'fixed' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 76 }}>Code</th>
+                  <th>Organisation</th>
+                  <th>Contact</th>
+                  <th>Address</th>
+                  <th style={{ width: 118 }}>VAT</th>
+                  <th style={{ width: 96 }}>Status</th>
+                  <th style={{ width: 54, textAlign: 'right' }}>Edit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
+                      Loading organisations
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-sm text-danger">
+                      {error}
+                    </td>
+                  </tr>
+                ) : pagedOrganisations.length ? (
+                  pagedOrganisations.map((organisation) => (
+                    <tr key={organisation.id}>
+                      <td>
+                        <span
+                          className="mono text-xs font-semibold"
+                          style={{ color: 'var(--color-amber)' }}
+                        >
+                          {organisation.code}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ minWidth: 0 }}>
+                          <p
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: 'var(--color-text-primary)',
+                            }}
+                            title={organisation.name}
+                          >
+                            {organisation.name}
+                          </p>
+                          <p
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: 12,
+                              color: 'var(--color-text-muted)',
+                            }}
+                            title={organisation.legalName || 'No legal name'}
+                          >
+                            {organisation.legalName || 'No legal name'}
+                          </p>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ minWidth: 0 }}>
+                          <p
+                            className="mono"
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: 12,
+                              color: 'var(--color-text-primary)',
+                            }}
+                            title={organisation.telephone}
+                          >
+                            {organisation.telephone}
+                          </p>
+                          <p
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: 12,
+                              color: 'var(--color-blue)',
+                            }}
+                            title={organisation.email}
+                          >
+                            {organisation.email}
+                          </p>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ minWidth: 0 }}>
+                          <p
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: 12,
+                              color: 'var(--color-text-primary)',
+                            }}
+                            title={[
+                              organisation.addressLine1,
+                              organisation.addressLine2,
+                              organisation.city,
+                              organisation.country,
+                            ]
+                              .filter(Boolean)
+                              .join(', ')}
+                          >
+                            {[organisation.addressLine1, organisation.addressLine2]
+                              .filter(Boolean)
+                              .join(', ')}
+                          </p>
+                          <p
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: 12,
+                              color: 'var(--color-text-muted)',
+                            }}
+                          >
+                            {[organisation.city, organisation.country].filter(Boolean).join(', ')}
+                          </p>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ minWidth: 0 }}>
+                          <p
+                            className="mono"
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: 12,
+                              color: 'var(--color-text-primary)',
+                            }}
+                            title={organisation.vatRegNo || 'No VAT number'}
+                          >
+                            {organisation.vatRegNo || '-'}
+                          </p>
+                        </div>
+                      </td>
+                      <td>
+                        <StatusBadge status={organisation.status} />
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label={`Edit ${organisation.name}`}
+                          title="Edit organisation"
+                          style={{ width: 28, height: 28 }}
+                          onClick={() => openEdit(organisation)}
+                        >
+                          <Pencil style={{ width: 13, height: 13 }} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
+                      No organisations found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              paddingTop: 10,
+              borderTop: '1px solid var(--color-border)',
+            }}
+          >
+            <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+              Page {page} of {totalPages}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Previous page"
+                disabled={page <= 1}
+                style={{ width: 30, height: 30, opacity: page <= 1 ? 0.45 : 1 }}
+                onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+              >
+                <ChevronLeft style={{ width: 15, height: 15 }} />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Next page"
+                disabled={page >= totalPages}
+                style={{ width: 30, height: 30, opacity: page >= totalPages ? 0.45 : 1 }}
+                onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+              >
+                <ChevronRight style={{ width: 15, height: 15 }} />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <form
+          onSubmit={handleSave}
+          className="panel"
+          style={{
+            minWidth: 0,
+            padding: 24,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}
+          >
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+              {editingOrganisation ? 'Edit Organisation' : 'Add Organisation'}
+            </h2>
+            {editingOrganisation ? (
+              <button
+                type="button"
+                className="button-ghost"
+                onClick={resetForm}
+                style={{ height: 28, padding: '0 8px', fontSize: 12 }}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 12 }}>
+            <FormField label="Code" required>
+              <input
+                {...enterKeyProps}
+                className="form-input"
+                placeholder="FlowLink"
+                value={form.code}
+                onChange={(event) => updateField('code', event.target.value)}
+                style={{ height: 36, fontSize: 13 }}
+              />
+            </FormField>
+            <FormField label="Name" required>
+              <input
+                {...enterKeyProps}
+                className="form-input"
+                placeholder="FlowLink Hub"
+                value={form.name}
+                onChange={(event) => updateField('name', event.target.value)}
+                style={{ height: 36, fontSize: 13 }}
+              />
+            </FormField>
+          </div>
+
+          <FormField label="Legal name">
+            <input
+              {...enterKeyProps}
+              className="form-input"
+              placeholder="FlowLink Distribution (Pvt) Ltd"
+              value={form.legalName}
+              onChange={(event) => updateField('legalName', event.target.value)}
+              style={{ height: 36, fontSize: 13 }}
+            />
+          </FormField>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <FormField label="Telephone" required>
+              <input
+                {...enterKeyProps}
+                className="form-input"
+                placeholder="+94 11 234 5678"
+                value={form.telephone}
+                onChange={(event) => updateField('telephone', event.target.value)}
+                style={{ height: 36, fontSize: 13 }}
+              />
+            </FormField>
+            <FormField label="Email" required>
+              <input
+                {...enterKeyProps}
+                className="form-input"
+                type="email"
+                placeholder="info@company.lk"
+                value={form.email}
+                onChange={(event) => updateField('email', event.target.value)}
+                style={{ height: 36, fontSize: 13 }}
+              />
+            </FormField>
+          </div>
+
+          <FormField label="Address" required>
+            <input
+              {...enterKeyProps}
+              className="form-input"
+              placeholder="Street address"
+              value={form.addressLine1}
+              onChange={(event) => updateField('addressLine1', event.target.value)}
+              style={{ height: 36, fontSize: 13 }}
+            />
+          </FormField>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <FormField label="City" required>
+              <input
+                {...enterKeyProps}
+                className="form-input"
+                placeholder="Colombo"
+                value={form.city}
+                onChange={(event) => updateField('city', event.target.value)}
+                style={{ height: 36, fontSize: 13 }}
+              />
+            </FormField>
+            <FormField label="Country" required>
+              <input
+                {...enterKeyProps}
+                className="form-input"
+                placeholder="Sri Lanka"
+                value={form.country}
+                onChange={(event) => updateField('country', event.target.value)}
+                style={{ height: 36, fontSize: 13 }}
+              />
+            </FormField>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 12 }}>
+            <FormField label="VAT reg no" required>
+              <input
+                {...enterKeyProps}
+                className="form-input"
+                placeholder="VAT987654321"
+                value={form.vatRegNo}
+                onChange={(event) => updateField('vatRegNo', event.target.value)}
+                style={{ height: 36, fontSize: 13 }}
+              />
+            </FormField>
+            <div style={{ paddingTop: 20 }}>
+              <label
+                htmlFor="organisationIsActive"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 13,
+                  color: 'var(--color-text-primary)',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  {...enterKeyProps}
+                  type="checkbox"
+                  id="organisationIsActive"
+                  checked={form.isActive}
+                  onChange={handleStatusChange}
+                  style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }}
+                />
+                Active
+              </label>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 8 }}>
             <button
               type="button"
               className="button-ghost"
               onClick={resetForm}
-              style={{ height: 28, padding: '0 8px', fontSize: 12 }}
+              style={{ flex: 1, height: 38, fontSize: 13 }}
             >
-              Clear
+              Cancel
             </button>
-          ) : null}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 12 }}>
-          <FormField label="Code" required>
-            <input
-              {...enterKeyProps}
-              className="form-input"
-              placeholder="FlowLink"
-              value={form.code}
-              onChange={(event) => updateField('code', event.target.value)}
-              style={{ height: 36, fontSize: 13 }}
-            />
-          </FormField>
-          <FormField label="Name" required>
-            <input
-              {...enterKeyProps}
-              className="form-input"
-              placeholder="FlowLink Hub"
-              value={form.name}
-              onChange={(event) => updateField('name', event.target.value)}
-              style={{ height: 36, fontSize: 13 }}
-            />
-          </FormField>
-        </div>
-
-        <FormField label="Legal name">
-          <input
-            {...enterKeyProps}
-            className="form-input"
-            placeholder="FlowLink Distribution (Pvt) Ltd"
-            value={form.legalName}
-            onChange={(event) => updateField('legalName', event.target.value)}
-            style={{ height: 36, fontSize: 13 }}
-          />
-        </FormField>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <FormField label="Telephone" required>
-            <input
-              {...enterKeyProps}
-              className="form-input"
-              placeholder="+94 11 234 5678"
-              value={form.telephone}
-              onChange={(event) => updateField('telephone', event.target.value)}
-              style={{ height: 36, fontSize: 13 }}
-            />
-          </FormField>
-          <FormField label="Email" required>
-            <input
-              {...enterKeyProps}
-              className="form-input"
-              type="email"
-              placeholder="info@company.lk"
-              value={form.email}
-              onChange={(event) => updateField('email', event.target.value)}
-              style={{ height: 36, fontSize: 13 }}
-            />
-          </FormField>
-        </div>
-
-        <FormField label="Address" required>
-          <input
-            {...enterKeyProps}
-            className="form-input"
-            placeholder="Street address"
-            value={form.addressLine1}
-            onChange={(event) => updateField('addressLine1', event.target.value)}
-            style={{ height: 36, fontSize: 13 }}
-          />
-        </FormField>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <FormField label="City" required>
-            <input
-              {...enterKeyProps}
-              className="form-input"
-              placeholder="Colombo"
-              value={form.city}
-              onChange={(event) => updateField('city', event.target.value)}
-              style={{ height: 36, fontSize: 13 }}
-            />
-          </FormField>
-          <FormField label="Country" required>
-            <input
-              {...enterKeyProps}
-              className="form-input"
-              placeholder="Sri Lanka"
-              value={form.country}
-              onChange={(event) => updateField('country', event.target.value)}
-              style={{ height: 36, fontSize: 13 }}
-            />
-          </FormField>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 12 }}>
-          <FormField label="VAT reg no" required>
-            <input
-              {...enterKeyProps}
-              className="form-input"
-              placeholder="VAT987654321"
-              value={form.vatRegNo}
-              onChange={(event) => updateField('vatRegNo', event.target.value)}
-              style={{ height: 36, fontSize: 13 }}
-            />
-          </FormField>
-          <div style={{ paddingTop: 20 }}>
-            <label
-              htmlFor="organisationIsActive"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: 13,
-                color: 'var(--color-text-primary)',
-                cursor: 'pointer',
-              }}
+            <button
+              id="save-organisation-button"
+              type="submit"
+              className="button-primary"
+              disabled={isSaving}
+              style={{ flex: 1, height: 38, fontSize: 13 }}
             >
-              <input
-                {...enterKeyProps}
-                type="checkbox"
-                id="organisationIsActive"
-                checked={form.isActive}
-                onChange={handleStatusChange}
-                style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }}
-              />
-              Active
-            </label>
+              {isSaving ? 'Saving...' : editingOrganisation ? 'Save Changes' : 'Save'}
+            </button>
           </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 8 }}>
-          <button
-            type="button"
-            className="button-ghost"
-            onClick={resetForm}
-            style={{ flex: 1, height: 38, fontSize: 13 }}
-          >
-            Cancel
-          </button>
-          <button
-            id="save-organisation-button"
-            type="submit"
-            className="button-primary"
-            disabled={isSaving}
-            style={{ flex: 1, height: 38, fontSize: 13 }}
-          >
-            {isSaving ? 'Saving...' : editingOrganisation ? 'Save Changes' : 'Save'}
-          </button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   )
 }

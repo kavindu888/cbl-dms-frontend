@@ -12,6 +12,7 @@ export const PERMISSIONS = {
     territoryManage: 'masterdata:territory:manage',
     businessUnitManage: 'masterdata:businessunit:manage',
     uomManage: 'masterdata:uom:manage',
+    salesRouteManage: 'masterdata:salesroute:manage',
   },
   purchasing: {
     poCreate: 'purchasing:po:create',

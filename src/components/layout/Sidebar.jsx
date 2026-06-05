@@ -2,7 +2,7 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   // Banknote,
   // BarChart2,
-  Bookmark,
+  // Bookmark,
   // ClipboardList,
   LayoutDashboard,
   LogOut,
@@ -15,6 +15,7 @@ import {
   // ShoppingCart,
   Tags,
   // Truck,
+  Route,
   Users,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -40,14 +41,6 @@ const navGroups = [
   // {
   //   label: 'FINANCE',
   //   items: [{ label: 'Collections', to: '/collections/daily', icon: Banknote }],
-  // },
-  // {
-  //   label: 'LOGISTICS',
-  //   items: [{ label: 'Fleet', to: '/fleet', icon: Truck }],
-  // },
-  // {
-  //   label: 'ANALYTICS',
-  //   items: [{ label: 'Reports', to: '/reports', icon: BarChart2 }],
   // },
   {
     label: 'MASTER',
@@ -78,16 +71,27 @@ const navGroups = [
         permissions: PERMISSIONS.masterData.categoryManage,
       },
       {
-        label: 'Brand',
-        to: '/master/brands',
-        icon: Bookmark,
-        permissions: PERMISSIONS.masterData.productManage,
-      },
-      {
         label: 'UOM',
         to: '/master/units-of-measure',
         icon: Ruler,
         permissions: PERMISSIONS.masterData.uomManage,
+      },
+      {
+        label: 'Sales Routes',
+        to: '/master/sales-routes',
+        icon: Route,
+        permissions: PERMISSIONS.masterData.salesRouteManage,
+      },
+    ],
+  },
+  {
+    label: 'SALES',
+    items: [
+      {
+        label: 'Customer Groups',
+        to: '/sales/customer-groups',
+        icon: Users,
+        permissions: PERMISSIONS.sales.customerManage,
       },
     ],
   },

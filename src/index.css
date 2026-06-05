@@ -437,3 +437,79 @@ select.form-input option {
 .settings-inner-tab:hover {
   color: var(--color-text-primary);
 }
+
+/* Light theme refinements */
+:root[data-theme='light'] {
+  --color-teal: #0f9f8f;
+  --color-danger: #dc2626;
+  --color-warning: #b7791f;
+  --color-purple: #7c3aed;
+  --color-blue: #2563eb;
+  --shadow-card: 0 12px 28px rgba(30, 64, 120, 0.08);
+}
+
+:root[data-theme='light'] body {
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.08), transparent 32%),
+    linear-gradient(225deg, rgba(37, 99, 235, 0.06), transparent 30%), var(--color-bg-base);
+}
+
+:root[data-theme='light'] .panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.96)),
+    var(--color-bg-surface);
+  border-color: #b8c9e6;
+}
+
+:root[data-theme='light'] .form-input {
+  background: #f8fbff !important;
+  border-color: #b7c8e4 !important;
+  color: var(--color-text-primary) !important;
+}
+
+:root[data-theme='light'] .form-input::placeholder {
+  color: #64748b;
+}
+
+:root[data-theme='light'] .form-input:focus {
+  background: #ffffff !important;
+  border-color: var(--color-amber) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-amber) 18%, transparent);
+}
+
+:root[data-theme='light'] select.form-input option {
+  background: #ffffff;
+  color: var(--color-text-primary);
+}
+
+:root[data-theme='light'] .data-table th {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-amber) 10%, #eef5ff), #e8f1ff);
+  color: #1e3a5f;
+  border-bottom-color: #b8c9e6;
+}
+
+:root[data-theme='light'] .data-table td {
+  border-bottom-color: #c6d5ec;
+}
+
+:root[data-theme='light'] .data-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--color-amber) 8%, #f8fbff);
+}
+
+:root[data-theme='light'] .icon-button,
+:root[data-theme='light'] .button-secondary {
+  background: #f8fbff;
+  border-color: #b7c8e4;
+}
+
+:root[data-theme='light'] .button-ghost:hover,
+:root[data-theme='light'] .icon-button:hover,
+:root[data-theme='light'] .button-secondary:hover {
+  background: color-mix(in srgb, var(--color-amber) 9%, #edf5ff);
+}
+
+:root[data-theme='light'] .amount-primary,
+:root[data-theme='light'] .data-table .mono[style*='--color-amber'],
+:root[data-theme='light'] [style*='color: var(--color-amber)'] {
+  color: color-mix(in srgb, var(--color-amber) 82%, #083344) !important;
+}

@@ -82,12 +82,14 @@ export default function TopBar() {
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       setNow(dayjs())
-    }, 1000)
+    }, 60000)
     return () => {
       window.clearInterval(intervalId)
     }
   }, [])
   const breadcrumb = buildBreadcrumb(location.pathname)
+  const pageTitle = breadcrumb[breadcrumb.length - 1] || 'Dashboard'
+  const parentBreadcrumb = breadcrumb.slice(0, -1)
   const displayName = user?.username ?? 'admin'
   const displayRole = user?.roles[0] ?? 'Admin'
   return (
@@ -105,18 +107,11 @@ export default function TopBar() {
 
           <div className={styles.breadcrumbWrap}>
             <div className={styles.breadcrumb}>
-              <span className={styles.breadcrumbLabel}>Navigation</span>
-              {breadcrumb.map((item, index) => (
+              <span className={styles.breadcrumbLabel}>{pageTitle}</span>
+              {parentBreadcrumb.map((item, index) => (
                 <span key={`${item}-${index}`} className={styles.breadcrumbSegment}>
-                  <span className={styles.breadcrumbSeparator}>/</span>
-                  <span
-                    className={cn(
-                      styles.breadcrumbItem,
-                      index === breadcrumb.length - 1
-                        ? styles.breadcrumbItemActive
-                        : styles.breadcrumbItemInactive
-                    )}
-                  >
+                  <span className={styles.breadcrumbSeparator}>in</span>
+                  <span className={cn(styles.breadcrumbItem, styles.breadcrumbItemInactive)}>
                     {item}
                   </span>
                 </span>
@@ -128,7 +123,7 @@ export default function TopBar() {
         <div className={styles.rightGroup}>
           <div className={styles.clockChip}>
             <Clock3 className={styles.clockIcon} />
-            <span className={styles.clockText}>{now.format('ddd, DD MMM YYYY HH:mm:ss')}</span>
+            <span className={styles.clockText}>{now.format('DD MMM YYYY, h:mm A')}</span>
           </div>
 
           <div className={styles.notificationWrap} ref={notificationsRef}>

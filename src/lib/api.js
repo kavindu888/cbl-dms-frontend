@@ -1,13 +1,14 @@
 import axios from 'axios'
 import { getAccessToken } from '@/utils'
 
-const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5150/api/v1'
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://staging.ceyservice.store'
 const parsedBaseUrl = new URL(configuredBaseUrl)
+const useDevProxy = import.meta.env.DEV && import.meta.env.VITE_USE_API_PROXY !== 'false'
 
 export const apiPrefix = parsedBaseUrl.pathname.replace(/\/$/, '')
 
 const api = axios.create({
-  baseURL: parsedBaseUrl.origin,
+  baseURL: useDevProxy ? undefined : parsedBaseUrl.origin,
   timeout: 20000,
   withCredentials: true,
   headers: {

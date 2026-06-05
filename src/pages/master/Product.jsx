@@ -1197,10 +1197,6 @@ export default function Product() {
     loadProducts()
   }
 
-  // Calculate quick metrics
-  const activeCount = products.filter((p) => p.isActive).length
-  const inactiveCount = products.filter((p) => !p.isActive).length
-
   return (
     <div
       style={{
@@ -1265,144 +1261,157 @@ export default function Product() {
         onSaved={handleSave}
       />
 
+      {/* ── Filter Bar ── */}
+      <div
+        className="panel"
+        style={{
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 16,
+              height: 16,
+              color: 'var(--color-text-dim)',
+            }}
+          />
+          <input
+            className="form-input"
+            placeholder="Search by SKU, Barcode, or Product name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              paddingLeft: 36,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
+          />
+        </div>
+
+        {/* Category Dropdown */}
+        <div style={{ position: 'relative', width: 200 }}>
+          <select
+            className="form-input"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
+            }}
+          >
+            <option value="All" style={{ background: 'var(--color-bg-elevated)' }}>
+              All Categories
+            </option>
+            {categories.map((c) => (
+              <option
+                key={c.id}
+                value={c.name}
+                style={{
+                  background: 'var(--color-bg-elevated)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <div
+            style={{
+              pointerEvents: 'none',
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-dim)',
+            }}
+          >
+            <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Active Status Dropdown */}
+        <div style={{ position: 'relative', width: 160 }}>
+          <select
+            className="form-input"
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
+            }}
+          >
+            <option value="All" style={{ background: 'var(--color-bg-elevated)' }}>
+              All Statuses
+            </option>
+            <option value="Active" style={{ background: 'var(--color-bg-elevated)' }}>
+              Active
+            </option>
+            <option value="Discontinued" style={{ background: 'var(--color-bg-elevated)' }}>
+              Discontinued
+            </option>
+          </select>
+          <div
+            style={{
+              pointerEvents: 'none',
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-dim)',
+            }}
+          >
+            <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
       <div
         className="panel"
         style={{
           padding: 12,
           display: 'grid',
-          gridTemplateRows: 'auto minmax(0, 1fr) auto',
+          gridTemplateRows: 'minmax(0, 1fr) auto',
           flex: 1,
           minHeight: 0,
           overflow: 'hidden',
         }}
       >
-        {/* ── Filter Bar ── */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) 200px 160px',
-            alignItems: 'center',
-            gap: 12,
-            marginBottom: 10,
-          }}
-        >
-          <div style={{ position: 'relative' }}>
-            <Search
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: 16,
-                height: 16,
-                color: 'var(--color-text-dim)',
-              }}
-            />
-            <input
-              className="form-input"
-              placeholder="Search by SKU, Barcode, or Product name..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: '100%',
-                height: 38,
-                paddingLeft: 36,
-                background: 'rgba(0,0,0,0.15)',
-              }}
-            />
-          </div>
-
-          {/* Category Dropdown */}
-          <div style={{ position: 'relative' }}>
-            <select
-              className="form-input"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              style={{
-                width: '100%',
-                height: 38,
-                background: 'rgba(0,0,0,0.15)',
-                cursor: 'pointer',
-                appearance: 'none',
-                paddingLeft: 12,
-                paddingRight: 36,
-              }}
-            >
-              <option value="All" style={{ background: 'var(--color-bg-elevated)' }}>
-                All Categories
-              </option>
-              {categories.map((c) => (
-                <option
-                  key={c.id}
-                  value={c.name}
-                  style={{
-                    background: 'var(--color-bg-elevated)',
-                    color: 'var(--color-text-primary)',
-                  }}
-                >
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <div
-              style={{
-                pointerEvents: 'none',
-                position: 'absolute',
-                right: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--color-text-dim)',
-              }}
-            >
-              <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
-                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-              </svg>
-            </div>
-          </div>
-
-          {/* Active Status Dropdown */}
-          <div style={{ position: 'relative' }}>
-            <select
-              className="form-input"
-              value={activeFilter}
-              onChange={(e) => setActiveFilter(e.target.value)}
-              style={{
-                width: '100%',
-                height: 38,
-                background: 'rgba(0,0,0,0.15)',
-                cursor: 'pointer',
-                appearance: 'none',
-                paddingLeft: 12,
-                paddingRight: 36,
-              }}
-            >
-              <option value="All" style={{ background: 'var(--color-bg-elevated)' }}>
-                All Statuses
-              </option>
-              <option value="Active" style={{ background: 'var(--color-bg-elevated)' }}>
-                Active
-              </option>
-              <option value="Discontinued" style={{ background: 'var(--color-bg-elevated)' }}>
-                Discontinued
-              </option>
-            </select>
-            <div
-              style={{
-                pointerEvents: 'none',
-                position: 'absolute',
-                right: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--color-text-dim)',
-              }}
-            >
-              <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
-                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
         {/* ── Table ── */}
         <div style={{ minHeight: 0, overflow: 'hidden' }}>
           {isLoading ? (

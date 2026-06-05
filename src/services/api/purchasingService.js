@@ -12,14 +12,14 @@ function getResult(response, fallbackMessage) {
 
 export const purchasingService = {
   async listPurchaseOrders(params = {}) {
-    const response = await getOnce('/api/v1/purchasing/orders', {
+    const response = await getOnce('/api/v1/purchase-orders', {
       params,
     })
     return response.data
   },
 
   async getPurchaseOrder(id) {
-    const response = await getOnce(`/api/v1/purchasing/orders/${id}`)
+    const response = await getOnce(`/api/v1/purchase-orders/${id}`)
     return response.data
   },
 

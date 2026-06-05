@@ -60,6 +60,21 @@ function formatTerritory(territory) {
   }
 }
 
+function formatSalesRoute(route) {
+  if (!route) return null
+  return {
+    id: route.id,
+    territoryId: route.territoryId ?? '',
+    code: route.code ?? '',
+    name: route.name ?? '',
+    defaultEmployeeId: route.defaultEmployeeId ?? '',
+    isActive: Boolean(route.isActive),
+    status: route.isActive ? 'Active' : 'Inactive',
+    createdAt: route.createdAt,
+    updatedAt: route.updatedAt,
+  }
+}
+
 function formatProduct(product) {
   if (!product) return null
   return {
@@ -220,6 +235,42 @@ export const masterService = {
   async deactivateTerritory(id) {
     const response = await api.delete(`/api/v1/master-data/territories/${id}`)
     return formatTerritory(getValue(response, 'Unable to deactivate territory.'))
+  },
+
+  // Sales Routes List, Get, Create, Update, Deactivate
+  // Sales Routes List
+  async listSalesRoutes(params = {}) {
+    const response = await getOnce('/api/v1/master/sales-routes', { params })
+    const page = getValue(response, 'Unable to load sales routes.')
+
+    return {
+      ...page,
+      items: (page?.items || []).map(formatSalesRoute),
+    }
+  },
+
+  // Sales Routes Get By Id
+  async getSalesRoute(id) {
+    const response = await getOnce(`/api/v1/master/sales-routes/${id}`)
+    return formatSalesRoute(getValue(response, 'Unable to load sales route.'))
+  },
+
+  // Sales Routes Create
+  async createSalesRoute(payload) {
+    const response = await api.post('/api/v1/master/sales-routes', payload)
+    return response.data
+  },
+
+  // Sales Routes Update
+  async updateSalesRoute(id, payload) {
+    const response = await api.put(`/api/v1/master/sales-routes/${id}`, payload)
+    return getValue(response, 'Unable to update sales route.')
+  },
+
+  // Sales Routes Deactivate
+  async deactivateSalesRoute(id) {
+    const response = await api.delete(`/api/v1/master/sales-routes/${id}`)
+    return getValue(response, 'Unable to deactivate sales route.')
   },
 
   //Product List, Get, Create, Update, Activate/Deactivate
@@ -403,35 +454,5 @@ export const masterService = {
   // Brands Deactivate
   async deleteBrand(id) {
     await api.delete(`/api/v1/master/brands/${id}`)
-  },
-
-  // Customers List, Get, Create, Update, Deactivate
-  // Customers List
-  async listCustomers(params = {}) {
-    const response = await getOnce('/api/v1/master/customers', { params })
-    return response.data
-  },
-
-  // Customers Get By Id
-  async getCustomer(id) {
-    const response = await getOnce(`/api/v1/master/customers/${id}`)
-    return response.data.data
-  },
-
-  // Customers Create
-  async createCustomer(payload) {
-    const response = await api.post('/api/v1/master/customers', payload)
-    return response.data.data
-  },
-
-  // Customers Update
-  async updateCustomer(id, payload) {
-    const response = await api.put(`/api/v1/master/customers/${id}`, payload)
-    return response.data.data
-  },
-
-  // Customers Deactivate
-  async deleteCustomer(id) {
-    await api.delete(`/api/v1/master/customers/${id}`)
   },
 }

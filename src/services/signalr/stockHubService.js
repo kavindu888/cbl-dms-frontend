@@ -3,7 +3,8 @@ import { useAuthStore } from '@stores/authStore'
 import { getAccessToken } from '@/utils'
 const STOCK_EVENT = 'StockUpdated'
 const FLEET_EVENT = 'FleetUpdated'
-const baseHubUrl = import.meta.env.VITE_SIGNALR_HUB_URL
+const useDevProxy = import.meta.env.DEV && import.meta.env.VITE_USE_API_PROXY !== 'false'
+const baseHubUrl = useDevProxy ? '/hubs' : import.meta.env.VITE_SIGNALR_HUB_URL
 class StockHubService {
   constructor() {
     Object.defineProperty(this, 'connection', {

@@ -36,14 +36,14 @@ function applyStoredTheme() {
         accentColor: '#8EE8F0',
       },
       light: {
-        bgBase: '#F7FAFF',
+        bgBase: '#F4F8FF',
         bgSurface: '#FFFFFF',
-        bgElevated: '#EAF2FF',
-        border: '#C9D8F0',
+        bgElevated: '#E7F0FF',
+        border: '#BFD0EA',
         textPrimary: '#0F172A',
-        textMuted: '#4B5568',
-        textDim: '#6B7A90',
-        accentColor: '#2563EB',
+        textMuted: '#334155',
+        textDim: '#64748B',
+        accentColor: '#0E7490',
       },
     }[mode]
     const root = document.documentElement
@@ -56,7 +56,9 @@ function applyStoredTheme() {
     root.style.setProperty('--color-text-dim', presets.textDim)
     const savedAccentColor = parsed.accentColor?.toUpperCase()
     const accentColor =
-      mode === 'dark' && (!savedAccentColor || savedAccentColor === '#F4A623')
+      (mode === 'dark' && (!savedAccentColor || savedAccentColor === '#F4A623')) ||
+      (mode === 'light' &&
+        (!savedAccentColor || savedAccentColor === '#8EE8F0' || savedAccentColor === '#F4A623'))
         ? presets.accentColor
         : (parsed.accentColor ?? presets.accentColor)
     root.style.setProperty('--color-amber', accentColor)
@@ -67,6 +69,7 @@ function applyStoredTheme() {
     if (parsed.fontMono) {
       root.style.setProperty('--font-mono', parsed.fontMono)
     }
+    root.dataset.theme = mode
     root.style.colorScheme = mode
     document.body.style.colorScheme = mode
     const radius = parsed.borderRadius ?? 'default'

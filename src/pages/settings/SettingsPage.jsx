@@ -42,14 +42,14 @@ const THEME_PRESETS = {
     accentColor: '#8EE8F0',
   },
   light: {
-    bgBase: '#F7FAFF',
+    bgBase: '#F4F8FF',
     bgSurface: '#FFFFFF',
-    bgElevated: '#EAF2FF',
-    border: '#C9D8F0',
+    bgElevated: '#E7F0FF',
+    border: '#BFD0EA',
     textPrimary: '#0F172A',
-    textMuted: '#4B5568',
-    textDim: '#6B7A90',
-    accentColor: '#2563EB',
+    textMuted: '#334155',
+    textDim: '#64748B',
+    accentColor: '#0E7490',
   },
 }
 function loadTheme() {
@@ -61,9 +61,11 @@ function loadTheme() {
     const mode = parsed.mode === 'light' ? 'light' : 'dark'
     const savedAccentColor = parsed.accentColor?.toUpperCase()
     const accentColor =
-      mode === 'dark' && (!savedAccentColor || savedAccentColor === '#F4A623')
-        ? DEFAULTS.accentColor
-        : (parsed.accentColor ?? DEFAULTS.accentColor)
+      (mode === 'dark' && (!savedAccentColor || savedAccentColor === '#F4A623')) ||
+      (mode === 'light' &&
+        (!savedAccentColor || savedAccentColor === '#8EE8F0' || savedAccentColor === '#F4A623'))
+        ? THEME_PRESETS[mode].accentColor
+        : (parsed.accentColor ?? THEME_PRESETS[mode].accentColor)
 
     return {
       ...DEFAULTS,
@@ -81,6 +83,12 @@ function loadTheme() {
 function applyTheme(theme) {
   const root = document.documentElement
   const preset = THEME_PRESETS[theme.mode]
+  const savedAccentColor = theme.accentColor?.toUpperCase()
+  const accentColor =
+    theme.mode === 'light' && (savedAccentColor === '#8EE8F0' || savedAccentColor === '#F4A623')
+      ? preset.accentColor
+      : theme.accentColor
+
   root.style.setProperty('--color-bg-base', preset.bgBase)
   root.style.setProperty('--color-bg-surface', preset.bgSurface)
   root.style.setProperty('--color-bg-elevated', preset.bgElevated)
@@ -88,10 +96,11 @@ function applyTheme(theme) {
   root.style.setProperty('--color-text-primary', preset.textPrimary)
   root.style.setProperty('--color-text-muted', preset.textMuted)
   root.style.setProperty('--color-text-dim', preset.textDim)
-  root.style.setProperty('--color-amber', theme.accentColor)
-  root.style.setProperty('--color-amber-dark', `color-mix(in srgb, ${theme.accentColor} 82%, #000)`)
+  root.style.setProperty('--color-amber', accentColor)
+  root.style.setProperty('--color-amber-dark', `color-mix(in srgb, ${accentColor} 82%, #000)`)
   root.style.setProperty('--font-sans', theme.fontSans)
   root.style.setProperty('--font-mono', theme.fontMono)
+  root.dataset.theme = theme.mode
   root.style.colorScheme = theme.mode
   document.body.style.colorScheme = theme.mode
   const r = RADIUS_VALUES[theme.borderRadius]

@@ -8,14 +8,13 @@ import DailyEntryPage from '@pages/collections/DailyEntryPage'
 import ReconciliationPage from '@pages/collections/ReconciliationPage'
 import DashboardPage from '@pages/dashboard/DashboardPage'
 import FleetOverviewPage from '@pages/fleet/FleetOverviewPage'
-import RouteLogPage from '@pages/fleet/RouteLogPage'
 import VehicleDetailPage from '@pages/fleet/VehicleDetailPage'
 import MonthlyAdjustmentPage from '@pages/inventory/MonthlyAdjustmentPage'
 import MovementLogPage from '@pages/inventory/MovementLogPage'
-import BrandListPage from '@pages/master/BrandListPage'
 import CategoryListPage from '@pages/master/CategoryListPage'
 import MasterCustomerListPage from '@pages/master/CustomerListPage'
 import Product from '@pages/master/Product'
+import SalesRouteListPage from '@pages/master/SalesRouteListPage'
 import UnitOfMeasureListPage from '@pages/master/UnitOfMeasureListPage'
 import PurchaseOrderDetailPage from '@pages/purchasing/PurchaseOrderDetailPage'
 import PurchaseOrderListPage from '@pages/purchasing/PurchaseOrderListPage'
@@ -25,7 +24,7 @@ import SupplierListPage from '@pages/master/SupplierListPage'
 import ReportHubPage from '@pages/reports/ReportHubPage'
 import ReportPreviewPage from '@pages/reports/ReportPreviewPage'
 import CustomerDetailPage from '@pages/sales/CustomerDetailPage'
-import CustomerListPage from '@pages/sales/CustomerListPage'
+import CustomerGroupListPage from '@pages/sales/CustomerGroupListPage'
 import InvoiceCreatorPage from '@pages/sales/InvoiceCreatorPage'
 import InvoiceDetailPage from '@pages/sales/InvoiceDetailPage'
 import InvoiceListPage from '@pages/sales/InvoiceListPage'
@@ -110,11 +109,15 @@ export const router = createBrowserRouter([
       },
       {
         path: 'master/brands',
-        element: requirePermission(<BrandListPage />, PERMISSIONS.masterData.productManage),
+        element: <Navigate to="/master/products" replace />,
       },
       {
         path: 'master/units-of-measure',
         element: requirePermission(<UnitOfMeasureListPage />, PERMISSIONS.masterData.uomManage),
+      },
+      {
+        path: 'master/sales-routes',
+        element: requirePermission(<SalesRouteListPage />, PERMISSIONS.masterData.salesRouteManage),
       },
       {
         path: 'inventory/categories',
@@ -122,7 +125,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'inventory/brands',
-        element: requirePermission(<BrandListPage />, PERMISSIONS.masterData.productManage),
+        element: <Navigate to="/master/products" replace />,
       },
       {
         path: 'inventory/movements',
@@ -133,11 +136,8 @@ export const router = createBrowserRouter([
         element: requirePermission(<MonthlyAdjustmentPage />, PERMISSIONS.inventory.stockAdjust),
       },
       {
-        path: 'sales/customers',
-        element: requirePermission(<CustomerListPage />, [
-          PERMISSIONS.sales.customerRead,
-          PERMISSIONS.sales.customerManage,
-        ]),
+        path: 'sales/customer-groups',
+        element: requirePermission(<CustomerGroupListPage />, PERMISSIONS.sales.customerManage),
       },
       {
         path: 'sales/customers/:id',
@@ -176,10 +176,6 @@ export const router = createBrowserRouter([
       {
         path: 'fleet',
         element: requirePermission(<FleetOverviewPage />, PERMISSIONS.fleet.vehicleRead),
-      },
-      {
-        path: 'fleet/routes',
-        element: requirePermission(<RouteLogPage />, PERMISSIONS.fleet.routeAssign),
       },
       {
         path: 'fleet/vehicles/:id',

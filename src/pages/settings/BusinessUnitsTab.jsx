@@ -29,6 +29,7 @@ export default function BusinessUnitsTab() {
   const [businessUnits, setBusinessUnits] = useState([])
   const [organisations, setOrganisations] = useState([])
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('All')
   const [editingBusinessUnit, setEditingBusinessUnit] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [isLoading, setIsLoading] = useState(true)
@@ -66,22 +67,27 @@ export default function BusinessUnitsTab() {
     const query = search.trim().toLowerCase()
 
     return businessUnits.filter((businessUnit) => {
-      if (!query) return true
+      const matchesSearch =
+        !query ||
+        [
+          businessUnit.code,
+          businessUnit.name,
+          businessUnit.description,
+          businessUnit.type,
+          organisations.find((item) => item.id === businessUnit.organisationId)?.name,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
 
-      const organisation = organisations.find((item) => item.id === businessUnit.organisationId)
+      const matchesStatus =
+        statusFilter === 'All' ||
+        (statusFilter === 'Active' && businessUnit.isActive) ||
+        (statusFilter === 'Inactive' && !businessUnit.isActive)
 
-      return [
-        businessUnit.code,
-        businessUnit.name,
-        businessUnit.description,
-        businessUnit.type,
-        organisation?.name,
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
+      return matchesSearch && matchesStatus
     })
-  }, [businessUnits, organisations, search])
+  }, [businessUnits, organisations, search, statusFilter])
 
   function getOrganisationName(organisationId) {
     return organisations.find((item) => item.id === organisationId)?.name || '-'
@@ -205,27 +211,33 @@ export default function BusinessUnitsTab() {
 
   return (
     <div
-      style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'stretch' }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+        minHeight: 0,
+      }}
     >
+      {/* ── Filter Bar ── */}
       <div
         className="panel"
-        style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}
+        style={{
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexShrink: 0,
+        }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            Business Units
-          </p>
-        </div>
-
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
           <Search
             style={{
               position: 'absolute',
               left: 12,
               top: '50%',
               transform: 'translateY(-50%)',
-              width: 14,
-              height: 14,
+              width: 16,
+              height: 16,
               color: 'var(--color-text-dim)',
             }}
           />
@@ -236,226 +248,297 @@ export default function BusinessUnitsTab() {
             onChange={(event) => setSearch(event.target.value)}
             style={{
               width: '100%',
-              height: 36,
+              height: 40,
               paddingLeft: 36,
               background: 'rgba(0,0,0,0.15)',
-              fontSize: 13,
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
             }}
           />
         </div>
 
-        <div className="overflow-x-auto" style={{ marginTop: 4 }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Organisation</th>
-                <th>Type</th>
-                <th>Description</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="py-12 text-center text-sm text-[var(--color-text-muted)]"
-                  >
-                    Loading business units...
-                  </td>
-                </tr>
-              ) : error ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-[var(--color-danger)]">
-                    {error}
-                  </td>
-                </tr>
-              ) : filteredBusinessUnits.length ? (
-                filteredBusinessUnits.map((businessUnit) => (
-                  <tr key={businessUnit.id}>
-                    <td>
-                      <span
-                        className="mono text-xs font-semibold"
-                        style={{ color: 'var(--color-amber)' }}
-                      >
-                        {businessUnit.code}
-                      </span>
-                    </td>
-                    <td
-                      className="text-sm font-medium"
-                      style={{ color: 'var(--color-text-primary)' }}
-                    >
-                      {businessUnit.name}
-                    </td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {getOrganisationName(businessUnit.organisationId)}
-                    </td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {businessUnit.type || '-'}
-                    </td>
-                    <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {businessUnit.description || '-'}
-                    </td>
-                    <td>
-                      <StatusBadge status={businessUnit.status} />
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        type="button"
-                        className="icon-button"
-                        style={{ width: 26, height: 26 }}
-                        onClick={() => openEdit(businessUnit)}
-                      >
-                        <Pencil style={{ width: 12, height: 12 }} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="py-12 text-center text-sm text-[var(--color-text-muted)]"
-                  >
-                    No business units found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div style={{ position: 'relative', width: 160 }}>
+          <select
+            className="form-input"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
+            }}
+          >
+            <option value="All" style={{ background: 'var(--color-bg-elevated)' }}>
+              All Statuses
+            </option>
+            <option value="Active" style={{ background: 'var(--color-bg-elevated)' }}>
+              Active
+            </option>
+            <option value="Inactive" style={{ background: 'var(--color-bg-elevated)' }}>
+              Inactive
+            </option>
+          </select>
+          <div
+            style={{
+              pointerEvents: 'none',
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-dim)',
+            }}
+          >
+            <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
+          </div>
         </div>
       </div>
 
-      <form
-        onSubmit={handleSave}
-        className="panel"
-        style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) 360px',
+          gap: 16,
+          alignItems: 'stretch',
+        }}
       >
         <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 4,
-          }}
+          className="panel"
+          style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}
         >
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            {editingBusinessUnit ? 'Edit Business Unit' : 'Add New Business Unit'}
-          </p>
-          {editingBusinessUnit ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              Business Units
+            </p>
+          </div>
+
+          <div className="overflow-x-auto" style={{ marginTop: 4 }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Organisation</th>
+                  <th>Type</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                    >
+                      Loading business units...
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="py-12 text-center text-sm text-[var(--color-danger)]"
+                    >
+                      {error}
+                    </td>
+                  </tr>
+                ) : filteredBusinessUnits.length ? (
+                  filteredBusinessUnits.map((businessUnit) => (
+                    <tr key={businessUnit.id}>
+                      <td>
+                        <span
+                          className="mono text-xs font-semibold"
+                          style={{ color: 'var(--color-amber)' }}
+                        >
+                          {businessUnit.code}
+                        </span>
+                      </td>
+                      <td
+                        className="text-sm font-medium"
+                        style={{ color: 'var(--color-text-primary)' }}
+                      >
+                        {businessUnit.name}
+                      </td>
+                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                        {getOrganisationName(businessUnit.organisationId)}
+                      </td>
+                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                        {businessUnit.type || '-'}
+                      </td>
+                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                        {businessUnit.description || '-'}
+                      </td>
+                      <td>
+                        <StatusBadge status={businessUnit.status} />
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          style={{ width: 26, height: 26 }}
+                          onClick={() => openEdit(businessUnit)}
+                        >
+                          <Pencil style={{ width: 12, height: 12 }} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                    >
+                      No business units found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <form
+          onSubmit={handleSave}
+          className="panel"
+          style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 4,
+            }}
+          >
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              {editingBusinessUnit ? 'Edit Business Unit' : 'Add New Business Unit'}
+            </p>
+            {editingBusinessUnit ? (
+              <button
+                type="button"
+                className="button-ghost"
+                onClick={resetForm}
+                style={{ padding: '4px 8px', height: 'auto', fontSize: 12 }}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+
+          <div>
+            <label className="form-label" style={{ fontSize: 10 }}>
+              ORGANISATION
+            </label>
+            <select
+              {...enterKeyProps}
+              className="form-input"
+              value={form.organisationId}
+              onChange={(event) => updateField('organisationId', event.target.value)}
+              style={{ height: 38, cursor: 'pointer' }}
+            >
+              <option value="">Select organisation</option>
+              {organisations.map((organisation) => (
+                <option key={organisation.id} value={organisation.id}>
+                  {organisation.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="form-label" style={{ fontSize: 10 }}>
+              CODE
+            </label>
+            <input
+              {...enterKeyProps}
+              className="form-input"
+              placeholder="e.g. BU-MAIN"
+              value={form.code}
+              onChange={(event) => updateField('code', event.target.value)}
+              style={{ height: 38 }}
+            />
+          </div>
+
+          <div>
+            <label className="form-label" style={{ fontSize: 10 }}>
+              NAME
+            </label>
+            <input
+              {...enterKeyProps}
+              className="form-input"
+              placeholder="e.g. Main Operations"
+              value={form.name}
+              onChange={(event) => updateField('name', event.target.value)}
+              style={{ height: 38 }}
+            />
+          </div>
+
+          <div>
+            <label className="form-label" style={{ fontSize: 10 }}>
+              DESCRIPTION
+            </label>
+            <textarea
+              {...enterKeyProps}
+              className="form-input"
+              placeholder="Optional description"
+              value={form.description}
+              onChange={(event) => updateField('description', event.target.value)}
+              style={{ minHeight: 76, paddingTop: 10, resize: 'vertical' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+            <input
+              {...enterKeyProps}
+              type="checkbox"
+              id="isActiveBU"
+              checked={form.isActive}
+              onChange={handleStatusChange}
+              style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }}
+            />
+            <label
+              htmlFor="isActiveBU"
+              style={{ fontSize: 13, color: 'var(--color-text-primary)', cursor: 'pointer' }}
+            >
+              Active Business Unit
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 16 }}>
             <button
               type="button"
               className="button-ghost"
               onClick={resetForm}
-              style={{ padding: '4px 8px', height: 'auto', fontSize: 12 }}
+              style={{ flex: 1, height: 36, fontSize: 13 }}
             >
-              Clear
+              Cancel
             </button>
-          ) : null}
-        </div>
-
-        <div>
-          <label className="form-label" style={{ fontSize: 10 }}>
-            ORGANISATION
-          </label>
-          <select
-            {...enterKeyProps}
-            className="form-input"
-            value={form.organisationId}
-            onChange={(event) => updateField('organisationId', event.target.value)}
-            style={{ height: 38, cursor: 'pointer' }}
-          >
-            <option value="">Select organisation</option>
-            {organisations.map((organisation) => (
-              <option key={organisation.id} value={organisation.id}>
-                {organisation.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="form-label" style={{ fontSize: 10 }}>
-            CODE
-          </label>
-          <input
-            {...enterKeyProps}
-            className="form-input"
-            placeholder="e.g. BU-MAIN"
-            value={form.code}
-            onChange={(event) => updateField('code', event.target.value)}
-            style={{ height: 38 }}
-          />
-        </div>
-
-        <div>
-          <label className="form-label" style={{ fontSize: 10 }}>
-            NAME
-          </label>
-          <input
-            {...enterKeyProps}
-            className="form-input"
-            placeholder="e.g. Main Operations"
-            value={form.name}
-            onChange={(event) => updateField('name', event.target.value)}
-            style={{ height: 38 }}
-          />
-        </div>
-
-        <div>
-          <label className="form-label" style={{ fontSize: 10 }}>
-            DESCRIPTION
-          </label>
-          <textarea
-            {...enterKeyProps}
-            className="form-input"
-            placeholder="Optional description"
-            value={form.description}
-            onChange={(event) => updateField('description', event.target.value)}
-            style={{ minHeight: 76, paddingTop: 10, resize: 'vertical' }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-          <input
-            {...enterKeyProps}
-            type="checkbox"
-            id="isActiveBU"
-            checked={form.isActive}
-            onChange={handleStatusChange}
-            style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }}
-          />
-          <label
-            htmlFor="isActiveBU"
-            style={{ fontSize: 13, color: 'var(--color-text-primary)', cursor: 'pointer' }}
-          >
-            Active Business Unit
-          </label>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 16 }}>
-          <button
-            type="button"
-            className="button-ghost"
-            onClick={resetForm}
-            style={{ flex: 1, height: 36, fontSize: 13 }}
-          >
-            Cancel
-          </button>
-          <button
-            id="save-business-unit-button"
-            type="submit"
-            className="button-primary"
-            disabled={isSaving}
-            style={{ flex: 1, height: 36, fontSize: 13 }}
-          >
-            {isSaving ? 'Saving...' : editingBusinessUnit ? 'Save Changes' : 'Save'}
-          </button>
-        </div>
-      </form>
+            <button
+              id="save-business-unit-button"
+              type="submit"
+              className="button-primary"
+              disabled={isSaving}
+              style={{ flex: 1, height: 36, fontSize: 13 }}
+            >
+              {isSaving ? 'Saving...' : editingBusinessUnit ? 'Save Changes' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

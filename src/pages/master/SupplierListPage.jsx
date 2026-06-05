@@ -792,52 +792,49 @@ export default function SupplierListPage() {
         </button>
       </div>
 
-      <div
+      {/* ── Filter Bar ── */}
+      <form
+        onSubmit={applySearch}
         className="panel"
         style={{
-          padding: 12,
-          display: 'grid',
-          gridTemplateRows: 'auto minmax(0, 1fr) auto',
-          flex: 1,
-          minHeight: 0,
-          overflow: 'hidden',
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexShrink: 0,
         }}
       >
-        <form
-          onSubmit={applySearch}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) 180px auto auto',
-            alignItems: 'center',
-            gap: 12,
-            marginBottom: 10,
-          }}
-        >
-          <div style={{ position: 'relative' }}>
-            <Search
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                width: 16,
-                height: 16,
-                transform: 'translateY(-50%)',
-                color: 'var(--color-text-dim)',
-              }}
-            />
-            <input
-              className="form-input"
-              value={searchText}
-              placeholder="Search suppliers..."
-              onChange={(event) => setSearchText(event.target.value)}
-              style={{
-                width: '100%',
-                height: 38,
-                paddingLeft: 36,
-                background: 'rgba(0,0,0,0.15)',
-              }}
-            />
-          </div>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              width: 16,
+              height: 16,
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-dim)',
+            }}
+          />
+          <input
+            className="form-input"
+            value={searchText}
+            placeholder="Search suppliers..."
+            onChange={(event) => setSearchText(event.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              paddingLeft: 36,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
+          />
+        </div>
+
+        <div style={{ position: 'relative', width: 180 }}>
           <select
             className="form-input"
             value={status}
@@ -845,28 +842,75 @@ export default function SupplierListPage() {
               setStatus(event.target.value)
               setPage(1)
             }}
-            style={{ height: 38, cursor: 'pointer' }}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
+            }}
           >
             {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
+              <option
+                key={option.value}
+                value={option.value}
+                style={{ background: 'var(--color-bg-elevated)' }}
+              >
                 {option.label}
               </option>
             ))}
           </select>
-          <button className="button-secondary" type="submit" style={{ height: 38 }}>
-            Search
-          </button>
-          <button
-            className="icon-button"
-            type="button"
-            aria-label="Refresh suppliers"
-            onClick={loadSuppliers}
-            style={{ height: 38, width: 38 }}
+          <div
+            style={{
+              pointerEvents: 'none',
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-dim)',
+            }}
           >
-            <RefreshCw style={{ width: 15, height: 15 }} />
-          </button>
-        </form>
+            <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
+          </div>
+        </div>
 
+        <button
+          className="button-secondary"
+          type="submit"
+          style={{ height: 40, padding: '0 16px' }}
+        >
+          Search
+        </button>
+        <button
+          className="icon-button"
+          type="button"
+          aria-label="Refresh suppliers"
+          onClick={loadSuppliers}
+          style={{ height: 40, width: 40 }}
+        >
+          <RefreshCw style={{ width: 15, height: 15 }} />
+        </button>
+      </form>
+
+      <div
+        className="panel"
+        style={{
+          padding: 12,
+          display: 'grid',
+          gridTemplateRows: 'minmax(0, 1fr) auto',
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+        }}
+      >
         <SupplierTable suppliers={suppliers} isLoading={isLoading} onEdit={openEditModal} />
 
         <div
