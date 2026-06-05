@@ -661,20 +661,20 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Customer Satisfaction Rating */}
+        {/* Cash & Cheque Collections Summary */}
         <div className="relative">
           <SectionPanel
-            title="Customer Satisfaction"
-            subtitle="Daily feedback ratings from delivery outlets"
+            title="Cash & Cheque Summary"
+            subtitle="Breakdown of today's collections by payment instrument"
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 2 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 6 }}>
               <div>
                 <div
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginBottom: 4,
+                    marginBottom: 6,
                   }}
                 >
                   <span
@@ -695,18 +695,18 @@ export default function DashboardPage() {
                         background: 'var(--color-teal)',
                       }}
                     />
-                    Positive
+                    Cash Collections
                   </span>
                   <span
                     style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}
                   >
-                    80%
+                    {formatCurrency(1600000)} (64%)
                   </span>
                 </div>
                 <div
                   style={{
                     width: '100%',
-                    height: 5,
+                    height: 6,
                     background: 'var(--color-border)',
                     borderRadius: 3,
                     overflow: 'hidden',
@@ -714,7 +714,7 @@ export default function DashboardPage() {
                 >
                   <div
                     style={{
-                      width: '80%',
+                      width: '64%',
                       height: '100%',
                       background: 'var(--color-teal)',
                       borderRadius: 3,
@@ -729,7 +729,7 @@ export default function DashboardPage() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginBottom: 4,
+                    marginBottom: 6,
                   }}
                 >
                   <span
@@ -747,21 +747,21 @@ export default function DashboardPage() {
                         width: 8,
                         height: 8,
                         borderRadius: '50%',
-                        background: 'var(--color-amber)',
+                        background: 'var(--color-blue)',
                       }}
                     />
-                    Neutral
+                    Cheque Collections
                   </span>
                   <span
                     style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}
                   >
-                    15%
+                    {formatCurrency(900000)} (36%)
                   </span>
                 </div>
                 <div
                   style={{
                     width: '100%',
-                    height: 5,
+                    height: 6,
                     background: 'var(--color-border)',
                     borderRadius: 3,
                     overflow: 'hidden',
@@ -769,64 +769,9 @@ export default function DashboardPage() {
                 >
                   <div
                     style={{
-                      width: '15%',
+                      width: '36%',
                       height: '100%',
-                      background: 'var(--color-amber)',
-                      borderRadius: 3,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 4,
-                  }}
-                >
-                  <span
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: 'var(--color-text-primary)',
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        background: 'var(--color-danger)',
-                      }}
-                    />
-                    Negative
-                  </span>
-                  <span
-                    style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}
-                  >
-                    5%
-                  </span>
-                </div>
-                <div
-                  style={{
-                    width: '100%',
-                    height: 5,
-                    background: 'var(--color-border)',
-                    borderRadius: 3,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: '5%',
-                      height: '100%',
-                      background: 'var(--color-danger)',
+                      background: 'var(--color-blue)',
                       borderRadius: 3,
                     }}
                   />
