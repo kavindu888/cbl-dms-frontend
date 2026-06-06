@@ -1,5 +1,5 @@
 import { ImageUp, Pencil, Plus, Search, Trash2, X, Copy, Globe, Store } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@services/api/masterService'
@@ -170,6 +170,8 @@ export default function CustomerListPage() {
   const [page, setPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+  const [routeCache, setRouteCache] = useState({})
+  const routeCacheRef = useRef({})
 
   // Customer Group inline creation states
   const [showGroupForm, setShowGroupForm] = useState(false)
@@ -259,6 +261,25 @@ export default function CustomerListPage() {
     }
   }, [])
 
+  const resolveRoutes = useCallback(async (customers) => {
+    const ids = [...new Set(customers.map((c) => c.salesRouteId).filter(Boolean))]
+    const toFetch = ids.filter((id) => !(id in routeCacheRef.current))
+    if (!toFetch.length) return
+
+    const updates = { ...routeCacheRef.current }
+    await Promise.allSettled(
+      toFetch.map(async (id) => {
+        try {
+          updates[id] = await masterService.getSalesRoute(id)
+        } catch {
+          updates[id] = null
+        }
+      })
+    )
+    routeCacheRef.current = updates
+    setRouteCache({ ...updates })
+  }, [])
+
   const loadCustomers = useCallback(async () => {
     setIsLoading(true)
     setError('')
@@ -271,15 +292,17 @@ export default function CustomerListPage() {
         isActive: customerStatus,
       })
 
-      setCustomers(result.items || [])
+      const loadedCustomers = result.items || []
+      setCustomers(loadedCustomers)
       setTotalItems(result.totalItems || 0)
       setTotalPages(Math.max(1, result.totalPages || 1))
+      resolveRoutes(loadedCustomers)
     } catch (loadError) {
       setError(getErrorMessage(loadError, 'Unable to load customers.'))
     } finally {
       setIsLoading(false)
     }
-  }, [customerStatus, page, search])
+  }, [customerStatus, page, search, resolveRoutes])
 
   const loadRoutes = useCallback(async (territoryId) => {
     if (!territoryId) {
@@ -978,13 +1001,17 @@ export default function CustomerListPage() {
                     const rawImg = customer.images?.[0]?.imageUrl
                     const customerImage = rawImg ? getR2ImageUrl(rawImg) : null
 
-                    // Resolve route & territory
-                    const route = allRoutes.find((r) => r.id === customer.salesRouteId)
-                    const routeName = route ? `${route.name} (${route.code})` : '—'
-                    const territory = route
-                      ? territories.find((t) => t.id === route.territoryId)
+                    // Resolve route & territory from background-loaded cache
+                    const routeObj = customer.salesRouteId ? routeCache[customer.salesRouteId] : null
+                    const routeName = routeObj
+                      ? `${routeObj.name} (${routeObj.code})`
+                      : customer.salesRouteId && !(customer.salesRouteId in routeCache)
+                        ? '...'
+                        : '—'
+                    const territory = routeObj
+                      ? territories.find((t) => t.id === routeObj.territoryId)
                       : null
-                    const territoryName = territory ? `${territory.name}` : '—'
+                    const territoryName = territory ? territory.name : '—'
 
                     return (
                       <tr key={customer.id}>

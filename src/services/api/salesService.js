@@ -26,11 +26,26 @@ function formatCustomerGroup(group) {
 
 function formatCustomer(customer) {
   if (!customer) return null
-  // List endpoint returns CustomerSummaryDto with profileImageUrl (flat string).
-  // Detail endpoint returns CustomerDetailsDto with images array. Handle both.
+  // List endpoint returns CustomerSummaryDto with profileImageUrl (flat string) and flat primary contact fields.
+  // Detail endpoint returns CustomerDetailsDto with images array and full contacts array. Handle both.
   const images =
     customer.images ||
     (customer.profileImageUrl ? [{ imageUrl: customer.profileImageUrl }] : [])
+
+  // Build contacts array from whatever shape the DTO provides
+  let contacts = customer.contacts || []
+  if (!contacts.length && (customer.primaryContactName || customer.primaryContactPhone)) {
+    contacts = [{
+      id: null,
+      fullName: customer.primaryContactName || '',
+      phone: customer.primaryContactPhone || '',
+      email: customer.primaryContactEmail || '',
+      isPrimary: true,
+      isActive: true,
+      contactType: 0,
+    }]
+  }
+
   return {
     id: customer.id,
     organizationId: customer.organizationId ?? '',
@@ -46,7 +61,7 @@ function formatCustomer(customer) {
     location: customer.location ?? null,
     isActive: Boolean(customer.isActive),
     status: customer.isActive ? 'Active' : 'Inactive',
-    contacts: customer.contacts || [],
+    contacts,
     images,
   }
 }
