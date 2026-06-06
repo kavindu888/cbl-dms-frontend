@@ -975,8 +975,8 @@ export default function CustomerListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
-            <table className="data-table master-table-compact">
+          <div style={{ minHeight: 0, overflowY: 'auto' }}>
+            <table className="data-table master-table-compact" style={{ width: '100%' }}>
               <thead>
                 <tr>
                   <th style={{ width: 50, textAlign: 'center' }}>Image</th>
@@ -985,8 +985,7 @@ export default function CustomerListPage() {
                   <th>Group</th>
                   <th>Route & Territory</th>
                   <th>Primary Contact</th>
-                  <th>Billing & Payment</th>
-                  <th>Tax & VAT Details</th>
+                  <th>Payment & Tax</th>
                   <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -994,13 +993,13 @@ export default function CustomerListPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-sm text-text-muted">
+                    <td colSpan={9} className="py-12 text-center text-sm text-text-muted">
                       Loading customers...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-sm text-danger">
+                    <td colSpan={9} className="py-12 text-center text-sm text-danger">
                       {error}
                     </td>
                   </tr>
@@ -1158,18 +1157,14 @@ export default function CustomerListPage() {
                           </div>
                         </td>
 
-                        {/* Billing & Payment */}
+                        {/* Payment & Tax */}
                         <td>
-                          <div className="uom-conversions-list">
-                            <span className="uom-badge">
-                              {getPaymentLabel(customer.preferredPaymentMethod)}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Tax & VAT Details */}
-                        <td>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <div className="uom-conversions-list">
+                              <span className="uom-badge">
+                                {getPaymentLabel(customer.preferredPaymentMethod)}
+                              </span>
+                            </div>
                             {customer.isVatRegistered ? (
                               <div className="reorder-badge">
                                 <div className="reorder-badge-item">
@@ -1226,7 +1221,7 @@ export default function CustomerListPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-sm text-text-muted">
+                    <td colSpan={9} className="py-12 text-center text-sm text-text-muted">
                       No customers found.
                     </td>
                   </tr>
