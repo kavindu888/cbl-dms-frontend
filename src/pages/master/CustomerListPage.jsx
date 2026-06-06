@@ -1,4 +1,4 @@
-import { ImageUp, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { ImageUp, Pencil, Plus, Search, Trash2, X, Copy, Globe, Store } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
@@ -157,6 +157,7 @@ export default function CustomerListPage() {
   const [groups, setGroups] = useState([])
   const [territories, setTerritories] = useState([])
   const [routes, setRoutes] = useState([])
+  const [allRoutes, setAllRoutes] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [editingCustomer, setEditingCustomer] = useState(null)
@@ -236,15 +237,17 @@ export default function CustomerListPage() {
     setIsLoadingLookups(true)
 
     try {
-      const [groupResult, territoryResult, businessUnitResult] = await Promise.all([
+      const [groupResult, territoryResult, businessUnitResult, routeResult] = await Promise.all([
         salesService.listCustomerGroups({ page: 1, pageSize: 100 }),
         masterService.listTerritories(),
         masterService.listBusinessUnits(),
+        masterService.listSalesRoutes({ page: 1, pageSize: 1000 }),
       ])
 
       setGroups(groupResult.items || [])
       setTerritories(territoryResult || [])
       setBusinessUnits(businessUnitResult || [])
+      setAllRoutes(routeResult.items || [])
     } catch (loadError) {
       toast.error(getErrorMessage(loadError, 'Unable to load customer lookups.'))
     } finally {
@@ -528,7 +531,7 @@ export default function CustomerListPage() {
       const details = await salesService.getCustomer(customer.id)
       setEditingCustomer(details)
       setIsModalOpen(true)
-      
+
       const primaryContact = details.contacts?.find((c) => c.isPrimary) || details.contacts?.[0]
       const otherContacts = details.contacts?.filter((c) => c !== primaryContact) || []
 
@@ -687,7 +690,9 @@ export default function CustomerListPage() {
 
     try {
       validateCustomerImage(imageFile)
-      toast.error('Existing customer image upload needs backend support for saving a Cloudinary URL.')
+      toast.error(
+        'Existing customer image upload needs backend support for saving a Cloudinary URL.'
+      )
     } catch (validationError) {
       toast.error(getErrorMessage(validationError, 'Unable to upload image.'))
     }
@@ -803,11 +808,14 @@ export default function CustomerListPage() {
             <table className="data-table master-table-compact">
               <thead>
                 <tr>
+                  <th style={{ width: 50, textAlign: 'center' }}>Image</th>
                   <th>Code</th>
-                  <th>Name</th>
+                  <th>Customer Name & Info</th>
                   <th>Group</th>
-                  <th>Payment</th>
-                  <th>VAT</th>
+                  <th>Route & Territory</th>
+                  <th>Primary Contact</th>
+                  <th>Billing & Payment</th>
+                  <th>Tax & VAT Details</th>
                   <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -815,72 +823,235 @@ export default function CustomerListPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
+                    <td colSpan={10} className="py-12 text-center text-sm text-text-muted">
                       Loading customers...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-sm text-danger">
+                    <td colSpan={10} className="py-12 text-center text-sm text-danger">
                       {error}
                     </td>
                   </tr>
                 ) : customers.length ? (
-                  customers.map((customer) => (
-                    <tr key={customer.id}>
-                      <td>
-                        <span
-                          className="mono text-xs font-semibold"
-                          style={{ color: 'var(--color-amber)' }}
-                        >
-                          {customer.code}
-                        </span>
-                      </td>
-                      <td
-                        className="text-sm font-medium"
-                        style={{ color: 'var(--color-text-primary)' }}
-                      >
-                        {customer.name}
-                      </td>
-                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {getGroupName(groups, customer.customerGroupId)}
-                      </td>
-                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {getPaymentLabel(customer.preferredPaymentMethod)}
-                      </td>
-                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {customer.isVatRegistered ? 'Yes' : 'No'}
-                      </td>
-                      <td>
-                        <StatusBadge status={customer.status} />
-                      </td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <button
-                          type="button"
-                          className="icon-button"
-                          title="Edit customer"
-                          disabled={isSaving}
-                          style={{ width: 28, height: 28, marginRight: 6 }}
-                          onClick={() => openEdit(customer)}
-                        >
-                          <Pencil style={{ width: 13, height: 13 }} />
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-button"
-                          title="Deactivate customer"
-                          disabled={!customer.isActive}
-                          style={{ width: 28, height: 28, opacity: customer.isActive ? 1 : 0.45 }}
-                          onClick={() => handleDeactivate(customer)}
-                        >
-                          <Trash2 style={{ width: 13, height: 13 }} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  customers.map((customer) => {
+                    const primaryContact =
+                      customer.contacts?.find((c) => c.isPrimary) || customer.contacts?.[0]
+                    const contactName = primaryContact?.fullName || '—'
+                    const contactPhone = primaryContact?.phone || ''
+                    const contactEmail = primaryContact?.email || ''
+
+                    // Resolve image
+                    const rawImg = customer.images?.[0]?.imageUrl
+                    const customerImage = rawImg ? getCloudinaryImageUrl(rawImg) : null
+
+                    // Resolve route & territory
+                    const route = allRoutes.find((r) => r.id === customer.salesRouteId)
+                    const routeName = route ? `${route.name} (${route.code})` : '—'
+                    const territory = route
+                      ? territories.find((t) => t.id === route.territoryId)
+                      : null
+                    const territoryName = territory ? `${territory.name}` : '—'
+
+                    return (
+                      <tr key={customer.id}>
+                        {/* Image */}
+                        <td style={{ textAlign: 'center', width: 50 }}>
+                          <div className="product-image-container" style={{ margin: '0 auto' }}>
+                            {customerImage ? (
+                              <img
+                                src={customerImage}
+                                alt={customer.name}
+                                className="product-image"
+                                onError={(e) => {
+                                  e.target.style.display = 'none'
+                                  const fallback = e.target.nextSibling
+                                  if (fallback) fallback.style.display = 'block'
+                                }}
+                              />
+                            ) : null}
+                            <Store
+                              className="product-image-fallback"
+                              style={{ display: customerImage ? 'none' : 'block' }}
+                            />
+                          </div>
+                        </td>
+
+                        {/* Code */}
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span className="product-sku-badge mono">{customer.code}</span>
+                            <button
+                              type="button"
+                              className="copy-btn"
+                              title="Copy Customer Code"
+                              onClick={() => {
+                                navigator.clipboard.writeText(customer.code)
+                                toast.success(
+                                  `Customer code "${customer.code}" copied to clipboard`
+                                )
+                              }}
+                            >
+                              <Copy style={{ width: 12, height: 12 }} />
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* Customer Name */}
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span className="product-name-title">{customer.name}</span>
+                            {customer.location?.latitude && customer.location?.longitude ? (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${customer.location.latitude},${customer.location.longitude}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="product-info-sub"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  color: 'var(--color-amber)',
+                                  width: 'fit-content',
+                                }}
+                              >
+                                <Globe style={{ width: 10, height: 10 }} />
+                                GPS: {Number(customer.location.latitude).toFixed(4)},{' '}
+                                {Number(customer.location.longitude).toFixed(4)}
+                              </a>
+                            ) : null}
+                          </div>
+                        </td>
+
+                        {/* Group */}
+                        <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                          {getGroupName(groups, customer.customerGroupId) || (
+                            <span style={{ color: 'var(--color-text-dim)' }}>—</span>
+                          )}
+                        </td>
+
+                        {/* Route & Territory */}
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span
+                              className="text-sm font-medium"
+                              style={{ color: 'var(--color-text-primary)' }}
+                            >
+                              {routeName}
+                            </span>
+                            {territoryName !== '—' && (
+                              <span className="product-info-sub">Territory: {territoryName}</span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Primary Contact */}
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span
+                              className="text-sm font-medium"
+                              style={{ color: 'var(--color-text-primary)' }}
+                            >
+                              {contactName}
+                            </span>
+                            {contactPhone && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <span
+                                  className="mono text-xs"
+                                  style={{ color: 'var(--color-text-dim)' }}
+                                >
+                                  {contactPhone}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="copy-btn"
+                                  title="Copy Phone"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(contactPhone)
+                                    toast.success(`Phone copied`)
+                                  }}
+                                >
+                                  <Copy style={{ width: 10, height: 10 }} />
+                                </button>
+                              </div>
+                            )}
+                            {contactEmail && (
+                              <span className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
+                                {contactEmail}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Billing & Payment */}
+                        <td>
+                          <div className="uom-conversions-list">
+                            <span className="uom-badge">
+                              {getPaymentLabel(customer.preferredPaymentMethod)}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Tax & VAT Details */}
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {customer.isVatRegistered ? (
+                              <div className="reorder-badge">
+                                <div className="reorder-badge-item">
+                                  <span className="reorder-badge-label">VAT Reg:</span>
+                                  <span className="mono">{customer.registrationNumber || '—'}</span>
+                                </div>
+                                <div className="reorder-badge-item">
+                                  <span className="reorder-badge-label">TIN:</span>
+                                  <span className="mono">{customer.taxNumber || '—'}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--color-text-dim)', fontSize: 12 }}>
+                                Non-VAT Registered
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td>
+                          <StatusBadge status={customer.status} />
+                        </td>
+
+                        {/* Actions */}
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            title="Edit customer"
+                            disabled={isSaving}
+                            style={{ width: 28, height: 28, marginRight: 6 }}
+                            onClick={() => openEdit(customer)}
+                          >
+                            <Pencil style={{ width: 13, height: 13 }} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            title="Deactivate customer"
+                            disabled={!customer.isActive}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              opacity: customer.isActive ? 1 : 0.45,
+                            }}
+                            onClick={() => handleDeactivate(customer)}
+                          >
+                            <Trash2 style={{ width: 13, height: 13 }} />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
+                    <td colSpan={10} className="py-12 text-center text-sm text-text-muted">
                       No customers found.
                     </td>
                   </tr>
@@ -1069,7 +1240,11 @@ export default function CustomerListPage() {
                       value={form.customerGroupId}
                       disabled={isLoadingLookups}
                       onChange={(event) => updateField('customerGroupId', event.target.value)}
-                      style={{ height: 42, background: 'rgba(0,0,0,0.15)', cursor: isLoadingLookups ? 'wait' : 'pointer' }}
+                      style={{
+                        height: 42,
+                        background: 'rgba(0,0,0,0.15)',
+                        cursor: isLoadingLookups ? 'wait' : 'pointer',
+                      }}
                     >
                       <option value="">Select group</option>
                       {customerGroupOptions.map((group) => (
@@ -1104,7 +1279,9 @@ export default function CustomerListPage() {
                           placeholder="e.g. WHOLESALE"
                           value={newGroup.code}
                           maxLength={20}
-                          onChange={(event) => updateNewGroupField('code', event.target.value.toUpperCase())}
+                          onChange={(event) =>
+                            updateNewGroupField('code', event.target.value.toUpperCase())
+                          }
                           style={{ height: 38, background: 'rgba(0,0,0,0.2)' }}
                         />
                       </div>
@@ -1131,7 +1308,9 @@ export default function CustomerListPage() {
                           min="0"
                           step="1"
                           value={newGroup.defaultCreditDays}
-                          onChange={(event) => updateNewGroupField('defaultCreditDays', event.target.value)}
+                          onChange={(event) =>
+                            updateNewGroupField('defaultCreditDays', event.target.value)
+                          }
                           style={{ height: 38, background: 'rgba(0,0,0,0.2)' }}
                         />
                       </div>
@@ -1145,13 +1324,23 @@ export default function CustomerListPage() {
                           min="0"
                           step="0.01"
                           value={newGroup.defaultCreditLimit}
-                          onChange={(event) => updateNewGroupField('defaultCreditLimit', event.target.value)}
+                          onChange={(event) =>
+                            updateNewGroupField('defaultCreditLimit', event.target.value)
+                          }
                           style={{ height: 38, background: 'rgba(0,0,0,0.2)' }}
                         />
                       </div>
-                      
+
                       {/* Buttons Row spanning all 4 columns */}
-                      <div style={{ gridColumn: 'span 4', display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                      <div
+                        style={{
+                          gridColumn: 'span 4',
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          gap: 10,
+                          marginTop: 8,
+                        }}
+                      >
                         <button
                           type="button"
                           className="button-ghost"
@@ -1201,7 +1390,11 @@ export default function CustomerListPage() {
                       value={form.territoryId}
                       disabled={isLoadingLookups}
                       onChange={(event) => updateField('territoryId', event.target.value)}
-                      style={{ height: 42, background: 'rgba(0,0,0,0.15)', cursor: isLoadingLookups ? 'wait' : 'pointer' }}
+                      style={{
+                        height: 42,
+                        background: 'rgba(0,0,0,0.15)',
+                        cursor: isLoadingLookups ? 'wait' : 'pointer',
+                      }}
                     >
                       <option value="">Select territory for route</option>
                       {territoryOptions.map((territory) => (
@@ -1246,11 +1439,20 @@ export default function CustomerListPage() {
                       value={form.salesRouteId}
                       disabled={isLoadingRoutes}
                       onChange={(event) => updateField('salesRouteId', event.target.value)}
-                      style={{ height: 42, background: 'rgba(0,0,0,0.15)', cursor: isLoadingRoutes ? 'wait' : 'pointer' }}
+                      style={{
+                        height: 42,
+                        background: 'rgba(0,0,0,0.15)',
+                        cursor: isLoadingRoutes ? 'wait' : 'pointer',
+                      }}
                     >
-                      <option value="">{isLoadingRoutes ? 'Loading routes...' : 'Select route'}</option>
-                      {form.salesRouteId && !routeOptions.some((route) => route.id === form.salesRouteId) ? (
-                        <option value={form.salesRouteId}>Current route ({form.salesRouteId})</option>
+                      <option value="">
+                        {isLoadingRoutes ? 'Loading routes...' : 'Select route'}
+                      </option>
+                      {form.salesRouteId &&
+                      !routeOptions.some((route) => route.id === form.salesRouteId) ? (
+                        <option value={form.salesRouteId}>
+                          Current route ({form.salesRouteId})
+                        </option>
                       ) : null}
                       {routeOptions.map((route) => (
                         <option key={route.id} value={route.id}>
@@ -1283,7 +1485,9 @@ export default function CustomerListPage() {
                           <select
                             className="form-input"
                             value={newTerritory.businessUnitId}
-                            onChange={(event) => updateNewTerritoryField('businessUnitId', event.target.value)}
+                            onChange={(event) =>
+                              updateNewTerritoryField('businessUnitId', event.target.value)
+                            }
                             style={{ height: 38, background: 'rgba(0,0,0,0.2)', cursor: 'pointer' }}
                           >
                             {businessUnits.map((bu) => (
@@ -1303,7 +1507,9 @@ export default function CustomerListPage() {
                           placeholder="e.g. TR-COLOMBO"
                           value={newTerritory.code}
                           maxLength={20}
-                          onChange={(event) => updateNewTerritoryField('code', event.target.value.toUpperCase())}
+                          onChange={(event) =>
+                            updateNewTerritoryField('code', event.target.value.toUpperCase())
+                          }
                           style={{ height: 38, background: 'rgba(0,0,0,0.2)' }}
                         />
                       </div>
@@ -1329,13 +1535,23 @@ export default function CustomerListPage() {
                           placeholder="Optional description"
                           value={newTerritory.description}
                           maxLength={200}
-                          onChange={(event) => updateNewTerritoryField('description', event.target.value)}
+                          onChange={(event) =>
+                            updateNewTerritoryField('description', event.target.value)
+                          }
                           style={{ height: 38, background: 'rgba(0,0,0,0.2)' }}
                         />
                       </div>
 
                       {/* Buttons Row */}
-                      <div style={{ gridColumn: 'span 4', display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                      <div
+                        style={{
+                          gridColumn: 'span 4',
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          gap: 10,
+                          marginTop: 8,
+                        }}
+                      >
                         <button
                           type="button"
                           className="button-ghost"
@@ -1381,7 +1597,9 @@ export default function CustomerListPage() {
                           placeholder="e.g. CMB-01"
                           value={newRoute.code}
                           maxLength={20}
-                          onChange={(event) => updateNewRouteField('code', event.target.value.toUpperCase())}
+                          onChange={(event) =>
+                            updateNewRouteField('code', event.target.value.toUpperCase())
+                          }
                           style={{ height: 38, background: 'rgba(0,0,0,0.2)' }}
                         />
                       </div>
@@ -1407,13 +1625,23 @@ export default function CustomerListPage() {
                           placeholder="Optional Employee ID"
                           value={newRoute.defaultEmployeeId}
                           maxLength={50}
-                          onChange={(event) => updateNewRouteField('defaultEmployeeId', event.target.value)}
+                          onChange={(event) =>
+                            updateNewRouteField('defaultEmployeeId', event.target.value)
+                          }
                           style={{ height: 38, background: 'rgba(0,0,0,0.2)' }}
                         />
                       </div>
 
                       {/* Buttons Row */}
-                      <div style={{ gridColumn: 'span 4', display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                      <div
+                        style={{
+                          gridColumn: 'span 4',
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          gap: 10,
+                          marginTop: 8,
+                        }}
+                      >
                         <button
                           type="button"
                           className="button-ghost"
@@ -1436,18 +1664,18 @@ export default function CustomerListPage() {
                   ) : null}
 
                   <div>
-                    <label className="form-label">
-                      PREFERRED PAYMENT
-                    </label>
+                    <label className="form-label">PREFERRED PAYMENT</label>
                     <select
                       className="form-input"
                       value={form.preferredPaymentMethod}
                       disabled={!!editingCustomer}
-                      onChange={(event) => updateField('preferredPaymentMethod', event.target.value)}
+                      onChange={(event) =>
+                        updateField('preferredPaymentMethod', event.target.value)
+                      }
                       style={{
                         height: 42,
                         background: 'rgba(0,0,0,0.15)',
-                        cursor: editingCustomer ? 'not-allowed' : 'pointer'
+                        cursor: editingCustomer ? 'not-allowed' : 'pointer',
                       }}
                     >
                       {paymentMethods.map((method) => (
@@ -1488,7 +1716,10 @@ export default function CustomerListPage() {
 
                   <div>
                     <label className="form-label">
-                      REGISTRATION NUMBER {form.isVatRegistered && <span style={{ color: 'var(--color-danger)' }}>*</span>}
+                      REGISTRATION NUMBER{' '}
+                      {form.isVatRegistered && (
+                        <span style={{ color: 'var(--color-danger)' }}>*</span>
+                      )}
                     </label>
                     <input
                       className="form-input"
@@ -1502,22 +1733,25 @@ export default function CustomerListPage() {
 
                   <div>
                     <label className="form-label">
-                      TIN {form.isVatRegistered && <span style={{ color: 'var(--color-danger)' }}>*</span>}
+                      TIN{' '}
+                      {form.isVatRegistered && (
+                        <span style={{ color: 'var(--color-danger)' }}>*</span>
+                      )}
                     </label>
                     <input
                       className="form-input"
                       placeholder={form.isVatRegistered ? '9 digits required' : 'Optional'}
                       value={form.taxNumber}
                       maxLength={9}
-                      onChange={(event) => updateField('taxNumber', event.target.value.replace(/\D/g, ''))}
+                      onChange={(event) =>
+                        updateField('taxNumber', event.target.value.replace(/\D/g, ''))
+                      }
                       style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
                     />
                   </div>
 
                   <div>
-                    <label className="form-label">
-                      LATITUDE
-                    </label>
+                    <label className="form-label">LATITUDE</label>
                     <input
                       className="form-input"
                       type="number"
@@ -1531,9 +1765,7 @@ export default function CustomerListPage() {
                   </div>
 
                   <div>
-                    <label className="form-label">
-                      LONGITUDE
-                    </label>
+                    <label className="form-label">LONGITUDE</label>
                     <input
                       className="form-input"
                       type="number"
@@ -1547,12 +1779,12 @@ export default function CustomerListPage() {
                   </div>
 
                   <div>
-                    <label className="form-label">
-                      GROUP CREDIT LIMIT
-                    </label>
+                    <label className="form-label">GROUP CREDIT LIMIT</label>
                     <input
                       className="form-input"
-                      value={selectedGroup ? `Rs. ${formatMoney(selectedGroup.defaultCreditLimit)}` : '-'}
+                      value={
+                        selectedGroup ? `Rs. ${formatMoney(selectedGroup.defaultCreditLimit)}` : '-'
+                      }
                       disabled
                       style={{
                         height: 42,
@@ -1564,9 +1796,7 @@ export default function CustomerListPage() {
                   </div>
 
                   <div>
-                    <label className="form-label">
-                      GROUP CREDIT DAYS
-                    </label>
+                    <label className="form-label">GROUP CREDIT DAYS</label>
                     <input
                       className="form-input"
                       value={selectedGroup ? `${selectedGroup.defaultCreditDays} Days` : '-'}
@@ -1602,9 +1832,7 @@ export default function CustomerListPage() {
                   }}
                 >
                   <div>
-                    <label className="form-label">
-                      CONTACT TYPE
-                    </label>
+                    <label className="form-label">CONTACT TYPE</label>
                     <select
                       className="form-input"
                       value={form.contactType}
@@ -1613,7 +1841,7 @@ export default function CustomerListPage() {
                       style={{
                         height: 42,
                         background: 'rgba(0,0,0,0.15)',
-                        cursor: editingCustomer ? 'not-allowed' : 'pointer'
+                        cursor: editingCustomer ? 'not-allowed' : 'pointer',
                       }}
                     >
                       {contactTypes.map((type) => (
@@ -1624,9 +1852,7 @@ export default function CustomerListPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="form-label">
-                      CONTACT NAME
-                    </label>
+                    <label className="form-label">CONTACT NAME</label>
                     <input
                       className="form-input"
                       placeholder={editingCustomer ? 'Not specified' : 'Contact name'}
@@ -1637,9 +1863,7 @@ export default function CustomerListPage() {
                     />
                   </div>
                   <div>
-                    <label className="form-label">
-                      CONTACT PHONE
-                    </label>
+                    <label className="form-label">CONTACT PHONE</label>
                     <input
                       className="form-input"
                       placeholder={editingCustomer ? 'Not specified' : 'Phone'}
@@ -1650,9 +1874,7 @@ export default function CustomerListPage() {
                     />
                   </div>
                   <div>
-                    <label className="form-label">
-                      CONTACT EMAIL
-                    </label>
+                    <label className="form-label">CONTACT EMAIL</label>
                     <input
                       className="form-input"
                       placeholder={editingCustomer ? 'Not specified' : 'Email'}
@@ -1678,7 +1900,13 @@ export default function CustomerListPage() {
                           gap: 12,
                         }}
                       >
-                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: 'var(--color-text-secondary)',
+                          }}
+                        >
                           Additional Contact #{index + 1}
                         </div>
                         <div
@@ -1689,14 +1917,14 @@ export default function CustomerListPage() {
                           }}
                         >
                           <div>
-                            <label className="form-label">
-                              CONTACT TYPE
-                            </label>
+                            <label className="form-label">CONTACT TYPE</label>
                             <select
                               className="form-input"
                               value={contact.contactType}
                               disabled={!!editingCustomer}
-                              onChange={(event) => updateAdditionalContact(index, 'contactType', event.target.value)}
+                              onChange={(event) =>
+                                updateAdditionalContact(index, 'contactType', event.target.value)
+                              }
                               style={{
                                 height: 42,
                                 background: 'rgba(0,0,0,0.15)',
@@ -1711,43 +1939,48 @@ export default function CustomerListPage() {
                             </select>
                           </div>
                           <div>
-                            <label className="form-label">
-                              CONTACT NAME
-                            </label>
+                            <label className="form-label">CONTACT NAME</label>
                             <input
                               className="form-input"
                               placeholder={editingCustomer ? 'Not specified' : 'Contact name'}
                               value={contact.fullName}
                               disabled={!!editingCustomer}
-                              onChange={(event) => updateAdditionalContact(index, 'fullName', event.target.value)}
+                              onChange={(event) =>
+                                updateAdditionalContact(index, 'fullName', event.target.value)
+                              }
                               style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
                             />
                           </div>
                           <div>
-                            <label className="form-label">
-                              CONTACT PHONE
-                            </label>
+                            <label className="form-label">CONTACT PHONE</label>
                             <input
                               className="form-input"
                               placeholder={editingCustomer ? 'Not specified' : 'Phone'}
                               value={contact.phone}
                               disabled={!!editingCustomer}
-                              onChange={(event) => updateAdditionalContact(index, 'phone', event.target.value)}
+                              onChange={(event) =>
+                                updateAdditionalContact(index, 'phone', event.target.value)
+                              }
                               style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
                             />
                           </div>
                           <div>
-                            <label className="form-label">
-                              CONTACT EMAIL
-                            </label>
+                            <label className="form-label">CONTACT EMAIL</label>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                               <input
                                 className="form-input"
                                 placeholder={editingCustomer ? 'Not specified' : 'Email'}
                                 value={contact.email}
                                 disabled={!!editingCustomer}
-                                onChange={(event) => updateAdditionalContact(index, 'email', event.target.value)}
-                                style={{ height: 42, background: 'rgba(0,0,0,0.15)', flex: 1, minWidth: 0 }}
+                                onChange={(event) =>
+                                  updateAdditionalContact(index, 'email', event.target.value)
+                                }
+                                style={{
+                                  height: 42,
+                                  background: 'rgba(0,0,0,0.15)',
+                                  flex: 1,
+                                  minWidth: 0,
+                                }}
                               />
                               {!editingCustomer && (
                                 <button
@@ -1830,9 +2063,7 @@ export default function CustomerListPage() {
                       }}
                     >
                       <div>
-                        <label className="form-label">
-                          IMAGE TYPE
-                        </label>
+                        <label className="form-label">IMAGE TYPE</label>
                         <select
                           className="form-input"
                           value={imageType}
@@ -1847,9 +2078,7 @@ export default function CustomerListPage() {
                         </select>
                       </div>
                       <div style={{ gridColumn: 'span 2' }}>
-                        <label className="form-label">
-                          CHOOSE IMAGE FILE
-                        </label>
+                        <label className="form-label">CHOOSE IMAGE FILE</label>
                         <input
                           className="form-input"
                           type="file"
@@ -1859,7 +2088,13 @@ export default function CustomerListPage() {
                         />
                       </div>
                       <div style={{ paddingBottom: 6 }}>
-                        <p style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                        <p
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--color-text-muted)',
+                            lineHeight: 1.4,
+                          }}
+                        >
                           {cloudinaryConfigured
                             ? 'Image will upload to Cloudinary when you save.'
                             : 'Cloudinary configuration is missing.'}
@@ -1890,10 +2125,16 @@ export default function CustomerListPage() {
                       }}
                     >
                       <div>
-                        <label className="form-label">
-                          CURRENT IMAGES
-                        </label>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', height: 42, alignItems: 'center' }}>
+                        <label className="form-label">CURRENT IMAGES</label>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 8,
+                            flexWrap: 'wrap',
+                            height: 42,
+                            alignItems: 'center',
+                          }}
+                        >
                           {editingCustomer.images?.length ? (
                             editingCustomer.images.map((image) => (
                               <img
@@ -1910,19 +2151,23 @@ export default function CustomerListPage() {
                               />
                             ))
                           ) : (
-                            <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>None</span>
+                            <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+                              None
+                            </span>
                           )}
                         </div>
                       </div>
                       <div>
-                        <label className="form-label">
-                          IMAGE TYPE
-                        </label>
+                        <label className="form-label">IMAGE TYPE</label>
                         <select
                           className="form-input"
                           value={imageType}
                           disabled
-                          style={{ height: 42, background: 'rgba(0,0,0,0.15)', cursor: 'not-allowed' }}
+                          style={{
+                            height: 42,
+                            background: 'rgba(0,0,0,0.15)',
+                            cursor: 'not-allowed',
+                          }}
                         >
                           {imageTypes.map((type) => (
                             <option key={type.value} value={type.value}>
@@ -1932,15 +2177,18 @@ export default function CustomerListPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="form-label">
-                          CHOOSE IMAGE FILE
-                        </label>
+                        <label className="form-label">CHOOSE IMAGE FILE</label>
                         <input
                           className="form-input"
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
                           disabled
-                          style={{ height: 42, paddingTop: 8, background: 'rgba(0,0,0,0.15)', cursor: 'not-allowed' }}
+                          style={{
+                            height: 42,
+                            paddingTop: 8,
+                            background: 'rgba(0,0,0,0.15)',
+                            cursor: 'not-allowed',
+                          }}
                         />
                       </div>
                       <div>
@@ -1963,7 +2211,14 @@ export default function CustomerListPage() {
                         </button>
                       </div>
                     </div>
-                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.4, marginTop: 4 }}>
+                    <p
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--color-text-muted)',
+                        lineHeight: 1.4,
+                        marginTop: 4,
+                      }}
+                    >
                       Adding images to an existing customer needs a backend endpoint that accepts a
                       Cloudinary image path.
                     </p>

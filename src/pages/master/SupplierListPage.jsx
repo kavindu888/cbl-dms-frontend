@@ -1,4 +1,4 @@
-import { Pencil, Plus, RefreshCw, Search, X } from 'lucide-react'
+import { Pencil, Plus, RefreshCw, Search, X, Copy, Globe } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
@@ -103,7 +103,7 @@ function createSupplierPayload(form) {
     fax: textOrNull(form.fax),
     vatRegNo: form.vatRegNo.trim(),
     businessRegNo: textOrNull(form.businessRegNo),
-    paymentTermId: textOrNull(form.paymentTermId),
+    paymentTermId: form.paymentTermId || null,
     creditLimit: Number(form.creditLimit || 0),
     website: textOrNull(form.website),
     address: {
@@ -161,6 +161,9 @@ function validateSupplier(form, mode) {
   if (!form.city.trim()) errors.city = 'City is required.'
   if (mode === 'create' && !form.primaryContactName.trim()) {
     errors.primaryContactName = 'Primary contact name is required.'
+  }
+  if (mode === 'create' && !form.paymentTermId) {
+    errors.paymentTermId = 'Payment mode is required.'
   }
   if (
     mode === 'create' &&
@@ -220,19 +223,19 @@ function Field({
   )
 }
 
-function SupplierTable({ suppliers, isLoading, onEdit }) {
+function SupplierTable({ suppliers, isLoading, paymentTerms, onEdit }) {
   return (
     <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
       <table className="data-table master-table-compact">
         <thead>
           <tr>
             <th>Code</th>
-            <th>Supplier Name</th>
-            <th>Contact</th>
-            <th>City</th>
-            <th>VAT Reg No</th>
-            <th>Credit Limit</th>
-            <th>Email</th>
+            <th>Supplier & Legal Name</th>
+            <th>Company Contact</th>
+            <th>Full Address</th>
+            <th>Primary Contact</th>
+            <th>Tax & Reg Details</th>
+            <th>Terms & Credit Limit</th>
             <th>Status</th>
             <th style={{ textAlign: 'right' }}>Actions</th>
           </tr>
@@ -245,40 +248,231 @@ function SupplierTable({ suppliers, isLoading, onEdit }) {
               </td>
             </tr>
           ) : suppliers.length ? (
-            suppliers.map((supplier) => (
-              <tr key={supplier.id}>
-                <td className="mono" style={{ color: 'var(--color-amber)' }}>
-                  {supplier.code}
-                </td>
-                <td style={{ fontWeight: 700 }}>{supplier.name}</td>
-                <td>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span>{supplier.primaryContactName || '-'}</span>
-                    <span className="mono" style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-                      {supplier.primaryContactPhone || supplier.primaryContactEmail || '-'}
-                    </span>
-                  </div>
-                </td>
-                <td>{supplier.city || '-'}</td>
-                <td>{supplier.vatRegNo || '-'}</td>
-                <td className="mono">{formatMoney(supplier.creditLimit)}</td>
-                <td style={{ color: 'var(--color-text-muted)' }}>{supplier.email}</td>
-                <td>
-                  <StatusBadge status={supplier.statusLabel || 'Active'} />
-                </td>
-                <td style={{ textAlign: 'right' }}>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title="Edit supplier"
-                    onClick={() => onEdit(supplier)}
-                    style={{ width: 32, height: 32, borderRadius: 999 }}
-                  >
-                    <Pencil style={{ width: 14, height: 14 }} />
-                  </button>
-                </td>
-              </tr>
-            ))
+            suppliers.map((supplier) => {
+              const address = supplier.address || {}
+              const addressParts = [
+                address.line1,
+                address.line2,
+                [address.city, address.province].filter(Boolean).join(', '),
+                [address.country, address.postalCode].filter(Boolean).join(' '),
+              ].filter(Boolean)
+
+              const primaryContact = supplier.primaryContact || {}
+              const contactName = primaryContact.fullName || supplier.primaryContactName || '—'
+              const contactDesignation = primaryContact.designation || ''
+              const contactPhone =
+                primaryContact.telephone ||
+                primaryContact.mobile ||
+                supplier.primaryContactPhone ||
+                ''
+              const contactEmail = primaryContact.email || supplier.primaryContactEmail || ''
+
+              // Look up payment terms
+              const term = paymentTerms.find((t) => t.id === supplier.paymentTermId)
+              const paymentTermLabel = term ? getPaymentTermLabel(term) : '—'
+
+              return (
+                <tr key={supplier.id}>
+                  {/* Code */}
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <span className="product-sku-badge mono">{supplier.code}</span>
+                      <button
+                        type="button"
+                        className="copy-btn"
+                        title="Copy Supplier Code"
+                        onClick={() => {
+                          navigator.clipboard.writeText(supplier.code)
+                          toast.success(`Supplier code "${supplier.code}" copied to clipboard`)
+                        }}
+                      >
+                        <Copy style={{ width: 12, height: 12 }} />
+                      </button>
+                    </div>
+                  </td>
+
+                  {/* Supplier & Legal Name */}
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span className="product-name-title">{supplier.name}</span>
+                      {supplier.legalName && (
+                        <span className="product-info-sub" title={supplier.legalName}>
+                          Legal: {supplier.legalName}
+                        </span>
+                      )}
+                      {supplier.website && (
+                        <a
+                          href={
+                            supplier.website.startsWith('http')
+                              ? supplier.website
+                              : `https://${supplier.website}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="product-info-sub"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            color: 'var(--color-amber)',
+                            width: 'fit-content',
+                          }}
+                        >
+                          <Globe style={{ width: 10, height: 10 }} />
+                          {supplier.website}
+                        </a>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Company Contact */}
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {supplier.email && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <span className="text-xs" style={{ color: 'var(--color-text-primary)' }}>
+                            {supplier.email}
+                          </span>
+                          <button
+                            type="button"
+                            className="copy-btn"
+                            title="Copy Email"
+                            onClick={() => {
+                              navigator.clipboard.writeText(supplier.email)
+                              toast.success(`Supplier email copied`)
+                            }}
+                          >
+                            <Copy style={{ width: 10, height: 10 }} />
+                          </button>
+                        </div>
+                      )}
+                      {supplier.telephone && (
+                        <span
+                          className="mono"
+                          style={{ fontSize: 11, color: 'var(--color-text-dim)' }}
+                        >
+                          Tel: {supplier.telephone}
+                        </span>
+                      )}
+                      {supplier.mobile && (
+                        <span
+                          className="mono"
+                          style={{ fontSize: 11, color: 'var(--color-text-dim)' }}
+                        >
+                          Mob: {supplier.mobile}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Address */}
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {addressParts.length > 0 ? (
+                        addressParts.map((part, index) => (
+                          <span
+                            key={index}
+                            className="text-xs"
+                            style={{ color: 'var(--color-text-muted)', lineHeight: '1.2' }}
+                          >
+                            {part}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ color: 'var(--color-text-dim)' }}>—</span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Primary Contact */}
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span
+                        className="text-sm font-medium"
+                        style={{ color: 'var(--color-text-primary)' }}
+                      >
+                        {contactName}
+                      </span>
+                      {contactDesignation && (
+                        <span className="product-info-sub" style={{ fontStyle: 'italic' }}>
+                          {contactDesignation}
+                        </span>
+                      )}
+                      {contactPhone && (
+                        <span
+                          className="mono"
+                          style={{ fontSize: 11, color: 'var(--color-text-dim)' }}
+                        >
+                          Phone: {contactPhone}
+                        </span>
+                      )}
+                      {contactEmail && (
+                        <span className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
+                          {contactEmail}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Tax & Reg Details */}
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <div className="reorder-badge">
+                        <div className="reorder-badge-item">
+                          <span className="reorder-badge-label">VAT:</span>
+                          <span className="mono">{supplier.vatRegNo || '—'}</span>
+                        </div>
+                        <div className="reorder-badge-item">
+                          <span className="reorder-badge-label">BRN:</span>
+                          <span className="mono">{supplier.businessRegNo || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Terms & Credit Limit */}
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <div className="reorder-badge">
+                        <div className="reorder-badge-item">
+                          <span className="reorder-badge-label">Mode:</span>
+                          <span style={{ fontSize: 11, color: 'var(--color-text-primary)' }}>
+                            {paymentTermLabel}
+                          </span>
+                        </div>
+                        <div className="reorder-badge-item">
+                          <span className="reorder-badge-label">Limit:</span>
+                          <span
+                            className="mono font-semibold"
+                            style={{ color: 'var(--color-text-primary)' }}
+                          >
+                            Rs. {formatMoney(supplier.creditLimit)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Status */}
+                  <td>
+                    <StatusBadge status={supplier.statusLabel || 'Active'} />
+                  </td>
+
+                  {/* Actions */}
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      className="icon-button"
+                      type="button"
+                      title="Edit supplier"
+                      onClick={() => onEdit(supplier)}
+                      style={{ width: 32, height: 32, borderRadius: 999 }}
+                    >
+                      <Pencil style={{ width: 14, height: 14 }} />
+                    </button>
+                  </td>
+                </tr>
+              )
+            })
           ) : (
             <tr>
               <td colSpan={9} style={{ padding: 28, color: 'var(--color-text-muted)' }}>
@@ -485,9 +679,9 @@ function SupplierFormModal({
             {!isEdit ? (
               <>
                 <label>
-                  <span className="form-label">Payment Mode</span>
+                  <span className="form-label">Payment Mode *</span>
                   <select
-                    className="form-input"
+                    className={`form-input ${errors.paymentTermId ? 'error' : ''}`}
                     name="paymentTermId"
                     value={form.paymentTermId}
                     onChange={onChange}
@@ -508,6 +702,9 @@ function SupplierFormModal({
                       </option>
                     ))}
                   </select>
+                  {errors.paymentTermId ? (
+                    <span className="form-error">{errors.paymentTermId}</span>
+                  ) : null}
                   <span
                     style={{
                       display: 'block',
@@ -559,7 +756,12 @@ function SupplierFormModal({
               onChange={onChange}
               required
             />
-            <Field label="Line 2" name="addressLine2" value={form.addressLine2} onChange={onChange} />
+            <Field
+              label="Line 2"
+              name="addressLine2"
+              value={form.addressLine2}
+              onChange={onChange}
+            />
             <Field
               label="City"
               name="city"
@@ -816,6 +1018,14 @@ export default function SupplierListPage() {
         await purchasingService.updateSupplier(form.id, updateSupplierPayload(form))
         toast.success('Supplier updated successfully.')
       } else {
+        const selectedPaymentTerm = await masterService.getPaymentTerm(form.paymentTermId)
+        setPaymentTerms((current) =>
+          current.some((term) => term.id === selectedPaymentTerm.id)
+            ? current.map((term) =>
+                term.id === selectedPaymentTerm.id ? selectedPaymentTerm : term
+              )
+            : [...current, selectedPaymentTerm]
+        )
         await purchasingService.createSupplier(createSupplierPayload(form))
         toast.success('Supplier created successfully.')
       }
@@ -1000,7 +1210,12 @@ export default function SupplierListPage() {
           overflow: 'hidden',
         }}
       >
-        <SupplierTable suppliers={suppliers} isLoading={isLoading} onEdit={openEditModal} />
+        <SupplierTable
+          suppliers={suppliers}
+          isLoading={isLoading}
+          paymentTerms={paymentTerms}
+          onEdit={openEditModal}
+        />
 
         <div
           style={{

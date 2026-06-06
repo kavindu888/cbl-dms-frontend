@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Package, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Package, Pencil, Plus, Search, Trash2, X, Copy } from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -1231,8 +1231,6 @@ function ProductFormModal({
               </div>
             </div>
 
-
-
             {/* UOM Conversions section */}
             {product ? (
               <UomConversionsManager
@@ -1692,84 +1690,114 @@ export default function Product() {
                 <thead>
                   <tr>
                     <th>SKU</th>
-                    <th>Product Name</th>
+                    <th>Product Name & Info</th>
                     <th>Category</th>
                     <th>Base UOM</th>
+                    <th>Conversions</th>
                     <th style={{ textAlign: 'right' }}>Unit Cost</th>
                     <th style={{ textAlign: 'right' }}>Unit Price</th>
-                    <th>Conversion</th>
+                    <th>Reorder Specs</th>
                     <th>Status</th>
                     {canManageProducts ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {products.map((p) => {
-                    const primaryConversion = p.uomConversions?.[0]
+                    const cost = p.unitCost || 0
+                    const price = p.unitPrice || 0
+
                     return (
                       <tr key={p.id}>
+                        {/* SKU */}
                         <td>
-                          <span
-                            className="mono text-xs font-medium"
-                            style={{ color: 'var(--color-amber)' }}
-                          >
-                            {p.sku}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span className="product-sku-badge mono">{p.sku}</span>
+                            <button
+                              type="button"
+                              className="copy-btn"
+                              title="Copy SKU"
+                              onClick={() => {
+                                navigator.clipboard.writeText(p.sku)
+                                toast.success(`SKU "${p.sku}" copied to clipboard`)
+                              }}
+                            >
+                              <Copy style={{ width: 12, height: 12 }} />
+                            </button>
+                          </div>
                         </td>
+
+                        {/* Product Name & Info */}
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span
-                              className="text-sm font-medium"
-                              style={{ color: 'var(--color-text-primary)' }}
-                            >
-                              {p.name}
-                            </span>
+                            <span className="product-name-title">{p.name}</span>
                             {p.description && (
-                              <span
-                                title={p.description}
-                                style={{
-                                  display: 'block',
-                                  maxWidth: 340,
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  fontSize: 11,
-                                  color: 'var(--color-text-dim)',
-                                }}
-                              >
+                              <span className="product-info-sub" title={p.description}>
                                 {p.description}
                               </span>
                             )}
                             {p.barcode && (
-                              <span
-                                className="mono"
-                                title={`Barcode: ${p.barcode}`}
-                                style={{
-                                  display: 'block',
-                                  maxWidth: 260,
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  fontSize: 11,
-                                  color: 'var(--color-text-dim)',
-                                }}
-                              >
-                                Barcode: {p.barcode}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <span
+                                  className="product-info-sub mono"
+                                  title={`Barcode: ${p.barcode}`}
+                                >
+                                  UPC: {p.barcode}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="copy-btn"
+                                  title="Copy Barcode"
+                                  style={{ padding: 1 }}
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(p.barcode)
+                                    toast.success(`Barcode "${p.barcode}" copied to clipboard`)
+                                  }}
+                                >
+                                  <Copy style={{ width: 10, height: 10 }} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Category */}
+                        <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                          {p.category?.name || (
+                            <span style={{ color: 'var(--color-text-dim)' }}>—</span>
+                          )}
+                        </td>
+
+                        {/* Base UOM */}
+                        <td>
+                          <span className="uom-badge">{p.uomBase}</span>
+                        </td>
+
+                        {/* Conversions */}
+                        <td>
+                          <div className="uom-conversions-list">
+                            {p.uomConversions && p.uomConversions.length > 0 ? (
+                              p.uomConversions.map((conv) => (
+                                <span key={conv.id} className="uom-conversion-pill">
+                                  1 {conv.fromUom} = {conv.factor} {conv.toUom}
+                                </span>
+                              ))
+                            ) : (
+                              <span style={{ color: 'var(--color-text-dim)', fontSize: 12 }}>
+                                —
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                          {p.category?.name || '-'}
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                          {p.uomBase}
-                        </td>
+
+                        {/* Unit Cost */}
                         <td
                           className="mono text-sm"
                           style={{ textAlign: 'right', color: 'var(--color-text-primary)' }}
                         >
-                          Rs. {p.unitCost.toFixed(2)}
+                          Rs. {cost.toFixed(2)}
                         </td>
+
+                        {/* Unit Price */}
                         <td
                           className="mono text-sm"
                           style={{
@@ -1778,21 +1806,37 @@ export default function Product() {
                             fontWeight: 600,
                           }}
                         >
-                          Rs. {p.unitPrice.toFixed(2)}
+                          Rs. {price.toFixed(2)}
                         </td>
-                        <td className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                          {primaryConversion ? (
-                            <span>
-                              1 {primaryConversion.fromUom} = {primaryConversion.factor}{' '}
-                              {primaryConversion.toUom}
-                            </span>
-                          ) : (
-                            <span style={{ color: 'var(--color-text-dim)' }}>—</span>
-                          )}
+
+                        {/* Reorder Specs */}
+                        <td>
+                          <div className="reorder-badge">
+                            <div className="reorder-badge-item">
+                              <span className="reorder-badge-label">Level:</span>
+                              <span className="mono">
+                                {p.reorderLevel !== null && p.reorderLevel !== undefined
+                                  ? p.reorderLevel
+                                  : '—'}
+                              </span>
+                            </div>
+                            <div className="reorder-badge-item">
+                              <span className="reorder-badge-label">Qty:</span>
+                              <span className="mono">
+                                {p.reorderQty !== null && p.reorderQty !== undefined
+                                  ? p.reorderQty
+                                  : '—'}
+                              </span>
+                            </div>
+                          </div>
                         </td>
+
+                        {/* Status */}
                         <td>
                           <StatusBadge status={p.status} />
                         </td>
+
+                        {/* Actions */}
                         {canManageProducts ? (
                           <td style={{ padding: '12px 10px', textAlign: 'right' }}>
                             <button
