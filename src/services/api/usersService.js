@@ -1,6 +1,9 @@
 import api, { getOnce } from '@/lib/api'
 
-const identityPath = (path) => `/identity-proxy/${path.replace(/^\//, '')}`
+const identityPath = (path) =>
+  import.meta.env.DEV
+    ? `/identity-proxy/${path.replace(/^\//, '')}`
+    : `/${path.replace(/^\//, '')}`
 
 function getValue(response, fallbackMessage = 'Request failed') {
   const result = response.data?.data
