@@ -132,11 +132,18 @@ function buildUpdatePayload(form) {
     territoryId: form.salesRouteId,
     code: toCustomerCode(form.code),
     name: form.name.trim(),
+    preferredPaymentMethod: Number(form.preferredPaymentMethod),
     creditLimit: Number(form.creditLimit || 0),
     isVatRegistered: form.isVatRegistered,
     registrationNumber: form.registrationNumber.trim() || null,
     taxNumber: form.taxNumber.trim() || null,
+    geoLatitude: toOptionalDecimal(form.geoLatitude),
+    geoLongitude: toOptionalDecimal(form.geoLongitude),
   }
+}
+
+function getContactTypeLabel(value) {
+  return contactTypes.find((t) => Number(t.value) === Number(value))?.label || 'Other'
 }
 
 export default function CustomerListPage() {
@@ -192,6 +199,13 @@ export default function CustomerListPage() {
     defaultEmployeeId: '',
   })
   const [isSavingRoute, setIsSavingRoute] = useState(false)
+
+  // Contact management for edit modal
+  const [contactEditId, setContactEditId] = useState(null)
+  const [contactEditForm, setContactEditForm] = useState({ contactType: '0', fullName: '', phone: '', email: '' })
+  const [showAddContact, setShowAddContact] = useState(false)
+  const [addContactForm, setAddContactForm] = useState({ contactType: '0', fullName: '', phone: '', email: '', isPrimary: false })
+  const [isSavingContact, setIsSavingContact] = useState(false)
 
   useEffect(() => {
     if (businessUnits.length && !newTerritory.businessUnitId) {
@@ -332,6 +346,10 @@ export default function CustomerListPage() {
     setForm(emptyForm)
     setPendingImages([])
     setImageType('2')
+    setContactEditId(null)
+    setContactEditForm({ contactType: '0', fullName: '', phone: '', email: '' })
+    setShowAddContact(false)
+    setAddContactForm({ contactType: '0', fullName: '', phone: '', email: '', isPrimary: false })
     setShowGroupForm(false)
     setNewGroup({
       code: '',
@@ -481,6 +499,71 @@ export default function CustomerListPage() {
       toast.error(getErrorMessage(saveError, 'Unable to create sales route.'))
     } finally {
       setIsSavingRoute(false)
+    }
+  }
+
+  async function handleSaveAddContact() {
+    if (!addContactForm.fullName.trim() || !addContactForm.phone.trim()) {
+      toast.error('Contact name and phone are required.')
+      return
+    }
+    setIsSavingContact(true)
+    try {
+      await salesService.addCustomerContact(editingCustomer.id, {
+        contactType: Number(addContactForm.contactType),
+        fullName: addContactForm.fullName.trim(),
+        phone: addContactForm.phone.trim(),
+        email: addContactForm.email.trim() || null,
+        isPrimary: addContactForm.isPrimary,
+      })
+      toast.success('Contact added.')
+      setShowAddContact(false)
+      setAddContactForm({ contactType: '0', fullName: '', phone: '', email: '', isPrimary: false })
+      const updated = await salesService.getCustomer(editingCustomer.id)
+      setEditingCustomer(updated)
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Unable to add contact.'))
+    } finally {
+      setIsSavingContact(false)
+    }
+  }
+
+  async function handleSaveEditContact(contactId) {
+    if (!contactEditForm.fullName.trim() || !contactEditForm.phone.trim()) {
+      toast.error('Contact name and phone are required.')
+      return
+    }
+    setIsSavingContact(true)
+    try {
+      await salesService.updateCustomerContact(editingCustomer.id, contactId, {
+        contactType: Number(contactEditForm.contactType),
+        fullName: contactEditForm.fullName.trim(),
+        phone: contactEditForm.phone.trim(),
+        email: contactEditForm.email.trim() || null,
+      })
+      toast.success('Contact updated.')
+      setContactEditId(null)
+      const updated = await salesService.getCustomer(editingCustomer.id)
+      setEditingCustomer(updated)
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Unable to update contact.'))
+    } finally {
+      setIsSavingContact(false)
+    }
+  }
+
+  async function handleRemoveContact(contactId) {
+    if (!window.confirm('Remove this contact?')) return
+    setIsSavingContact(true)
+    try {
+      await salesService.removeCustomerContact(editingCustomer.id, contactId)
+      toast.success('Contact removed.')
+      const updated = await salesService.getCustomer(editingCustomer.id)
+      setEditingCustomer(updated)
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Unable to remove contact.'))
+    } finally {
+      setIsSavingContact(false)
     }
   }
 
@@ -1323,21 +1406,19 @@ export default function CustomerListPage() {
                     Payment & Tax
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-                    {!editingCustomer ? (
-                      <label>
-                        <span className="form-label">Preferred Payment</span>
-                        <select
-                          className="form-input"
-                          value={form.preferredPaymentMethod}
-                          onChange={(event) => updateField('preferredPaymentMethod', event.target.value)}
-                          style={{ height: 42 }}
-                        >
-                          {paymentMethods.map((method) => (
-                            <option key={method.value} value={method.value}>{method.label}</option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
+                    <label>
+                      <span className="form-label">Preferred Payment</span>
+                      <select
+                        className="form-input"
+                        value={form.preferredPaymentMethod}
+                        onChange={(event) => updateField('preferredPaymentMethod', event.target.value)}
+                        style={{ height: 42 }}
+                      >
+                        {paymentMethods.map((method) => (
+                          <option key={method.value} value={method.value}>{method.label}</option>
+                        ))}
+                      </select>
+                    </label>
                     <label>
                       <span className="form-label">Credit Limit</span>
                       <input
@@ -1388,41 +1469,39 @@ export default function CustomerListPage() {
                   ) : null}
                 </section>
 
-                {/* Location — create only */}
-                {!editingCustomer ? (
-                  <section>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-                      Location{' '}
-                      <span style={{ fontWeight: 400, textTransform: 'none', opacity: 0.6 }}>(optional)</span>
-                    </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                      <label>
-                        <span className="form-label">Latitude</span>
-                        <input
-                          className="form-input"
-                          type="number"
-                          step="0.000001"
-                          placeholder="e.g. 6.9271"
-                          value={form.geoLatitude}
-                          onChange={(event) => updateField('geoLatitude', event.target.value)}
-                          style={{ height: 42 }}
-                        />
-                      </label>
-                      <label>
-                        <span className="form-label">Longitude</span>
-                        <input
-                          className="form-input"
-                          type="number"
-                          step="0.000001"
-                          placeholder="e.g. 79.8612"
-                          value={form.geoLongitude}
-                          onChange={(event) => updateField('geoLongitude', event.target.value)}
-                          style={{ height: 42 }}
-                        />
-                      </label>
-                    </div>
-                  </section>
-                ) : null}
+                {/* Location */}
+                <section>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
+                    Location{' '}
+                    <span style={{ fontWeight: 400, textTransform: 'none', opacity: 0.6 }}>(optional)</span>
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <label>
+                      <span className="form-label">Latitude</span>
+                      <input
+                        className="form-input"
+                        type="number"
+                        step="0.000001"
+                        placeholder="e.g. 6.9271"
+                        value={form.geoLatitude}
+                        onChange={(event) => updateField('geoLatitude', event.target.value)}
+                        style={{ height: 42 }}
+                      />
+                    </label>
+                    <label>
+                      <span className="form-label">Longitude</span>
+                      <input
+                        className="form-input"
+                        type="number"
+                        step="0.000001"
+                        placeholder="e.g. 79.8612"
+                        value={form.geoLongitude}
+                        onChange={(event) => updateField('geoLongitude', event.target.value)}
+                        style={{ height: 42 }}
+                      />
+                    </label>
+                  </div>
+                </section>
 
                 {/* Primary Contact — create only */}
                 {!editingCustomer ? (
@@ -1476,6 +1555,97 @@ export default function CustomerListPage() {
                         />
                       </label>
                     </div>
+                  </section>
+                ) : null}
+
+                {/* Contacts — edit mode only */}
+                {editingCustomer ? (
+                  <section>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
+                      Contacts
+                    </p>
+
+                    {editingCustomer.contacts?.filter((c) => c.isActive).map((contact) =>
+                      contactEditId === contact.id ? (
+                        <div key={contact.id} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr auto auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
+                          <label>
+                            <span className="form-label">Type</span>
+                            <select className="form-input" value={contactEditForm.contactType} onChange={(e) => setContactEditForm((f) => ({ ...f, contactType: e.target.value }))} style={{ height: 36 }}>
+                              {contactTypes.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
+                            </select>
+                          </label>
+                          <label>
+                            <span className="form-label">Full Name *</span>
+                            <input className="form-input" value={contactEditForm.fullName} onChange={(e) => setContactEditForm((f) => ({ ...f, fullName: e.target.value }))} style={{ height: 36 }} />
+                          </label>
+                          <label>
+                            <span className="form-label">Phone *</span>
+                            <input className="form-input" value={contactEditForm.phone} onChange={(e) => setContactEditForm((f) => ({ ...f, phone: e.target.value }))} style={{ height: 36 }} />
+                          </label>
+                          <label>
+                            <span className="form-label">Email</span>
+                            <input className="form-input" type="email" value={contactEditForm.email} onChange={(e) => setContactEditForm((f) => ({ ...f, email: e.target.value }))} style={{ height: 36 }} />
+                          </label>
+                          <button type="button" className="button-primary" disabled={isSavingContact} onClick={() => handleSaveEditContact(contact.id)} style={{ height: 36, padding: '0 12px', fontSize: 12 }}>Save</button>
+                          <button type="button" className="button-ghost" onClick={() => setContactEditId(null)} style={{ height: 36, padding: '0 10px', fontSize: 12 }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <div key={contact.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 6, background: 'rgba(0,0,0,0.1)', marginBottom: 6 }}>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{contact.fullName}</span>
+                              <span style={{ fontSize: 10, background: 'var(--color-surface-2)', color: 'var(--color-text-dim)', padding: '1px 6px', borderRadius: 3 }}>{getContactTypeLabel(contact.contactType)}</span>
+                              {contact.isPrimary && (<span style={{ fontSize: 10, background: 'rgba(139,92,246,0.18)', color: 'var(--color-purple)', padding: '1px 6px', borderRadius: 3 }}>PRIMARY</span>)}
+                            </div>
+                            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{contact.phone}{contact.email ? ` · ${contact.email}` : ''}</span>
+                          </div>
+                          <button type="button" className="button-secondary" disabled={isSavingContact} onClick={() => { setContactEditId(contact.id); setContactEditForm({ contactType: String(contact.contactType ?? '0'), fullName: contact.fullName, phone: contact.phone, email: contact.email || '' }) }} style={{ height: 28, padding: '0 10px', fontSize: 11 }}>Edit</button>
+                          <button type="button" className="icon-button" disabled={isSavingContact} onClick={() => handleRemoveContact(contact.id)} style={{ height: 28, width: 28 }} title="Remove contact">
+                            <X style={{ width: 12, height: 12 }} />
+                          </button>
+                        </div>
+                      )
+                    )}
+
+                    {showAddContact ? (
+                      <div style={{ marginTop: 10, padding: '12px', borderRadius: 6, border: '1px dashed var(--color-border)' }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)', marginBottom: 10 }}>NEW CONTACT</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+                          <label>
+                            <span className="form-label">Type</span>
+                            <select className="form-input" value={addContactForm.contactType} onChange={(e) => setAddContactForm((f) => ({ ...f, contactType: e.target.value }))} style={{ height: 36 }}>
+                              {contactTypes.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
+                            </select>
+                          </label>
+                          <label>
+                            <span className="form-label">Full Name *</span>
+                            <input className="form-input" placeholder="Full name" value={addContactForm.fullName} onChange={(e) => setAddContactForm((f) => ({ ...f, fullName: e.target.value }))} style={{ height: 36 }} />
+                          </label>
+                          <label>
+                            <span className="form-label">Phone *</span>
+                            <input className="form-input" placeholder="+94 77 000 0000" value={addContactForm.phone} onChange={(e) => setAddContactForm((f) => ({ ...f, phone: e.target.value }))} style={{ height: 36 }} />
+                          </label>
+                          <label>
+                            <span className="form-label">Email</span>
+                            <input className="form-input" type="email" placeholder="optional" value={addContactForm.email} onChange={(e) => setAddContactForm((f) => ({ ...f, email: e.target.value }))} style={{ height: 36 }} />
+                          </label>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', flex: 1 }}>
+                            <input type="checkbox" checked={addContactForm.isPrimary} onChange={(e) => setAddContactForm((f) => ({ ...f, isPrimary: e.target.checked }))} />
+                            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Set as primary contact</span>
+                          </label>
+                          <button type="button" className="button-primary" disabled={isSavingContact} onClick={handleSaveAddContact} style={{ height: 32, padding: '0 14px', fontSize: 12 }}>
+                            {isSavingContact ? 'Adding...' : 'Add Contact'}
+                          </button>
+                          <button type="button" className="button-ghost" onClick={() => setShowAddContact(false)} style={{ height: 32, padding: '0 10px', fontSize: 12 }}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button type="button" className="button-secondary" onClick={() => setShowAddContact(true)} style={{ marginTop: 6, height: 32, padding: '0 14px', fontSize: 12 }}>
+                        + Add Contact
+                      </button>
+                    )}
                   </section>
                 ) : null}
 

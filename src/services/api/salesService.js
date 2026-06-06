@@ -125,6 +125,23 @@ export const salesService = {
     const response = await api.delete(`/api/v1/sales/customers/${id}`)
     return response.data
   },
+
+  // Add a contact to an existing customer. Backend returns 201 with the new contact ID (plain string).
+  async addCustomerContact(customerId, payload) {
+    const response = await api.post(`/api/v1/sales/customers/${customerId}/contacts`, payload)
+    return response.data
+  },
+
+  // Update an existing contact on a customer.
+  async updateCustomerContact(customerId, contactId, payload) {
+    await api.put(`/api/v1/sales/customers/${customerId}/contacts/${contactId}`, payload)
+  },
+
+  // Remove (soft-delete) a contact from a customer.
+  async removeCustomerContact(customerId, contactId) {
+    await api.delete(`/api/v1/sales/customers/${customerId}/contacts/${contactId}`)
+  },
+
   // Upload one or more customer images. imageTypes and files are paired by index.
   async uploadCustomerImages(id, images) {
     const formData = new FormData()
