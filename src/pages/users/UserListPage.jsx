@@ -9,12 +9,14 @@ import { z } from 'zod'
 import RoleBadge from '@components/ui/RoleBadge'
 import StatusBadge from '@components/ui/StatusBadge'
 import UserAvatarIcon from '@components/ui/UserAvatarIcon'
+import { masterService } from '@services/api/masterService'
 import { usersService } from '@services/api/usersService'
 import { useAuthStore } from '@stores/authStore'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
 const DEFAULT_ORG_ID = '01JXDEFAULTORGID0000000000'
 const userSchema = z.object({
+  organisationId: z.string().min(1, 'Organisation is required'),
   employeeId: z.string().optional(),
   username: z.string().trim().min(3, 'Username must be at least 3 characters'),
   email: z.string().email('Invalid email address'),
@@ -90,7 +92,7 @@ function sortUsersByAddedOrder(users) {
   })
 }
 
-function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
+function UserFormModal({ open, mode, user, roles, organisations, onClose, onSaved }) {
   const currentUser = useAuthStore((state) => state.user)
   const [showPassword, setShowPassword] = useState(false)
   const formRef = useRef(null)
@@ -129,6 +131,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
     }
 
     reset({
+      organisationId: organisations[0]?.id || '',
       employeeId: '',
       username: '',
       email: '',
@@ -163,7 +166,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
         toast.success('User updated.')
       } else {
         const savedUser = await usersService.createUser({
-          organizationId: currentUser?.orgId || DEFAULT_ORG_ID,
+          organizationId: values.organisationId,
           employeeId: values.employeeId || null,
           username: values.username,
           email: values.email,
@@ -299,6 +302,26 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
 
             {mode === 'create' ? (
               <>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label">Organisation</label>
+                  <select
+                    className="form-input"
+                    data-auto-focus-field
+                    {...enterKeyProps}
+                    {...register('organisationId')}
+                    style={{ height: 42, background: 'rgba(0,0,0,0.15)', cursor: 'pointer' }}
+                  >
+                    <option value="">Select organisation</option>
+                    {organisations.map((org) => (
+                      <option key={org.id} value={org.id}>
+                        {org.name} ({org.code})
+                      </option>
+                    ))}
+                  </select>
+                  {errors.organisationId ? (
+                    <p className="mt-1 text-xs text-danger">{errors.organisationId.message}</p>
+                  ) : null}
+                </div>
                 <div>
                   <label className="form-label">Employee Code</label>
                   <input
@@ -511,6 +534,7 @@ export default function UserListPage() {
   const [users, setUsers] = useState([])
   const [permissionUsers, setPermissionUsers] = useState([])
   const [roles, setRoles] = useState([])
+  const [organisations, setOrganisations] = useState([])
   const [permissionGroups, setPermissionGroups] = useState([])
   const [directPermissions, setDirectPermissions] = useState([])
   const [search, setSearch] = useState('')
@@ -569,6 +593,15 @@ export default function UserListPage() {
     }
   }, [])
 
+  const loadOrganisations = useCallback(async () => {
+    try {
+      const orgList = await masterService.listOrganisations()
+      setOrganisations(orgList.filter((o) => o.isActive))
+    } catch {
+      toast.error('Unable to load organisations.')
+    }
+  }, [])
+
   const loadPermissionUsers = useCallback(async () => {
     setIsPermissionUsersLoading(true)
 
@@ -618,6 +651,10 @@ export default function UserListPage() {
   useEffect(() => {
     loadRoles()
   }, [loadRoles])
+
+  useEffect(() => {
+    loadOrganisations()
+  }, [loadOrganisations])
 
   useEffect(() => {
     setPage(1)
@@ -1330,6 +1367,7 @@ export default function UserListPage() {
         mode={modalState.mode}
         user={modalState.user}
         roles={roles}
+        organisations={organisations}
         onSaved={handleSaved}
         onClose={() => setModalState({ open: false, mode: 'create', user: null })}
       />
