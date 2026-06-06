@@ -45,12 +45,7 @@ const navGroups = [
   {
     label: 'MASTER',
     items: [
-      {
-        label: 'Supplier',
-        to: '/master/suppliers',
-        icon: Store,
-        permissions: PERMISSIONS.purchasing.supplierManage,
-      },
+      // { label: 'Supplier', to: '/master/suppliers', icon: Store, permissions: PERMISSIONS.purchasing.supplierManage },
       {
         label: 'Product',
         to: '/master/products',
