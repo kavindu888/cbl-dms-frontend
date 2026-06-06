@@ -552,6 +552,19 @@ export default function CustomerListPage() {
 
     try {
       const details = await salesService.getCustomer(customer.id)
+
+      // Resolve the territory for the customer's assigned route so the
+      // territory dropdown pre-selects correctly and routes load with real names.
+      let territoryId = ''
+      if (details.salesRouteId) {
+        try {
+          const route = await masterService.getSalesRoute(details.salesRouteId)
+          territoryId = route?.territoryId || ''
+        } catch {
+          // Non-fatal — territory stays blank, user can pick manually
+        }
+      }
+
       setEditingCustomer(details)
       setIsModalOpen(true)
 
@@ -562,7 +575,7 @@ export default function CustomerListPage() {
         code: details.code,
         name: details.name,
         customerGroupId: details.customerGroupId,
-        territoryId: '',
+        territoryId,
         salesRouteId: details.salesRouteId,
         preferredPaymentMethod: String(details.preferredPaymentMethod),
         creditLimit: String(details.creditLimit ?? 0),
