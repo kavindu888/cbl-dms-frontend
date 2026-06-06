@@ -37,6 +37,7 @@ function formatCustomer(customer) {
     isVatRegistered: Boolean(customer.isVatRegistered),
     taxNumber: customer.taxNumber ?? '',
     preferredPaymentMethod: customer.preferredPaymentMethod ?? 0,
+    creditLimit: customer.creditLimit ?? 0,
     location: customer.location ?? null,
     isActive: Boolean(customer.isActive),
     status: customer.isActive ? 'Active' : 'Inactive',

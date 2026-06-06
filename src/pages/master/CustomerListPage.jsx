@@ -19,6 +19,7 @@ const emptyForm = {
   territoryId: '',
   salesRouteId: '',
   preferredPaymentMethod: '0',
+  creditLimit: '0',
   isVatRegistered: false,
   registrationNumber: '',
   taxNumber: '',
@@ -126,6 +127,7 @@ function buildCreatePayload(form, organizationId, imageUrl = null, selectedImage
     code: toCustomerCode(form.code),
     name: form.name.trim(),
     preferredPaymentMethod: Number(form.preferredPaymentMethod),
+    creditLimit: Number(form.creditLimit || 0),
     isVatRegistered: form.isVatRegistered,
     registrationNumber: form.registrationNumber.trim() || null,
     taxNumber: form.taxNumber.trim() || null,
@@ -142,6 +144,8 @@ function buildUpdatePayload(form) {
     territoryId: form.salesRouteId,
     code: toCustomerCode(form.code),
     name: form.name.trim(),
+    preferredPaymentMethod: Number(form.preferredPaymentMethod),
+    creditLimit: Number(form.creditLimit || 0),
     isVatRegistered: form.isVatRegistered,
     registrationNumber: form.registrationNumber.trim() || null,
     taxNumber: form.taxNumber.trim() || null,
@@ -326,6 +330,12 @@ export default function CustomerListPage() {
       const nextForm = { ...currentForm, [field]: value }
       if (field === 'territoryId') {
         nextForm.salesRouteId = ''
+      }
+      if (field === 'customerGroupId' && !editingCustomer) {
+        const group = groups.find((g) => g.id === value)
+        if (group && group.defaultCreditLimit) {
+          nextForm.creditLimit = String(group.defaultCreditLimit)
+        }
       }
       return nextForm
     })
@@ -542,6 +552,7 @@ export default function CustomerListPage() {
         territoryId: '',
         salesRouteId: details.salesRouteId,
         preferredPaymentMethod: String(details.preferredPaymentMethod),
+        creditLimit: String(details.creditLimit ?? 0),
         isVatRegistered: details.isVatRegistered,
         registrationNumber: details.registrationNumber || '',
         taxNumber: details.taxNumber || '',
@@ -1779,34 +1790,16 @@ export default function CustomerListPage() {
                   </div>
 
                   <div>
-                    <label className="form-label">GROUP CREDIT LIMIT</label>
+                    <label className="form-label">CREDIT LIMIT</label>
                     <input
                       className="form-input"
-                      value={
-                        selectedGroup ? `Rs. ${formatMoney(selectedGroup.defaultCreditLimit)}` : '-'
-                      }
-                      disabled
-                      style={{
-                        height: 42,
-                        background: 'rgba(0,0,0,0.08)',
-                        color: 'var(--color-text-muted)',
-                        cursor: 'not-allowed',
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="form-label">GROUP CREDIT DAYS</label>
-                    <input
-                      className="form-input"
-                      value={selectedGroup ? `${selectedGroup.defaultCreditDays} Days` : '-'}
-                      disabled
-                      style={{
-                        height: 42,
-                        background: 'rgba(0,0,0,0.08)',
-                        color: 'var(--color-text-muted)',
-                        cursor: 'not-allowed',
-                      }}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Enter credit limit"
+                      value={form.creditLimit}
+                      onChange={(event) => updateField('creditLimit', event.target.value)}
+                      style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
                     />
                   </div>
                 </div>
