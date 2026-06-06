@@ -220,7 +220,7 @@ export default function UserProfilePage() {
     return () => {
       ignore = true
     }
-  }, [navigate, sessionUserId, sessionUser])
+  }, [navigate, sessionUserId])
 
   async function onPasswordSave(data) {
     try {
