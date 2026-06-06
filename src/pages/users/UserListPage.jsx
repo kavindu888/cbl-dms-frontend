@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Tabs from '@radix-ui/react-tabs'
-import { Eye, EyeOff, Pencil, Plus, Search, Shield, X } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Plus, Search, Shield, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -22,7 +22,9 @@ const userSchema = z.object({
   roleId: z.string().min(1, 'Role is required'),
 })
 
-const editRoleSchema = z.object({
+const editUserSchema = z.object({
+  username: z.string().trim().min(3, 'Username must be at least 3 characters'),
+  phone: z.string().optional(),
   roleId: z.string().min(1, 'Role is required'),
 })
 
@@ -91,7 +93,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
   const currentUser = useAuthStore((state) => state.user)
   const [showPassword, setShowPassword] = useState(false)
   const formRef = useRef(null)
-  const schema = mode === 'edit' ? editRoleSchema : userSchema
+  const schema = mode === 'edit' ? editUserSchema : userSchema
 
   const {
     register,
@@ -108,7 +110,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
     if (mode === 'edit') {
       const currentRoleName = user?.roles?.[0]
       const currentRole = roles.find((role) => role.name === currentRoleName)
-      reset({ roleId: currentRole?.id || '' })
+      reset({ username: user?.username || '', phone: user?.phone || '', roleId: currentRole?.id || '' })
       return
     }
 
@@ -131,23 +133,34 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
 
   async function onSubmit(values) {
     try {
-      const generatedEmail = `${values.username.toLowerCase().replace(/[^a-z0-9]/g, '')}@ceybase-dms.local`
-      const savedUser =
-        mode === 'edit'
-          ? await usersService.assignRoles(user.id, [values.roleId])
-          : await usersService.createUser({
-              organizationId: currentUser?.orgId || DEFAULT_ORG_ID,
-              employeeId: values.employeeId || null,
-              username: values.username,
-              email: generatedEmail,
-              password: values.password,
-              phone: values.phone || null,
-              roleIds: [values.roleId],
-              createdByUserId: currentUser?.id || '',
-            })
-
-      onSaved(savedUser)
-      toast.success(mode === 'edit' ? 'User role updated.' : 'User created successfully.')
+      if (mode === 'edit') {
+        const updatedUser = await usersService.updateUser(user.id, {
+          username: values.username,
+          phone: values.phone || null,
+        })
+        const currentRoleName = user?.roles?.[0]
+        const currentRole = roles.find((role) => role.name === currentRoleName)
+        if (currentRole?.id !== values.roleId) {
+          await usersService.assignRoles(user.id, [values.roleId])
+        }
+        const freshUser = await usersService.getUser(user.id)
+        onSaved(freshUser)
+        toast.success('User updated.')
+      } else {
+        const generatedEmail = `${values.username.toLowerCase().replace(/[^a-z0-9]/g, '')}@ceybase-dms.local`
+        const savedUser = await usersService.createUser({
+          organizationId: currentUser?.orgId || DEFAULT_ORG_ID,
+          employeeId: values.employeeId || null,
+          username: values.username,
+          email: generatedEmail,
+          password: values.password,
+          phone: values.phone || null,
+          roleIds: [values.roleId],
+          createdByUserId: currentUser?.id || '',
+        })
+        onSaved(savedUser)
+        toast.success('User created successfully.')
+      }
       onClose()
     } catch (error) {
       toast.error(getErrorMessage(error, 'Unable to save user.'))
@@ -210,13 +223,13 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
               <Dialog.Title
                 style={{ fontSize: 22, fontWeight: 650, color: 'var(--color-text-primary)' }}
               >
-                {mode === 'edit' ? 'Update User Role' : 'Create New Account'}
+                {mode === 'edit' ? 'Edit User' : 'Create New Account'}
               </Dialog.Title>
               <Dialog.Description
                 style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}
               >
                 {mode === 'edit'
-                  ? 'The backend currently supports role assignment from this screen.'
+                  ? 'Update username, phone and role for this user.'
                   : 'Create a user using the backend Users API.'}
               </Dialog.Description>
             </div>
@@ -236,11 +249,40 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
             onSubmit={handleSubmit(onSubmit)}
             style={{
               display: 'grid',
-              gridTemplateColumns: mode === 'create' ? 'repeat(2, 1fr)' : '1fr',
+              gridTemplateColumns: 'repeat(2, 1fr)',
               gap: 20,
               padding: '0 32px 32px',
             }}
           >
+            {mode === 'edit' ? (
+              <>
+                <div>
+                  <label className="form-label">Username</label>
+                  <input
+                    className="form-input"
+                    placeholder="john.silva"
+                    data-auto-focus-field
+                    {...enterKeyProps}
+                    {...register('username')}
+                    style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
+                  />
+                  {errors.username ? (
+                    <p className="mt-1 text-xs text-danger">{errors.username.message}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <label className="form-label">Phone</label>
+                  <input
+                    className="form-input"
+                    placeholder="+94771234567"
+                    {...enterKeyProps}
+                    {...register('phone')}
+                    style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
+                  />
+                </div>
+              </>
+            ) : null}
+
             {mode === 'create' ? (
               <>
                 <div>
@@ -305,7 +347,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
               </>
             ) : null}
 
-            <div style={{ gridColumn: mode === 'create' ? 'span 2' : 'span 1' }}>
+            <div style={{ gridColumn: 'span 2' }}>
               <label className="form-label">Role</label>
               <select
                 className="form-input"
@@ -328,7 +370,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
 
             <div
               className="mt-2 flex justify-end gap-3"
-              style={{ gridColumn: mode === 'create' ? 'span 2' : 'span 1' }}
+              style={{ gridColumn: 'span 2' }}
             >
               <button
                 type="button"
@@ -355,7 +397,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
   )
 }
 
-function UserRow({ user, onEdit }) {
+function UserRow({ user, onEdit, onDeactivate }) {
   return (
     <tr>
       <td style={{ padding: '15px 14px' }}>
@@ -407,15 +449,25 @@ function UserRow({ user, onEdit }) {
       <td className="text-xs" style={{ padding: '15px 14px', color: 'var(--color-text-muted)' }}>
         {formatDate(user.lastLoginAt)}
       </td>
-      <td style={{ padding: '15px 18px 15px 10px', textAlign: 'right' }}>
+      <td style={{ padding: '15px 18px 15px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
         <button
           type="button"
           className="icon-button"
-          title="Assign role"
+          title="Edit user"
           onClick={() => onEdit(user)}
-          style={{ width: 34, height: 34, borderRadius: 10 }}
+          style={{ width: 34, height: 34, borderRadius: 10, marginRight: 6 }}
         >
           <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          title="Deactivate user"
+          disabled={!user.isActive}
+          onClick={() => onDeactivate(user)}
+          style={{ width: 34, height: 34, borderRadius: 10, opacity: user.isActive ? 1 : 0.4 }}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </td>
     </tr>
@@ -658,6 +710,19 @@ export default function UserListPage() {
 
       return currentIds.filter((permissionId) => permissionId !== permission.id)
     })
+  }
+
+  async function handleDeactivate(user) {
+    if (!window.confirm(`Deactivate "${user.username}"? They will no longer be able to log in.`)) return
+    try {
+      await usersService.deactivateUser(user.id)
+      setUsers((current) =>
+        current.map((u) => (u.id === user.id ? { ...u, isActive: false, status: 'INACTIVE' } : u))
+      )
+      toast.success(`${user.username} has been deactivated.`)
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Unable to deactivate user.'))
+    }
   }
 
   async function handleSavePermissions() {
@@ -909,6 +974,7 @@ export default function UserListPage() {
                         onEdit={(selectedUser) =>
                           setModalState({ open: true, mode: 'edit', user: selectedUser })
                         }
+                        onDeactivate={handleDeactivate}
                       />
                     ))
                   ) : (

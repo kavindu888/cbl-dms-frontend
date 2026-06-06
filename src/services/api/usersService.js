@@ -97,6 +97,18 @@ export const usersService = {
     return mapUser(getValue(response, 'Unable to create user.'))
   },
 
+  // Update user profile (username + phone)
+  async updateUser(userId, payload) {
+    const response = await api.put(identityPath(`/users/${userId}`), payload)
+    return mapUser(getValue(response, 'Unable to update user.'))
+  },
+
+  // Soft-delete / deactivate a user
+  async deactivateUser(userId) {
+    const response = await api.delete(identityPath(`/users/${userId}/deactivate`))
+    getValue(response, 'Unable to deactivate user.')
+  },
+
   // Role Assignment and Removal
   async assignRoles(userId, roleIds) {
     const response = await api.post(identityPath(`/users/${userId}/assign-roles`), { roleIds })
