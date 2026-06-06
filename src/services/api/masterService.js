@@ -261,7 +261,7 @@ export const masterService = {
   // Sales Routes List, Get, Create, Update, Deactivate
   // Sales Routes List
   async listSalesRoutes(params = {}) {
-    const response = await getOnce('/api/v1/master-data/sales-routes', { params })
+    const response = await getOnce('/api/v1/master/sales-routes', { params })
     const page = getValue(response, 'Unable to load sales routes.')
 
     return {
@@ -272,25 +272,25 @@ export const masterService = {
 
   // Sales Routes Get By Id
   async getSalesRoute(id) {
-    const response = await getOnce(`/api/v1/master-data/sales-routes/${id}`)
+    const response = await getOnce(`/api/v1/master/sales-routes/${id}`)
     return formatSalesRoute(getValue(response, 'Unable to load sales route.'))
   },
 
   // Sales Routes Create
   async createSalesRoute(payload) {
-    const response = await api.post('/api/v1/master-data/sales-routes', payload)
+    const response = await api.post('/api/v1/master/sales-routes', payload)
     return formatSalesRoute(getValue(response, 'Unable to create sales route.'))
   },
 
   // Sales Routes Update
   async updateSalesRoute(id, payload) {
-    const response = await api.put(`/api/v1/master-data/sales-routes/${id}`, payload)
+    const response = await api.put(`/api/v1/master/sales-routes/${id}`, payload)
     return getValue(response, 'Unable to update sales route.')
   },
 
   // Sales Routes Deactivate
   async deactivateSalesRoute(id) {
-    const response = await api.delete(`/api/v1/master-data/sales-routes/${id}`)
+    const response = await api.delete(`/api/v1/master/sales-routes/${id}`)
     return getValue(response, 'Unable to deactivate sales route.')
   },
 
