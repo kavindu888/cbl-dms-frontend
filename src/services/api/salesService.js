@@ -26,6 +26,11 @@ function formatCustomerGroup(group) {
 
 function formatCustomer(customer) {
   if (!customer) return null
+  // List endpoint returns CustomerSummaryDto with profileImageUrl (flat string).
+  // Detail endpoint returns CustomerDetailsDto with images array. Handle both.
+  const images =
+    customer.images ||
+    (customer.profileImageUrl ? [{ imageUrl: customer.profileImageUrl }] : [])
   return {
     id: customer.id,
     organizationId: customer.organizationId ?? '',
@@ -42,7 +47,7 @@ function formatCustomer(customer) {
     isActive: Boolean(customer.isActive),
     status: customer.isActive ? 'Active' : 'Inactive',
     contacts: customer.contacts || [],
-    images: customer.images || [],
+    images,
   }
 }
 
@@ -66,9 +71,10 @@ export const salesService = {
   },
 
   // Create new customer group
+  // Backend returns 201 with the new ID as a plain string (not wrapped in ApiResponse)
   async createCustomerGroup(payload) {
     const response = await api.post('/api/v1/sales/customer-groups', payload)
-    return formatCustomerGroup(getValue(response, 'Unable to create customer group.'))
+    return { id: response.data }
   },
 
   // Update existing customer group
@@ -102,6 +108,7 @@ export const salesService = {
   },
 
   // Create new customer
+  // Backend returns 201 with the new customer ID as a plain string
   async createCustomer(payload) {
     const response = await api.post('/api/v1/sales/customers', payload)
     return response.data

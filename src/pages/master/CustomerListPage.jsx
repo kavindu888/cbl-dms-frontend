@@ -83,7 +83,7 @@ function formatMoney(value) {
   return number.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function buildCreatePayload(form, organizationId, imageUrl = null, selectedImageType = 2) {
+function buildCreatePayload(form) {
   const contacts = []
 
   if (form.contactFullName.trim() || form.contactPhone.trim() || form.contactEmail.trim()) {
@@ -110,17 +110,7 @@ function buildCreatePayload(form, organizationId, imageUrl = null, selectedImage
     })
   }
 
-  const images = imageUrl
-    ? [
-        {
-          imageType: Number(selectedImageType),
-          imageUrl,
-        },
-      ]
-    : null
-
   return {
-    organizationId,
     customerGroupId: form.customerGroupId,
     salesRouteId: form.salesRouteId,
     code: toCustomerCode(form.code),
@@ -133,7 +123,6 @@ function buildCreatePayload(form, organizationId, imageUrl = null, selectedImage
     geoLatitude: toOptionalDecimal(form.geoLatitude),
     geoLongitude: toOptionalDecimal(form.geoLongitude),
     contacts: contacts.length > 0 ? contacts : null,
-    images,
   }
 }
 
@@ -143,7 +132,6 @@ function buildUpdatePayload(form) {
     territoryId: form.salesRouteId,
     code: toCustomerCode(form.code),
     name: form.name.trim(),
-    preferredPaymentMethod: Number(form.preferredPaymentMethod),
     creditLimit: Number(form.creditLimit || 0),
     isVatRegistered: form.isVatRegistered,
     registrationNumber: form.registrationNumber.trim() || null,
@@ -647,7 +635,7 @@ export default function CustomerListPage() {
 
     const payload = editingCustomer
       ? buildUpdatePayload(form)
-      : buildCreatePayload(form, organizationId)
+      : buildCreatePayload(form)
 
     if (!validatePayload(payload)) return
 
@@ -892,7 +880,7 @@ export default function CustomerListPage() {
 
                     // Resolve image
                     const rawImg = customer.images?.[0]?.imageUrl
-                    const customerImage = rawImg ? getCloudinaryImageUrl(rawImg) : null
+                    const customerImage = rawImg ? getR2ImageUrl(rawImg) : null
 
                     // Resolve route & territory
                     const route = allRoutes.find((r) => r.id === customer.salesRouteId)

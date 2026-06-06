@@ -709,8 +709,8 @@ function ProductFormModal({
         baseUom: values.uomBase.trim(),
         costPrice: Number(values.unitCost),
         sellingPrice: Number(values.unitPrice),
-        reorderLevel: values.reorderLevel ? Number(values.reorderLevel) : null,
-        reorderQty: values.reorderQty ? Number(values.reorderQty) : null,
+        minValue: values.reorderLevel ? Number(values.reorderLevel) : null,
+        maxValue: values.reorderQty ? Number(values.reorderQty) : null,
         description: null,
         imageUrl: values.imageUrl?.trim() || null,
       }

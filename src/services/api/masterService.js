@@ -277,9 +277,10 @@ export const masterService = {
   },
 
   // Sales Routes Create
+  // Backend returns 201 with the new ID as a plain string (not wrapped in ApiResponse)
   async createSalesRoute(payload) {
     const response = await api.post('/api/v1/master/sales-routes', payload)
-    return formatSalesRoute(getValue(response, 'Unable to create sales route.'))
+    return { id: response.data }
   },
 
   // Sales Routes Update
