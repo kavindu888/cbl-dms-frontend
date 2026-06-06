@@ -450,3 +450,39 @@
   margin: 4px 0;
   background: var(--color-border);
 }
+
+:root[data-theme='light'] .topBar {
+  background: #f4f8ff;
+  border-bottom-color: #b8c9e6;
+}
+
+:root[data-theme='light'] .clockChip,
+:root[data-theme='light'] .notificationButton,
+:root[data-theme='light'] .profileButton {
+  background: #f8fbff;
+  border-color: #b7c8e4;
+}
+
+:root[data-theme='light'] .notificationButton:hover,
+:root[data-theme='light'] .notificationButtonOpen,
+:root[data-theme='light'] .profileButtonOpen,
+:root[data-theme='light'] .profileButtonClosed:hover {
+  background: #ffffff;
+  border-color: #9bb7df;
+}
+
+:root[data-theme='light'] .profileAvatar {
+  background: #ffffff;
+  border-color: #b7c8e4;
+}
+
+:root[data-theme='light'] .notificationBadge {
+  border-color: #f4f8ff;
+}
+
+:root[data-theme='light'] .dropdown,
+:root[data-theme='light'] .notificationsDropdown {
+  background: #ffffff;
+  border-color: #b7c8e4;
+  box-shadow: 0 18px 40px rgba(30, 64, 120, 0.12);
+}

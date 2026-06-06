@@ -37,6 +37,7 @@ function formatCustomer(customer) {
     isVatRegistered: Boolean(customer.isVatRegistered),
     taxNumber: customer.taxNumber ?? '',
     preferredPaymentMethod: customer.preferredPaymentMethod ?? 0,
+    creditLimit: customer.creditLimit ?? 0,
     location: customer.location ?? null,
     isActive: Boolean(customer.isActive),
     status: customer.isActive ? 'Active' : 'Inactive',
@@ -67,7 +68,7 @@ export const salesService = {
   // Create new customer group
   async createCustomerGroup(payload) {
     const response = await api.post('/api/v1/sales/customer-groups', payload)
-    return response.data
+    return formatCustomerGroup(getValue(response, 'Unable to create customer group.'))
   },
 
   // Update existing customer group
@@ -129,10 +130,6 @@ export const salesService = {
     const response = await api.post(`/api/v1/sales/customers/${id}/images`, formData)
 
     return getValue(response, 'Unable to upload customer images.')
-  },
-
-  async uploadCustomerImage(id, imageType, file) {
-    return salesService.uploadCustomerImages(id, [{ imageType, file }])
   },
 
   async listInvoices(params = {}) {

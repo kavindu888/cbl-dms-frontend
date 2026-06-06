@@ -1,4 +1,4 @@
-import { ImageUp, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { ImageUp, Pencil, Plus, Search, Trash2, X, Copy, Globe, Store } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
@@ -14,6 +14,7 @@ const emptyForm = {
   territoryId: '',
   salesRouteId: '',
   preferredPaymentMethod: '0',
+  creditLimit: '0',
   isVatRegistered: false,
   registrationNumber: '',
   taxNumber: '',
@@ -23,6 +24,7 @@ const emptyForm = {
   contactPhone: '',
   contactEmail: '',
   contactType: '0',
+  additionalContacts: [],
 }
 
 const pageSize = 10
@@ -75,19 +77,47 @@ function getGroupName(groups, id) {
   return groups.find((group) => group.id === id)?.name || id || '-'
 }
 
-function buildCreatePayload(form, organizationId) {
-  const contacts =
-    form.contactFullName.trim() || form.contactPhone.trim()
-      ? [
-          {
-            contactType: Number(form.contactType),
-            fullName: form.contactFullName.trim(),
-            phone: form.contactPhone.trim(),
-            email: form.contactEmail.trim() || null,
-            isPrimary: true,
-          },
-        ]
-      : null
+function formatMoney(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '0.00'
+  return number.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function buildCreatePayload(form, organizationId, imageUrl = null, selectedImageType = 2) {
+  const contacts = []
+
+  if (form.contactFullName.trim() || form.contactPhone.trim() || form.contactEmail.trim()) {
+    contacts.push({
+      contactType: Number(form.contactType),
+      fullName: form.contactFullName.trim(),
+      phone: form.contactPhone.trim(),
+      email: form.contactEmail.trim() || null,
+      isPrimary: true,
+    })
+  }
+
+  if (form.additionalContacts && form.additionalContacts.length > 0) {
+    form.additionalContacts.forEach((c) => {
+      if (c.fullName.trim() || c.phone.trim() || c.email.trim()) {
+        contacts.push({
+          contactType: Number(c.contactType),
+          fullName: c.fullName.trim(),
+          phone: c.phone.trim(),
+          email: c.email.trim() || null,
+          isPrimary: false,
+        })
+      }
+    })
+  }
+
+  const images = imageUrl
+    ? [
+        {
+          imageType: Number(selectedImageType),
+          imageUrl,
+        },
+      ]
+    : null
 
   return {
     organizationId,
@@ -96,12 +126,14 @@ function buildCreatePayload(form, organizationId) {
     code: toCustomerCode(form.code),
     name: form.name.trim(),
     preferredPaymentMethod: Number(form.preferredPaymentMethod),
+    creditLimit: Number(form.creditLimit || 0),
     isVatRegistered: form.isVatRegistered,
     registrationNumber: form.registrationNumber.trim() || null,
     taxNumber: form.taxNumber.trim() || null,
     geoLatitude: toOptionalDecimal(form.geoLatitude),
     geoLongitude: toOptionalDecimal(form.geoLongitude),
-    contacts,
+    contacts: contacts.length > 0 ? contacts : null,
+    images,
   }
 }
 
@@ -111,6 +143,8 @@ function buildUpdatePayload(form) {
     territoryId: form.salesRouteId,
     code: toCustomerCode(form.code),
     name: form.name.trim(),
+    preferredPaymentMethod: Number(form.preferredPaymentMethod),
+    creditLimit: Number(form.creditLimit || 0),
     isVatRegistered: form.isVatRegistered,
     registrationNumber: form.registrationNumber.trim() || null,
     taxNumber: form.taxNumber.trim() || null,
@@ -125,6 +159,7 @@ export default function CustomerListPage() {
   const [groups, setGroups] = useState([])
   const [territories, setTerritories] = useState([])
   const [routes, setRoutes] = useState([])
+  const [allRoutes, setAllRoutes] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [editingCustomer, setEditingCustomer] = useState(null)
@@ -141,6 +176,41 @@ export default function CustomerListPage() {
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 
+  // Customer Group inline creation states
+  const [showGroupForm, setShowGroupForm] = useState(false)
+  const [newGroup, setNewGroup] = useState({
+    code: '',
+    name: '',
+    defaultCreditDays: '0',
+    defaultCreditLimit: '0',
+  })
+  const [isSavingGroup, setIsSavingGroup] = useState(false)
+
+  // Territory and Route inline creation states
+  const [businessUnits, setBusinessUnits] = useState([])
+  const [showTerritoryForm, setShowTerritoryForm] = useState(false)
+  const [newTerritory, setNewTerritory] = useState({
+    businessUnitId: '',
+    code: '',
+    name: '',
+    description: '',
+  })
+  const [isSavingTerritory, setIsSavingTerritory] = useState(false)
+
+  const [showRouteForm, setShowRouteForm] = useState(false)
+  const [newRoute, setNewRoute] = useState({
+    code: '',
+    name: '',
+    defaultEmployeeId: '',
+  })
+  const [isSavingRoute, setIsSavingRoute] = useState(false)
+
+  useEffect(() => {
+    if (businessUnits.length && !newTerritory.businessUnitId) {
+      setNewTerritory((current) => ({ ...current, businessUnitId: businessUnits[0].id }))
+    }
+  }, [businessUnits, newTerritory.businessUnitId])
+
   const customerStatus = useMemo(() => {
     if (statusFilter === 'Active') return true
     if (statusFilter === 'Inactive') return false
@@ -149,6 +219,10 @@ export default function CustomerListPage() {
 
   const customerGroupOptions = useMemo(() => {
     return groups.filter((group) => group.isActive || group.id === form.customerGroupId)
+  }, [form.customerGroupId, groups])
+
+  const selectedGroup = useMemo(() => {
+    return groups.find((group) => group.id === form.customerGroupId)
   }, [form.customerGroupId, groups])
 
   const territoryOptions = useMemo(() => {
@@ -165,13 +239,17 @@ export default function CustomerListPage() {
     setIsLoadingLookups(true)
 
     try {
-      const [groupResult, territoryResult] = await Promise.all([
+      const [groupResult, territoryResult, businessUnitResult, routeResult] = await Promise.all([
         salesService.listCustomerGroups({ page: 1, pageSize: 100 }),
         masterService.listTerritories(),
+        masterService.listBusinessUnits(),
+        masterService.listSalesRoutes({ page: 1, pageSize: 1000 }),
       ])
 
       setGroups(groupResult.items || [])
       setTerritories(territoryResult || [])
+      setBusinessUnits(businessUnitResult || [])
+      setAllRoutes(routeResult.items || [])
     } catch (loadError) {
       toast.error(getErrorMessage(loadError, 'Unable to load customer lookups.'))
     } finally {
@@ -251,6 +329,12 @@ export default function CustomerListPage() {
       if (field === 'territoryId') {
         nextForm.salesRouteId = ''
       }
+      if (field === 'customerGroupId' && !editingCustomer) {
+        const group = groups.find((g) => g.id === value)
+        if (group && group.defaultCreditLimit) {
+          nextForm.creditLimit = String(group.defaultCreditLimit)
+        }
+      }
       return nextForm
     })
   }
@@ -260,6 +344,182 @@ export default function CustomerListPage() {
     setForm(emptyForm)
     setPendingImages([])
     setImageType('2')
+    setShowGroupForm(false)
+    setNewGroup({
+      code: '',
+      name: '',
+      defaultCreditDays: '0',
+      defaultCreditLimit: '0',
+    })
+    setShowTerritoryForm(false)
+    setNewTerritory({
+      businessUnitId: businessUnits[0]?.id || '',
+      code: '',
+      name: '',
+      description: '',
+    })
+    setShowRouteForm(false)
+    setNewRoute({
+      code: '',
+      name: '',
+      defaultEmployeeId: '',
+    })
+  }
+
+  function updateNewGroupField(field, value) {
+    setNewGroup((current) => ({ ...current, [field]: value }))
+  }
+
+  async function handleCreateCustomerGroup() {
+    const code = newGroup.code.trim().toUpperCase()
+    const name = newGroup.name.trim()
+    const defaultCreditDays = Math.max(0, Math.trunc(Number(newGroup.defaultCreditDays || 0)))
+    const defaultCreditLimit = Math.max(0, Number(newGroup.defaultCreditLimit || 0))
+
+    if (!code || !name) {
+      toast.error('Customer group code and name are required.')
+      return
+    }
+
+    setIsSavingGroup(true)
+
+    try {
+      const created = await salesService.createCustomerGroup({
+        code,
+        name,
+        defaultCreditDays,
+        defaultCreditLimit,
+      })
+      toast.success('Customer group created.')
+      await loadLookups()
+      updateField('customerGroupId', created.id)
+      setNewGroup({
+        code: '',
+        name: '',
+        defaultCreditDays: '0',
+        defaultCreditLimit: '0',
+      })
+      setShowGroupForm(false)
+    } catch (saveError) {
+      toast.error(getErrorMessage(saveError, 'Unable to create customer group.'))
+    } finally {
+      setIsSavingGroup(false)
+    }
+  }
+
+  function updateNewTerritoryField(field, value) {
+    setNewTerritory((current) => ({ ...current, [field]: value }))
+  }
+
+  async function handleCreateTerritory() {
+    const businessUnitId = newTerritory.businessUnitId
+    const code = newTerritory.code.trim().toUpperCase()
+    const name = newTerritory.name.trim()
+    const description = newTerritory.description.trim() || null
+
+    if (!businessUnitId) {
+      toast.error('Please select a Business Unit first.')
+      return
+    }
+    if (!code || !name) {
+      toast.error('Territory code and name are required.')
+      return
+    }
+
+    setIsSavingTerritory(true)
+
+    try {
+      const created = await masterService.createTerritory({
+        businessUnitId,
+        code,
+        name,
+        description,
+      })
+      toast.success('Territory created.')
+      await loadLookups()
+      updateField('territoryId', created.id)
+      setNewTerritory({
+        businessUnitId: businessUnits[0]?.id || '',
+        code: '',
+        name: '',
+        description: '',
+      })
+      setShowTerritoryForm(false)
+    } catch (saveError) {
+      toast.error(getErrorMessage(saveError, 'Unable to create territory.'))
+    } finally {
+      setIsSavingTerritory(false)
+    }
+  }
+
+  function updateNewRouteField(field, value) {
+    setNewRoute((current) => ({ ...current, [field]: value }))
+  }
+
+  async function handleCreateSalesRoute() {
+    const territoryId = form.territoryId
+    const code = newRoute.code.trim().toUpperCase()
+    const name = newRoute.name.trim()
+    const defaultEmployeeId = newRoute.defaultEmployeeId.trim() || null
+
+    if (!territoryId) {
+      toast.error('Please select a Territory first.')
+      return
+    }
+    if (!code || !name) {
+      toast.error('Route code and name are required.')
+      return
+    }
+
+    setIsSavingRoute(true)
+
+    try {
+      const created = await masterService.createSalesRoute({
+        territoryId,
+        code,
+        name,
+        defaultEmployeeId,
+      })
+      toast.success('Sales route created.')
+      await loadRoutes(territoryId)
+      updateField('salesRouteId', created.id)
+      setNewRoute({
+        code: '',
+        name: '',
+        defaultEmployeeId: '',
+      })
+      setShowRouteForm(false)
+    } catch (saveError) {
+      toast.error(getErrorMessage(saveError, 'Unable to create sales route.'))
+    } finally {
+      setIsSavingRoute(false)
+    }
+  }
+
+  function addAdditionalContact() {
+    setForm((currentForm) => ({
+      ...currentForm,
+      additionalContacts: [
+        ...currentForm.additionalContacts,
+        { contactType: '0', fullName: '', phone: '', email: '' },
+      ],
+    }))
+  }
+
+  function removeAdditionalContact(index) {
+    setForm((currentForm) => ({
+      ...currentForm,
+      additionalContacts: currentForm.additionalContacts.filter((_, idx) => idx !== index),
+    }))
+  }
+
+  function updateAdditionalContact(index, field, value) {
+    setForm((currentForm) => ({
+      ...currentForm,
+      additionalContacts: currentForm.additionalContacts.map((c, idx) =>
+        idx === index ? { ...c, [field]: value } : c
+      ),
+    }))
   }
 
   function handleImageSelection(event) {
@@ -306,6 +566,10 @@ export default function CustomerListPage() {
       const details = await salesService.getCustomer(customer.id)
       setEditingCustomer(details)
       setIsModalOpen(true)
+
+      const primaryContact = details.contacts?.find((c) => c.isPrimary) || details.contacts?.[0]
+      const otherContacts = details.contacts?.filter((c) => c !== primaryContact) || []
+
       setForm({
         code: details.code,
         name: details.name,
@@ -313,15 +577,22 @@ export default function CustomerListPage() {
         territoryId: '',
         salesRouteId: details.salesRouteId,
         preferredPaymentMethod: String(details.preferredPaymentMethod),
+        creditLimit: String(details.creditLimit ?? 0),
         isVatRegistered: details.isVatRegistered,
         registrationNumber: details.registrationNumber || '',
         taxNumber: details.taxNumber || '',
         geoLatitude: details.location?.latitude ?? '',
         geoLongitude: details.location?.longitude ?? '',
-        contactFullName: details.contacts?.[0]?.fullName || '',
-        contactPhone: details.contacts?.[0]?.phone || '',
-        contactEmail: details.contacts?.[0]?.email || '',
-        contactType: String(details.contacts?.[0]?.contactType ?? '0'),
+        contactFullName: primaryContact?.fullName || '',
+        contactPhone: primaryContact?.phone || '',
+        contactEmail: primaryContact?.email || '',
+        contactType: String(primaryContact?.contactType ?? '0'),
+        additionalContacts: otherContacts.map((c) => ({
+          fullName: c.fullName || '',
+          phone: c.phone || '',
+          email: c.email || '',
+          contactType: String(c.contactType ?? '0'),
+        })),
       })
     } catch (loadError) {
       toast.error(getErrorMessage(loadError, 'Unable to load customer details.'))
@@ -339,15 +610,28 @@ export default function CustomerListPage() {
       toast.error('Customer group and sales route are required.')
       return false
     }
-    if (payload.isVatRegistered && !/^\d{9}$/.test(payload.taxNumber || '')) {
-      toast.error('TIN must be exactly 9 digits when VAT registered.')
-      return false
+    if (payload.isVatRegistered) {
+      if (!payload.registrationNumber || !payload.registrationNumber.trim()) {
+        toast.error('Registration number is required when VAT registered.')
+        return false
+      }
+      if (!payload.taxNumber || !payload.taxNumber.trim()) {
+        toast.error('TIN is required when VAT registered.')
+        return false
+      }
+      if (!/^\d{9}$/.test(payload.taxNumber)) {
+        toast.error('TIN must be exactly 9 digits when VAT registered.')
+        return false
+      }
     }
     if (payload.contacts?.length) {
-      const contact = payload.contacts[0]
-      if (!contact.fullName || !contact.phone) {
-        toast.error('Primary contact needs both name and phone.')
-        return false
+      for (let i = 0; i < payload.contacts.length; i++) {
+        const contact = payload.contacts[i]
+        if (!contact.fullName || !contact.phone) {
+          const prefix = contact.isPrimary ? 'Primary contact' : `Contact #${i + 1}`
+          toast.error(`${prefix} needs both name and phone.`)
+          return false
+        }
       }
     }
     return true
@@ -573,11 +857,14 @@ export default function CustomerListPage() {
             <table className="data-table master-table-compact">
               <thead>
                 <tr>
+                  <th style={{ width: 50, textAlign: 'center' }}>Image</th>
                   <th>Code</th>
-                  <th>Name</th>
+                  <th>Customer Name & Info</th>
                   <th>Group</th>
-                  <th>Payment</th>
-                  <th>VAT</th>
+                  <th>Route & Territory</th>
+                  <th>Primary Contact</th>
+                  <th>Billing & Payment</th>
+                  <th>Tax & VAT Details</th>
                   <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -585,72 +872,235 @@ export default function CustomerListPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
+                    <td colSpan={10} className="py-12 text-center text-sm text-text-muted">
                       Loading customers...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-sm text-danger">
+                    <td colSpan={10} className="py-12 text-center text-sm text-danger">
                       {error}
                     </td>
                   </tr>
                 ) : customers.length ? (
-                  customers.map((customer) => (
-                    <tr key={customer.id}>
-                      <td>
-                        <span
-                          className="mono text-xs font-semibold"
-                          style={{ color: 'var(--color-amber)' }}
-                        >
-                          {customer.code}
-                        </span>
-                      </td>
-                      <td
-                        className="text-sm font-medium"
-                        style={{ color: 'var(--color-text-primary)' }}
-                      >
-                        {customer.name}
-                      </td>
-                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {getGroupName(groups, customer.customerGroupId)}
-                      </td>
-                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {getPaymentLabel(customer.preferredPaymentMethod)}
-                      </td>
-                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {customer.isVatRegistered ? 'Yes' : 'No'}
-                      </td>
-                      <td>
-                        <StatusBadge status={customer.status} />
-                      </td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <button
-                          type="button"
-                          className="icon-button"
-                          title="Edit customer"
-                          disabled={isSaving}
-                          style={{ width: 28, height: 28, marginRight: 6 }}
-                          onClick={() => openEdit(customer)}
-                        >
-                          <Pencil style={{ width: 13, height: 13 }} />
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-button"
-                          title="Deactivate customer"
-                          disabled={!customer.isActive}
-                          style={{ width: 28, height: 28, opacity: customer.isActive ? 1 : 0.45 }}
-                          onClick={() => handleDeactivate(customer)}
-                        >
-                          <Trash2 style={{ width: 13, height: 13 }} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  customers.map((customer) => {
+                    const primaryContact =
+                      customer.contacts?.find((c) => c.isPrimary) || customer.contacts?.[0]
+                    const contactName = primaryContact?.fullName || '—'
+                    const contactPhone = primaryContact?.phone || ''
+                    const contactEmail = primaryContact?.email || ''
+
+                    // Resolve image
+                    const rawImg = customer.images?.[0]?.imageUrl
+                    const customerImage = rawImg ? getCloudinaryImageUrl(rawImg) : null
+
+                    // Resolve route & territory
+                    const route = allRoutes.find((r) => r.id === customer.salesRouteId)
+                    const routeName = route ? `${route.name} (${route.code})` : '—'
+                    const territory = route
+                      ? territories.find((t) => t.id === route.territoryId)
+                      : null
+                    const territoryName = territory ? `${territory.name}` : '—'
+
+                    return (
+                      <tr key={customer.id}>
+                        {/* Image */}
+                        <td style={{ textAlign: 'center', width: 50 }}>
+                          <div className="product-image-container" style={{ margin: '0 auto' }}>
+                            {customerImage ? (
+                              <img
+                                src={customerImage}
+                                alt={customer.name}
+                                className="product-image"
+                                onError={(e) => {
+                                  e.target.style.display = 'none'
+                                  const fallback = e.target.nextSibling
+                                  if (fallback) fallback.style.display = 'block'
+                                }}
+                              />
+                            ) : null}
+                            <Store
+                              className="product-image-fallback"
+                              style={{ display: customerImage ? 'none' : 'block' }}
+                            />
+                          </div>
+                        </td>
+
+                        {/* Code */}
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span className="product-sku-badge mono">{customer.code}</span>
+                            <button
+                              type="button"
+                              className="copy-btn"
+                              title="Copy Customer Code"
+                              onClick={() => {
+                                navigator.clipboard.writeText(customer.code)
+                                toast.success(
+                                  `Customer code "${customer.code}" copied to clipboard`
+                                )
+                              }}
+                            >
+                              <Copy style={{ width: 12, height: 12 }} />
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* Customer Name */}
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span className="product-name-title">{customer.name}</span>
+                            {customer.location?.latitude && customer.location?.longitude ? (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${customer.location.latitude},${customer.location.longitude}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="product-info-sub"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  color: 'var(--color-amber)',
+                                  width: 'fit-content',
+                                }}
+                              >
+                                <Globe style={{ width: 10, height: 10 }} />
+                                GPS: {Number(customer.location.latitude).toFixed(4)},{' '}
+                                {Number(customer.location.longitude).toFixed(4)}
+                              </a>
+                            ) : null}
+                          </div>
+                        </td>
+
+                        {/* Group */}
+                        <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                          {getGroupName(groups, customer.customerGroupId) || (
+                            <span style={{ color: 'var(--color-text-dim)' }}>—</span>
+                          )}
+                        </td>
+
+                        {/* Route & Territory */}
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span
+                              className="text-sm font-medium"
+                              style={{ color: 'var(--color-text-primary)' }}
+                            >
+                              {routeName}
+                            </span>
+                            {territoryName !== '—' && (
+                              <span className="product-info-sub">Territory: {territoryName}</span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Primary Contact */}
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span
+                              className="text-sm font-medium"
+                              style={{ color: 'var(--color-text-primary)' }}
+                            >
+                              {contactName}
+                            </span>
+                            {contactPhone && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <span
+                                  className="mono text-xs"
+                                  style={{ color: 'var(--color-text-dim)' }}
+                                >
+                                  {contactPhone}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="copy-btn"
+                                  title="Copy Phone"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(contactPhone)
+                                    toast.success(`Phone copied`)
+                                  }}
+                                >
+                                  <Copy style={{ width: 10, height: 10 }} />
+                                </button>
+                              </div>
+                            )}
+                            {contactEmail && (
+                              <span className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
+                                {contactEmail}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Billing & Payment */}
+                        <td>
+                          <div className="uom-conversions-list">
+                            <span className="uom-badge">
+                              {getPaymentLabel(customer.preferredPaymentMethod)}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Tax & VAT Details */}
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {customer.isVatRegistered ? (
+                              <div className="reorder-badge">
+                                <div className="reorder-badge-item">
+                                  <span className="reorder-badge-label">VAT Reg:</span>
+                                  <span className="mono">{customer.registrationNumber || '—'}</span>
+                                </div>
+                                <div className="reorder-badge-item">
+                                  <span className="reorder-badge-label">TIN:</span>
+                                  <span className="mono">{customer.taxNumber || '—'}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--color-text-dim)', fontSize: 12 }}>
+                                Non-VAT Registered
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td>
+                          <StatusBadge status={customer.status} />
+                        </td>
+
+                        {/* Actions */}
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            title="Edit customer"
+                            disabled={isSaving}
+                            style={{ width: 28, height: 28, marginRight: 6 }}
+                            onClick={() => openEdit(customer)}
+                          >
+                            <Pencil style={{ width: 13, height: 13 }} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            title="Deactivate customer"
+                            disabled={!customer.isActive}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              opacity: customer.isActive ? 1 : 0.45,
+                            }}
+                            onClick={() => handleDeactivate(customer)}
+                          >
+                            <Trash2 style={{ width: 13, height: 13 }} />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
+                    <td colSpan={10} className="py-12 text-center text-sm text-text-muted">
                       No customers found.
                     </td>
                   </tr>
@@ -719,14 +1169,9 @@ export default function CustomerListPage() {
               onKeyDown={handleFormKeyDown}
               className="panel"
               style={{
-                width: 'min(940px, calc(100vw - 48px))',
-                height: 'min(760px, calc(100vh - 48px))',
-                maxHeight: '88vh',
-                overflowY: 'auto',
-                padding: '14px 18px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
+                width: 'min(1200px, calc(100vw - 48px))',
+                height: 'auto',
+                maxHeight: 'min(850px, calc(100vh - 48px))',
                 borderRadius: 10,
               }}
             >

@@ -58,9 +58,7 @@ export default function CustomerGroupListPage() {
   const filteredGroups = useMemo(() => {
     if (statusFilter === 'All') return groups
 
-    return groups.filter((group) =>
-      statusFilter === 'Active' ? group.isActive : !group.isActive
-    )
+    return groups.filter((group) => (statusFilter === 'Active' ? group.isActive : !group.isActive))
   }, [groups, statusFilter])
 
   const loadGroups = useCallback(async () => {

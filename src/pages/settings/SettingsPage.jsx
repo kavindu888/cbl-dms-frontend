@@ -121,7 +121,7 @@ function ApiConfigTab() {
         <label className="form-label">API BASE URL</label>
         <input
           className="form-input"
-          value={import.meta.env.VITE_API_BASE_URL ?? 'https://localhost:7001/api/v1'}
+          value={import.meta.env.VITE_API_BASE_URL ?? 'https://staging.ceyservice.store'}
           readOnly
           style={{ cursor: 'default' }}
         />

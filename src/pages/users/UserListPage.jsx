@@ -17,7 +17,6 @@ const DEFAULT_ORG_ID = '01JXDEFAULTORGID0000000000'
 const userSchema = z.object({
   employeeId: z.string().optional(),
   username: z.string().trim().min(3, 'Username must be at least 3 characters'),
-  email: z.string().trim().email('Valid email required'),
   phone: z.string().optional(),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   roleId: z.string().min(1, 'Role is required'),
@@ -116,7 +115,6 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
     reset({
       employeeId: '',
       username: '',
-      email: '',
       phone: '',
       password: '',
       roleId: roles[0]?.id || '',
@@ -133,6 +131,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
 
   async function onSubmit(values) {
     try {
+      const generatedEmail = `${values.username.toLowerCase().replace(/[^a-z0-9]/g, '')}@ceybase-dms.local`
       const savedUser =
         mode === 'edit'
           ? await usersService.assignRoles(user.id, [values.roleId])
@@ -140,7 +139,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
               organizationId: currentUser?.orgId || DEFAULT_ORG_ID,
               employeeId: values.employeeId || null,
               username: values.username,
-              email: values.email,
+              email: generatedEmail,
               password: values.password,
               phone: values.phone || null,
               roleIds: [values.roleId],
@@ -191,7 +190,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
         <Dialog.Content
           className="fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 shadow-2xl"
           style={{
-            maxWidth: 560,
+            width: 'min(760px, calc(100vw - 48px))',
             background: 'var(--color-bg-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: 12,
@@ -236,9 +235,9 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
             ref={formRef}
             onSubmit={handleSubmit(onSubmit)}
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
+              display: 'grid',
+              gridTemplateColumns: mode === 'create' ? 'repeat(2, 1fr)' : '1fr',
+              gap: 20,
               padding: '0 32px 32px',
             }}
           >
@@ -252,6 +251,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                     data-auto-focus-field
                     {...enterKeyProps}
                     {...register('employeeId')}
+                    style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
                   />
                 </div>
                 <div>
@@ -261,24 +261,13 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                     placeholder="john.silva"
                     {...enterKeyProps}
                     {...register('username')}
+                    style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
                   />
                   {errors.username ? (
                     <p className="mt-1 text-xs text-danger">{errors.username.message}</p>
                   ) : null}
                 </div>
-                <div>
-                  <label className="form-label">Email</label>
-                  <input
-                    className="form-input"
-                    type="email"
-                    placeholder="john.silva@cblfoods.lk"
-                    {...enterKeyProps}
-                    {...register('email')}
-                  />
-                  {errors.email ? (
-                    <p className="mt-1 text-xs text-danger">{errors.email.message}</p>
-                  ) : null}
-                </div>
+
                 <div>
                   <label className="form-label">Phone</label>
                   <input
@@ -286,6 +275,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                     placeholder="+94771234567"
                     {...enterKeyProps}
                     {...register('phone')}
+                    style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
                   />
                 </div>
                 <div>
@@ -297,11 +287,13 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                       placeholder="Minimum 6 characters"
                       {...enterKeyProps}
                       {...register('password')}
+                      style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
                     />
                     <button
                       type="button"
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-text-dim"
                       onClick={() => setShowPassword((value) => !value)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -313,13 +305,14 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
               </>
             ) : null}
 
-            <div>
+            <div style={{ gridColumn: mode === 'create' ? 'span 2' : 'span 1' }}>
               <label className="form-label">Role</label>
               <select
                 className="form-input"
                 {...(mode === 'edit' ? { 'data-auto-focus-field': true } : {})}
                 {...enterKeyProps}
                 {...register('roleId')}
+                style={{ height: 42, background: 'rgba(0,0,0,0.15)', cursor: 'pointer' }}
               >
                 <option value="">Select role</option>
                 {roles.map((role) => (
@@ -333,8 +326,16 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
               ) : null}
             </div>
 
-            <div className="mt-2 flex justify-end gap-3">
-              <button type="button" className="button-secondary" onClick={onClose}>
+            <div
+              className="mt-2 flex justify-end gap-3"
+              style={{ gridColumn: mode === 'create' ? 'span 2' : 'span 1' }}
+            >
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={onClose}
+                style={{ height: 42, minWidth: 100 }}
+              >
                 Cancel
               </button>
               <button
@@ -342,6 +343,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                 type="submit"
                 className="button-primary"
                 disabled={isSubmitting}
+                style={{ height: 42, minWidth: 120 }}
               >
                 {isSubmitting ? 'Saving...' : 'Save'}
               </button>
@@ -1046,17 +1048,28 @@ export default function UserListPage() {
                 Loading permissions...
               </div>
             ) : (
-              <div style={{ paddingTop: 22 }}>
+              <div style={{ paddingTop: 0 }}>
                 <div
                   style={{
-                    display: 'flex',
+                    position: 'sticky',
+                    top: 'calc(var(--spacing-layout-topbar, 80px) + 24px)',
+                    zIndex: 10,
+                    background: 'var(--color-bg-surface)',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto 1fr',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
                     gap: 16,
-                    marginBottom: 16,
+                    padding: '16px 0',
+                    borderBottom: '1px solid var(--color-border)',
+                    marginBottom: 20,
                   }}
                 >
-                  <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <StatusBadge
+                      status={selectedPermissionUser?.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
                     <p
                       style={{ fontSize: 15, fontWeight: 650, color: 'var(--color-text-primary)' }}
                     >
@@ -1067,10 +1080,7 @@ export default function UserListPage() {
                       selected
                     </p>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <StatusBadge
-                      status={selectedPermissionUser?.isActive ? 'ACTIVE' : 'INACTIVE'}
-                    />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button
                       type="button"
                       className="button-primary"
@@ -1089,7 +1099,7 @@ export default function UserListPage() {
                       key={group.module}
                       style={{
                         padding: 16,
-                        background: 'rgba(0,0,0,0.14)',
+                        background: 'var(--color-bg-elevated)',
                         border: '1px solid var(--color-border)',
                         borderRadius: 8,
                       }}
@@ -1159,7 +1169,7 @@ export default function UserListPage() {
                                 borderRadius: 6,
                                 background: isChecked
                                   ? 'color-mix(in srgb, var(--color-amber) 8%, transparent)'
-                                  : 'rgba(0,0,0,0.08)',
+                                  : 'var(--color-bg-surface)',
                                 cursor: isSavingPermissions ? 'default' : 'pointer',
                                 opacity: isSavingPermissions ? 0.65 : 1,
                               }}
