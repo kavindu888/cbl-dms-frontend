@@ -77,6 +77,8 @@ function formatSalesRoute(route) {
 
 function formatPaymentTerm(term) {
   if (!term) return null
+  const status = term.status ?? (term.isActive ? 'Active' : 'Inactive')
+
   return {
     id: term.id,
     code: term.code ?? '',
@@ -86,8 +88,11 @@ function formatPaymentTerm(term) {
     discountDays: term.discountDays ?? null,
     description: term.description ?? '',
     isDefault: Boolean(term.isDefault),
-    status: term.status ?? 'Inactive',
-    isActive: term.status === 'Active',
+    status,
+    isActive: status === 'Active',
+    calculatedDueDate: term.calculatedDueDate,
+    createdAt: term.createdAt,
+    updatedAt: term.updatedAt,
   }
 }
 
@@ -293,6 +298,12 @@ export const masterService = {
   async listPaymentTerms() {
     const response = await getOnce('/api/v1/master-data/payment-terms')
     return (getValue(response, 'Unable to load payment terms.') || []).map(formatPaymentTerm)
+  },
+
+  // Payment Terms Get By Id
+  async getPaymentTerm(id) {
+    const response = await getOnce(`/api/v1/master-data/payment-terms/${id}`)
+    return formatPaymentTerm(getValue(response, 'Unable to load payment term.'))
   },
 
   //Product List, Get, Create, Update, Activate/Deactivate

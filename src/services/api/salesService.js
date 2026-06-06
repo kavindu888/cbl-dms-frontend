@@ -46,8 +46,7 @@ function formatCustomer(customer) {
 }
 
 export const salesService = {
-  
-//Customer group related APIs
+  //Customer group related APIs
   // List customer groups with optional filters and pagination
   async listCustomerGroups(params = {}) {
     const response = await getOnce('/api/v1/sales/customer-groups', { params })
@@ -58,7 +57,7 @@ export const salesService = {
       items: (page?.items || []).map(formatCustomerGroup),
     }
   },
- 
+
   // Get single customer group by ID
   async getCustomerGroup(id) {
     const response = await getOnce(`/api/v1/sales/customer-groups/${id}`)
@@ -94,7 +93,7 @@ export const salesService = {
     }
   },
 
-//  
+  //
   // Get single customer by ID
   async getCustomer(id) {
     const response = await getOnce(`/api/v1/sales/customers/${id}`)
@@ -130,7 +129,6 @@ export const salesService = {
 
     return getValue(response, 'Unable to upload customer image.')
   },
-
 
   async listInvoices(params = {}) {
     const response = await getOnce('/api/v1/sales/invoices', {
