@@ -17,6 +17,7 @@ const DEFAULT_ORG_ID = '01JXDEFAULTORGID0000000000'
 const userSchema = z.object({
   employeeId: z.string().optional(),
   username: z.string().trim().min(3, 'Username must be at least 3 characters'),
+  email: z.string().email('Invalid email address'),
   phone: z.string().optional(),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   roleId: z.string().min(1, 'Role is required'),
@@ -99,10 +100,23 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(schema),
   })
+
+  const watchedUsername = watch('username')
+  const watchedEmail = watch('email')
+
+  useEffect(() => {
+    if (mode !== 'create' || !watchedUsername) return
+    const generated = `${watchedUsername.toLowerCase().replace(/[^a-z0-9]/g, '')}@ceybase-dms.local`
+    if (!watchedEmail || watchedEmail.endsWith('@ceybase-dms.local')) {
+      setValue('email', generated)
+    }
+  }, [watchedUsername, mode, setValue])
 
   useEffect(() => {
     if (!open) return
@@ -117,6 +131,7 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
     reset({
       employeeId: '',
       username: '',
+      email: '',
       phone: '',
       password: '',
       roleId: roles[0]?.id || '',
@@ -147,12 +162,11 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
         onSaved(freshUser)
         toast.success('User updated.')
       } else {
-        const generatedEmail = `${values.username.toLowerCase().replace(/[^a-z0-9]/g, '')}@ceybase-dms.local`
         const savedUser = await usersService.createUser({
           organizationId: currentUser?.orgId || DEFAULT_ORG_ID,
           employeeId: values.employeeId || null,
           username: values.username,
-          email: generatedEmail,
+          email: values.email,
           password: values.password,
           phone: values.phone || null,
           roleIds: [values.roleId],
@@ -310,6 +324,23 @@ function UserFormModal({ open, mode, user, roles, onClose, onSaved }) {
                   ) : null}
                 </div>
 
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label">Email</label>
+                  <input
+                    className="form-input"
+                    type="email"
+                    placeholder="user@example.com"
+                    {...enterKeyProps}
+                    {...register('email')}
+                    style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
+                  />
+                  <p style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-dim)' }}>
+                    Auto-filled from username — replace with a real email if available.
+                  </p>
+                  {errors.email ? (
+                    <p className="mt-1 text-xs text-danger">{errors.email.message}</p>
+                  ) : null}
+                </div>
                 <div>
                   <label className="form-label">Phone</label>
                   <input
