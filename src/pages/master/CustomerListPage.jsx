@@ -708,13 +708,28 @@ export default function CustomerListPage() {
     }
   }
 
+  async function handleDeleteImage(imageId) {
+    if (!window.confirm('Remove this image permanently?')) return
+    setIsSaving(true)
+    try {
+      await salesService.deleteCustomerImage(editingCustomer.id, imageId)
+      toast.success('Image removed.')
+      const updated = await salesService.getCustomer(editingCustomer.id)
+      setEditingCustomer(updated)
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Unable to remove image.'))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   function validatePayload(payload) {
     if (!payload.code || !payload.name) {
       toast.error('Customer code and name are required.')
       return false
     }
-    if (!payload.customerGroupId || !(payload.salesRouteId || payload.territoryId)) {
-      toast.error('Customer group and sales route are required.')
+    if (!(payload.salesRouteId || payload.territoryId)) {
+      toast.error('Sales route is required.')
       return false
     }
     if (payload.isVatRegistered) {
@@ -1738,12 +1753,41 @@ export default function CustomerListPage() {
                     {editingCustomer.images?.length ? (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
                         {editingCustomer.images.map((image) => (
-                          <img
+                          <div
                             key={image.id || image.imageUrl}
-                            src={getR2ImageUrl(image.imageUrl)}
-                            alt="Customer"
-                            style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--color-border)' }}
-                          />
+                            style={{ position: 'relative', display: 'inline-block' }}
+                          >
+                            <img
+                              src={getR2ImageUrl(image.imageUrl)}
+                              alt="Customer"
+                              style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--color-border)', display: 'block' }}
+                            />
+                            {image.id ? (
+                              <button
+                                type="button"
+                                disabled={isSaving}
+                                onClick={() => handleDeleteImage(image.id)}
+                                title="Delete image"
+                                style={{
+                                  position: 'absolute',
+                                  top: 3,
+                                  right: 3,
+                                  width: 18,
+                                  height: 18,
+                                  borderRadius: '50%',
+                                  background: 'rgba(220,38,38,0.85)',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: 0,
+                                }}
+                              >
+                                <X style={{ width: 10, height: 10, color: '#fff' }} />
+                              </button>
+                            ) : null}
+                          </div>
                         ))}
                       </div>
                     ) : null}

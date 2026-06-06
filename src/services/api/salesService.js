@@ -141,6 +141,11 @@ export const salesService = {
     return response.data
   },
 
+  // Delete a specific image from a customer (removes from DB and R2 storage).
+  async deleteCustomerImage(customerId, imageId) {
+    await api.delete(`/api/v1/sales/customers/${customerId}/images/${imageId}`)
+  },
+
   // Add a contact to an existing customer. Backend returns 201 with the new contact ID (plain string).
   async addCustomerContact(customerId, payload) {
     const response = await api.post(`/api/v1/sales/customers/${customerId}/contacts`, payload)
