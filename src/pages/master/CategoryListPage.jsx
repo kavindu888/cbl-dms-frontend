@@ -585,12 +585,13 @@ export default function CategoryListPage() {
               gap: 10,
               paddingTop: 8,
               borderTop: '1px solid var(--color-border)',
+              marginTop: 'auto',
             }}
           >
             <button
               type="button"
               data-skip-focus="true"
-              className="button-ghost"
+              className="button-secondary"
               onClick={resetForm}
               style={{ flex: 1, height: 38, fontSize: 13 }}
             >

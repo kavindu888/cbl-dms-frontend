@@ -13,13 +13,10 @@ const emptyForm = {
   customerGroupId: '',
   territoryId: '',
   salesRouteId: '',
-  preferredPaymentMethod: '0',
   creditLimit: '0',
+  creditPeriodDays: '0',
   isVatRegistered: false,
-  registrationNumber: '',
   taxNumber: '',
-  geoLatitude: '',
-  geoLongitude: '',
   contactFullName: '',
   contactPhone: '',
   contactEmail: '',
@@ -27,14 +24,7 @@ const emptyForm = {
   additionalContacts: [],
 }
 
-const pageSize = 10
-
-const paymentMethods = [
-  { value: '0', label: 'Cash' },
-  { value: '1', label: 'Credit' },
-  { value: '2', label: 'Cheque' },
-  { value: '3', label: 'Bank Transfer' },
-]
+const pageSize = 7
 
 const contactTypes = [
   { value: '0', label: 'Owner' },
@@ -67,10 +57,6 @@ function toOptionalDecimal(value) {
   if (value === '' || value === null || value === undefined) return null
   const numberValue = Number(value)
   return Number.isFinite(numberValue) ? numberValue : null
-}
-
-function getPaymentLabel(value) {
-  return paymentMethods.find((method) => Number(method.value) === Number(value))?.label || value
 }
 
 function getGroupName(groups, id) {
@@ -115,13 +101,10 @@ function buildCreatePayload(form) {
     salesRouteId: form.salesRouteId,
     code: toCustomerCode(form.code),
     name: form.name.trim(),
-    preferredPaymentMethod: Number(form.preferredPaymentMethod),
     creditLimit: Number(form.creditLimit || 0),
+    creditPeriodDays: Number(form.creditPeriodDays || 0),
     isVatRegistered: form.isVatRegistered,
-    registrationNumber: form.registrationNumber.trim() || null,
     taxNumber: form.taxNumber.trim() || null,
-    geoLatitude: toOptionalDecimal(form.geoLatitude),
-    geoLongitude: toOptionalDecimal(form.geoLongitude),
     contacts: contacts.length > 0 ? contacts : null,
   }
 }
@@ -132,13 +115,10 @@ function buildUpdatePayload(form) {
     territoryId: form.salesRouteId,
     code: toCustomerCode(form.code),
     name: form.name.trim(),
-    preferredPaymentMethod: Number(form.preferredPaymentMethod),
     creditLimit: Number(form.creditLimit || 0),
+    creditPeriodDays: Number(form.creditPeriodDays || 0),
     isVatRegistered: form.isVatRegistered,
-    registrationNumber: form.registrationNumber.trim() || null,
     taxNumber: form.taxNumber.trim() || null,
-    geoLatitude: toOptionalDecimal(form.geoLatitude),
-    geoLongitude: toOptionalDecimal(form.geoLongitude),
   }
 }
 
@@ -159,7 +139,6 @@ export default function CustomerListPage() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [editingCustomer, setEditingCustomer] = useState(null)
   const [form, setForm] = useState(emptyForm)
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoadingLookups, setIsLoadingLookups] = useState(true)
@@ -204,9 +183,20 @@ export default function CustomerListPage() {
 
   // Contact management for edit modal
   const [contactEditId, setContactEditId] = useState(null)
-  const [contactEditForm, setContactEditForm] = useState({ contactType: '0', fullName: '', phone: '', email: '' })
+  const [contactEditForm, setContactEditForm] = useState({
+    contactType: '0',
+    fullName: '',
+    phone: '',
+    email: '',
+  })
   const [showAddContact, setShowAddContact] = useState(false)
-  const [addContactForm, setAddContactForm] = useState({ contactType: '0', fullName: '', phone: '', email: '', isPrimary: false })
+  const [addContactForm, setAddContactForm] = useState({
+    contactType: '0',
+    fullName: '',
+    phone: '',
+    email: '',
+    isPrimary: false,
+  })
   const [isSavingContact, setIsSavingContact] = useState(false)
 
   useEffect(() => {
@@ -359,6 +349,10 @@ export default function CustomerListPage() {
         if (group && group.defaultCreditLimit) {
           nextForm.creditLimit = String(group.defaultCreditLimit)
         }
+      }
+      // Ensure creditPeriodDays is always a valid string representation of a number
+      if (field === 'creditPeriodDays') {
+        nextForm.creditPeriodDays = String(value || 0)
       }
       return nextForm
     })
@@ -643,13 +637,14 @@ export default function CustomerListPage() {
     setPendingImages((currentImages) => currentImages.filter((_, index) => index !== indexToRemove))
   }
 
-  function openCreateModal() {
+  function handleAdd() {
     resetForm()
-    setIsModalOpen(true)
+    window.setTimeout(() => {
+      document.querySelector('input[placeholder="e.g. CUST-0001"]')?.focus()
+    }, 0)
   }
 
-  function closeModal() {
-    setIsModalOpen(false)
+  function handleCancel() {
     resetForm()
   }
 
@@ -672,7 +667,9 @@ export default function CustomerListPage() {
       }
 
       setEditingCustomer(details)
-      setIsModalOpen(true)
+      window.setTimeout(() => {
+        document.querySelector('input[placeholder="e.g. CUST-0001"]')?.focus()
+      }, 0)
 
       const primaryContact = details.contacts?.find((c) => c.isPrimary) || details.contacts?.[0]
       const otherContacts = details.contacts?.filter((c) => c !== primaryContact) || []
@@ -683,13 +680,10 @@ export default function CustomerListPage() {
         customerGroupId: details.customerGroupId,
         territoryId,
         salesRouteId: details.salesRouteId,
-        preferredPaymentMethod: String(details.preferredPaymentMethod),
         creditLimit: String(details.creditLimit ?? 0),
+        creditPeriodDays: String(details.creditPeriodDays ?? 0),
         isVatRegistered: details.isVatRegistered,
-        registrationNumber: details.registrationNumber || '',
         taxNumber: details.taxNumber || '',
-        geoLatitude: details.location?.latitude ?? '',
-        geoLongitude: details.location?.longitude ?? '',
         contactFullName: primaryContact?.fullName || '',
         contactPhone: primaryContact?.phone || '',
         contactEmail: primaryContact?.email || '',
@@ -733,10 +727,6 @@ export default function CustomerListPage() {
       return false
     }
     if (payload.isVatRegistered) {
-      if (!payload.registrationNumber || !payload.registrationNumber.trim()) {
-        toast.error('Registration number is required when VAT registered.')
-        return false
-      }
       if (!payload.taxNumber || !payload.taxNumber.trim()) {
         toast.error('TIN is required when VAT registered.')
         return false
@@ -767,9 +757,7 @@ export default function CustomerListPage() {
       return
     }
 
-    const payload = editingCustomer
-      ? buildUpdatePayload(form)
-      : buildCreatePayload(form)
+    const payload = editingCustomer ? buildUpdatePayload(form) : buildCreatePayload(form)
 
     if (!validatePayload(payload)) return
 
@@ -794,7 +782,7 @@ export default function CustomerListPage() {
       }
 
       await loadCustomers()
-      closeModal()
+      resetForm()
     } catch (saveError) {
       toast.error(getErrorMessage(saveError, 'Unable to save customer.'))
     } finally {
@@ -832,7 +820,7 @@ export default function CustomerListPage() {
       await loadCustomers()
 
       if (editingCustomer?.id === customer.id) {
-        closeModal()
+        resetForm()
       }
     } catch (deleteError) {
       toast.error(getErrorMessage(deleteError, 'Unable to deactivate customer.'))
@@ -902,22 +890,6 @@ export default function CustomerListPage() {
             Manage customer master records, groups, route assignment, VAT details, and shop images.
           </p>
         </div>
-        <button
-          className="button-primary"
-          type="button"
-          onClick={openCreateModal}
-          style={{
-            height: 40,
-            padding: '0 24px',
-            fontSize: 14,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <Plus style={{ width: 16, height: 16 }} />
-          New Customer
-        </button>
       </div>
 
       <div
@@ -960,7 +932,8 @@ export default function CustomerListPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr)',
+          gridTemplateColumns: 'minmax(0, 1fr) 480px',
+          gap: 16,
           alignItems: 'stretch',
           flex: 1,
           minHeight: 0,
@@ -985,7 +958,7 @@ export default function CustomerListPage() {
                   <th>Group</th>
                   <th>Route & Territory</th>
                   <th>Primary Contact</th>
-                  <th>Payment & Tax</th>
+                  {/* <th>Payment & Tax</th> */}
                   <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -1016,7 +989,9 @@ export default function CustomerListPage() {
                     const customerImage = rawImg ? getR2ImageUrl(rawImg) : null
 
                     // Resolve route & territory from background-loaded cache
-                    const routeObj = customer.salesRouteId ? routeCache[customer.salesRouteId] : null
+                    const routeObj = customer.salesRouteId
+                      ? routeCache[customer.salesRouteId]
+                      : null
                     const routeName = routeObj
                       ? `${routeObj.name} (${routeObj.code})`
                       : customer.salesRouteId && !(customer.salesRouteId in routeCache)
@@ -1075,25 +1050,6 @@ export default function CustomerListPage() {
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span className="product-name-title">{customer.name}</span>
-                            {customer.location?.latitude && customer.location?.longitude ? (
-                              <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${customer.location.latitude},${customer.location.longitude}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="product-info-sub"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                  color: 'var(--color-amber)',
-                                  width: 'fit-content',
-                                }}
-                              >
-                                <Globe style={{ width: 10, height: 10 }} />
-                                GPS: {Number(customer.location.latitude).toFixed(4)},{' '}
-                                {Number(customer.location.longitude).toFixed(4)}
-                              </a>
-                            ) : null}
                           </div>
                         </td>
 
@@ -1158,7 +1114,7 @@ export default function CustomerListPage() {
                         </td>
 
                         {/* Payment & Tax */}
-                        <td>
+                        {/* <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                             <div className="uom-conversions-list">
                               <span className="uom-badge">
@@ -1167,10 +1123,6 @@ export default function CustomerListPage() {
                             </div>
                             {customer.isVatRegistered ? (
                               <div className="reorder-badge">
-                                <div className="reorder-badge-item">
-                                  <span className="reorder-badge-label">VAT Reg:</span>
-                                  <span className="mono">{customer.registrationNumber || '—'}</span>
-                                </div>
                                 <div className="reorder-badge-item">
                                   <span className="reorder-badge-label">TIN:</span>
                                   <span className="mono">{customer.taxNumber || '—'}</span>
@@ -1182,7 +1134,7 @@ export default function CustomerListPage() {
                               </span>
                             )}
                           </div>
-                        </td>
+                        </td> */}
 
                         {/* Status */}
                         <td>
@@ -1270,617 +1222,1237 @@ export default function CustomerListPage() {
           </div>
         </div>
 
-        {isModalOpen ? (
+        <form
+          onSubmit={handleSave}
+          onKeyDown={handleFormKeyDown}
+          className="panel"
+          style={{
+            padding: '16px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            minHeight: 0,
+            overflowY: 'auto',
+          }}
+        >
+          {/* Header */}
           <div
-            role="presentation"
             style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 50,
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 24,
-              background: 'rgba(0,4,12,0.75)',
-              backdropFilter: 'blur(2px)',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: 12,
+              paddingBottom: 10,
+              borderBottom: '1px solid var(--color-border)',
+              flexShrink: 0,
             }}
           >
-            <form
-              onSubmit={handleSave}
-              onKeyDown={handleFormKeyDown}
-              className="panel"
-              style={{
-                width: 'min(900px, calc(100vw - 48px))',
-                maxHeight: 'min(860px, calc(100vh - 48px))',
-                borderRadius: 10,
-                display: 'flex',
-                flexDirection: 'column',
-                padding: 0,
-                overflow: 'hidden',
-              }}
-            >
-              {/* Header */}
-              <div
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 650, color: 'var(--color-text-primary)' }}>
+                {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
+              </h2>
+              <p
                 style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'space-between',
-                  gap: 16,
-                  padding: '24px 24px 16px',
-                  borderBottom: '1px solid var(--color-border)',
-                  flexShrink: 0,
+                  marginTop: 4,
+                  fontSize: 12,
+                  color: 'var(--color-text-muted)',
+                  lineHeight: 1.35,
                 }}
               >
-                <div>
-                  <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                    {editingCustomer ? 'Edit Customer' : 'New Customer'}
-                  </h2>
-                  <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-                    Customer organization is taken from your signed-in session.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="icon-button"
-                  onClick={closeModal}
-                  aria-label="Close"
-                  data-skip-focus="true"
-                  style={{ width: 32, height: 32 }}
-                >
-                  <X style={{ width: 16, height: 16 }} />
-                </button>
+                Customer organization is taken from your signed-in session.
+              </p>
+            </div>
+            {editingCustomer ? (
+              <button
+                type="button"
+                className="button-ghost"
+                onClick={handleCancel}
+                style={{ padding: '5px 10px', height: 'auto', fontSize: 12 }}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+
+          {/* Basic Information */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p className="eyebrow" style={{ fontSize: 10 }}>
+              Basic Information
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 12 }}>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Customer Code *
+                </label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. CUST-0001"
+                  value={form.code}
+                  maxLength={30}
+                  onChange={(event) => updateField('code', event.target.value)}
+                  style={{ height: 38 }}
+                />
               </div>
 
-              {/* Scrollable Body */}
+              <div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 4,
+                    marginBottom: 4,
+                  }}
+                >
+                  <label className="form-label" style={{ fontSize: 10, marginBottom: 0 }}>
+                    Customer Group *
+                  </label>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Add Customer Group"
+                    onClick={() => setShowGroupForm((current) => !current)}
+                    style={{ width: 22, height: 22, borderRadius: 4 }}
+                  >
+                    <Plus style={{ width: 12, height: 12 }} />
+                  </button>
+                </div>
+                <select
+                  className="form-input"
+                  value={form.customerGroupId}
+                  disabled={isLoadingLookups}
+                  onChange={(event) => updateField('customerGroupId', event.target.value)}
+                  style={{ height: 38, fontSize: 13 }}
+                >
+                  <option value="">Select group</option>
+                  {customerGroupOptions.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Customer Group Inline Addition */}
+            {showGroupForm && (
               <div
                 style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '24px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 28,
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1.2fr',
+                  gap: 8,
+                  padding: 10,
+                  border: '1px dashed var(--color-border)',
+                  borderRadius: 6,
+                  background: 'rgba(0,0,0,0.08)',
                 }}
               >
-                {/* Basic Information */}
-                <section>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-                    Basic Information
+                <div style={{ gridColumn: 'span 2' }}>
+                  <p
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: 'var(--color-text-dim)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    NEW CUSTOMER GROUP
                   </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-                    <label>
-                      <span className="form-label">Customer Code *</span>
-                      <input
-                        autoFocus
-                        className="form-input"
-                        placeholder="e.g. CUST-0001"
-                        value={form.code}
-                        maxLength={30}
-                        onChange={(event) => updateField('code', event.target.value)}
-                        style={{ height: 42 }}
-                      />
-                    </label>
-                    <label>
-                      <span className="form-label">Customer Name *</span>
-                      <input
-                        className="form-input"
-                        placeholder="e.g. Fresh Mart Kandy"
-                        value={form.name}
-                        maxLength={200}
-                        onChange={(event) => updateField('name', event.target.value)}
-                        style={{ height: 42 }}
-                      />
-                    </label>
-                    <label>
-                      <span className="form-label">Customer Group *</span>
-                      <select
-                        className="form-input"
-                        value={form.customerGroupId}
-                        disabled={isLoadingLookups}
-                        onChange={(event) => updateField('customerGroupId', event.target.value)}
-                        style={{ height: 42 }}
-                      >
-                        <option value="">Select group</option>
-                        {customerGroupOptions.map((group) => (
-                          <option key={group.id} value={group.id}>
-                            {group.name} ({group.code})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </section>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Code *
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g. RET"
+                    value={newGroup.code}
+                    maxLength={30}
+                    onChange={(e) => updateNewGroupField('code', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Name *
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g. Retail"
+                    value={newGroup.name}
+                    maxLength={200}
+                    onChange={(e) => updateNewGroupField('name', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Credit Days
+                  </label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    min="0"
+                    value={newGroup.defaultCreditDays}
+                    onChange={(e) => updateNewGroupField('defaultCreditDays', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Credit Limit (Rs.)
+                  </label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    min="0"
+                    value={newGroup.defaultCreditLimit}
+                    onChange={(e) => updateNewGroupField('defaultCreditLimit', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  />
+                </div>
+                <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button
+                    type="button"
+                    className="button-ghost"
+                    onClick={() => setShowGroupForm(false)}
+                    style={{ flex: 1, height: 32, fontSize: 11 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="button-primary"
+                    disabled={isSavingGroup}
+                    onClick={handleCreateCustomerGroup}
+                    style={{ flex: 1.5, height: 32, fontSize: 11 }}
+                  >
+                    {isSavingGroup ? '...' : 'Add Group'}
+                  </button>
+                </div>
+              </div>
+            )}
 
-                {/* Route Assignment */}
-                <section>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-                    Route Assignment
-                  </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                    <label>
-                      <span className="form-label">Territory</span>
-                      <select
-                        className="form-input"
-                        value={form.territoryId}
-                        disabled={isLoadingLookups}
-                        onChange={(event) => updateField('territoryId', event.target.value)}
-                        style={{ height: 42 }}
-                      >
-                        <option value="">Select territory for route</option>
-                        {territoryOptions.map((territory) => (
-                          <option key={territory.id} value={territory.id}>
-                            {territory.name} ({territory.code})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      <span className="form-label">Sales Route *</span>
-                      <select
-                        className="form-input"
-                        value={form.salesRouteId}
-                        disabled={isLoadingRoutes}
-                        onChange={(event) => updateField('salesRouteId', event.target.value)}
-                        style={{ height: 42 }}
-                      >
-                        <option value="">{isLoadingRoutes ? 'Loading routes...' : 'Select route'}</option>
-                        {form.salesRouteId && !routeOptions.some((route) => route.id === form.salesRouteId) ? (
-                          <option value={form.salesRouteId}>Current route ({form.salesRouteId})</option>
-                        ) : null}
-                        {routeOptions.map((route) => (
-                          <option key={route.id} value={route.id}>
-                            {route.name} ({route.code})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </section>
+            <div>
+              <label className="form-label" style={{ fontSize: 10 }}>
+                Customer Name *
+              </label>
+              <input
+                className="form-input"
+                placeholder="e.g. Fresh Mart Kandy"
+                value={form.name}
+                maxLength={200}
+                onChange={(event) => updateField('name', event.target.value)}
+                style={{ height: 38 }}
+              />
+            </div>
+          </div>
 
-                {/* Payment & Tax */}
-                <section>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-                    Payment & Tax
-                  </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-                    <label>
-                      <span className="form-label">Preferred Payment</span>
-                      <select
-                        className="form-input"
-                        value={form.preferredPaymentMethod}
-                        onChange={(event) => updateField('preferredPaymentMethod', event.target.value)}
-                        style={{ height: 42 }}
-                      >
-                        {paymentMethods.map((method) => (
-                          <option key={method.value} value={method.value}>{method.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      <span className="form-label">Credit Limit</span>
-                      <input
-                        className="form-input"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={form.creditLimit}
-                        onChange={(event) => updateField('creditLimit', event.target.value)}
-                        style={{ height: 42 }}
-                      />
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 22, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={form.isVatRegistered}
-                        onChange={(event) => updateField('isVatRegistered', event.target.checked)}
-                      />
-                      <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>VAT Registered</span>
-                    </label>
-                  </div>
-                  {form.isVatRegistered ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
-                      <label>
-                        <span className="form-label">Registration Number *</span>
-                        <input
-                          className="form-input"
-                          placeholder="BR number"
-                          value={form.registrationNumber}
-                          maxLength={50}
-                          onChange={(event) => updateField('registrationNumber', event.target.value)}
-                          style={{ height: 42 }}
-                        />
-                      </label>
-                      <label>
-                        <span className="form-label">TIN *</span>
-                        <input
-                          className="form-input"
-                          placeholder="9 digits required"
-                          value={form.taxNumber}
-                          maxLength={9}
-                          onChange={(event) => updateField('taxNumber', event.target.value.replace(/\D/g, ''))}
-                          style={{ height: 42 }}
-                        />
-                      </label>
-                    </div>
+          {/* Route Assignment */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              borderTop: '1px solid var(--color-border)',
+              paddingTop: 12,
+            }}
+          >
+            <p className="eyebrow" style={{ fontSize: 10 }}>
+              Route Assignment
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 4,
+                    marginBottom: 4,
+                  }}
+                >
+                  <label className="form-label" style={{ fontSize: 10, marginBottom: 0 }}>
+                    Territory
+                  </label>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Add Territory"
+                    onClick={() => setShowTerritoryForm((current) => !current)}
+                    style={{ width: 22, height: 22, borderRadius: 4 }}
+                  >
+                    <Plus style={{ width: 12, height: 12 }} />
+                  </button>
+                </div>
+                <select
+                  className="form-input"
+                  value={form.territoryId}
+                  disabled={isLoadingLookups}
+                  onChange={(event) => updateField('territoryId', event.target.value)}
+                  style={{ height: 38, fontSize: 13 }}
+                >
+                  <option value="">Select territory</option>
+                  {territoryOptions.map((territory) => (
+                    <option key={territory.id} value={territory.id}>
+                      {territory.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 4,
+                    marginBottom: 4,
+                  }}
+                >
+                  <label className="form-label" style={{ fontSize: 10, marginBottom: 0 }}>
+                    Sales Route *
+                  </label>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Add Route"
+                    disabled={!form.territoryId}
+                    onClick={() => setShowRouteForm((current) => !current)}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 4,
+                      opacity: form.territoryId ? 1 : 0.5,
+                    }}
+                  >
+                    <Plus style={{ width: 12, height: 12 }} />
+                  </button>
+                </div>
+                <select
+                  className="form-input"
+                  value={form.salesRouteId}
+                  disabled={isLoadingRoutes}
+                  onChange={(event) => updateField('salesRouteId', event.target.value)}
+                  style={{ height: 38, fontSize: 13 }}
+                >
+                  <option value="">{isLoadingRoutes ? 'Loading routes...' : 'Select route'}</option>
+                  {form.salesRouteId &&
+                  !routeOptions.some((route) => route.id === form.salesRouteId) ? (
+                    <option value={form.salesRouteId}>Current route ({form.salesRouteId})</option>
                   ) : null}
-                </section>
+                  {routeOptions.map((route) => (
+                    <option key={route.id} value={route.id}>
+                      {route.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-                {/* Location */}
-                <section>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-                    Location{' '}
-                    <span style={{ fontWeight: 400, textTransform: 'none', opacity: 0.6 }}>(optional)</span>
+            {/* Territory Inline Addition */}
+            {showTerritoryForm && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1.2fr',
+                  gap: 8,
+                  padding: 10,
+                  border: '1px dashed var(--color-border)',
+                  borderRadius: 6,
+                  background: 'rgba(0,0,0,0.08)',
+                }}
+              >
+                <div style={{ gridColumn: 'span 2' }}>
+                  <p
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: 'var(--color-text-dim)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    NEW TERRITORY
                   </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                    <label>
-                      <span className="form-label">Latitude</span>
-                      <input
-                        className="form-input"
-                        type="number"
-                        step="0.000001"
-                        placeholder="e.g. 6.9271"
-                        value={form.geoLatitude}
-                        onChange={(event) => updateField('geoLatitude', event.target.value)}
-                        style={{ height: 42 }}
-                      />
-                    </label>
-                    <label>
-                      <span className="form-label">Longitude</span>
-                      <input
-                        className="form-input"
-                        type="number"
-                        step="0.000001"
-                        placeholder="e.g. 79.8612"
-                        value={form.geoLongitude}
-                        onChange={(event) => updateField('geoLongitude', event.target.value)}
-                        style={{ height: 42 }}
-                      />
-                    </label>
-                  </div>
-                </section>
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Business Unit *
+                  </label>
+                  <select
+                    className="form-input"
+                    value={newTerritory.businessUnitId}
+                    onChange={(e) => updateNewTerritoryField('businessUnitId', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  >
+                    {businessUnits.map((bu) => (
+                      <option key={bu.id} value={bu.id}>
+                        {bu.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Code *
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g. KAN-T"
+                    value={newTerritory.code}
+                    maxLength={30}
+                    onChange={(e) => updateNewTerritoryField('code', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Name *
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g. Kandy East"
+                    value={newTerritory.name}
+                    maxLength={200}
+                    onChange={(e) => updateNewTerritoryField('name', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  />
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Description
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="Optional description"
+                    value={newTerritory.description}
+                    onChange={(e) => updateNewTerritoryField('description', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  />
+                </div>
+                <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button
+                    type="button"
+                    className="button-ghost"
+                    onClick={() => setShowTerritoryForm(false)}
+                    style={{ flex: 1, height: 32, fontSize: 11 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="button-primary"
+                    disabled={isSavingTerritory}
+                    onClick={handleCreateTerritory}
+                    style={{ flex: 1.5, height: 32, fontSize: 11 }}
+                  >
+                    {isSavingTerritory ? '...' : 'Add'}
+                  </button>
+                </div>
+              </div>
+            )}
 
-                {/* Primary Contact — create only */}
-                {!editingCustomer ? (
-                  <section>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-                      Primary Contact
-                    </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-                      <label>
-                        <span className="form-label">Contact Type</span>
-                        <select
-                          className="form-input"
-                          value={form.contactType}
-                          onChange={(event) => updateField('contactType', event.target.value)}
-                          style={{ height: 42 }}
+            {/* Route Inline Addition */}
+            {showRouteForm && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1.2fr',
+                  gap: 8,
+                  padding: 10,
+                  border: '1px dashed var(--color-border)',
+                  borderRadius: 6,
+                  background: 'rgba(0,0,0,0.08)',
+                }}
+              >
+                <div style={{ gridColumn: 'span 2' }}>
+                  <p
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: 'var(--color-text-dim)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    NEW SALES ROUTE
+                  </p>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Code *
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g. KAN-R1"
+                    value={newRoute.code}
+                    maxLength={30}
+                    onChange={(e) => updateNewRouteField('code', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Name *
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g. Route 01"
+                    value={newRoute.name}
+                    maxLength={200}
+                    onChange={(e) => updateNewRouteField('name', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  />
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label" style={{ fontSize: 9 }}>
+                    Default Employee ID
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="Optional employee code"
+                    value={newRoute.defaultEmployeeId}
+                    onChange={(e) => updateNewRouteField('defaultEmployeeId', e.target.value)}
+                    style={{ height: 34, fontSize: 12 }}
+                  />
+                </div>
+                <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button
+                    type="button"
+                    className="button-ghost"
+                    onClick={() => setShowRouteForm(false)}
+                    style={{ flex: 1, height: 32, fontSize: 11 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="button-primary"
+                    disabled={isSavingRoute}
+                    onClick={handleCreateSalesRoute}
+                    style={{ flex: 1.5, height: 32, fontSize: 11 }}
+                  >
+                    {isSavingRoute ? '...' : 'Add'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Payment & Tax */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              borderTop: '1px solid var(--color-border)',
+              paddingTop: 12,
+            }}
+          >
+            <p className="eyebrow" style={{ fontSize: 10 }}>
+              Payment & Tax
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Credit Limit
+                </label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={form.creditLimit}
+                  onChange={(event) => updateField('creditLimit', event.target.value)}
+                  style={{ height: 38 }}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Credit Period (Days)
+                </label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                  value={form.creditPeriodDays || '0'}
+                  onChange={(event) => updateField('creditPeriodDays', event.target.value)}
+                  style={{ height: 38 }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', margin: '2px 0' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 12,
+                  color: 'var(--color-text-primary)',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={form.isVatRegistered}
+                  onChange={(event) => updateField('isVatRegistered', event.target.checked)}
+                  style={{ width: 15, height: 15, accentColor: 'var(--color-amber)' }}
+                />
+                VAT Registered
+              </label>
+            </div>
+
+            {form.isVatRegistered && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label" style={{ fontSize: 10 }}>
+                    TIN *
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="9 digits"
+                    value={form.taxNumber}
+                    maxLength={9}
+                    onChange={(event) =>
+                      updateField('taxNumber', event.target.value.replace(/\D/g, ''))
+                    }
+                    style={{ height: 38 }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Primary Contact — create only */}
+          {!editingCustomer && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                borderTop: '1px solid var(--color-border)',
+                paddingTop: 12,
+              }}
+            >
+              <p className="eyebrow" style={{ fontSize: 10 }}>
+                Primary Contact
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label" style={{ fontSize: 10 }}>
+                    Contact Type
+                  </label>
+                  <select
+                    className="form-input"
+                    value={form.contactType}
+                    onChange={(event) => updateField('contactType', event.target.value)}
+                    style={{ height: 38, fontSize: 13 }}
+                  >
+                    {contactTypes.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 10 }}>
+                    Contact Name
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="Full name"
+                    value={form.contactFullName}
+                    onChange={(event) => updateField('contactFullName', event.target.value)}
+                    style={{ height: 38 }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 10 }}>
+                    Phone
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="+94 77 000 0000"
+                    value={form.contactPhone}
+                    onChange={(event) => updateField('contactPhone', event.target.value)}
+                    style={{ height: 38 }}
+                  />
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label" style={{ fontSize: 10 }}>
+                    Email
+                  </label>
+                  <input
+                    className="form-input"
+                    type="email"
+                    placeholder="contact@example.com"
+                    value={form.contactEmail}
+                    onChange={(event) => updateField('contactEmail', event.target.value)}
+                    style={{ height: 38 }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Contacts — edit mode only */}
+          {editingCustomer && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                borderTop: '1px solid var(--color-border)',
+                paddingTop: 12,
+              }}
+            >
+              <p className="eyebrow" style={{ fontSize: 10 }}>
+                Contacts
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {editingCustomer.contacts
+                  ?.filter((c) => c.isActive)
+                  .map((contact) =>
+                    contactEditId === contact.id ? (
+                      <div
+                        key={contact.id}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: 10,
+                          padding: 10,
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 6,
+                          background: 'rgba(0,0,0,0.12)',
+                        }}
+                      >
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <label className="form-label" style={{ fontSize: 9 }}>
+                            Type
+                          </label>
+                          <select
+                            className="form-input"
+                            value={contactEditForm.contactType}
+                            onChange={(e) =>
+                              setContactEditForm((f) => ({ ...f, contactType: e.target.value }))
+                            }
+                            style={{ height: 34, fontSize: 12 }}
+                          >
+                            {contactTypes.map((t) => (
+                              <option key={t.value} value={t.value}>
+                                {t.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="form-label" style={{ fontSize: 9 }}>
+                            Full Name *
+                          </label>
+                          <input
+                            className="form-input"
+                            value={contactEditForm.fullName}
+                            onChange={(e) =>
+                              setContactEditForm((f) => ({ ...f, fullName: e.target.value }))
+                            }
+                            style={{ height: 34, fontSize: 12 }}
+                          />
+                        </div>
+                        <div>
+                          <label className="form-label" style={{ fontSize: 9 }}>
+                            Phone *
+                          </label>
+                          <input
+                            className="form-input"
+                            value={contactEditForm.phone}
+                            onChange={(e) =>
+                              setContactEditForm((f) => ({ ...f, phone: e.target.value }))
+                            }
+                            style={{ height: 34, fontSize: 12 }}
+                          />
+                        </div>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <label className="form-label" style={{ fontSize: 9 }}>
+                            Email
+                          </label>
+                          <input
+                            className="form-input"
+                            type="email"
+                            value={contactEditForm.email}
+                            onChange={(e) =>
+                              setContactEditForm((f) => ({ ...f, email: e.target.value }))
+                            }
+                            style={{ height: 34, fontSize: 12 }}
+                          />
+                        </div>
+                        <div
+                          style={{ gridColumn: 'span 2', display: 'flex', gap: 8, marginTop: 4 }}
                         >
-                          {contactTypes.map((type) => (
-                            <option key={type.value} value={type.value}>{type.label}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        <span className="form-label">Contact Name</span>
-                        <input
-                          className="form-input"
-                          placeholder="Full name"
-                          value={form.contactFullName}
-                          onChange={(event) => updateField('contactFullName', event.target.value)}
-                          style={{ height: 42 }}
-                        />
-                      </label>
-                      <label>
-                        <span className="form-label">Phone</span>
-                        <input
-                          className="form-input"
-                          placeholder="+94 77 000 0000"
-                          value={form.contactPhone}
-                          onChange={(event) => updateField('contactPhone', event.target.value)}
-                          style={{ height: 42 }}
-                        />
-                      </label>
-                      <label>
-                        <span className="form-label">Email</span>
-                        <input
-                          className="form-input"
-                          type="email"
-                          placeholder="contact@example.com"
-                          value={form.contactEmail}
-                          onChange={(event) => updateField('contactEmail', event.target.value)}
-                          style={{ height: 42 }}
-                        />
-                      </label>
-                    </div>
-                  </section>
-                ) : null}
-
-                {/* Contacts — edit mode only */}
-                {editingCustomer ? (
-                  <section>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-                      Contacts
-                    </p>
-
-                    {editingCustomer.contacts?.filter((c) => c.isActive).map((contact) =>
-                      contactEditId === contact.id ? (
-                        <div key={contact.id} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr auto auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
-                          <label>
-                            <span className="form-label">Type</span>
-                            <select className="form-input" value={contactEditForm.contactType} onChange={(e) => setContactEditForm((f) => ({ ...f, contactType: e.target.value }))} style={{ height: 36 }}>
-                              {contactTypes.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
-                            </select>
-                          </label>
-                          <label>
-                            <span className="form-label">Full Name *</span>
-                            <input className="form-input" value={contactEditForm.fullName} onChange={(e) => setContactEditForm((f) => ({ ...f, fullName: e.target.value }))} style={{ height: 36 }} />
-                          </label>
-                          <label>
-                            <span className="form-label">Phone *</span>
-                            <input className="form-input" value={contactEditForm.phone} onChange={(e) => setContactEditForm((f) => ({ ...f, phone: e.target.value }))} style={{ height: 36 }} />
-                          </label>
-                          <label>
-                            <span className="form-label">Email</span>
-                            <input className="form-input" type="email" value={contactEditForm.email} onChange={(e) => setContactEditForm((f) => ({ ...f, email: e.target.value }))} style={{ height: 36 }} />
-                          </label>
-                          <button type="button" className="button-primary" disabled={isSavingContact} onClick={() => handleSaveEditContact(contact.id)} style={{ height: 36, padding: '0 12px', fontSize: 12 }}>Save</button>
-                          <button type="button" className="button-ghost" onClick={() => setContactEditId(null)} style={{ height: 36, padding: '0 10px', fontSize: 12 }}>Cancel</button>
-                        </div>
-                      ) : (
-                        <div key={contact.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 6, background: 'rgba(0,0,0,0.1)', marginBottom: 6 }}>
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{contact.fullName}</span>
-                              <span style={{ fontSize: 10, background: 'var(--color-surface-2)', color: 'var(--color-text-dim)', padding: '1px 6px', borderRadius: 3 }}>{getContactTypeLabel(contact.contactType)}</span>
-                              {contact.isPrimary && (<span style={{ fontSize: 10, background: 'rgba(139,92,246,0.18)', color: 'var(--color-purple)', padding: '1px 6px', borderRadius: 3 }}>PRIMARY</span>)}
-                            </div>
-                            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{contact.phone}{contact.email ? ` · ${contact.email}` : ''}</span>
-                          </div>
-                          <button type="button" className="button-secondary" disabled={isSavingContact} onClick={() => { setContactEditId(contact.id); setContactEditForm({ contactType: String(contact.contactType ?? '0'), fullName: contact.fullName, phone: contact.phone, email: contact.email || '' }) }} style={{ height: 28, padding: '0 10px', fontSize: 11 }}>Edit</button>
-                          <button type="button" className="icon-button" disabled={isSavingContact} onClick={() => handleRemoveContact(contact.id)} style={{ height: 28, width: 28 }} title="Remove contact">
-                            <X style={{ width: 12, height: 12 }} />
+                          <button
+                            type="button"
+                            className="button-ghost"
+                            onClick={() => setContactEditId(null)}
+                            style={{ flex: 1, height: 32, fontSize: 11 }}
+                          >
+                            Cancel
                           </button>
-                        </div>
-                      )
-                    )}
-
-                    {showAddContact ? (
-                      <div style={{ marginTop: 10, padding: '12px', borderRadius: 6, border: '1px dashed var(--color-border)' }}>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)', marginBottom: 10 }}>NEW CONTACT</p>
-                        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-                          <label>
-                            <span className="form-label">Type</span>
-                            <select className="form-input" value={addContactForm.contactType} onChange={(e) => setAddContactForm((f) => ({ ...f, contactType: e.target.value }))} style={{ height: 36 }}>
-                              {contactTypes.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
-                            </select>
-                          </label>
-                          <label>
-                            <span className="form-label">Full Name *</span>
-                            <input className="form-input" placeholder="Full name" value={addContactForm.fullName} onChange={(e) => setAddContactForm((f) => ({ ...f, fullName: e.target.value }))} style={{ height: 36 }} />
-                          </label>
-                          <label>
-                            <span className="form-label">Phone *</span>
-                            <input className="form-input" placeholder="+94 77 000 0000" value={addContactForm.phone} onChange={(e) => setAddContactForm((f) => ({ ...f, phone: e.target.value }))} style={{ height: 36 }} />
-                          </label>
-                          <label>
-                            <span className="form-label">Email</span>
-                            <input className="form-input" type="email" placeholder="optional" value={addContactForm.email} onChange={(e) => setAddContactForm((f) => ({ ...f, email: e.target.value }))} style={{ height: 36 }} />
-                          </label>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', flex: 1 }}>
-                            <input type="checkbox" checked={addContactForm.isPrimary} onChange={(e) => setAddContactForm((f) => ({ ...f, isPrimary: e.target.checked }))} />
-                            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Set as primary contact</span>
-                          </label>
-                          <button type="button" className="button-primary" disabled={isSavingContact} onClick={handleSaveAddContact} style={{ height: 32, padding: '0 14px', fontSize: 12 }}>
-                            {isSavingContact ? 'Adding...' : 'Add Contact'}
+                          <button
+                            type="button"
+                            className="button-primary"
+                            disabled={isSavingContact}
+                            onClick={() => handleSaveEditContact(contact.id)}
+                            style={{ flex: 1.5, height: 32, fontSize: 11 }}
+                          >
+                            Save
                           </button>
-                          <button type="button" className="button-ghost" onClick={() => setShowAddContact(false)} style={{ height: 32, padding: '0 10px', fontSize: 12 }}>Cancel</button>
                         </div>
                       </div>
                     ) : (
-                      <button type="button" className="button-secondary" onClick={() => setShowAddContact(true)} style={{ marginTop: 6, height: 32, padding: '0 14px', fontSize: 12 }}>
-                        + Add Contact
-                      </button>
-                    )}
-                  </section>
-                ) : null}
-
-                {/* Customer Image */}
-                {!editingCustomer ? (
-                  <section>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-                      Customer Image{' '}
-                      <span style={{ fontWeight: 400, textTransform: 'none', opacity: 0.6 }}>(optional)</span>
-                    </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 16, alignItems: 'start' }}>
-                      <label>
-                        <span className="form-label">Image Type</span>
-                        <select
-                          className="form-input"
-                          value={imageType}
-                          onChange={(event) => setImageType(event.target.value)}
-                          style={{ height: 42 }}
-                        >
-                          {imageTypes.map((type) => (
-                            <option key={type.value} value={type.value}>{type.label}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        <span className="form-label">Files</span>
-                        <input
-                          className="form-input"
-                          type="file"
-                          multiple
-                          accept="image/jpeg,image/png,image/webp"
-                          onChange={handleImageSelection}
-                          style={{ height: 42, paddingTop: 8 }}
-                        />
-                      </label>
-                    </div>
-                    {pendingImages.length ? (
-                      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {pendingImages.map((image, index) => (
+                      <div
+                        key={contact.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '6px 10px',
+                          borderRadius: 6,
+                          background: 'rgba(0,0,0,0.12)',
+                          border: '1px solid var(--color-border)',
+                        }}
+                      >
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <div
-                            key={`${image.file.name}-${image.file.lastModified}-${index}`}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 11, color: 'var(--color-text-muted)', padding: '6px 10px', background: 'rgba(0,0,0,0.1)', borderRadius: 6 }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              flexWrap: 'wrap',
+                            }}
                           >
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {image.file.name} — {getImageTypeLabel(image.imageType)}
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: 'var(--color-text-primary)',
+                              }}
+                            >
+                              {contact.fullName}
                             </span>
-                            <button type="button" className="icon-button" aria-label={`Remove ${image.file.name}`} onClick={() => removePendingImage(index)} style={{ width: 24, height: 24, flexShrink: 0 }}>
-                              <X style={{ width: 12, height: 12 }} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    <p style={{ marginTop: 8, fontSize: 11, color: 'var(--color-text-dim)' }}>
-                      JPEG, PNG, or WebP · max 10 MB each · up to 10 files
-                    </p>
-                  </section>
-                ) : (
-                  <section>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-                      Upload Image
-                    </p>
-                    {editingCustomer.images?.length ? (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-                        {editingCustomer.images.map((image) => (
-                          <div
-                            key={image.id || image.imageUrl}
-                            style={{ position: 'relative', display: 'inline-block' }}
-                          >
-                            <img
-                              src={getR2ImageUrl(image.imageUrl)}
-                              alt="Customer"
-                              style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--color-border)', display: 'block' }}
-                            />
-                            {image.id ? (
-                              <button
-                                type="button"
-                                disabled={isSaving}
-                                onClick={() => handleDeleteImage(image.id)}
-                                title="Delete image"
+                            <span
+                              style={{
+                                fontSize: 9,
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid var(--color-border)',
+                                color: 'var(--color-text-muted)',
+                                padding: '1px 4px',
+                                borderRadius: 3,
+                              }}
+                            >
+                              {getContactTypeLabel(contact.contactType)}
+                            </span>
+                            {contact.isPrimary && (
+                              <span
                                 style={{
-                                  position: 'absolute',
-                                  top: 3,
-                                  right: 3,
-                                  width: 18,
-                                  height: 18,
-                                  borderRadius: '50%',
-                                  background: 'rgba(220,38,38,0.85)',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  padding: 0,
+                                  fontSize: 9,
+                                  background: 'rgba(139,92,246,0.18)',
+                                  color: 'var(--color-purple)',
+                                  border: '1px solid rgba(139,92,246,0.3)',
+                                  padding: '1px 4px',
+                                  borderRadius: 3,
                                 }}
                               >
-                                <X style={{ width: 10, height: 10, color: '#fff' }} />
-                              </button>
-                            ) : null}
+                                PRIMARY
+                              </span>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 16, alignItems: 'start' }}>
-                      <label>
-                        <span className="form-label">Image Type</span>
-                        <select
-                          className="form-input"
-                          value={imageType}
-                          onChange={(event) => setImageType(event.target.value)}
-                          style={{ height: 42 }}
-                        >
-                          {imageTypes.map((type) => (
-                            <option key={type.value} value={type.value}>{type.label}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        <span className="form-label">Files</span>
-                        <input
-                          className="form-input"
-                          type="file"
-                          multiple
-                          accept="image/jpeg,image/png,image/webp"
-                          onChange={handleImageSelection}
-                          style={{ height: 42, paddingTop: 8 }}
-                        />
-                      </label>
-                    </div>
-                    {pendingImages.length ? (
-                      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {pendingImages.map((image, index) => (
-                          <div
-                            key={`${image.file.name}-${image.file.lastModified}-${index}`}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 11, color: 'var(--color-text-muted)', padding: '6px 10px', background: 'rgba(0,0,0,0.1)', borderRadius: 6 }}
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--color-text-dim)',
+                              fontFamily: 'var(--font-mono)',
+                            }}
                           >
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {image.file.name} — {getImageTypeLabel(image.imageType)}
-                            </span>
-                            <button type="button" className="icon-button" aria-label={`Remove ${image.file.name}`} onClick={() => removePendingImage(index)} style={{ width: 24, height: 24, flexShrink: 0 }}>
-                              <X style={{ width: 12, height: 12 }} />
-                            </button>
-                          </div>
-                        ))}
+                            {contact.phone}
+                            {contact.email ? ` · ${contact.email}` : ''}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          disabled={isSavingContact}
+                          onClick={() => {
+                            setContactEditId(contact.id)
+                            setContactEditForm({
+                              contactType: String(contact.contactType ?? '0'),
+                              fullName: contact.fullName,
+                              phone: contact.phone,
+                              email: contact.email || '',
+                            })
+                          }}
+                          style={{ height: 26, padding: '0 8px', fontSize: 10 }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          disabled={isSavingContact}
+                          onClick={() => handleRemoveContact(contact.id)}
+                          style={{ height: 26, width: 26, borderRadius: 4 }}
+                          title="Remove contact"
+                        >
+                          <X style={{ width: 12, height: 12 }} />
+                        </button>
                       </div>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="button-secondary"
-                      disabled={isSaving || !pendingImages.length}
-                      onClick={handleUploadImage}
-                      style={{ marginTop: 14, height: 36, fontSize: 12, display: 'inline-flex', gap: 6 }}
-                    >
-                      <ImageUp style={{ width: 14, height: 14 }} />
-                      {isSaving
-                        ? 'Uploading...'
-                        : pendingImages.length
-                          ? `Upload ${pendingImages.length} Image${pendingImages.length === 1 ? '' : 's'}`
-                          : 'Upload Images'}
-                    </button>
-                    <p style={{ marginTop: 8, fontSize: 11, color: 'var(--color-text-dim)' }}>
-                      JPEG, PNG, or WebP · max 10 MB each · up to 10 files
-                    </p>
-                  </section>
-                )}
+                    )
+                  )}
               </div>
 
-              {/* Footer */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  padding: '16px 24px',
-                  borderTop: '1px solid var(--color-border)',
-                  flexShrink: 0,
-                }}
-              >
+              {showAddContact ? (
+                <div
+                  style={{
+                    marginTop: 6,
+                    padding: 10,
+                    borderRadius: 6,
+                    border: '1px dashed var(--color-border)',
+                    background: 'rgba(0,0,0,0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-dim)' }}>
+                    NEW CONTACT
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label className="form-label" style={{ fontSize: 9 }}>
+                        Type
+                      </label>
+                      <select
+                        className="form-input"
+                        value={addContactForm.contactType}
+                        onChange={(e) =>
+                          setAddContactForm((f) => ({ ...f, contactType: e.target.value }))
+                        }
+                        style={{ height: 34, fontSize: 12 }}
+                      >
+                        {contactTypes.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: 9 }}>
+                        Full Name *
+                      </label>
+                      <input
+                        className="form-input"
+                        placeholder="Full name"
+                        value={addContactForm.fullName}
+                        onChange={(e) =>
+                          setAddContactForm((f) => ({ ...f, fullName: e.target.value }))
+                        }
+                        style={{ height: 34, fontSize: 12 }}
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: 9 }}>
+                        Phone *
+                      </label>
+                      <input
+                        className="form-input"
+                        placeholder="+94 77 000 0000"
+                        value={addContactForm.phone}
+                        onChange={(e) =>
+                          setAddContactForm((f) => ({ ...f, phone: e.target.value }))
+                        }
+                        style={{ height: 34, fontSize: 12 }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label className="form-label" style={{ fontSize: 9 }}>
+                        Email
+                      </label>
+                      <input
+                        className="form-input"
+                        type="email"
+                        placeholder="optional"
+                        value={addContactForm.email}
+                        onChange={(e) =>
+                          setAddContactForm((f) => ({ ...f, email: e.target.value }))
+                        }
+                        style={{ height: 34, fontSize: 12 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', margin: '2px 0' }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: 'var(--color-text-muted)',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={addContactForm.isPrimary}
+                        onChange={(e) =>
+                          setAddContactForm((f) => ({ ...f, isPrimary: e.target.checked }))
+                        }
+                      />
+                      Set as primary contact
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <button
+                      type="button"
+                      className="button-ghost"
+                      onClick={() => setShowAddContact(false)}
+                      style={{ flex: 1, height: 32, fontSize: 11 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="button-primary"
+                      disabled={isSavingContact}
+                      onClick={handleSaveAddContact}
+                      style={{ flex: 1.5, height: 32, fontSize: 11 }}
+                    >
+                      {isSavingContact ? '...' : 'Add Contact'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
                 <button
                   type="button"
-                  data-skip-focus="true"
-                  className="button-ghost"
-                  onClick={closeModal}
-                  style={{ flex: 1, height: 42, fontSize: 13 }}
+                  className="button-secondary"
+                  onClick={() => setShowAddContact(true)}
+                  style={{
+                    marginTop: 2,
+                    height: 30,
+                    padding: '0 12px',
+                    fontSize: 11,
+                    alignSelf: 'flex-start',
+                  }}
                 >
-                  Cancel
+                  + Add Contact
                 </button>
-                <button
-                  type="submit"
-                  className="button-primary"
-                  disabled={isSaving}
-                  style={{ flex: 1, height: 42, fontSize: 13 }}
-                >
-                  {isSaving ? 'Saving...' : editingCustomer ? 'Save Changes' : 'Create Customer'}
-                </button>
+              )}
+            </div>
+          )}
+
+          {/* Customer Image */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              borderTop: '1px solid var(--color-border)',
+              paddingTop: 12,
+            }}
+          >
+            <p className="eyebrow" style={{ fontSize: 10 }}>
+              Customer Images
+            </p>
+
+            {editingCustomer && editingCustomer.images?.length ? (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                {editingCustomer.images.map((image) => (
+                  <div
+                    key={image.id || image.imageUrl}
+                    style={{ position: 'relative', display: 'inline-block' }}
+                  >
+                    <img
+                      src={getR2ImageUrl(image.imageUrl)}
+                      alt="Customer"
+                      style={{
+                        width: 56,
+                        height: 56,
+                        objectFit: 'cover',
+                        borderRadius: 6,
+                        border: '1px solid var(--color-border)',
+                        display: 'block',
+                      }}
+                    />
+                    {image.id && (
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => handleDeleteImage(image.id)}
+                        title="Delete image"
+                        style={{
+                          position: 'absolute',
+                          top: 2,
+                          right: 2,
+                          width: 16,
+                          height: 16,
+                          borderRadius: '50%',
+                          background: 'rgba(220,38,38,0.85)',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      >
+                        <X style={{ width: 8, height: 8, color: '#fff' }} />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-            </form>
+            ) : null}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Image Type
+                </label>
+                <select
+                  className="form-input"
+                  value={imageType}
+                  onChange={(event) => setImageType(event.target.value)}
+                  style={{ height: 38, fontSize: 13 }}
+                >
+                  {imageTypes.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Select Files
+                </label>
+                <input
+                  className="form-input"
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleImageSelection}
+                  style={{ height: 38, paddingTop: 7, fontSize: 12 }}
+                />
+              </div>
+            </div>
+
+            {pendingImages.length ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {pendingImages.map((image, index) => (
+                  <div
+                    key={`${image.file.name}-${image.file.lastModified}-${index}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      fontSize: 10,
+                      color: 'var(--color-text-muted)',
+                      padding: '4px 8px',
+                      background: 'rgba(0,0,0,0.12)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 6,
+                    }}
+                  >
+                    <span
+                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
+                      {image.file.name} — {getImageTypeLabel(image.imageType)}
+                    </span>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`Remove ${image.file.name}`}
+                      onClick={() => removePendingImage(index)}
+                      style={{ width: 20, height: 20, flexShrink: 0, borderRadius: 3 }}
+                    >
+                      <X style={{ width: 10, height: 10 }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {editingCustomer && (
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={isSaving || !pendingImages.length}
+                onClick={handleUploadImage}
+                style={{
+                  height: 32,
+                  fontSize: 11,
+                  display: 'inline-flex',
+                  gap: 6,
+                  alignSelf: 'flex-start',
+                }}
+              >
+                <ImageUp style={{ width: 12, height: 12 }} />
+                {isSaving
+                  ? 'Uploading...'
+                  : pendingImages.length
+                    ? `Upload ${pendingImages.length} Image${pendingImages.length === 1 ? '' : 's'}`
+                    : 'Upload Images'}
+              </button>
+            )}
+
+            <p style={{ fontSize: 10, color: 'var(--color-text-dim)', lineHeight: 1.3 }}>
+              JPEG, PNG, WebP · max 10 MB each · up to 10 files
+            </p>
           </div>
-        ) : null}
+
+          {/* Form Actions Footer */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              paddingTop: 12,
+              borderTop: '1px solid var(--color-border)',
+              marginTop: 'auto',
+              flexShrink: 0,
+            }}
+          >
+            <button
+              type="button"
+              data-skip-focus="true"
+              className="button-secondary"
+              onClick={handleCancel}
+              style={{ flex: 1, height: 38, fontSize: 13 }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="button-primary"
+              disabled={isSaving}
+              style={{ flex: 1, height: 38, fontSize: 13 }}
+            >
+              {isSaving ? 'Saving...' : editingCustomer ? 'Save Changes' : 'Save'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )

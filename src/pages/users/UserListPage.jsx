@@ -126,7 +126,11 @@ function UserFormModal({ open, mode, user, roles, organisations, onClose, onSave
     if (mode === 'edit') {
       const currentRoleName = user?.roles?.[0]
       const currentRole = roles.find((role) => role.name === currentRoleName)
-      reset({ username: user?.username || '', phone: user?.phone || '', roleId: currentRole?.id || '' })
+      reset({
+        username: user?.username || '',
+        phone: user?.phone || '',
+        roleId: currentRole?.id || '',
+      })
       return
     }
 
@@ -422,10 +426,7 @@ function UserFormModal({ open, mode, user, roles, organisations, onClose, onSave
               ) : null}
             </div>
 
-            <div
-              className="mt-2 flex justify-end gap-3"
-              style={{ gridColumn: 'span 2' }}
-            >
+            <div className="mt-2 flex justify-end gap-3" style={{ gridColumn: 'span 2' }}>
               <button
                 type="button"
                 className="button-secondary"
@@ -781,7 +782,8 @@ export default function UserListPage() {
   }
 
   async function handleDeactivate(user) {
-    if (!window.confirm(`Deactivate "${user.username}"? They will no longer be able to log in.`)) return
+    if (!window.confirm(`Deactivate "${user.username}"? They will no longer be able to log in.`))
+      return
     try {
       await usersService.deactivateUser(user.id)
       setUsers((current) =>

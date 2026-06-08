@@ -29,21 +29,22 @@ function formatCustomer(customer) {
   // List endpoint returns CustomerSummaryDto with profileImageUrl (flat string) and flat primary contact fields.
   // Detail endpoint returns CustomerDetailsDto with images array and full contacts array. Handle both.
   const images =
-    customer.images ||
-    (customer.profileImageUrl ? [{ imageUrl: customer.profileImageUrl }] : [])
+    customer.images || (customer.profileImageUrl ? [{ imageUrl: customer.profileImageUrl }] : [])
 
   // Build contacts array from whatever shape the DTO provides
   let contacts = customer.contacts || []
   if (!contacts.length && (customer.primaryContactName || customer.primaryContactPhone)) {
-    contacts = [{
-      id: null,
-      fullName: customer.primaryContactName || '',
-      phone: customer.primaryContactPhone || '',
-      email: customer.primaryContactEmail || '',
-      isPrimary: true,
-      isActive: true,
-      contactType: 0,
-    }]
+    contacts = [
+      {
+        id: null,
+        fullName: customer.primaryContactName || '',
+        phone: customer.primaryContactPhone || '',
+        email: customer.primaryContactEmail || '',
+        isPrimary: true,
+        isActive: true,
+        contactType: 0,
+      },
+    ]
   }
 
   return {
@@ -58,6 +59,7 @@ function formatCustomer(customer) {
     taxNumber: customer.taxNumber ?? '',
     preferredPaymentMethod: customer.preferredPaymentMethod ?? 0,
     creditLimit: customer.creditLimit ?? 0,
+    creditPeriodDays: customer.creditPeriodDays ?? 0,
     location: customer.location ?? null,
     isActive: Boolean(customer.isActive),
     status: customer.isActive ? 'Active' : 'Inactive',
