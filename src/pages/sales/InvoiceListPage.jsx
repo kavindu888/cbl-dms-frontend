@@ -100,6 +100,7 @@ function deriveDisplayStatus(inv) {
 }
 const STATUS_OPTIONS = ['All', 'DRAFT', 'PENDING', 'PAID', 'OVERDUE']
 const TYPE_OPTIONS = ['All', PaymentType.Cash, PaymentType.Credit]
+const listPageSize = 8
 const invoiceSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),
   invoiceDate: z.string().min(1, 'Invoice date is required'),
@@ -522,6 +523,7 @@ export default function InvoiceListPage() {
   const [typeFilter, setType] = useState('All')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState(null)
+  const [page, setPage] = useState(1)
   const filtered = useMemo(() => {
     return invoices.filter((inv) => {
       const displayStatus = deriveDisplayStatus(inv)
@@ -534,6 +536,22 @@ export default function InvoiceListPage() {
       return matchSearch && matchStatus && matchType
     })
   }, [invoices, search, statusFilter, typeFilter])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / listPageSize))
+  const pagedInvoices = useMemo(() => {
+    const start = (page - 1) * listPageSize
+    return filtered.slice(start, start + listPageSize)
+  }, [filtered, page])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, statusFilter, typeFilter])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
   const handleInvoiceSaved = (savedInv) => {
     const isExisting = invoices.some((i) => i.id === savedInv.id)
     if (isExisting) {
@@ -699,7 +717,7 @@ export default function InvoiceListPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((inv) => {
+                {pagedInvoices.map((inv) => {
                   const displayStatus = deriveDisplayStatus(inv)
                   return (
                     <tr
@@ -761,6 +779,44 @@ export default function InvoiceListPage() {
             </table>
           </div>
         </div>
+
+        {filtered.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <span className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
+              Showing {pagedInvoices.length} of {filtered.length} invoices
+            </span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              >
+                Previous
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page >= totalPages}
+                onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <InvoiceFormModal

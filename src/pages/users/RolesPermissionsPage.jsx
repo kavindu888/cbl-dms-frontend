@@ -14,12 +14,15 @@ function permissionLabel(permission) {
   return `${permission.resource} ${permission.action}`.trim()
 }
 
+const rolesPageSize = 8
+
 export default function RolesPermissionsPage() {
   const [selectedRoleId, setSelectedRoleId] = useState('')
   const [activeTab, setActiveTab] = useState('management')
   const [rolesList, setRolesList] = useState([])
   const [permissionGroups, setPermissionGroups] = useState([])
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -60,6 +63,22 @@ export default function RolesPermissionsPage() {
       )
     })
   }, [rolesList, search])
+  const totalPages = Math.max(1, Math.ceil(filteredRoles.length / rolesPageSize))
+  const pagedRoles = useMemo(() => {
+    const start = (page - 1) * rolesPageSize
+    return filteredRoles.slice(start, start + rolesPageSize)
+  }, [filteredRoles, page])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
 
   const selectedRole = rolesList.find((role) => role.id === selectedRoleId)
   const permissionCount = permissionGroups.reduce(
@@ -207,7 +226,7 @@ export default function RolesPermissionsPage() {
                         </td>
                       </tr>
                     ) : filteredRoles.length ? (
-                      filteredRoles.map((role) => (
+                      pagedRoles.map((role) => (
                         <tr key={role.id}>
                           <td className="text-sm font-semibold">
                             <RoleBadge role={role.name} />
@@ -258,9 +277,41 @@ export default function RolesPermissionsPage() {
             </div>
 
             {filteredRoles.length > 0 ? (
-              <p className="text-xs text-right" style={{ color: 'var(--color-text-dim)' }}>
-                Showing {filteredRoles.length} of {rolesList.length} roles
-              </p>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <span className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
+                  Showing {pagedRoles.length} of {filteredRoles.length} roles
+                </span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={page <= 1}
+                    onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+                    style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                  >
+                    Previous
+                  </button>
+                  <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+                    style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             ) : null}
           </div>
         </Tabs.Content>

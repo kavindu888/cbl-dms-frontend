@@ -17,7 +17,7 @@ const emptyForm = {
   isActive: true,
 }
 
-const pageSize = 10
+const pageSize = 8
 
 function toBrandCode(value) {
   return value.trim().toUpperCase()
@@ -298,7 +298,7 @@ export default function BrandListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'hidden' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>

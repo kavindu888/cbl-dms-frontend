@@ -5,7 +5,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@services/api/masterService'
 import { purchasingService } from '@services/api/purchasingService'
 
-const pageSize = 10
+const pageSize = 8
 
 const statusOptions = [
   { label: 'All Statuses', value: '' },
@@ -225,7 +225,7 @@ function Field({
 
 function SupplierTable({ suppliers, isLoading, paymentTerms, onEdit }) {
   return (
-    <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+    <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'hidden' }}>
       <table className="data-table master-table-compact">
         <thead>
           <tr>
@@ -935,7 +935,7 @@ export default function SupplierListPage() {
         page: result.page || page,
         pageSize: result.pageSize || pageSize,
         totalItems: result.totalItems || 0,
-        totalPages: result.totalPages || 1,
+        totalPages: Math.max(1, result.totalPages || 1),
       })
     } catch (error) {
       toast.error(error.message || 'Unable to load suppliers.')
@@ -949,6 +949,12 @@ export default function SupplierListPage() {
     loadSuppliers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, appliedSearch, status])
+
+  useEffect(() => {
+    if (page > suppliersPage.totalPages) {
+      setPage(suppliersPage.totalPages)
+    }
+  }, [page, suppliersPage.totalPages])
 
   useEffect(() => {
     async function loadPaymentTerms() {

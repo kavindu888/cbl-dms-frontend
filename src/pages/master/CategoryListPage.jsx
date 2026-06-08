@@ -310,7 +310,7 @@ export default function CategoryListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'hidden' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>

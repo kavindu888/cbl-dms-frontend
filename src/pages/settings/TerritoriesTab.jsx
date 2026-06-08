@@ -12,6 +12,8 @@ const emptyForm = {
   isActive: true,
 }
 
+const pageSize = 8
+
 function getErrorMessage(error, fallback = 'Something went wrong') {
   return error?.message || fallback
 }
@@ -32,6 +34,7 @@ export default function TerritoriesTab() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [editingTerritory, setEditingTerritory] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
@@ -88,6 +91,22 @@ export default function TerritoriesTab() {
       return matchesSearch && matchesStatus
     })
   }, [territories, search, statusFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredTerritories.length / pageSize))
+  const pagedTerritories = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredTerritories.slice(start, start + pageSize)
+  }, [filteredTerritories, page])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, statusFilter])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
 
   function updateField(field, value) {
     setForm((currentForm) => ({ ...currentForm, [field]: value }))
@@ -347,7 +366,7 @@ export default function TerritoriesTab() {
                     </td>
                   </tr>
                 ) : filteredTerritories.length ? (
-                  filteredTerritories.map((territory) => (
+                  pagedTerritories.map((territory) => (
                     <tr key={territory.id}>
                       <td>
                         <span
@@ -397,6 +416,46 @@ export default function TerritoriesTab() {
               </tbody>
             </table>
           </div>
+
+          {filteredTerritories.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                paddingTop: 10,
+                borderTop: '1px solid var(--color-border)',
+              }}
+            >
+              <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+                Showing {pagedTerritories.length} of {filteredTerritories.length} territories
+              </span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={page <= 1}
+                  onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+                  style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+                  style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <form
