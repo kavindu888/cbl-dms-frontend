@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { CheckCircle, Plus, Search } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import StatusBadge from '@components/ui/StatusBadge'
 const mockCollections = [
   {
@@ -73,9 +73,11 @@ const totalCheque = mockCollections
 const totalCleared = mockCollections
   .filter((c) => c.status === 'CLEARED')
   .reduce((s, c) => s + c.amount, 0)
+const pageSize = 8
 export default function DailyEntryPage() {
   const [search, setSearch] = useState('')
   const [dateFilter, setDate] = useState(dayjs().format('YYYY-MM-DD'))
+  const [page, setPage] = useState(1)
   const filtered = useMemo(
     () =>
       mockCollections.filter((c) => {
@@ -88,6 +90,22 @@ export default function DailyEntryPage() {
       }),
     [search, dateFilter]
   )
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const pagedCollections = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filtered.slice(start, start + pageSize)
+  }, [filtered, page])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, dateFilter])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
@@ -160,7 +178,7 @@ export default function DailyEntryPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => (
+              {pagedCollections.map((c) => (
                 <tr key={c.id}>
                   <td>
                     <span
@@ -219,6 +237,45 @@ export default function DailyEntryPage() {
             </tbody>
           </table>
         </div>
+        {filtered.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              padding: '12px 16px',
+              borderTop: '1px solid var(--color-border)',
+            }}
+          >
+            <span className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
+              Showing {pagedCollections.length} of {filtered.length} collections
+            </span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              >
+                Previous
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page >= totalPages}
+                onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

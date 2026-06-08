@@ -12,6 +12,8 @@ const emptyForm = {
   isActive: true,
 }
 
+const pageSize = 8
+
 function getErrorMessage(error, fallback = 'Something went wrong') {
   return error?.message || fallback
 }
@@ -32,6 +34,7 @@ export default function BusinessUnitsTab() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [editingBusinessUnit, setEditingBusinessUnit] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
@@ -88,6 +91,22 @@ export default function BusinessUnitsTab() {
       return matchesSearch && matchesStatus
     })
   }, [businessUnits, organisations, search, statusFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredBusinessUnits.length / pageSize))
+  const pagedBusinessUnits = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredBusinessUnits.slice(start, start + pageSize)
+  }, [filteredBusinessUnits, page])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, statusFilter])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
 
   function getOrganisationName(organisationId) {
     return organisations.find((item) => item.id === organisationId)?.name || '-'
@@ -356,7 +375,7 @@ export default function BusinessUnitsTab() {
                     </td>
                   </tr>
                 ) : filteredBusinessUnits.length ? (
-                  filteredBusinessUnits.map((businessUnit) => (
+                  pagedBusinessUnits.map((businessUnit) => (
                     <tr key={businessUnit.id}>
                       <td>
                         <span
@@ -409,6 +428,46 @@ export default function BusinessUnitsTab() {
               </tbody>
             </table>
           </div>
+
+          {filteredBusinessUnits.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                paddingTop: 10,
+                borderTop: '1px solid var(--color-border)',
+              }}
+            >
+              <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+                Showing {pagedBusinessUnits.length} of {filteredBusinessUnits.length} business units
+              </span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={page <= 1}
+                  onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+                  style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+                  style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <form

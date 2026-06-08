@@ -11,6 +11,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import { mockPurchaseOrders, mockSuppliers } from '@data/mockPurchaseOrders'
 import { PurchaseOrderStatus } from '@/types/purchasing.types'
 const STATUS_OPTIONS = ['All', ...Object.values(PurchaseOrderStatus)]
+const listPageSize = 8
 function formatLKR(value) {
   return `Rs. ${value.toLocaleString()}`
 }
@@ -353,6 +354,7 @@ export default function PurchaseOrderListPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPO, setEditingPO] = useState(null)
   const [purchaseOrders, setPurchaseOrders] = useState(mockPurchaseOrders)
+  const [page, setPage] = useState(1)
   const uniqueSuppliers = useMemo(
     () => ['All', ...Array.from(new Set(purchaseOrders.map((po) => po.supplierName)))],
     [purchaseOrders]
@@ -368,6 +370,22 @@ export default function PurchaseOrderListPage() {
       return matchSearch && matchStatus && matchSupplier
     })
   }, [search, statusFilter, supplierFilter, purchaseOrders])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / listPageSize))
+  const pagedPurchaseOrders = useMemo(() => {
+    const start = (page - 1) * listPageSize
+    return filtered.slice(start, start + listPageSize)
+  }, [filtered, page])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, statusFilter, supplierFilter])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
   const handlePOSaved = (savedPO) => {
     const isExisting = purchaseOrders.some((po) => po.id === savedPO.id)
     if (isExisting) {
@@ -555,7 +573,7 @@ export default function PurchaseOrderListPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((po) => (
+                  {pagedPurchaseOrders.map((po) => (
                     <tr
                       key={po.id}
                       style={{ cursor: 'pointer' }}
@@ -615,9 +633,41 @@ export default function PurchaseOrderListPage() {
 
         {/* Summary row */}
         {filtered.length > 0 && (
-          <p className="text-xs text-right" style={{ color: 'var(--color-text-dim)' }}>
-            Showing {filtered.length} of {purchaseOrders.length} purchase orders
-          </p>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <span className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
+              Showing {pagedPurchaseOrders.length} of {filtered.length} purchase orders
+            </span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              >
+                Previous
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page >= totalPages}
+                onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

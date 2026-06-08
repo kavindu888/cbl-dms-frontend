@@ -11,7 +11,7 @@ const emptyForm = {
   description: '',
 }
 
-const pageSize = 10
+const pageSize = 8
 
 function getErrorMessage(error, fallback = 'Something went wrong') {
   return error?.message || fallback
@@ -341,7 +341,7 @@ export default function UnitOfMeasureListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'hidden' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>
