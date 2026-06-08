@@ -1,7 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import * as Dialog from '@radix-ui/react-dialog'
-import { Package, Pencil, Plus, Search, Trash2, X, Copy } from 'lucide-react'
-import { useEffect, useState, useCallback } from 'react'
+import { Package, Pencil, Plus, Search, Trash2, Copy } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -19,16 +18,83 @@ const productSchema = z.object({
   uomBase: z.string().trim().min(1, 'Base UOM is required'),
   unitCost: z.coerce.number().min(0, 'Unit cost must be non-negative'),
   unitPrice: z.coerce.number().min(0, 'Unit price must be non-negative'),
-  reorderLevel: z.coerce.number().optional().nullable(),
-  reorderQty: z.coerce.number().optional().nullable(),
+  minValue: z.coerce.number().optional().nullable(),
+  maxValue: z.coerce.number().optional().nullable(),
   imageUrl: z.string().trim().optional().or(z.literal('')),
   isActive: z.boolean().default(true),
 })
 
 const productPageSize = 10
 
-// ── UOM Conversions Manager (Inline for Edit Mode) ──────────────────────
-function UomConversionsManager({ productId, conversions = [], onRefresh, canManage = false }) {
+// Helper to robustly extract only leaf categories (subcategories only, which have a parent and no children)
+function getLeafCategories(categoriesList) {
+  // 1. Flatten all categories in case it's a tree structure
+  const allCategories = []
+  function flatten(category) {
+    if (!category) return
+    allCategories.push(category)
+    if (category.children && category.children.length > 0) {
+      category.children.forEach(flatten)
+    }
+  }
+  categoriesList.forEach(flatten)
+
+  // 2. Filter duplicates by ID (e.g. if root categories and children are returned in a flat array)
+  const uniqueCategories = []
+  const seenIds = new Set()
+  allCategories.forEach((c) => {
+    if (c.id && !seenIds.has(c.id)) {
+      seenIds.add(c.id)
+      uniqueCategories.push(c)
+    }
+  })
+
+  // 3. Identify all category IDs that act as a parent
+  const parentIds = new Set()
+  uniqueCategories.forEach((c) => {
+    if (c.parentCategoryId) {
+      parentIds.add(c.parentCategoryId)
+    }
+  })
+
+  // 4. Map categories for fast lookup to build hierarchical path
+  const categoryMap = new Map(uniqueCategories.map((c) => [c.id, c]))
+
+  function getCategoryPath(c) {
+    const parts = [c.name]
+    let current = c
+    while (current.parentCategoryId && categoryMap.has(current.parentCategoryId)) {
+      current = categoryMap.get(current.parentCategoryId)
+      parts.unshift(current.name)
+    }
+    return parts.join(' > ')
+  }
+
+  // 5. Filter for categories that:
+  // - have a parent category (is a subcategory)
+  // - do not have any child categories (is a leaf)
+  const leafList = []
+  uniqueCategories.forEach((c) => {
+    const isParent = parentIds.has(c.id) || (c.children && c.children.length > 0)
+    const hasParent = !!c.parentCategoryId || !!c.parentCategory
+    if (!isParent && hasParent) {
+      leafList.push({
+        ...c,
+        displayName: getCategoryPath(c),
+      })
+    }
+  })
+
+  return leafList
+}
+
+function UomConversionsManager({
+  productId,
+  conversions = [],
+  onRefresh,
+  canManage = false,
+  unitsOfMeasure = [],
+}) {
   const [fromUom, setFromUom] = useState('')
   const [toUom, setToUom] = useState('')
   const [factor, setFactor] = useState(1)
@@ -133,9 +199,9 @@ function UomConversionsManager({ productId, conversions = [], onRefresh, canMana
               key={conv.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: editingId === conv.id ? '1fr 1fr 1fr auto' : '1fr auto',
+                gridTemplateColumns: editingId === conv.id ? '1.2fr 1.2fr 0.6fr auto' : '1fr auto',
                 alignItems: 'end',
-                gap: 10,
+                gap: 12,
                 padding: '8px 12px',
                 background: 'rgba(0,0,0,0.12)',
                 border: '1px solid var(--color-border)',
@@ -144,26 +210,92 @@ function UomConversionsManager({ productId, conversions = [], onRefresh, canMana
             >
               {editingId === conv.id ? (
                 <>
-                  <input
+                  <select
                     className="form-input"
                     value={editFromUom}
-                    onChange={(e) => setEditFromUom(e.target.value.toUpperCase())}
-                    style={{ height: 34, fontSize: 12, textTransform: 'uppercase' }}
+                    onChange={(e) => setEditFromUom(e.target.value)}
+                    style={{
+                      height: 38,
+                      fontSize: 13,
+                      backgroundColor: 'rgba(0,0,0,0.15)',
+                      color: 'var(--color-text-primary)',
+                      cursor: 'pointer',
+                    }}
                     aria-label="From UOM"
-                  />
-                  <input
+                  >
+                    <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
+                      Select UOM
+                    </option>
+                    {editFromUom && !unitsOfMeasure.some((unit) => unit.code === editFromUom) && (
+                      <option
+                        value={editFromUom}
+                        style={{
+                          background: 'var(--color-bg-elevated)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        {editFromUom}
+                      </option>
+                    )}
+                    {unitsOfMeasure.map((unit) => (
+                      <option
+                        key={unit.id}
+                        value={unit.code}
+                        style={{
+                          background: 'var(--color-bg-elevated)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        {unit.code}
+                      </option>
+                    ))}
+                  </select>
+                  <select
                     className="form-input"
                     value={editToUom}
-                    onChange={(e) => setEditToUom(e.target.value.toUpperCase())}
-                    style={{ height: 34, fontSize: 12, textTransform: 'uppercase' }}
+                    onChange={(e) => setEditToUom(e.target.value)}
+                    style={{
+                      height: 38,
+                      fontSize: 13,
+                      backgroundColor: 'rgba(0,0,0,0.15)',
+                      color: 'var(--color-text-primary)',
+                      cursor: 'pointer',
+                    }}
                     aria-label="To UOM"
-                  />
+                  >
+                    <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
+                      Select UOM
+                    </option>
+                    {editToUom && !unitsOfMeasure.some((unit) => unit.code === editToUom) && (
+                      <option
+                        value={editToUom}
+                        style={{
+                          background: 'var(--color-bg-elevated)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        {editToUom}
+                      </option>
+                    )}
+                    {unitsOfMeasure.map((unit) => (
+                      <option
+                        key={unit.id}
+                        value={unit.code}
+                        style={{
+                          background: 'var(--color-bg-elevated)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        {unit.code}
+                      </option>
+                    ))}
+                  </select>
                   <input
                     type="number"
                     className="form-input"
                     value={editFactor}
                     onChange={(e) => setEditFactor(e.target.value)}
-                    style={{ height: 34, fontSize: 12 }}
+                    style={{ height: 38, fontSize: 13 }}
                     aria-label="Conversion factor"
                   />
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -172,7 +304,7 @@ function UomConversionsManager({ productId, conversions = [], onRefresh, canMana
                       className="button-primary"
                       onClick={() => handleUpdate(conv.id)}
                       disabled={isUpdating}
-                      style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+                      style={{ height: 38, padding: '0 12px', fontSize: 12 }}
                     >
                       Save
                     </button>
@@ -181,7 +313,7 @@ function UomConversionsManager({ productId, conversions = [], onRefresh, canMana
                       className="button-ghost"
                       onClick={cancelEdit}
                       disabled={isUpdating}
-                      style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+                      style={{ height: 38, padding: '0 12px', fontSize: 12 }}
                     >
                       Cancel
                     </button>
@@ -229,8 +361,8 @@ function UomConversionsManager({ productId, conversions = [], onRefresh, canMana
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr auto',
-            gap: 10,
+            gridTemplateColumns: '1.2fr 1.2fr 0.6fr auto',
+            gap: 12,
             alignItems: 'end',
             background: 'rgba(0,0,0,0.06)',
             padding: 12,
@@ -242,25 +374,89 @@ function UomConversionsManager({ productId, conversions = [], onRefresh, canMana
             <label className="form-label" style={{ fontSize: 9, marginBottom: 4 }}>
               FROM UOM
             </label>
-            <input
-              className="form-input"
-              placeholder="e.g. CASE"
+            <select
+              className="form-input w-full"
               value={fromUom}
-              onChange={(e) => setFromUom(e.target.value.toUpperCase())}
-              style={{ height: 36, fontSize: 12, textTransform: 'uppercase' }}
-            />
+              onChange={(e) => setFromUom(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: 13,
+                backgroundColor: 'rgba(0,0,0,0.15)',
+                color: 'var(--color-text-primary)',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
+                Select UOM
+              </option>
+              {fromUom && !unitsOfMeasure.some((unit) => unit.code === fromUom) && (
+                <option
+                  value={fromUom}
+                  style={{
+                    background: 'var(--color-bg-elevated)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                >
+                  {fromUom}
+                </option>
+              )}
+              {unitsOfMeasure.map((unit) => (
+                <option
+                  key={unit.id}
+                  value={unit.code}
+                  style={{
+                    background: 'var(--color-bg-elevated)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                >
+                  {unit.code}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="form-label" style={{ fontSize: 9, marginBottom: 4 }}>
               TO UOM
             </label>
-            <input
-              className="form-input"
-              placeholder="e.g. PACKET"
+            <select
+              className="form-input w-full"
               value={toUom}
-              onChange={(e) => setToUom(e.target.value.toUpperCase())}
-              style={{ height: 36, fontSize: 12, textTransform: 'uppercase' }}
-            />
+              onChange={(e) => setToUom(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: 13,
+                backgroundColor: 'rgba(0,0,0,0.15)',
+                color: 'var(--color-text-primary)',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
+                Select UOM
+              </option>
+              {toUom && !unitsOfMeasure.some((unit) => unit.code === toUom) && (
+                <option
+                  value={toUom}
+                  style={{
+                    background: 'var(--color-bg-elevated)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                >
+                  {toUom}
+                </option>
+              )}
+              {unitsOfMeasure.map((unit) => (
+                <option
+                  key={unit.id}
+                  value={unit.code}
+                  style={{
+                    background: 'var(--color-bg-elevated)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                >
+                  {unit.code}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="form-label" style={{ fontSize: 9, marginBottom: 4 }}>
@@ -271,7 +467,7 @@ function UomConversionsManager({ productId, conversions = [], onRefresh, canMana
               className="form-input"
               value={factor}
               onChange={(e) => setFactor(e.target.value)}
-              style={{ height: 36, fontSize: 12 }}
+              style={{ height: 38, fontSize: 13 }}
             />
           </div>
           <button
@@ -279,7 +475,7 @@ function UomConversionsManager({ productId, conversions = [], onRefresh, canMana
             className="button-primary"
             onClick={handleAdd}
             disabled={isAdding}
-            style={{ height: 36, padding: '0 16px', fontSize: 12 }}
+            style={{ height: 38, padding: '0 16px', fontSize: 13 }}
           >
             {isAdding ? 'Adding...' : 'Add'}
           </button>
@@ -290,7 +486,13 @@ function UomConversionsManager({ productId, conversions = [], onRefresh, canMana
 }
 
 // ── Form Modal Component ──────────────────────────────────────────────────
-function NewProductUomConversionsManager({ conversions, onChange, onAfterAdd, canManage = false }) {
+function NewProductUomConversionsManager({
+  conversions,
+  onChange,
+  onAfterAdd,
+  canManage = false,
+  unitsOfMeasure = [],
+}) {
   const [fromUom, setFromUom] = useState('')
   const [toUom, setToUom] = useState('')
   const [factor, setFactor] = useState(1)
@@ -399,9 +601,9 @@ function NewProductUomConversionsManager({ conversions, onChange, onAfterAdd, ca
               key={conv.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: editingId === conv.id ? '1fr 1fr 1fr auto' : '1fr auto',
+                gridTemplateColumns: editingId === conv.id ? '1.2fr 1.2fr 0.6fr auto' : '1fr auto',
                 alignItems: 'end',
-                gap: 10,
+                gap: 12,
                 padding: '8px 12px',
                 background: 'rgba(0,0,0,0.12)',
                 border: '1px solid var(--color-border)',
@@ -410,26 +612,92 @@ function NewProductUomConversionsManager({ conversions, onChange, onAfterAdd, ca
             >
               {editingId === conv.id ? (
                 <>
-                  <input
+                  <select
                     className="form-input"
                     value={editFromUom}
-                    onChange={(e) => setEditFromUom(e.target.value.toUpperCase())}
-                    style={{ height: 34, fontSize: 12, textTransform: 'uppercase' }}
+                    onChange={(e) => setEditFromUom(e.target.value)}
+                    style={{
+                      height: 38,
+                      fontSize: 13,
+                      backgroundColor: 'rgba(0,0,0,0.15)',
+                      color: 'var(--color-text-primary)',
+                      cursor: 'pointer',
+                    }}
                     aria-label="From UOM"
-                  />
-                  <input
+                  >
+                    <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
+                      Select UOM
+                    </option>
+                    {editFromUom && !unitsOfMeasure.some((unit) => unit.code === editFromUom) && (
+                      <option
+                        value={editFromUom}
+                        style={{
+                          background: 'var(--color-bg-elevated)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        {editFromUom}
+                      </option>
+                    )}
+                    {unitsOfMeasure.map((unit) => (
+                      <option
+                        key={unit.id}
+                        value={unit.code}
+                        style={{
+                          background: 'var(--color-bg-elevated)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        {unit.code}
+                      </option>
+                    ))}
+                  </select>
+                  <select
                     className="form-input"
                     value={editToUom}
-                    onChange={(e) => setEditToUom(e.target.value.toUpperCase())}
-                    style={{ height: 34, fontSize: 12, textTransform: 'uppercase' }}
+                    onChange={(e) => setEditToUom(e.target.value)}
+                    style={{
+                      height: 38,
+                      fontSize: 13,
+                      backgroundColor: 'rgba(0,0,0,0.15)',
+                      color: 'var(--color-text-primary)',
+                      cursor: 'pointer',
+                    }}
                     aria-label="To UOM"
-                  />
+                  >
+                    <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
+                      Select UOM
+                    </option>
+                    {editToUom && !unitsOfMeasure.some((unit) => unit.code === editToUom) && (
+                      <option
+                        value={editToUom}
+                        style={{
+                          background: 'var(--color-bg-elevated)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        {editToUom}
+                      </option>
+                    )}
+                    {unitsOfMeasure.map((unit) => (
+                      <option
+                        key={unit.id}
+                        value={unit.code}
+                        style={{
+                          background: 'var(--color-bg-elevated)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        {unit.code}
+                      </option>
+                    ))}
+                  </select>
                   <input
                     type="number"
                     className="form-input"
                     value={editFactor}
                     onChange={(e) => setEditFactor(e.target.value)}
-                    style={{ height: 34, fontSize: 12 }}
+                    style={{ height: 38, fontSize: 13 }}
                     aria-label="Conversion factor"
                   />
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -437,7 +705,7 @@ function NewProductUomConversionsManager({ conversions, onChange, onAfterAdd, ca
                       type="button"
                       className="button-primary"
                       onClick={() => handleUpdate(conv.id)}
-                      style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+                      style={{ height: 38, padding: '0 12px', fontSize: 12 }}
                     >
                       Save
                     </button>
@@ -445,7 +713,7 @@ function NewProductUomConversionsManager({ conversions, onChange, onAfterAdd, ca
                       type="button"
                       className="button-ghost"
                       onClick={cancelEdit}
-                      style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+                      style={{ height: 38, padding: '0 12px', fontSize: 12 }}
                     >
                       Cancel
                     </button>
@@ -489,8 +757,8 @@ function NewProductUomConversionsManager({ conversions, onChange, onAfterAdd, ca
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr auto',
-          gap: 20,
+          gridTemplateColumns: '1.2fr 1.2fr 0.6fr auto',
+          gap: 12,
           alignItems: 'end',
           background: 'rgba(0,0,0,0.06)',
           padding: 12,
@@ -502,25 +770,89 @@ function NewProductUomConversionsManager({ conversions, onChange, onAfterAdd, ca
           <label className="form-label" style={{ fontSize: 9, marginBottom: 4 }}>
             FROM UOM
           </label>
-          <input
-            className="form-input"
-            placeholder="E.G. CASE"
+          <select
+            className="form-input w-full"
             value={fromUom}
-            onChange={(e) => setFromUom(e.target.value.toUpperCase())}
-            style={{ height: 42, fontSize: 12, textTransform: 'uppercase' }}
-          />
+            onChange={(e) => setFromUom(e.target.value)}
+            style={{
+              height: 38,
+              fontSize: 13,
+              backgroundColor: 'rgba(0,0,0,0.15)',
+              color: 'var(--color-text-primary)',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
+              Select UOM
+            </option>
+            {fromUom && !unitsOfMeasure.some((unit) => unit.code === fromUom) && (
+              <option
+                value={fromUom}
+                style={{
+                  background: 'var(--color-bg-elevated)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {fromUom}
+              </option>
+            )}
+            {unitsOfMeasure.map((unit) => (
+              <option
+                key={unit.id}
+                value={unit.code}
+                style={{
+                  background: 'var(--color-bg-elevated)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {unit.code}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="form-label" style={{ fontSize: 9, marginBottom: 4 }}>
             TO UOM
           </label>
-          <input
-            className="form-input"
-            placeholder="E.G. PACKET"
+          <select
+            className="form-input w-full"
             value={toUom}
-            onChange={(e) => setToUom(e.target.value.toUpperCase())}
-            style={{ height: 42, fontSize: 12, textTransform: 'uppercase' }}
-          />
+            onChange={(e) => setToUom(e.target.value)}
+            style={{
+              height: 38,
+              fontSize: 13,
+              backgroundColor: 'rgba(0,0,0,0.15)',
+              color: 'var(--color-text-primary)',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
+              Select UOM
+            </option>
+            {toUom && !unitsOfMeasure.some((unit) => unit.code === toUom) && (
+              <option
+                value={toUom}
+                style={{
+                  background: 'var(--color-bg-elevated)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {toUom}
+              </option>
+            )}
+            {unitsOfMeasure.map((unit) => (
+              <option
+                key={unit.id}
+                value={unit.code}
+                style={{
+                  background: 'var(--color-bg-elevated)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {unit.code}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="form-label" style={{ fontSize: 9, marginBottom: 4 }}>
@@ -531,14 +863,14 @@ function NewProductUomConversionsManager({ conversions, onChange, onAfterAdd, ca
             className="form-input"
             value={factor}
             onChange={(e) => setFactor(e.target.value)}
-            style={{ height: 42, fontSize: 12 }}
+            style={{ height: 38, fontSize: 13 }}
           />
         </div>
         <button
           type="button"
           className="button-primary"
           onClick={handleAdd}
-          style={{ height: 42, padding: '0 16px', fontSize: 12 }}
+          style={{ height: 38, padding: '0 16px', fontSize: 13 }}
         >
           Add
         </button>
@@ -547,14 +879,13 @@ function NewProductUomConversionsManager({ conversions, onChange, onAfterAdd, ca
   )
 }
 
-function ProductFormModal({
-  open,
+function ProductForm({
   product,
   categories,
   unitsOfMeasure,
   canManageCategory,
   canManageUom,
-  onClose,
+  onCancel,
   onSaved,
   onCategoryCreated,
   onUomCreated,
@@ -568,6 +899,17 @@ function ProductFormModal({
   const [newUom, setNewUom] = useState({ code: '', name: '', category: 'General' })
   const [newUomConversions, setNewUomConversions] = useState([])
   const defaultUom = unitsOfMeasure[0]?.code || ''
+
+  const leafCategories = useMemo(() => {
+    const leaves = getLeafCategories(categories)
+    if (product?.category && !leaves.some((c) => c.id === product.category.id)) {
+      leaves.push({
+        ...product.category,
+        displayName: product.category.name,
+      })
+    }
+    return leaves
+  }, [categories, product])
 
   const {
     register,
@@ -594,8 +936,6 @@ function ProductFormModal({
   })
 
   useEffect(() => {
-    if (!open) return
-
     setNewUomConversions([])
     setShowCategoryForm(false)
     setShowUomForm(false)
@@ -620,7 +960,7 @@ function ProductFormModal({
         sku: '',
         barcode: '',
         name: '',
-        categoryId: categories[0]?.id || '',
+        categoryId: leafCategories[0]?.id || '',
         uomBase: defaultUom,
         unitCost: 0,
         unitPrice: 0,
@@ -632,7 +972,7 @@ function ProductFormModal({
     }
 
     window.setTimeout(() => setFocus('sku'), 0)
-  }, [open, product, categories, defaultUom, reset, setFocus])
+  }, [product, leafCategories, defaultUom, reset, setFocus])
 
   async function handleCreateCategory() {
     const code = newCategory.code.trim().toUpperCase()
@@ -709,8 +1049,14 @@ function ProductFormModal({
         baseUom: values.uomBase.trim(),
         costPrice: Number(values.unitCost),
         sellingPrice: Number(values.unitPrice),
-        minValue: values.reorderLevel ? Number(values.reorderLevel) : null,
-        maxValue: values.reorderQty ? Number(values.reorderQty) : null,
+        minValue:
+          values.minValue !== null && values.minValue !== undefined && values.minValue !== ''
+            ? Number(values.minValue)
+            : null,
+        maxValue:
+          values.maxValue !== null && values.maxValue !== undefined && values.maxValue !== ''
+            ? Number(values.maxValue)
+            : null,
         description: null,
         imageUrl: values.imageUrl?.trim() || null,
       }
@@ -723,7 +1069,6 @@ function ProductFormModal({
         }
         toast.success(`Product updated successfully.`)
         onSaved(savedProduct)
-        onClose()
       } else {
         savedProduct = await masterService.createProduct(payload)
         for (const conversion of newUomConversions) {
@@ -745,7 +1090,7 @@ function ProductFormModal({
           sku: '',
           barcode: '',
           name: '',
-          categoryId: values.categoryId || categories[0]?.id || '',
+          categoryId: values.categoryId || leafCategories[0]?.id || '',
           uomBase: values.uomBase || defaultUom,
           unitCost: 0,
           unitPrice: 0,
@@ -785,529 +1130,495 @@ function ProductFormModal({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay
-          className="fixed inset-0 z-50"
-          style={{ background: 'rgba(0,4,12,0.75)', backdropFilter: 'blur(2px)' }}
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      onKeyDown={handleFormKeyDown}
+      className="panel"
+      style={{
+        padding: '16px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        minHeight: 0,
+        overflowY: 'auto',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          paddingBottom: 10,
+          borderBottom: '1px solid var(--color-border)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 12,
+        }}
+      >
+        <div>
+          <h2 style={{ fontSize: 16, fontWeight: 650, color: 'var(--color-text-primary)' }}>
+            {product ? 'Edit Product' : 'Add New Product'}
+          </h2>
+          <p
+            style={{
+              marginTop: 4,
+              fontSize: 12,
+              color: 'var(--color-text-muted)',
+              lineHeight: 1.35,
+            }}
+          >
+            {product
+              ? 'Modify details and unit conversions for this catalog product.'
+              : 'Register a new product in the system catalog.'}
+          </p>
+        </div>
+        {product ? (
+          <button
+            type="button"
+            className="button-ghost"
+            onClick={onCancel}
+            style={{ padding: '5px 10px', height: 'auto', fontSize: 12 }}
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      {/* SKU and Barcode */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
+          <label className="form-label" style={{ fontSize: 10 }}>
+            SKU CODE
+          </label>
+          <input
+            {...register('sku', {
+              setValueAs: (v) => v.toUpperCase(),
+            })}
+            className="form-input w-full"
+            placeholder="e.g. CBL-MCK-001"
+            style={{ background: 'rgba(0,0,0,0.15)', height: 38, textTransform: 'uppercase' }}
+          />
+          {errors.sku && (
+            <p style={{ color: 'var(--color-danger)', fontSize: 11, marginTop: 4 }}>
+              {errors.sku.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="form-label" style={{ fontSize: 10 }}>
+            BARCODE
+          </label>
+          <input
+            {...register('barcode', {
+              setValueAs: (v) => v?.toUpperCase(),
+            })}
+            className="form-input w-full"
+            placeholder="e.g. 4891234567890"
+            style={{ background: 'rgba(0,0,0,0.15)', height: 38, textTransform: 'uppercase' }}
+          />
+        </div>
+      </div>
+
+      {/* Name */}
+      <div>
+        <label className="form-label" style={{ fontSize: 10 }}>
+          PRODUCT NAME
+        </label>
+        <input
+          {...register('name', {
+            setValueAs: (v) => v?.toUpperCase(),
+          })}
+          className="form-input w-full"
+          placeholder="e.g. CBL MUNCHEE COCONUT CRUNCH 200G"
+          style={{ background: 'rgba(0,0,0,0.15)', height: 38, textTransform: 'uppercase' }}
         />
-        <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 shadow-2xl"
-          style={{
-            width: 'min(940px, calc(100vw - 48px))',
-            height: 'auto',
-            maxWidth: 940,
-            background: 'var(--color-bg-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 10,
-            maxHeight: 'min(780px, calc(100vh - 48px))',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          {/* Header */}
+        {errors.name && (
+          <p style={{ color: 'var(--color-danger)', fontSize: 11, marginTop: 4 }}>
+            {errors.name.message}
+          </p>
+        )}
+      </div>
+
+      {/* Category and Base UOM */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
           <div
             style={{
-              padding: '24px 24px 16px 24px',
               display: 'flex',
-              alignItems: 'flex-start',
+              alignItems: 'center',
               justifyContent: 'space-between',
-              gap: 16,
-              borderBottom: '1px solid var(--color-border)',
-              flexShrink: 0,
+              gap: 4,
+              marginBottom: 4,
             }}
           >
-            <div>
-              <Dialog.Title
-                style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)' }}
-              >
-                {product ? 'Edit Product' : 'Create New Product'}
-              </Dialog.Title>
-              <Dialog.Description
-                style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}
-              >
-                {product
-                  ? 'Modify details and unit conversions for this catalog product.'
-                  : 'Register a new product in the system catalog.'}
-              </Dialog.Description>
-            </div>
-            <Dialog.Close asChild>
-              <button aria-label="Close" className="icon-button" style={{ width: 32, height: 32 }}>
-                <X style={{ width: 18, height: 18 }} />
-              </button>
-            </Dialog.Close>
-          </div>
-
-          {/* Form */}
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            onKeyDown={handleFormKeyDown}
-            style={{
-              padding: '24px 24px 24px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 20,
-              minHeight: 0,
-              overflowY: 'auto',
-            }}
-          >
-            {/* SKU and Barcode */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-              <div>
-                <label className="form-label">SKU CODE</label>
-                <input
-                  {...register('sku', {
-                    setValueAs: (v) => v.toUpperCase(),
-                  })}
-                  className="form-input w-full"
-                  placeholder="e.g. CBL-MCK-001"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 42, textTransform: 'uppercase' }}
-                />
-                {errors.sku && (
-                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                    {errors.sku.message}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="form-label">BARCODE</label>
-                <input
-                  {...register('barcode', {
-                    setValueAs: (v) => v?.toUpperCase(),
-                  })}
-                  className="form-input w-full"
-                  placeholder="e.g. 4891234567890"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 42, textTransform: 'uppercase' }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: 20 }}>
-              {/* Name */}
-              <div>
-                <label className="form-label">PRODUCT NAME</label>
-                <input
-                  {...register('name', {
-                    setValueAs: (v) => v?.toUpperCase(),
-                  })}
-                  className="form-input w-full"
-                  placeholder="e.g. CBL MUNCHEE COCONUT CRUNCH 200G"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 42, textTransform: 'uppercase' }}
-                />
-                {errors.name && (
-                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                    {errors.name.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Status */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  height: 42,
-                  marginTop: 22,
-                }}
-              >
-                <label
-                  htmlFor="isActive"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    fontSize: 13,
-                    color: 'var(--color-text-primary)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    id="isActive"
-                    {...register('isActive')}
-                    style={{ width: 16, height: 16, accentColor: 'var(--color-amber)' }}
-                  />
-                  Active Catalog Item
-                </label>
-              </div>
-            </div>
-
-            {/* Category and Base UOM */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    marginBottom: 6,
-                  }}
-                >
-                  <label className="form-label" style={{ marginBottom: 0 }}>
-                    CATEGORY
-                  </label>
-                  {canManageCategory ? (
-                    <button
-                      type="button"
-                      className="icon-button"
-                      title="Add category"
-                      onClick={() => setShowCategoryForm((current) => !current)}
-                      style={{ width: 28, height: 28, borderRadius: 6 }}
-                    >
-                      <Plus style={{ width: 14, height: 14 }} />
-                    </button>
-                  ) : null}
-                </div>
-
-                <select
-                  {...register('categoryId')}
-                  className="form-input w-full"
-                  style={{
-                    background: 'rgba(0,0,0,0.15)',
-                    height: 42,
-                    color: 'var(--color-text-primary)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
-                    Select Category
-                  </option>
-                  {categories.map((c) => (
-                    <option
-                      key={c.id}
-                      value={c.id}
-                      style={{
-                        background: 'var(--color-bg-elevated)',
-                        color: 'var(--color-text-primary)',
-                      }}
-                    >
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-
-                {showCategoryForm && canManageCategory ? (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '0.8fr 1fr auto',
-                      gap: 8,
-                      marginTop: 8,
-                      padding: 10,
-                      border: '1px dashed var(--color-border)',
-                      borderRadius: 6,
-                      background: 'rgba(0,0,0,0.08)',
-                    }}
-                  >
-                    <input
-                      className="form-input"
-                      placeholder="Code"
-                      value={newCategory.code}
-                      maxLength={30}
-                      onChange={(event) =>
-                        setNewCategory((current) => ({
-                          ...current,
-                          code: event.target.value.toUpperCase(),
-                        }))
-                      }
-                      style={{ height: 34, fontSize: 12 }}
-                    />
-                    <input
-                      className="form-input"
-                      placeholder="Category name"
-                      value={newCategory.name}
-                      maxLength={200}
-                      onChange={(event) =>
-                        setNewCategory((current) => ({ ...current, name: event.target.value }))
-                      }
-                      style={{ height: 34, fontSize: 12 }}
-                    />
-                    <button
-                      type="button"
-                      className="button-primary"
-                      disabled={isSavingCategory}
-                      onClick={handleCreateCategory}
-                      style={{ height: 34, padding: '0 12px', fontSize: 12 }}
-                    >
-                      {isSavingCategory ? 'Adding...' : 'Add'}
-                    </button>
-                  </div>
-                ) : null}
-
-                {errors.categoryId && (
-                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                    {errors.categoryId.message}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    marginBottom: 6,
-                  }}
-                >
-                  <label className="form-label" style={{ marginBottom: 0 }}>
-                    BASE UOM
-                  </label>
-                  {canManageUom ? (
-                    <button
-                      type="button"
-                      className="icon-button"
-                      title="Add base UOM"
-                      onClick={() => setShowUomForm((current) => !current)}
-                      style={{ width: 28, height: 28, borderRadius: 6 }}
-                    >
-                      <Plus style={{ width: 14, height: 14 }} />
-                    </button>
-                  ) : null}
-                </div>
-
-                <select
-                  {...register('uomBase')}
-                  className="form-input w-full"
-                  style={{
-                    background: 'rgba(0,0,0,0.15)',
-                    height: 42,
-                    color: 'var(--color-text-primary)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
-                    Select UOM
-                  </option>
-                  {product?.uomBase &&
-                  !unitsOfMeasure.some((unit) => unit.code === product.uomBase) ? (
-                    <option
-                      value={product.uomBase}
-                      style={{
-                        background: 'var(--color-bg-elevated)',
-                        color: 'var(--color-text-primary)',
-                      }}
-                    >
-                      {product.uomBase}
-                    </option>
-                  ) : null}
-                  {unitsOfMeasure.map((unit) => (
-                    <option
-                      key={unit.id}
-                      value={unit.code}
-                      style={{
-                        background: 'var(--color-bg-elevated)',
-                        color: 'var(--color-text-primary)',
-                      }}
-                    >
-                      {unit.code} - {unit.name}
-                    </option>
-                  ))}
-                </select>
-
-                {showUomForm && canManageUom ? (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '0.7fr 1fr 0.9fr auto',
-                      gap: 8,
-                      marginTop: 8,
-                      padding: 10,
-                      border: '1px dashed var(--color-border)',
-                      borderRadius: 6,
-                      background: 'rgba(0,0,0,0.08)',
-                    }}
-                  >
-                    <input
-                      className="form-input"
-                      placeholder="Code"
-                      value={newUom.code}
-                      maxLength={20}
-                      onChange={(event) =>
-                        setNewUom((current) => ({
-                          ...current,
-                          code: event.target.value.toUpperCase(),
-                        }))
-                      }
-                      style={{ height: 34, fontSize: 12 }}
-                    />
-                    <input
-                      className="form-input"
-                      placeholder="UOM name"
-                      value={newUom.name}
-                      maxLength={100}
-                      onChange={(event) =>
-                        setNewUom((current) => ({ ...current, name: event.target.value }))
-                      }
-                      style={{ height: 34, fontSize: 12 }}
-                    />
-                    <input
-                      className="form-input"
-                      placeholder="Category"
-                      value={newUom.category}
-                      maxLength={50}
-                      onChange={(event) =>
-                        setNewUom((current) => ({ ...current, category: event.target.value }))
-                      }
-                      style={{ height: 34, fontSize: 12 }}
-                    />
-                    <button
-                      type="button"
-                      className="button-primary"
-                      disabled={isSavingUom}
-                      onClick={handleCreateUom}
-                      style={{ height: 34, padding: '0 12px', fontSize: 12 }}
-                    >
-                      {isSavingUom ? 'Adding...' : 'Add'}
-                    </button>
-                  </div>
-                ) : null}
-
-                {errors.uomBase && (
-                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                    {errors.uomBase.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Pricing */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
-              <div>
-                <label className="form-label">UNIT COST (RS.)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register('unitCost')}
-                  className="form-input w-full mono"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 42 }}
-                />
-                {errors.unitCost && (
-                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                    {errors.unitCost.message}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="form-label">UNIT PRICE (RS.)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register('unitPrice')}
-                  className="form-input w-full mono"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 42 }}
-                />
-                {errors.unitPrice && (
-                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                    {errors.unitPrice.message}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="form-label">MINIMUM VALUE</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register('minValue', {
-                    setValueAs: (value) => (value === '' ? null : Number(value)),
-                  })}
-                  className="form-input w-full mono"
-                  placeholder="Optional"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 42 }}
-                />
-                {errors.minValue && (
-                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                    {errors.minValue.message}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="form-label">MAXIMUM VALUE</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register('maxValue', {
-                    setValueAs: (value) => (value === '' ? null : Number(value)),
-                  })}
-                  className="form-input w-full mono"
-                  placeholder="Optional"
-                  style={{ background: 'rgba(0,0,0,0.15)', height: 42 }}
-                />
-                {errors.maxValue && (
-                  <p style={{ color: 'var(--color-danger)', fontSize: 12, marginTop: 4 }}>
-                    {errors.maxValue.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* UOM Conversions section */}
-            {product ? (
-              <UomConversionsManager
-                productId={product.id}
-                conversions={product.uomConversions || []}
-                canManage={canManageUom}
-                onRefresh={async () => {
-                  try {
-                    const updated = await masterService.getProduct(product.id)
-                    onSaved(updated)
-                  } catch (err) {
-                    console.error('Failed to reload product for UOM update:', err)
-                  }
-                }}
-              />
-            ) : (
-              <NewProductUomConversionsManager
-                conversions={newUomConversions}
-                canManage={canManageUom}
-                onChange={setNewUomConversions}
-                onAfterAdd={() => {
-                  window.setTimeout(() => {
-                    document.getElementById('product-submit-button')?.focus()
-                  }, 0)
-                }}
-              />
-            )}
-
-            {/* Form Actions */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 12,
-                paddingTop: 8,
-                flexShrink: 0,
-              }}
-            >
+            <label className="form-label" style={{ fontSize: 10, marginBottom: 0 }}>
+              CATEGORY
+            </label>
+            {canManageCategory ? (
               <button
                 type="button"
-                data-skip-focus="true"
-                className="button-ghost"
-                onClick={onClose}
-                style={{ minWidth: 110, height: 42 }}
+                className="icon-button"
+                title="Add category"
+                onClick={() => setShowCategoryForm((current) => !current)}
+                style={{ width: 22, height: 22, borderRadius: 4 }}
               >
-                Cancel
+                <Plus style={{ width: 12, height: 12 }} />
               </button>
+            ) : null}
+          </div>
+
+          <select
+            {...register('categoryId')}
+            className="form-input w-full"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.15)',
+              height: 38,
+              color: 'var(--color-text-primary)',
+              cursor: 'pointer',
+              fontSize: 13,
+            }}
+          >
+            <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
+              Select Category
+            </option>
+            {leafCategories.map((c) => (
+              <option
+                key={c.id}
+                value={c.id}
+                style={{
+                  background: 'var(--color-bg-elevated)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {c.displayName}
+              </option>
+            ))}
+          </select>
+          {errors.categoryId && (
+            <p style={{ color: 'var(--color-danger)', fontSize: 11, marginTop: 4 }}>
+              {errors.categoryId.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 4,
+              marginBottom: 4,
+            }}
+          >
+            <label className="form-label" style={{ fontSize: 10, marginBottom: 0 }}>
+              BASE UOM
+            </label>
+            {canManageUom ? (
               <button
-                id="product-submit-button"
-                type="submit"
-                className="button-primary"
-                disabled={isSaving}
-                style={{ minWidth: 150, height: 42 }}
+                type="button"
+                className="icon-button"
+                title="Add base UOM"
+                onClick={() => setShowUomForm((current) => !current)}
+                style={{ width: 22, height: 22, borderRadius: 4 }}
               >
-                {isSaving ? 'Saving...' : product ? 'Save Changes' : 'Create Product'}
+                <Plus style={{ width: 12, height: 12 }} />
               </button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+            ) : null}
+          </div>
+
+          <select
+            {...register('uomBase')}
+            className="form-input w-full"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.15)',
+              height: 38,
+              color: 'var(--color-text-primary)',
+              cursor: 'pointer',
+              fontSize: 13,
+            }}
+          >
+            <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
+              Select UOM
+            </option>
+            {product?.uomBase && !unitsOfMeasure.some((unit) => unit.code === product.uomBase) ? (
+              <option
+                value={product.uomBase}
+                style={{
+                  background: 'var(--color-bg-elevated)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {product.uomBase}
+              </option>
+            ) : null}
+            {unitsOfMeasure.map((unit) => (
+              <option
+                key={unit.id}
+                value={unit.code}
+                style={{
+                  background: 'var(--color-bg-elevated)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {unit.code}
+              </option>
+            ))}
+          </select>
+          {errors.uomBase && (
+            <p style={{ color: 'var(--color-danger)', fontSize: 11, marginTop: 4 }}>
+              {errors.uomBase.message}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Category Inline Addition */}
+      {showCategoryForm && canManageCategory && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1.2fr auto',
+            gap: 8,
+            padding: 10,
+            border: '1px dashed var(--color-border)',
+            borderRadius: 6,
+            background: 'rgba(0,0,0,0.08)',
+          }}
+        >
+          <input
+            className="form-input"
+            placeholder="Code"
+            value={newCategory.code}
+            maxLength={30}
+            onChange={(event) =>
+              setNewCategory((current) => ({
+                ...current,
+                code: event.target.value.toUpperCase(),
+              }))
+            }
+            style={{ height: 34, fontSize: 12 }}
+          />
+          <input
+            className="form-input"
+            placeholder="Name"
+            value={newCategory.name}
+            maxLength={200}
+            onChange={(event) =>
+              setNewCategory((current) => ({ ...current, name: event.target.value }))
+            }
+            style={{ height: 34, fontSize: 12 }}
+          />
+          <button
+            type="button"
+            className="button-primary"
+            disabled={isSavingCategory}
+            onClick={handleCreateCategory}
+            style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+          >
+            {isSavingCategory ? '...' : 'Add'}
+          </button>
+        </div>
+      )}
+
+      {/* UOM Inline Addition */}
+      {showUomForm && canManageUom && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '0.8fr 1.2fr 0.8fr auto',
+            gap: 8,
+            padding: 10,
+            border: '1px dashed var(--color-border)',
+            borderRadius: 6,
+            background: 'rgba(0,0,0,0.08)',
+          }}
+        >
+          <input
+            className="form-input"
+            placeholder="Code"
+            value={newUom.code}
+            maxLength={20}
+            onChange={(event) =>
+              setNewUom((current) => ({
+                ...current,
+                code: event.target.value.toUpperCase(),
+              }))
+            }
+            style={{ height: 34, fontSize: 12 }}
+          />
+          <input
+            className="form-input"
+            placeholder="Name"
+            value={newUom.name}
+            maxLength={100}
+            onChange={(event) => setNewUom((current) => ({ ...current, name: event.target.value }))}
+            style={{ height: 34, fontSize: 12 }}
+          />
+          <input
+            className="form-input"
+            placeholder="Category"
+            value={newUom.category}
+            maxLength={50}
+            onChange={(event) =>
+              setNewUom((current) => ({ ...current, category: event.target.value }))
+            }
+            style={{ height: 34, fontSize: 12 }}
+          />
+          <button
+            type="button"
+            className="button-primary"
+            disabled={isSavingUom}
+            onClick={handleCreateUom}
+            style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+          >
+            {isSavingUom ? '...' : 'Add'}
+          </button>
+        </div>
+      )}
+
+      {/* Pricing and Limits (2x2 Grid) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {/* <div>
+          <label className="form-label" style={{ fontSize: 10 }}>
+            UNIT COST (RS.)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            {...register('unitCost')}
+            className="form-input w-full mono"
+            style={{ background: 'rgba(0,0,0,0.15)', height: 38 }}
+          />
+          {errors.unitCost && (
+            <p style={{ color: 'var(--color-danger)', fontSize: 11, marginTop: 4 }}>
+              {errors.unitCost.message}
+            </p>
+          )}
+        </div> */}
+
+        {/* <div>
+          <label className="form-label" style={{ fontSize: 10 }}>
+            UNIT PRICE (RS.)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            {...register('unitPrice')}
+            className="form-input w-full mono"
+            style={{ background: 'rgba(0,0,0,0.15)', height: 38 }}
+          />
+          {errors.unitPrice && (
+            <p style={{ color: 'var(--color-danger)', fontSize: 11, marginTop: 4 }}>
+              {errors.unitPrice.message}
+            </p>
+          )}
+        </div> */}
+
+        <div>
+          <label className="form-label" style={{ fontSize: 10 }}>
+            MIN VALUE (REORDER LVL)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            {...register('minValue', {
+              setValueAs: (value) => (value === '' ? null : Number(value)),
+            })}
+            className="form-input w-full mono"
+            placeholder="Optional"
+            style={{ background: 'rgba(0,0,0,0.15)', height: 38 }}
+          />
+          {errors.minValue && (
+            <p style={{ color: 'var(--color-danger)', fontSize: 11, marginTop: 4 }}>
+              {errors.minValue.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="form-label" style={{ fontSize: 10 }}>
+            MAX VALUE (REORDER QTY)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            {...register('maxValue', {
+              setValueAs: (value) => (value === '' ? null : Number(value)),
+            })}
+            className="form-input w-full mono"
+            placeholder="Optional"
+            style={{ background: 'rgba(0,0,0,0.15)', height: 38 }}
+          />
+          {errors.maxValue && (
+            <p style={{ color: 'var(--color-danger)', fontSize: 11, marginTop: 4 }}>
+              {errors.maxValue.message}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* UOM Conversions section */}
+      {product ? (
+        <UomConversionsManager
+          productId={product.id}
+          conversions={product.uomConversions || []}
+          canManage={canManageUom}
+          unitsOfMeasure={unitsOfMeasure}
+          onRefresh={async () => {
+            try {
+              const updated = await masterService.getProduct(product.id)
+              onSaved(updated)
+            } catch (err) {
+              console.error('Failed to reload product for UOM update:', err)
+            }
+          }}
+        />
+      ) : (
+        <NewProductUomConversionsManager
+          conversions={newUomConversions}
+          canManage={canManageUom}
+          unitsOfMeasure={unitsOfMeasure}
+          onChange={setNewUomConversions}
+          onAfterAdd={() => {
+            window.setTimeout(() => {
+              document.getElementById('product-submit-button')?.focus()
+            }, 0)
+          }}
+        />
+      )}
+
+      {/* Form Actions */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: 10,
+          paddingTop: 10,
+          borderTop: '1px solid var(--color-border)',
+          marginTop: 'auto',
+        }}
+      >
+        <button
+          type="button"
+          data-skip-focus="true"
+          className="button-secondary"
+          onClick={onCancel}
+          style={{ flex: 1, height: 38, fontSize: 13 }}
+        >
+          Cancel
+        </button>
+        <button
+          id="product-submit-button"
+          type="submit"
+          className="button-primary"
+          disabled={isSaving}
+          style={{ flex: 1, height: 38, fontSize: 13 }}
+        >
+          {isSaving ? 'Saving...' : product ? 'Save Changes' : 'Save'}
+        </button>
+      </div>
+    </form>
   )
 }
 
@@ -1330,8 +1641,7 @@ export default function Product() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  // State
   const [editingProduct, setEditingProduct] = useState(undefined)
   const canManageProducts = userHasPermission(currentUser, PERMISSIONS.masterData.productManage)
   const canManageCategory = userHasPermission(currentUser, PERMISSIONS.masterData.categoryManage)
@@ -1396,9 +1706,10 @@ export default function Product() {
 
   function handleAdd() {
     if (!canManageProducts) return
-
     setEditingProduct(undefined)
-    setIsModalOpen(true)
+    window.setTimeout(() => {
+      document.querySelector('input[name="sku"]')?.focus()
+    }, 0)
   }
 
   async function handleEdit(p) {
@@ -1409,7 +1720,9 @@ export default function Product() {
       // Get complete product details (with conversions list)
       const fullProduct = await masterService.getProduct(p.id)
       setEditingProduct(fullProduct)
-      setIsModalOpen(true)
+      window.setTimeout(() => {
+        document.querySelector('input[name="sku"]')?.focus()
+      }, 0)
     } catch (err) {
       toast.error('Failed to load product details.')
     } finally {
@@ -1417,9 +1730,15 @@ export default function Product() {
     }
   }
 
+  function handleCancel() {
+    setEditingProduct(undefined)
+  }
+
   function handleSave(savedProduct) {
     if (editingProduct && savedProduct?.id) {
       setEditingProduct(savedProduct)
+    } else {
+      setEditingProduct(undefined)
     }
     loadProducts()
   }
@@ -1479,37 +1798,7 @@ export default function Product() {
             Manage catalog items, barcodes, prices, and unit conversions.
           </p>
         </div>
-        {canManageProducts ? (
-          <button
-            className="button-primary"
-            onClick={handleAdd}
-            style={{
-              height: 40,
-              padding: '0 24px',
-              fontSize: 14,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <Plus style={{ width: 16, height: 16 }} />
-            New Product
-          </button>
-        ) : null}
       </div>
-
-      <ProductFormModal
-        open={isModalOpen}
-        product={editingProduct}
-        categories={categories}
-        unitsOfMeasure={unitsOfMeasure}
-        canManageCategory={canManageCategory}
-        canManageUom={canManageUom}
-        onClose={() => setIsModalOpen(false)}
-        onSaved={handleSave}
-        onCategoryCreated={handleCategoryCreated}
-        onUomCreated={handleUomCreated}
-      />
 
       {/* ── Filter Bar ── */}
       <div
@@ -1651,272 +1940,272 @@ export default function Product() {
         </div>
       </div>
 
+      {/* Main Content Grid */}
       <div
-        className="panel"
         style={{
-          padding: 12,
           display: 'grid',
-          gridTemplateRows: 'minmax(0, 1fr) auto',
+          gridTemplateColumns: canManageProducts ? 'minmax(0, 1fr) 460px' : '1fr',
+          gap: 16,
+          alignItems: 'stretch',
           flex: 1,
           minHeight: 0,
-          overflow: 'hidden',
         }}
       >
-        {/* ── Table ── */}
-        <div style={{ minHeight: 0, overflow: 'hidden' }}>
-          {isLoading ? (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                padding: '64px 0',
-                color: 'var(--color-text-muted)',
-              }}
-            >
-              Loading products...
-            </div>
-          ) : error ? (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                padding: '64px 0',
-                color: 'var(--color-red)',
-              }}
-            >
-              {error}
-            </div>
-          ) : products.length === 0 ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '64px 0',
-                gap: 12,
-              }}
-            >
-              <Package style={{ width: 40, height: 40, color: 'var(--color-text-dim)' }} />
-              <p style={{ color: 'var(--color-text-muted)' }}>No products match your filters.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="data-table product-table-compact">
-                <thead>
-                  <tr>
-                    <th>SKU</th>
-                    <th>Product Name & Info</th>
-                    <th>Category</th>
-                    <th>Base UOM</th>
-                    <th>Conversions</th>
-                    <th style={{ textAlign: 'right' }}>Unit Cost</th>
-                    <th style={{ textAlign: 'right' }}>Unit Price</th>
-                    <th>Reorder Specs</th>
-                    <th>Status</th>
-                    {canManageProducts ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((p) => {
-                    const cost = p.unitCost || 0
-                    const price = p.unitPrice || 0
-
-                    return (
-                      <tr key={p.id}>
-                        {/* SKU */}
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center' }}>
-                            <span className="product-sku-badge mono">{p.sku}</span>
-                            <button
-                              type="button"
-                              className="copy-btn"
-                              title="Copy SKU"
-                              onClick={() => {
-                                navigator.clipboard.writeText(p.sku)
-                                toast.success(`SKU "${p.sku}" copied to clipboard`)
-                              }}
-                            >
-                              <Copy style={{ width: 12, height: 12 }} />
-                            </button>
-                          </div>
-                        </td>
-
-                        {/* Product Name & Info */}
-                        <td>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span className="product-name-title">{p.name}</span>
-                            {p.description && (
-                              <span className="product-info-sub" title={p.description}>
-                                {p.description}
-                              </span>
-                            )}
-                            {p.barcode && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <span
-                                  className="product-info-sub mono"
-                                  title={`Barcode: ${p.barcode}`}
-                                >
-                                  UPC: {p.barcode}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="copy-btn"
-                                  title="Copy Barcode"
-                                  style={{ padding: 1 }}
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(p.barcode)
-                                    toast.success(`Barcode "${p.barcode}" copied to clipboard`)
-                                  }}
-                                >
-                                  <Copy style={{ width: 10, height: 10 }} />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Category */}
-                        <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                          {p.category?.name || (
-                            <span style={{ color: 'var(--color-text-dim)' }}>—</span>
-                          )}
-                        </td>
-
-                        {/* Base UOM */}
-                        <td>
-                          <span className="uom-badge">{p.uomBase}</span>
-                        </td>
-
-                        {/* Conversions */}
-                        <td>
-                          <div className="uom-conversions-list">
-                            {p.uomConversions && p.uomConversions.length > 0 ? (
-                              p.uomConversions.map((conv) => (
-                                <span key={conv.id} className="uom-conversion-pill">
-                                  1 {conv.fromUom} = {conv.factor} {conv.toUom}
-                                </span>
-                              ))
-                            ) : (
-                              <span style={{ color: 'var(--color-text-dim)', fontSize: 12 }}>
-                                —
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Unit Cost */}
-                        <td
-                          className="mono text-sm"
-                          style={{ textAlign: 'right', color: 'var(--color-text-primary)' }}
-                        >
-                          Rs. {cost.toFixed(2)}
-                        </td>
-
-                        {/* Unit Price */}
-                        <td
-                          className="mono text-sm"
-                          style={{
-                            textAlign: 'right',
-                            color: 'var(--color-text-primary)',
-                            fontWeight: 600,
-                          }}
-                        >
-                          Rs. {price.toFixed(2)}
-                        </td>
-
-                        {/* Reorder Specs */}
-                        <td>
-                          <div className="reorder-badge">
-                            <div className="reorder-badge-item">
-                              <span className="reorder-badge-label">Level:</span>
-                              <span className="mono">
-                                {p.reorderLevel !== null && p.reorderLevel !== undefined
-                                  ? p.reorderLevel
-                                  : '—'}
-                              </span>
+        <div
+          className="panel"
+          style={{
+            padding: 12,
+            display: 'grid',
+            gridTemplateRows: 'minmax(0, 1fr) auto',
+            minHeight: 0,
+            overflow: 'hidden',
+          }}
+        >
+          {/* ── Table ── */}
+          <div style={{ minHeight: 0, overflowY: 'auto' }}>
+            {isLoading ? (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  padding: '64px 0',
+                  color: 'var(--color-text-muted)',
+                }}
+              >
+                Loading products...
+              </div>
+            ) : error ? (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  padding: '64px 0',
+                  color: 'var(--color-red)',
+                }}
+              >
+                {error}
+              </div>
+            ) : products.length === 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '64px 0',
+                  gap: 12,
+                }}
+              >
+                <Package style={{ width: 40, height: 40, color: 'var(--color-text-dim)' }} />
+                <p style={{ color: 'var(--color-text-muted)' }}>No products match your filters.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="data-table product-table-compact">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Product Name & Info</th>
+                      <th>Category</th>
+                      <th>Base UOM</th>
+                      <th>Conversions</th>
+                      <th>Reorder Specs</th>
+                      <th>Status</th>
+                      {canManageProducts ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((p) => {
+                      return (
+                        <tr key={p.id}>
+                          {/* SKU */}
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              <span className="product-sku-badge mono">{p.sku}</span>
+                              <button
+                                type="button"
+                                className="copy-btn"
+                                title="Copy SKU"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(p.sku)
+                                  toast.success(`SKU "${p.sku}" copied to clipboard`)
+                                }}
+                              >
+                                <Copy style={{ width: 12, height: 12 }} />
+                              </button>
                             </div>
-                            <div className="reorder-badge-item">
-                              <span className="reorder-badge-label">Qty:</span>
-                              <span className="mono">
-                                {p.reorderQty !== null && p.reorderQty !== undefined
-                                  ? p.reorderQty
-                                  : '—'}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Status */}
-                        <td>
-                          <StatusBadge status={p.status} />
-                        </td>
-
-                        {/* Actions */}
-                        {canManageProducts ? (
-                          <td style={{ padding: '12px 10px', textAlign: 'right' }}>
-                            <button
-                              className="icon-button"
-                              title="Edit product"
-                              style={{ width: 28, height: 28 }}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleEdit(p)
-                              }}
-                            >
-                              <Pencil style={{ width: 13, height: 13 }} />
-                            </button>
                           </td>
-                        ) : null}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+
+                          {/* Product Name & Info */}
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span className="product-name-title">{p.name}</span>
+                              {p.description && (
+                                <span className="product-info-sub" title={p.description}>
+                                  {p.description}
+                                </span>
+                              )}
+                              {p.barcode && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                  <span
+                                    className="product-info-sub mono"
+                                    title={`Barcode: ${p.barcode}`}
+                                  >
+                                    UPC: {p.barcode}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="copy-btn"
+                                    title="Copy Barcode"
+                                    style={{ padding: 1 }}
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(p.barcode)
+                                      toast.success(`Barcode "${p.barcode}" copied to clipboard`)
+                                    }}
+                                  >
+                                    <Copy style={{ width: 10, height: 10 }} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Category */}
+                          <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                            {p.category?.name || (
+                              <span style={{ color: 'var(--color-text-dim)' }}>—</span>
+                            )}
+                          </td>
+
+                          {/* Base UOM */}
+                          <td>
+                            <span className="uom-badge">{p.uomBase}</span>
+                          </td>
+
+                          {/* Conversions */}
+                          <td>
+                            <div className="uom-conversions-list">
+                              {p.uomConversions && p.uomConversions.length > 0 ? (
+                                p.uomConversions.map((conv) => (
+                                  <span key={conv.id} className="uom-conversion-pill">
+                                    1 {conv.fromUom} = {conv.factor} {conv.toUom}
+                                  </span>
+                                ))
+                              ) : (
+                                <span style={{ color: 'var(--color-text-dim)', fontSize: 12 }}>
+                                  —
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Reorder Specs */}
+                          <td>
+                            <div className="reorder-badge">
+                              <div className="reorder-badge-item">
+                                <span className="reorder-badge-label">Level:</span>
+                                <span className="mono">
+                                  {p.minValue !== null && p.minValue !== undefined
+                                    ? p.minValue
+                                    : '—'}
+                                </span>
+                              </div>
+                              <div className="reorder-badge-item">
+                                <span className="reorder-badge-label">Qty:</span>
+                                <span className="mono">
+                                  {p.maxValue !== null && p.maxValue !== undefined
+                                    ? p.maxValue
+                                    : '—'}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td>
+                            <StatusBadge status={p.status} />
+                          </td>
+
+                          {/* Actions */}
+                          {canManageProducts ? (
+                            <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+                              <button
+                                className="icon-button"
+                                title="Edit product"
+                                style={{ width: 28, height: 28 }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEdit(p)
+                                }}
+                              >
+                                <Pencil style={{ width: 13, height: 13 }} />
+                              </button>
+                            </td>
+                          ) : null}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Pagination Section */}
+          {products.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                paddingTop: 10,
+                borderTop: '1px solid var(--color-border)',
+                marginTop: 10,
+              }}
+            >
+              <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+                Showing {products.length} of {totalItems} items
+              </span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={page <= 1}
+                  onClick={() => setPage(page - 1)}
+                  style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(page + 1)}
+                  style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Pagination Section */}
-        {products.length > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 12,
-              paddingTop: 10,
-              borderTop: '1px solid var(--color-border)',
-              marginTop: 10,
-            }}
-          >
-            <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
-              Showing {products.length} of {totalItems} items
-            </span>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
-              >
-                Previous
-              </button>
-              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                Page {page} of {totalPages}
-              </span>
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={page >= totalPages}
-                onClick={() => setPage(page + 1)}
-                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+        {canManageProducts && (
+          <ProductForm
+            product={editingProduct}
+            categories={categories}
+            unitsOfMeasure={unitsOfMeasure}
+            canManageCategory={canManageCategory}
+            canManageUom={canManageUom}
+            onCancel={handleCancel}
+            onSaved={handleSave}
+            onCategoryCreated={handleCategoryCreated}
+            onUomCreated={handleUomCreated}
+          />
         )}
       </div>
     </div>
