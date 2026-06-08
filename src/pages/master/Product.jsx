@@ -24,7 +24,7 @@ const productSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
-const productPageSize = 10
+const productPageSize = 8
 
 // Helper to robustly extract only leaf categories (subcategories only, which have a parent and no children)
 function getLeafCategories(categoriesList) {
@@ -1691,7 +1691,7 @@ export default function Product() {
         })
       )
       setProducts(detailedItems)
-      setTotalPages(result.totalPages || 1)
+      setTotalPages(Math.max(1, result.totalPages || 1))
       setTotalItems(result.totalItems || 0)
     } catch (err) {
       setError(err.message || 'Unable to load products.')
@@ -1713,6 +1713,12 @@ export default function Product() {
   useEffect(() => {
     setPage(1)
   }, [search, category, activeFilter])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
 
   function handleAdd() {
     if (!canManageProducts) return
@@ -1972,7 +1978,7 @@ export default function Product() {
           }}
         >
           {/* ── Table ── */}
-          <div style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div style={{ minHeight: 0, overflow: 'hidden' }}>
             {isLoading ? (
               <div
                 style={{
@@ -2177,7 +2183,7 @@ export default function Product() {
                   type="button"
                   className="button-secondary"
                   disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
+                  onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
                   style={{ height: 32, padding: '0 12px', fontSize: 12 }}
                 >
                   Previous
@@ -2189,7 +2195,7 @@ export default function Product() {
                   type="button"
                   className="button-secondary"
                   disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
+                  onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
                   style={{ height: 32, padding: '0 12px', fontSize: 12 }}
                 >
                   Next
