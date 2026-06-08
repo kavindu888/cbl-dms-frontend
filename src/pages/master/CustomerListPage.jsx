@@ -948,7 +948,7 @@ export default function CustomerListPage() {
             minHeight: 0,
           }}
         >
-          <div style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div style={{ minHeight: 0, overflowY: 'hidden' }}>
             <table className="data-table master-table-compact" style={{ width: '100%' }}>
               <thead>
                 <tr>
