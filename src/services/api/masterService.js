@@ -98,6 +98,7 @@ function formatPaymentTerm(term) {
 
 function formatProduct(product) {
   if (!product) return null
+  console.log('RAW PRODUCT:', product)
   return {
     id: product.id,
     sku: product.sku ?? '',
@@ -105,15 +106,26 @@ function formatProduct(product) {
     name: product.name ?? '',
     description: product.description ?? '',
     category: product.category ?? { id: '', code: '', name: '' },
-    uomBase: product.baseUom ?? '',
-    unitCost: product.costPrice ?? 0,
-    unitPrice: product.sellingPrice ?? 0,
-    minValue: product.minValue ?? null,
-    maxValue: product.maxValue ?? null,
+    uomBase: product.baseUom ?? product.uomBase ?? '',
+    unitCost: product.costPrice ?? product.unitCost ?? 0,
+    unitPrice: product.sellingPrice ?? product.unitPrice ?? 0,
+    minValue:
+      product.minValue !== undefined && product.minValue !== null
+        ? product.minValue
+        : (product.reorderLevel ?? null),
+    maxValue:
+      product.maxValue !== undefined && product.maxValue !== null
+        ? product.maxValue
+        : (product.reorderQty ?? null),
     imageUrl: product.imageUrl ?? '',
     status: product.status ?? 'Active',
     isActive: product.status === 'Active',
-    uomConversions: (product.uomConversions || []).map(formatUomConversion),
+    uomConversions: (
+      product.uomConversions ||
+      product.conversions ||
+      product.productConversions ||
+      []
+    ).map(formatUomConversion),
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   }
@@ -123,9 +135,9 @@ function formatUomConversion(conv) {
   if (!conv) return null
   return {
     id: conv.id,
-    fromUom: conv.fromUom ?? '',
-    toUom: conv.toUom ?? '',
-    factor: conv.conversionFactor ?? 1,
+    fromUom: conv.fromUom ?? conv.fromUnit ?? '',
+    toUom: conv.toUom ?? conv.toUnit ?? '',
+    factor: conv.conversionFactor ?? conv.factor ?? 1,
   }
 }
 

@@ -1254,7 +1254,7 @@ function ProductForm({
             <label className="form-label" style={{ fontSize: 10, marginBottom: 0 }}>
               CATEGORY
             </label>
-            {canManageCategory ? (
+            {/* {canManageCategory ? (
               <button
                 type="button"
                 className="icon-button"
@@ -1264,7 +1264,7 @@ function ProductForm({
               >
                 <Plus style={{ width: 12, height: 12 }} />
               </button>
-            ) : null}
+            ) : null} */}
           </div>
 
           <select
@@ -1314,7 +1314,7 @@ function ProductForm({
             <label className="form-label" style={{ fontSize: 10, marginBottom: 0 }}>
               BASE UOM
             </label>
-            {canManageUom ? (
+            {/* {canManageUom ? (
               <button
                 type="button"
                 className="icon-button"
@@ -1324,7 +1324,7 @@ function ProductForm({
               >
                 <Plus style={{ width: 12, height: 12 }} />
               </button>
-            ) : null}
+            ) : null} */}
           </div>
 
           <select
@@ -1517,7 +1517,7 @@ function ProductForm({
 
         <div>
           <label className="form-label" style={{ fontSize: 10 }}>
-            MIN VALUE (REORDER LVL)
+            MIN VALUE
           </label>
           <input
             type="number"
@@ -1538,7 +1538,7 @@ function ProductForm({
 
         <div>
           <label className="form-label" style={{ fontSize: 10 }}>
-            MAX VALUE (REORDER QTY)
+            MAX VALUE
           </label>
           <input
             type="number"
@@ -1680,7 +1680,17 @@ export default function Product() {
         sortBy: 'createdAt',
         sortDir: 'asc',
       })
-      setProducts(result.items || [])
+      const listItems = result.items || []
+      const detailedItems = await Promise.all(
+        listItems.map(async (item) => {
+          try {
+            return await masterService.getProduct(item.id)
+          } catch {
+            return item
+          }
+        })
+      )
+      setProducts(detailedItems)
       setTotalPages(result.totalPages || 1)
       setTotalItems(result.totalItems || 0)
     } catch (err) {
@@ -2009,7 +2019,8 @@ export default function Product() {
                       <th>Category</th>
                       <th>Base UOM</th>
                       <th>Conversions</th>
-                      <th>Reorder Specs</th>
+                      <th>MIN VALUE</th>
+                      <th>MAX VALUE</th>
                       <th>Status</th>
                       {canManageProducts ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
                     </tr>
@@ -2099,26 +2110,20 @@ export default function Product() {
                             </div>
                           </td>
 
-                          {/* Reorder Specs */}
-                          <td>
-                            <div className="reorder-badge">
-                              <div className="reorder-badge-item">
-                                <span className="reorder-badge-label">Level:</span>
-                                <span className="mono">
-                                  {p.minValue !== null && p.minValue !== undefined
-                                    ? p.minValue
-                                    : '—'}
-                                </span>
-                              </div>
-                              <div className="reorder-badge-item">
-                                <span className="reorder-badge-label">Qty:</span>
-                                <span className="mono">
-                                  {p.maxValue !== null && p.maxValue !== undefined
-                                    ? p.maxValue
-                                    : '—'}
-                                </span>
-                              </div>
-                            </div>
+                          {/* Min Value */}
+                          <td
+                            className="text-sm mono"
+                            style={{ color: 'var(--color-text-primary)' }}
+                          >
+                            {p.minValue !== null && p.minValue !== undefined ? p.minValue : '—'}
+                          </td>
+
+                          {/* Max Value */}
+                          <td
+                            className="text-sm mono"
+                            style={{ color: 'var(--color-text-primary)' }}
+                          >
+                            {p.maxValue !== null && p.maxValue !== undefined ? p.maxValue : '—'}
                           </td>
 
                           {/* Status */}
