@@ -1,13 +1,19 @@
 import dayjs from 'dayjs'
 import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@services/api/masterService'
 import { purchasingService } from '@services/api/purchasingService'
 
+const linePageSize = 5
+
 const emptyHeader = {
   supplierId: '',
+  businessUnitId: '',
+  paymentTermId: '',
+  taxId: '',
   orderDate: dayjs().format('YYYY-MM-DD'),
   expectedDeliveryDate: '',
   notes: '',
@@ -19,9 +25,8 @@ function createEmptyLine() {
   return {
     key: crypto.randomUUID(),
     productId: '',
-    qty: '1',
-    unitCost: '0',
-    vatRate: '0',
+    bigBoxQty: '1',
+    unitCostSmallest: '0',
     notes: '',
   }
 }
@@ -33,70 +38,198 @@ function formatMoney(value) {
   })}`
 }
 
+function getUnitsPerBigBox(product) {
+  if (!product) return 0
+
+  let currentUom = product.uomBase
+  let unitsPerBox = 1
+  const visited = new Set([currentUom])
+
+  for (let index = 0; index < 5; index += 1) {
+    const conversion = product.uomConversions?.find((item) => item.fromUom === currentUom)
+    if (!conversion || conversion.factor <= 0 || visited.has(conversion.toUom)) break
+
+    unitsPerBox *= Number(conversion.factor)
+    currentUom = conversion.toUom
+    visited.add(currentUom)
+  }
+
+  return unitsPerBox
+}
+
 export default function PlacePurchaseOrderPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const editPoId = location.state?.editPoId
   const [header, setHeader] = useState(emptyHeader)
   const [lines, setLines] = useState([createEmptyLine()])
   const [suppliers, setSuppliers] = useState([])
   const [products, setProducts] = useState([])
+  const [taxes, setTaxes] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
   const [lookupError, setLookupError] = useState('')
+  const [linePage, setLinePage] = useState(1)
 
   const loadFormData = useCallback(async () => {
     setIsLoading(true)
     setLookupError('')
 
-    const [supplierResult, productResult] = await Promise.allSettled([
-      purchasingService.listSuppliers({ page: 1, pageSize: 100, status: 1 }),
-      masterService.listProducts({
-        page: 1,
-        pageSize: 100,
-        status: 'Active',
-        sortBy: 'name',
-        sortDir: 'asc',
-      }),
-    ])
+    const [supplierResult, productResult, businessUnitResult, , taxResult] =
+      await Promise.allSettled([
+        purchasingService.listSuppliers({ page: 1, pageSize: 100, status: 1 }),
+        masterService.listProducts({
+          page: 1,
+          pageSize: 100,
+          status: 'Active',
+          sortBy: 'name',
+          sortDir: 'asc',
+        }),
+        masterService.listBusinessUnits(),
+        masterService.listPaymentTerms(),
+        masterService.listTaxes(),
+      ])
 
     const messages = []
+    let preselectedSupplierId = ''
+    let preselectedBUId = ''
 
     if (supplierResult.status === 'fulfilled') {
-      setSuppliers(supplierResult.value?.items || [])
+      const list = supplierResult.value?.items || []
+      setSuppliers(list)
+      if (list.length === 1) {
+        preselectedSupplierId = list[0].id
+      }
     } else {
       setSuppliers([])
       messages.push(`Suppliers: ${supplierResult.reason.message}`)
     }
 
     if (productResult.status === 'fulfilled') {
-      setProducts(productResult.value?.items || [])
+      const productItems = productResult.value?.items || []
+      const detailedProducts = await Promise.all(
+        productItems.map(async (product) => {
+          try {
+            return await masterService.getProduct(product.id)
+          } catch {
+            return product
+          }
+        })
+      )
+      setProducts(detailedProducts)
     } else {
       setProducts([])
       messages.push(`Products: ${productResult.reason.message}`)
     }
 
+    if (businessUnitResult.status === 'fulfilled') {
+      const activeBUs = businessUnitResult.value.filter((item) => item.isActive)
+      if (activeBUs.length === 1) {
+        preselectedBUId = activeBUs[0].id
+      }
+    }
+
+    if (taxResult.status === 'fulfilled') {
+      const activeTaxes = taxResult.value.filter((item) => item.isActive)
+      setTaxes(activeTaxes)
+      setHeader((current) => ({
+        ...current,
+        taxId: current.taxId || activeTaxes.find((item) => item.isDefault)?.id || '',
+      }))
+    } else {
+      setTaxes([])
+    }
+
+    let editPoDetail = null
+    if (editPoId) {
+      try {
+        editPoDetail = await purchasingService.getPurchaseOrder(editPoId)
+      } catch (err) {
+        messages.push(`Purchase Order Details: ${err.message}`)
+      }
+    }
+
+    if (editPoDetail) {
+      setHeader({
+        supplierId: editPoDetail.supplierId || '',
+        businessUnitId: editPoDetail.businessUnitId || '',
+        paymentTermId: editPoDetail.paymentTermId || '',
+        taxId: editPoDetail.taxId || '',
+        orderDate: dayjs(editPoDetail.orderDate).format('YYYY-MM-DD'),
+        expectedDeliveryDate: editPoDetail.expectedDeliveryDate
+          ? dayjs(editPoDetail.expectedDeliveryDate).format('YYYY-MM-DD')
+          : '',
+        notes: editPoDetail.notes || '',
+      })
+
+      const loadedLines =
+        editPoDetail.lines?.map((line) => ({
+          key: crypto.randomUUID(),
+          id: line.id,
+          productId: line.productId || '',
+          bigBoxQty: String(line.qtyBaseUnit ?? '1'),
+          unitCostSmallest: String(line.unitCostSmallest ?? '0'),
+          notes: line.notes || '',
+        })) || []
+
+      setLines(loadedLines.length ? loadedLines : [createEmptyLine()])
+    } else {
+      setHeader((current) => {
+        const next = { ...current }
+        if (preselectedSupplierId) next.supplierId = preselectedSupplierId
+        if (preselectedBUId) next.businessUnitId = preselectedBUId
+        return next
+      })
+    }
+
     setLookupError(messages.join(' '))
     setIsLoading(false)
-  }, [])
+  }, [editPoId])
 
   useEffect(() => {
     loadFormData()
   }, [loadFormData])
 
   const totals = useMemo(() => {
-    return lines.reduce(
-      (result, line) => {
-        const subtotal = Number(line.qty || 0) * Number(line.unitCost || 0)
-        const vat = subtotal * (Number(line.vatRate || 0) / 100)
-        return {
-          subtotal: result.subtotal + subtotal,
-          vat: result.vat + vat,
-          total: result.total + subtotal + vat,
-        }
-      },
-      { subtotal: 0, vat: 0, total: 0 }
-    )
-  }, [lines])
+    const selectedTax = taxes.find((tax) => tax.id === header.taxId)
+    const vatRate = selectedTax?.rate || 0
+
+    const subtotal = lines.reduce((sum, line) => {
+      const product = products.find((item) => item.id === line.productId)
+      const lineSubtotal =
+        Number(line.bigBoxQty || 0) *
+        getUnitsPerBigBox(product) *
+        Number(line.unitCostSmallest || 0)
+
+      return sum + lineSubtotal
+    }, 0)
+    const vat = subtotal * (vatRate / 100)
+
+    return {
+      subtotal,
+      vat,
+      total: subtotal + vat,
+    }
+  }, [header.taxId, lines, products, taxes])
+
+  const pagedLines = useMemo(() => {
+    const start = (linePage - 1) * linePageSize
+    return lines.slice(start, start + linePageSize)
+  }, [linePage, lines])
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(lines.length / linePageSize))
+    if (linePage > totalPages) setLinePage(totalPages)
+  }, [linePage, lines.length])
+
+  function addLine() {
+    setLines((current) => {
+      const updatedLines = [...current, createEmptyLine()]
+      setLinePage(Math.ceil(updatedLines.length / linePageSize))
+      return updatedLines
+    })
+  }
 
   function updateHeader(event) {
     setHeader((current) => ({ ...current, [event.target.name]: event.target.value }))
@@ -108,11 +241,9 @@ export default function PlacePurchaseOrderPage() {
         if (line.key !== key) return line
 
         if (field === 'productId') {
-          const product = products.find((item) => item.id === value)
           return {
             ...line,
             productId: value,
-            unitCost: product ? String(product.unitCost || 0) : line.unitCost,
           }
         }
 
@@ -137,11 +268,8 @@ export default function PlacePurchaseOrderPage() {
         return 'Each product should appear only once. Update its quantity instead.'
       }
       selectedProductIds.add(line.productId)
-      if (Number(line.qty) <= 0) return 'Every quantity must be greater than zero.'
-      if (Number(line.unitCost) < 0) return 'Unit cost cannot be negative.'
-      if (Number(line.vatRate) < 0 || Number(line.vatRate) > 100) {
-        return 'VAT rate must be between 0 and 100.'
-      }
+      if (Number(line.bigBoxQty) <= 0) return 'Every big-box quantity must be greater than zero.'
+      if (Number(line.unitCostSmallest) < 0) return 'Smallest-unit cost cannot be negative.'
     }
 
     return ''
@@ -160,10 +288,12 @@ export default function PlacePurchaseOrderPage() {
     let createdOrder = null
 
     try {
+      // Create a brand new PO with the modified form details
       createdOrder = await purchasingService.createPurchaseOrder({
         supplierId: header.supplierId,
-        businessUnitId: null,
-        paymentTermId: null,
+        businessUnitId: header.businessUnitId || null,
+        paymentTermId: header.paymentTermId || null,
+        taxId: header.taxId || null,
         orderDate: header.orderDate || null,
         expectedDeliveryDate: header.expectedDeliveryDate || null,
         notes: header.notes.trim() || null,
@@ -175,16 +305,31 @@ export default function PlacePurchaseOrderPage() {
           productId: product.id,
           productSku: product.sku,
           productName: product.name,
-          unitOfMeasure: product.uomBase,
-          qty: Number(line.qty),
-          unitCost: Number(line.unitCost),
-          vatRate: Number(line.vatRate),
+          bigBoxQty: Number(line.bigBoxQty),
+          unitCostSmallest: Number(line.unitCostSmallest),
           notes: line.notes.trim() || null,
         })
       }
 
       await purchasingService.submitPurchaseOrder(createdOrder.id)
-      toast.success(`Purchase order ${createdOrder.poNumber} placed for approval.`)
+
+      // If we are in edit mode, cancel the original rejected PO to maintain clean history
+      if (editPoId) {
+        try {
+          await purchasingService.cancelPurchaseOrder(
+            editPoId,
+            `Re-edited and replaced by purchase order ${createdOrder.poNumber}.`
+          )
+        } catch (cancelError) {
+          console.warn('Unable to cancel the original purchase order:', cancelError)
+        }
+      }
+
+      toast.success(
+        editPoId
+          ? `Purchase order updated and resubmitted as ${createdOrder.poNumber} for approval.`
+          : `Purchase order ${createdOrder.poNumber} placed for approval.`
+      )
       navigate('/purchasing/approvals')
     } catch (requestError) {
       if (createdOrder) {
@@ -193,9 +338,11 @@ export default function PlacePurchaseOrderPage() {
             createdOrder.id,
             'Cancelled automatically because the purchase order could not be completed.'
           )
-          setError(`${requestError.message} The incomplete draft was cancelled.`)
+          setError(`${requestError.message} The new incomplete draft was cancelled.`)
         } catch {
-          setError(`${requestError.message} Draft ${createdOrder.poNumber} could not be completed.`)
+          setError(
+            `${requestError.message} New draft ${createdOrder.poNumber} could not be completed.`
+          )
         }
       } else {
         setError(requestError.message)
@@ -209,18 +356,22 @@ export default function PlacePurchaseOrderPage() {
     <form
       onSubmit={placePurchaseOrder}
       style={{
-        minHeight: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
+        overflow: 'hidden',
       }}
     >
       <header style={{ flexShrink: 0 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-          Place Purchase Order
+          {editPoId ? 'Edit Purchase Order' : 'Purchase Order'}
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          Build the purchase order and send it to the approval queue.
+          {editPoId
+            ? 'Update the purchase order and resubmit it for approval.'
+            : 'Build the purchase order and send it to the approval queue.'}
         </p>
       </header>
 
@@ -257,9 +408,19 @@ export default function PlacePurchaseOrderPage() {
 
       <div
         className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px]"
-        style={{ gap: 16, alignItems: 'start', flex: 1, minHeight: 0 }}
+        style={{ gap: 16, alignItems: 'stretch', flex: 1, minHeight: 0, overflow: 'hidden' }}
       >
-        <section className="panel" style={{ overflow: 'hidden', minWidth: 0 }}>
+        <section
+          className="panel"
+          style={{
+            overflow: 'hidden',
+            minWidth: 0,
+            minHeight: 0,
+            height: '100%',
+            display: 'grid',
+            gridTemplateRows: 'auto minmax(0, 1fr) auto',
+          }}
+        >
           <div
             style={{
               minHeight: 68,
@@ -276,13 +437,13 @@ export default function PlacePurchaseOrderPage() {
                 Purchase Order Products
               </h2>
               <p style={{ marginTop: 3, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                Add products and enter the requested quantities and costs.
+                Enter big-box quantities and the cost per smallest unit.
               </p>
             </div>
             <button
               type="button"
               className="button-secondary"
-              onClick={() => setLines((current) => [...current, createEmptyLine()])}
+              onClick={addLine}
               disabled={isLoading || isSaving}
               style={{ height: 36, display: 'flex', alignItems: 'center', gap: 7 }}
             >
@@ -291,24 +452,25 @@ export default function PlacePurchaseOrderPage() {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div style={{ minHeight: 0, overflowX: 'auto', overflowY: 'hidden' }}>
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th>UOM</th>
-                  <th>Quantity</th>
-                  <th>Unit Cost</th>
-                  <th>VAT %</th>
-                  <th className="text-right">Line Total</th>
+                  <th>Big Box UOM</th>
+                  <th>Big Box Qty</th>
+                  <th>Smallest Unit Cost</th>
+                  <th style={{ textAlign: 'right' }}>Estimated Subtotal</th>
                   <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line) => {
+                {pagedLines.map((line) => {
                   const product = products.find((item) => item.id === line.productId)
-                  const subtotal = Number(line.qty || 0) * Number(line.unitCost || 0)
-                  const lineTotal = subtotal + subtotal * (Number(line.vatRate || 0) / 100)
+                  const subtotal =
+                    Number(line.bigBoxQty || 0) *
+                    getUnitsPerBigBox(product) *
+                    Number(line.unitCostSmallest || 0)
 
                   return (
                     <tr key={line.key}>
@@ -346,8 +508,10 @@ export default function PlacePurchaseOrderPage() {
                           type="number"
                           min="0.0001"
                           step="0.0001"
-                          value={line.qty}
-                          onChange={(event) => updateLine(line.key, 'qty', event.target.value)}
+                          value={line.bigBoxQty}
+                          onChange={(event) =>
+                            updateLine(line.key, 'bigBoxQty', event.target.value)
+                          }
                           disabled={isSaving}
                         />
                       </td>
@@ -358,33 +522,22 @@ export default function PlacePurchaseOrderPage() {
                           type="number"
                           min="0"
                           step="0.01"
-                          value={line.unitCost}
-                          onChange={(event) => updateLine(line.key, 'unitCost', event.target.value)}
+                          value={line.unitCostSmallest}
+                          onChange={(event) =>
+                            updateLine(line.key, 'unitCostSmallest', event.target.value)
+                          }
                           disabled={isSaving}
                         />
                       </td>
-                      <td>
-                        <input
-                          className="form-input"
-                          style={{ width: 76, height: 38, fontSize: 13 }}
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          value={line.vatRate}
-                          onChange={(event) => updateLine(line.key, 'vatRate', event.target.value)}
-                          disabled={isSaving}
-                        />
-                      </td>
-                      <td className="mono text-right font-medium">{formatMoney(lineTotal)}</td>
+                      <td className="mono text-right font-medium">{formatMoney(subtotal)}</td>
                       <td className="text-right">
                         <button
                           type="button"
                           className="icon-button"
                           title="Remove product"
-                          onClick={() =>
+                          onClick={() => {
                             setLines((current) => current.filter((item) => item.key !== line.key))
-                          }
+                          }}
                           disabled={isSaving}
                           style={{ width: 30, height: 30, color: 'var(--color-danger)' }}
                         >
@@ -410,6 +563,18 @@ export default function PlacePurchaseOrderPage() {
               No products added. Select Add Product to begin.
             </div>
           ) : null}
+
+          {lines.length ? (
+            <div style={{ padding: '0 12px 10px' }}>
+              <SimplePagination
+                page={linePage}
+                pageSize={linePageSize}
+                totalItems={lines.length}
+                onPageChange={setLinePage}
+                itemLabel="products"
+              />
+            </div>
+          ) : null}
         </section>
 
         <aside
@@ -418,9 +583,10 @@ export default function PlacePurchaseOrderPage() {
             padding: 18,
             display: 'flex',
             flexDirection: 'column',
-            gap: 18,
-            position: 'sticky',
-            top: 12,
+            gap: 14,
+            minHeight: 0,
+            height: '100%',
+            overflow: 'hidden',
           }}
         >
           <div style={{ paddingBottom: 14, borderBottom: '1px solid var(--color-border)' }}>
@@ -442,13 +608,15 @@ export default function PlacePurchaseOrderPage() {
               disabled={isLoading || isSaving}
               style={{ height: 40 }}
             >
-              <option value="">
-                {isLoading
-                  ? 'Loading suppliers...'
-                  : suppliers.length
-                    ? 'Select a supplier'
-                    : 'No active suppliers available'}
-              </option>
+              {suppliers.length !== 1 && (
+                <option value="">
+                  {isLoading
+                    ? 'Loading suppliers...'
+                    : suppliers.length
+                      ? 'Select a supplier'
+                      : 'No active suppliers available'}
+                </option>
+              )}
               {suppliers.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.code} - {supplier.name}
@@ -457,7 +625,7 @@ export default function PlacePurchaseOrderPage() {
             </select>
           </label>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <label>
               <span className="form-label">Order Date</span>
               <input
@@ -486,17 +654,16 @@ export default function PlacePurchaseOrderPage() {
             </label>
           </div>
 
-          <label>
+          <label style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 100 }}>
             <span className="form-label">Notes</span>
             <textarea
               className="form-input w-full"
               name="notes"
-              rows={4}
               value={header.notes}
               onChange={updateHeader}
               placeholder="Optional purchasing instructions"
               disabled={isSaving}
-              style={{ resize: 'vertical', paddingTop: 10 }}
+              style={{ resize: 'none', paddingTop: 10, flex: 1, minHeight: 60 }}
             />
           </label>
 
@@ -506,7 +673,7 @@ export default function PlacePurchaseOrderPage() {
               display: 'grid',
               gridTemplateColumns: '1fr auto',
               gap: '9px 20px',
-              background: 'rgba(0,0,0,0.10)',
+              background: 'var(--color-bg-elevated)',
               border: '1px solid var(--color-border)',
               borderRadius: 8,
               fontSize: 13,
@@ -516,7 +683,9 @@ export default function PlacePurchaseOrderPage() {
             <span className="mono text-right">{lines.length}</span>
             <span style={{ color: 'var(--color-text-muted)' }}>Subtotal</span>
             <span className="mono text-right">{formatMoney(totals.subtotal)}</span>
-            <span style={{ color: 'var(--color-text-muted)' }}>VAT</span>
+            <span style={{ color: 'var(--color-text-muted)' }}>
+              VAT ({taxes.find((tax) => tax.id === header.taxId)?.rate || 0}%)
+            </span>
             <span className="mono text-right">{formatMoney(totals.vat)}</span>
             <span
               style={{
@@ -544,27 +713,24 @@ export default function PlacePurchaseOrderPage() {
           <div
             style={{
               display: 'flex',
-              gap: 10,
+              justifyContent: 'center',
               paddingTop: 14,
               borderTop: '1px solid var(--color-border)',
             }}
           >
             <button
-              type="button"
-              className="button-secondary"
-              onClick={() => navigate('/purchasing/approvals')}
-              disabled={isSaving}
-              style={{ flex: 1, height: 38, fontSize: 13 }}
-            >
-              Approval Queue
-            </button>
-            <button
               type="submit"
               className="button-primary"
               disabled={isLoading || isSaving || !suppliers.length || !products.length}
-              style={{ flex: 1, height: 38, fontSize: 13 }}
+              style={{ padding: '0 32px', height: 38, fontSize: 13 }}
             >
-              {isSaving ? 'Placing...' : 'Place Order'}
+              {isSaving
+                ? editPoId
+                  ? 'Saving...'
+                  : 'Placing...'
+                : editPoId
+                  ? 'Save & Resubmit'
+                  : 'Place Order'}
             </button>
           </div>
         </aside>
