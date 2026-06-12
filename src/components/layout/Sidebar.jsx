@@ -17,6 +17,8 @@ import {
   Tags,
   // Truck,
   Route,
+  User,
+  UserCog,
   Users,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -36,7 +38,7 @@ const navGroups = [
     label: 'PURCHASING',
     items: [
       {
-        label: 'Place Purchase Order',
+        label: 'Purchase Order',
         to: '/purchasing/place-order',
         icon: ShoppingCart,
         end: true,
@@ -106,7 +108,7 @@ const navGroups = [
       {
         label: 'Customer',
         to: '/sales/customers',
-        icon: Users,
+        icon: User,
         permissions: [PERMISSIONS.sales.customerRead, PERMISSIONS.sales.customerManage],
       },
       {
@@ -123,7 +125,7 @@ const navGroups = [
       {
         label: 'Users',
         to: '/users',
-        icon: Users,
+        icon: UserCog,
         end: true,
         permissions: PERMISSIONS.identity.userManage,
       },
