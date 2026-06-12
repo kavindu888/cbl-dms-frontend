@@ -96,9 +96,24 @@ function formatPaymentTerm(term) {
   }
 }
 
+function formatTax(tax) {
+  if (!tax) return null
+
+  return {
+    id: tax.id,
+    code: tax.code ?? '',
+    name: tax.name ?? '',
+    rate: Number(tax.rate ?? 0),
+    isActive: Boolean(tax.isActive),
+    isDefault: Boolean(tax.isDefault),
+    status: tax.isActive ? 'Active' : 'Inactive',
+    createdAt: tax.createdAt,
+    updatedAt: tax.updatedAt,
+  }
+}
+
 function formatProduct(product) {
   if (!product) return null
-  console.log('RAW PRODUCT:', product)
   return {
     id: product.id,
     sku: product.sku ?? '',
@@ -317,6 +332,27 @@ export const masterService = {
   async getPaymentTerm(id) {
     const response = await getOnce(`/api/v1/master-data/payment-terms/${id}`)
     return formatPaymentTerm(getValue(response, 'Unable to load payment term.'))
+  },
+
+  // Taxes List, Create, Update, Deactivate
+  async listTaxes() {
+    const response = await getOnce('/api/v1/taxes')
+    return (getValue(response, 'Unable to load taxes.') || []).map(formatTax)
+  },
+
+  async createTax(payload) {
+    const response = await api.post('/api/v1/taxes', payload)
+    return formatTax(getValue(response, 'Unable to create tax.'))
+  },
+
+  async updateTax(id, payload) {
+    const response = await api.put(`/api/v1/taxes/${id}`, payload)
+    return formatTax(getValue(response, 'Unable to update tax.'))
+  },
+
+  async deactivateTax(id) {
+    const response = await api.delete(`/api/v1/taxes/${id}`)
+    return formatTax(getValue(response, 'Unable to deactivate tax.'))
   },
 
   //Product List, Get, Create, Update, Activate/Deactivate
