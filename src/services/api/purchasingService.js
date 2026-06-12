@@ -37,7 +37,6 @@ export const purchasingService = {
     return allItems
   },
 
- 
   // Get a single purchase order by ID
   async getPurchaseOrder(id) {
     const response = await getOnce(`/api/v1/purchase-orders/${id}`)
@@ -68,7 +67,7 @@ export const purchasingService = {
     return getValue(response, 'Unable to update the purchase order line.')
   },
 
-  // Remove a purchase order line 
+  // Remove a purchase order line
   async removePurchaseOrderLine(id, lineId) {
     const response = await api.delete(`/api/v1/purchase-orders/${id}/lines/${lineId}`)
     return getValue(response, 'Unable to remove the purchase order line.')
@@ -98,4 +97,21 @@ export const purchasingService = {
     return getValue(response, 'Unable to cancel the purchase order.')
   },
 
+  // Suppliers List
+  async listSuppliers(params = {}) {
+    const response = await getOnce('/api/v1/suppliers', { params })
+    return getValue(response, 'Unable to load suppliers.')
+  },
+
+  // Suppliers Create
+  async createSupplier(payload) {
+    const response = await api.post('/api/v1/suppliers', payload)
+    return getValue(response, 'Unable to create supplier.')
+  },
+
+  // Suppliers Update
+  async updateSupplier(id, payload) {
+    const response = await api.put(`/api/v1/suppliers`, payload, { params: { id } })
+    return getValue(response, 'Unable to update supplier.')
+  },
 }
