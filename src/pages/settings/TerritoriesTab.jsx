@@ -107,7 +107,6 @@ export default function TerritoriesTab() {
     }
   }, [page, totalPages])
 
-
   function updateField(field, value) {
     setForm((currentForm) => ({ ...currentForm, [field]: value }))
   }
@@ -351,7 +350,7 @@ export default function TerritoriesTab() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                      className="py-12 text-center text-sm text-text-muted"
                     >
                       Loading territories...
                     </td>
@@ -360,7 +359,7 @@ export default function TerritoriesTab() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="py-12 text-center text-sm text-[var(--color-danger)]"
+                      className="py-12 text-center text-sm text-danger"
                     >
                       {error}
                     </td>
@@ -407,7 +406,7 @@ export default function TerritoriesTab() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                      className="py-12 text-center text-sm text-text-muted"
                     >
                       No territories found.
                     </td>

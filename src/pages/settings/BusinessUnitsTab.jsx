@@ -107,7 +107,6 @@ export default function BusinessUnitsTab() {
     }
   }, [page, totalPages])
 
-
   function getOrganisationName(organisationId) {
     return organisations.find((item) => item.id === organisationId)?.name || '-'
   }
@@ -360,7 +359,7 @@ export default function BusinessUnitsTab() {
                   <tr>
                     <td
                       colSpan={7}
-                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                      className="py-12 text-center text-sm text-text-muted"
                     >
                       Loading business units...
                     </td>
@@ -369,7 +368,7 @@ export default function BusinessUnitsTab() {
                   <tr>
                     <td
                       colSpan={7}
-                      className="py-12 text-center text-sm text-[var(--color-danger)]"
+                      className="py-12 text-center text-sm text-danger"
                     >
                       {error}
                     </td>
@@ -419,7 +418,7 @@ export default function BusinessUnitsTab() {
                   <tr>
                     <td
                       colSpan={7}
-                      className="py-12 text-center text-sm text-[var(--color-text-muted)]"
+                      className="py-12 text-center text-sm text-text-muted"
                     >
                       No business units found.
                     </td>
