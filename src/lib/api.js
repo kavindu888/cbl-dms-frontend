@@ -36,6 +36,21 @@ function isNetworkFailure(error) {
   return !error.response
 }
 
+function getFirstValidationMessage(errors) {
+  if (Array.isArray(errors)) {
+    const firstError = errors[0]
+    return typeof firstError === 'string' ? firstError : firstError?.message
+  }
+
+  if (errors && typeof errors === 'object') {
+    const firstValue = Object.values(errors)[0]
+    if (Array.isArray(firstValue)) return firstValue[0]
+    if (typeof firstValue === 'string') return firstValue
+  }
+
+  return null
+}
+
 async function refreshAccessToken() {
   if (!refreshRequest) {
     const { useAuthStore } = await import('@stores/authStore')
@@ -111,11 +126,12 @@ api.interceptors.response.use(
     const responseData = error.response?.data
     const result = responseData?.data
     const validationErrors = result?.validationErrors || responseData?.errors || []
+    const validationMessage = getFirstValidationMessage(validationErrors)
     const permissionMessage =
       error.response?.status === 403 ? 'You do not have permission to perform this action.' : null
     const message =
       permissionMessage ||
-      validationErrors[0]?.message ||
+      validationMessage ||
       result?.errorMessage ||
       responseData?.errorMessage ||
       responseData?.message ||
