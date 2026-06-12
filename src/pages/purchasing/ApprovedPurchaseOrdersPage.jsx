@@ -1,14 +1,25 @@
 import dayjs from 'dayjs'
-import { RefreshCw, Search } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import {
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  FileText,
+  Package,
+  RefreshCw,
+  Search,
+  X,
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import StatusBadge from '@components/ui/StatusBadge'
+import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
 import { useAuthStore } from '@stores/authStore'
 import { PurchaseOrderStatus } from '@/types/purchasing.types'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
-const pageSize = 10
+const orderPageSize = 3
+const itemPageSize = 5
 
 function formatMoney(value) {
   return `Rs. ${Number(value || 0).toLocaleString('en-LK', {
@@ -21,190 +32,862 @@ export default function ApprovedPurchaseOrdersPage() {
   const user = useAuthStore((state) => state.user)
   const canCancel = userHasPermission(user, PERMISSIONS.purchasing.poCreate)
 
-  const [purchaseOrders, setPurchaseOrders] = useState([])
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
+  const [orders, setOrders] = useState([])
+  const [suppliers, setSuppliers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-  const [actionId, setActionId] = useState('')
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [fromDate, setFromDate] = useState(dayjs().subtract(30, 'day').format('YYYY-MM-DD'))
+  const [toDate, setToDate] = useState(dayjs().format('YYYY-MM-DD'))
+  const [supplier, setSupplier] = useState('')
+  const [selectedId, setSelectedId] = useState(null)
+  const [selectedOrder, setSelectedOrder] = useState(null)
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [orderPage, setOrderPage] = useState(1)
+  const [itemPage, setItemPage] = useState(1)
+
+  useEffect(() => {
+    async function loadSuppliers() {
+      try {
+        const result = await purchasingService.listSuppliers({ page: 1, pageSize: 100, status: 1 })
+        setSuppliers(result?.items || [])
+      } catch (requestError) {
+        console.error('Failed to load suppliers:', requestError)
+      }
+    }
+
+    loadSuppliers()
+  }, [])
 
   const loadPurchaseOrders = useCallback(async () => {
     setIsLoading(true)
     setError('')
     try {
       const result = await purchasingService.listPurchaseOrders({
-        page,
-        pageSize,
-        search: search.trim() || undefined,
+        page: 1,
+        pageSize: 100,
         status: PurchaseOrderStatus.Approved,
       })
-      setPurchaseOrders(result?.items || [])
-      setTotalItems(result?.totalItems || 0)
-      setTotalPages(Math.max(1, result?.totalPages || 1))
+      setOrders(result?.items || [])
     } catch (requestError) {
       setError(requestError.message)
-      setPurchaseOrders([])
+      setOrders([])
     } finally {
       setIsLoading(false)
     }
-  }, [page, search])
+  }, [])
 
   useEffect(() => {
-    const timer = window.setTimeout(loadPurchaseOrders, 300)
-    return () => window.clearTimeout(timer)
+    loadPurchaseOrders()
   }, [loadPurchaseOrders])
 
   useEffect(() => {
-    setPage(1)
-  }, [search])
+    if (!selectedId) {
+      setSelectedOrder(null)
+      return
+    }
 
-  async function cancelOrder(purchaseOrder) {
-    const reason = window.prompt(`Reason for cancelling ${purchaseOrder.poNumber}:`)
-    if (reason === null) return
+    async function loadOrderDetail() {
+      setIsLoadingDetail(true)
+      try {
+        setSelectedOrder(await purchasingService.getPurchaseOrder(selectedId))
+        setCancelReason('')
+      } catch (requestError) {
+        toast.error(`Unable to load purchase order details: ${requestError.message}`)
+        setSelectedOrder(null)
+      } finally {
+        setIsLoadingDetail(false)
+      }
+    }
 
-    setActionId(purchaseOrder.id)
+    loadOrderDetail()
+  }, [selectedId])
+
+  const filteredOrders = useMemo(() => {
+    const query = search.trim().toLowerCase()
+
+    const filtered = orders.filter((order) => {
+      const orderDate = dayjs(order.orderDate).format('YYYY-MM-DD')
+      const matchesSearch =
+        !query ||
+        order.poNumber?.toLowerCase().includes(query) ||
+        order.supplierName?.toLowerCase().includes(query) ||
+        order.supplierCode?.toLowerCase().includes(query)
+      const matchesSupplier = !supplier || order.supplierId === supplier
+      const matchesFrom = !fromDate || orderDate >= fromDate
+      const matchesTo = !toDate || orderDate <= toDate
+
+      return matchesSearch && matchesSupplier && matchesFrom && matchesTo
+    })
+
+    return [...filtered].sort((a, b) => {
+      const dateA = dayjs(a.orderDate)
+      const dateB = dayjs(b.orderDate)
+      if (!dateA.isSame(dateB)) {
+        return dateB.isAfter(dateA) ? 1 : -1
+      }
+      return b.poNumber.localeCompare(a.poNumber, undefined, { numeric: true, sensitivity: 'base' })
+    })
+  }, [fromDate, orders, search, supplier, toDate])
+
+  const pagedOrders = useMemo(() => {
+    const start = (orderPage - 1) * orderPageSize
+    return filteredOrders.slice(start, start + orderPageSize)
+  }, [filteredOrders, orderPage])
+
+  const pagedItems = useMemo(() => {
+    const lines = selectedOrder?.lines || []
+    const start = (itemPage - 1) * itemPageSize
+    return lines.slice(start, start + itemPageSize)
+  }, [itemPage, selectedOrder])
+
+  useEffect(() => {
+    setOrderPage(1)
+  }, [fromDate, search, supplier, toDate])
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredOrders.length / orderPageSize))
+    if (orderPage > totalPages) setOrderPage(totalPages)
+  }, [filteredOrders.length, orderPage])
+
+  useEffect(() => {
+    if (filteredOrders.length > 0) {
+      const exists = filteredOrders.some((o) => o.id === selectedId)
+      if (!exists) {
+        setSelectedId(filteredOrders[0].id)
+      }
+    } else {
+      setSelectedId(null)
+    }
+  }, [filteredOrders, selectedId])
+
+  useEffect(() => {
+    setItemPage(1)
+  }, [selectedId])
+
+  function clearFilters() {
+    setSearch('')
+    setFromDate('')
+    setToDate('')
+    setSupplier('')
+    setSelectedId(null)
+  }
+
+  async function cancelOrder() {
+    if (!selectedOrder) return
+    if (!cancelReason.trim()) {
+      toast.error('Please enter a reason for cancellation.')
+      return
+    }
+
+    setIsCancelling(true)
     try {
-      await purchasingService.cancelPurchaseOrder(purchaseOrder.id, reason.trim() || null)
-      toast.success(`${purchaseOrder.poNumber} cancelled.`)
+      await purchasingService.cancelPurchaseOrder(selectedOrder.id, cancelReason.trim())
+      toast.success(`${selectedOrder.poNumber} cancelled.`)
+      setSelectedId(null)
+      setSelectedOrder(null)
+      setCancelReason('')
       await loadPurchaseOrders()
     } catch (requestError) {
       toast.error(requestError.message)
     } finally {
-      setActionId('')
+      setIsCancelling(false)
     }
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">
+    <div
+      style={{
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ flexShrink: 0 }}>
+        <h1
+          style={{
+            fontSize: 26,
+            fontWeight: 700,
+            color: 'var(--color-text-primary)',
+            lineHeight: 1.2,
+          }}
+        >
           Approved Purchase Orders
         </h1>
-        <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          View approved purchase orders and cancel an order before it is fully received.
+        <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
+          Review approved order details and cancel orders that have not been fully received.
         </p>
       </div>
 
-      <div className="panel flex items-center gap-3 p-4">
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-dim)]" />
+      <div
+        className="panel"
+        style={{
+          padding: 16,
+          display: 'grid',
+          gridTemplateColumns:
+            'minmax(220px, 1fr) repeat(2, minmax(150px, 180px)) minmax(210px, 280px) auto auto',
+          alignItems: 'end',
+          gap: 12,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <span className="form-label">Search</span>
+          <div style={{ position: 'relative' }}>
+            <Search
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: '50%',
+                width: 16,
+                height: 16,
+                color: 'var(--color-text-dim)',
+                transform: 'translateY(-50%)',
+              }}
+            />
+            <input
+              className="form-input"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="PO number or supplier"
+              style={{ width: '100%', height: 40, paddingLeft: 36 }}
+            />
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <span className="form-label">From Date</span>
           <input
-            className="form-input w-full"
-            style={{ paddingLeft: 36 }}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search approved PO or supplier"
+            type="date"
+            className="form-input"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(event) => setFromDate(event.target.value)}
+            style={{ width: '100%', height: 40, colorScheme: 'dark' }}
           />
         </div>
-        <button type="button" className="icon-button" onClick={loadPurchaseOrders} title="Refresh">
-          <RefreshCw className="h-4 w-4" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <span className="form-label">To Date</span>
+          <input
+            type="date"
+            className="form-input"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(event) => setToDate(event.target.value)}
+            style={{ width: '100%', height: 40, colorScheme: 'dark' }}
+          />
+        </div>
+        <div style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 7 }}>
+          <span className="form-label">Supplier</span>
+          <select
+            className="form-input"
+            value={supplier}
+            onChange={(event) => setSupplier(event.target.value)}
+            style={{ width: '100%', height: 40 }}
+          >
+            <option value="">All suppliers</option>
+            {suppliers.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.code} - {item.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={clearFilters}
+          style={{ height: 40, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7 }}
+        >
+          <X style={{ width: 15, height: 15 }} />
+          Clear
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          onClick={loadPurchaseOrders}
+          disabled={isLoading}
+          title="Refresh approved purchase orders"
+          style={{ width: 40, height: 40 }}
+        >
+          <RefreshCw style={{ width: 16, height: 16 }} />
         </button>
       </div>
 
-      <div className="panel overflow-hidden">
-        {error ? (
-          <div className="p-8 text-sm text-[var(--color-danger)]">{error}</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>PO Number</th>
-                  <th>Supplier</th>
-                  <th>Order Date</th>
-                  <th>Expected Delivery</th>
-                  <th>Status</th>
-                  <th>Items</th>
-                  <th className="text-right">Total</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={8} className="p-8 text-[var(--color-text-muted)]">
-                      Loading approved purchase orders...
-                    </td>
-                  </tr>
-                ) : purchaseOrders.length ? (
-                  purchaseOrders.map((purchaseOrder) => (
-                    <tr key={purchaseOrder.id}>
-                      <td className="mono font-semibold text-[var(--color-amber)]">
-                        {purchaseOrder.poNumber}
-                      </td>
-                      <td>
-                        <div className="font-medium text-[var(--color-text-primary)]">
-                          {purchaseOrder.supplierName}
-                        </div>
-                        <div className="text-xs text-[var(--color-text-dim)]">
-                          {purchaseOrder.supplierCode}
-                        </div>
-                      </td>
-                      <td>{dayjs(purchaseOrder.orderDate).format('DD MMM YYYY')}</td>
-                      <td>
-                        {purchaseOrder.expectedDeliveryDate
-                          ? dayjs(purchaseOrder.expectedDeliveryDate).format('DD MMM YYYY')
-                          : '-'}
-                      </td>
-                      <td>
-                        <StatusBadge status={purchaseOrder.statusLabel || 'Approved'} />
-                      </td>
-                      <td>{purchaseOrder.lineCount}</td>
-                      <td className="mono text-right font-medium">
-                        {formatMoney(purchaseOrder.totalAmount)}
-                      </td>
-                      <td className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {canCancel ? (
-                            <button
-                              type="button"
-                              className="button-danger"
-                              disabled={actionId === purchaseOrder.id}
-                              onClick={() => cancelOrder(purchaseOrder)}
-                            >
-                              Cancel PO
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={8} className="p-10 text-center text-[var(--color-text-muted)]">
-                      No approved purchase orders found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(320px, 380px) minmax(0, 1fr)',
+          gap: 16,
+          alignItems: 'stretch',
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+        }}
+      >
+        <section
+          className="panel"
+          style={{
+            padding: 12,
+            display: 'grid',
+            gridTemplateRows: 'auto minmax(0, 1fr) auto',
+            minHeight: 0,
+            height: '100%',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              padding: '4px 4px 14px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 8,
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: 'var(--color-green)',
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  border: '1px solid rgba(34, 197, 94, 0.2)',
+                }}
+              >
+                <CheckCircle2 style={{ width: 17, height: 17 }} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                  Approved orders
+                </h2>
+                <p style={{ marginTop: 2, fontSize: 11, color: 'var(--color-text-dim)' }}>
+                  Select an order to view details
+                </p>
+              </div>
+            </div>
+            <span
+              style={{
+                padding: '4px 9px',
+                borderRadius: 999,
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'var(--color-green)',
+                background: 'rgba(34, 197, 94, 0.1)',
+              }}
+            >
+              {filteredOrders.length}
+            </span>
           </div>
-        )}
-      </div>
 
-      <div className="flex items-center justify-between gap-4 text-sm text-[var(--color-text-muted)]">
-        <span>{totalItems} approved purchase orders</span>
-        <div className="flex items-center gap-3">
-          <button
-            className="button-secondary"
-            disabled={page <= 1}
-            onClick={() => setPage((current) => current - 1)}
-          >
-            Previous
-          </button>
-          <span>
-            Page {page} of {totalPages}
-          </span>
-          <button
-            className="button-secondary"
-            disabled={page >= totalPages}
-            onClick={() => setPage((current) => current + 1)}
-          >
-            Next
-          </button>
-        </div>
+          <div style={{ minHeight: 0, overflowY: 'auto', paddingRight: 2 }}>
+            {error ? (
+              <div className="p-6 text-sm text-danger">{error}</div>
+            ) : isLoading ? (
+              <div
+                style={{
+                  height: '100%',
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: 'var(--color-text-muted)',
+                  fontSize: 13,
+                }}
+              >
+                Loading approved orders...
+              </div>
+            ) : filteredOrders.length ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {pagedOrders.map((order) => {
+                  const isSelected = order.id === selectedId
+
+                  return (
+                    <button
+                      type="button"
+                      key={order.id}
+                      onClick={() => setSelectedId(order.id)}
+                      style={{
+                        width: '100%',
+                        padding: 13,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 11,
+                        textAlign: 'left',
+                        borderRadius: 8,
+                        border: isSelected
+                          ? '1px solid color-mix(in srgb, var(--color-green, #22c55e) 45%, transparent)'
+                          : '1px solid var(--color-border)',
+                        background: isSelected
+                          ? 'color-mix(in srgb, var(--color-green, #22c55e) 10%, transparent)'
+                          : 'var(--color-bg-elevated)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                        }}
+                      >
+                        <span
+                          className="mono"
+                          style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-amber)' }}
+                        >
+                          {order.poNumber}
+                        </span>
+                        <ChevronRight
+                          style={{
+                            width: 15,
+                            height: 15,
+                            color: isSelected ? 'var(--color-green)' : 'var(--color-text-dim)',
+                          }}
+                        />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          title={order.supplierName}
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: 'var(--color-text-primary)',
+                          }}
+                        >
+                          {order.supplierName}
+                        </div>
+                        <div
+                          className="mono"
+                          style={{ marginTop: 3, fontSize: 10, color: 'var(--color-text-dim)' }}
+                        >
+                          {order.supplierCode}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          width: '100%',
+                          paddingTop: 10,
+                          borderTop: '1px solid var(--color-border)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            fontSize: 11,
+                            color: 'var(--color-text-muted)',
+                          }}
+                        >
+                          <CalendarDays style={{ width: 13, height: 13 }} />
+                          {dayjs(order.orderDate).format('DD MMM YYYY')}
+                        </span>
+                        <span
+                          className="mono"
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: 'var(--color-text-primary)',
+                          }}
+                        >
+                          {formatMoney(order.totalAmount)}
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div
+                style={{
+                  height: '100%',
+                  minHeight: 260,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 10,
+                  color: 'var(--color-text-muted)',
+                }}
+              >
+                <CheckCircle2 style={{ width: 34, height: 34, color: 'var(--color-text-dim)' }} />
+                <span style={{ fontSize: 13 }}>No approved POs found.</span>
+              </div>
+            )}
+          </div>
+
+          <SimplePagination
+            page={orderPage}
+            pageSize={orderPageSize}
+            totalItems={filteredOrders.length}
+            onPageChange={setOrderPage}
+            itemLabel="orders"
+          />
+        </section>
+
+        <section
+          className="panel"
+          style={{ padding: 16, minWidth: 0, minHeight: 0, height: '100%', overflow: 'hidden' }}
+        >
+          {isLoadingDetail ? (
+            <div className="h-full flex items-center justify-center text-text-muted">
+              Loading purchase order details...
+            </div>
+          ) : selectedOrder ? (
+            <div
+              style={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                minHeight: 0,
+              }}
+            >
+              <div
+                style={{
+                  padding: 16,
+                  borderRadius: 8,
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-bg-elevated)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 24,
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span
+                      className="mono"
+                      style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-amber)' }}
+                    >
+                      {selectedOrder.poNumber}
+                    </span>
+                    <span
+                      style={{
+                        padding: '4px 9px',
+                        borderRadius: 999,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: 'var(--color-green)',
+                        background: 'rgba(34, 197, 94, 0.1)',
+                        border: '1px solid rgba(34, 197, 94, 0.2)',
+                      }}
+                    >
+                      APPROVED
+                    </span>
+                  </div>
+                  <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    Approved order ready for receiving and supplier fulfilment.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Building2 style={{ width: 16, height: 16, color: 'var(--color-text-dim)' }} />
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--color-text-dim)' }}>SUPPLIER</div>
+                      <div
+                        style={{
+                          marginTop: 2,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        {selectedOrder.supplierName || 'Not specified'}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <CalendarDays
+                      style={{ width: 16, height: 16, color: 'var(--color-text-dim)' }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--color-text-dim)' }}>EXPECTED</div>
+                      <div
+                        style={{
+                          marginTop: 2,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        {selectedOrder.expectedDeliveryDate
+                          ? dayjs(selectedOrder.expectedDeliveryDate).format('DD MMM YYYY')
+                          : 'Not specified'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  minHeight: 160,
+                  overflow: 'hidden',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                }}
+              >
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    borderBottom: '1px solid var(--color-border)',
+                  }}
+                >
+                  <Package style={{ width: 15, height: 15, color: 'var(--color-teal)' }} />
+                  <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                    Order items
+                  </h3>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                    {selectedOrder.lines?.length || 0} item
+                    {selectedOrder.lines?.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                  <table className="data-table product-table-compact">
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th style={{ textAlign: 'right' }}>Base Qty</th>
+                        <th style={{ textAlign: 'right' }}>Smallest Qty</th>
+                        <th>Smallest UOM</th>
+                        <th style={{ textAlign: 'right' }}>Cost / Smallest</th>
+                        <th style={{ textAlign: 'right' }}>Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedItems.map((line) => (
+                        <tr key={line.id}>
+                          <td>
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'flex-start',
+                                gap: 3,
+                              }}
+                            >
+                              <span className="product-sku-badge mono">{line.productSku}</span>
+                              <span className="product-info-sub">{line.productName}</span>
+                            </div>
+                          </td>
+                          <td className="mono text-right text-sm">
+                            {Number(line.qtyBaseUnit).toLocaleString(undefined, {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 4,
+                            })}
+                          </td>
+                          <td className="mono text-right text-sm">
+                            {Number(line.qtySmallestUnit).toLocaleString(undefined, {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 4,
+                            })}
+                          </td>
+                          <td>
+                            <span className="uom-badge">{line.smallestUomCode}</span>
+                          </td>
+                          <td className="mono text-right font-semibold text-sm">
+                            {formatMoney(line.unitCostSmallest)}
+                          </td>
+                          <td className="mono text-right font-semibold text-sm">
+                            {formatMoney(line.lineSubtotal)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ padding: '0 12px 8px' }}>
+                  <SimplePagination
+                    page={itemPage}
+                    pageSize={itemPageSize}
+                    totalItems={selectedOrder.lines?.length || 0}
+                    onPageChange={setItemPage}
+                    itemLabel="items"
+                  />
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) 330px',
+                  gap: 14,
+                  alignItems: 'stretch',
+                }}
+              >
+                <div
+                  style={{
+                    padding: 14,
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 9,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <FileText style={{ width: 15, height: 15, color: 'var(--color-text-dim)' }} />
+                    <span className="form-label">Cancellation reason</span>
+                  </div>
+                  <textarea
+                    className="form-input"
+                    rows={3}
+                    placeholder="Required only when cancelling this approved purchase order."
+                    value={cancelReason}
+                    onChange={(event) => setCancelReason(event.target.value)}
+                    disabled={!canCancel}
+                    style={{ width: '100%', height: 62, resize: 'none' }}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    padding: 14,
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 8,
+                    background: 'var(--color-bg-elevated)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-muted">Sub total</span>
+                    <span className="mono">{formatMoney(selectedOrder.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-muted">
+                      VAT ({Number(selectedOrder.vatRate || 0)}%)
+                    </span>
+                    <span className="mono">{formatMoney(selectedOrder.vatAmount)}</span>
+                  </div>
+                  <div
+                    style={{
+                      paddingTop: 10,
+                      marginTop: 3,
+                      borderTop: '1px solid var(--color-border)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 16,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: 'var(--color-text-primary)',
+                      }}
+                    >
+                      Grand total
+                    </span>
+                    <span
+                      className="mono"
+                      style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-amber)' }}
+                    >
+                      {formatMoney(selectedOrder.totalAmount)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  paddingTop: 14,
+                  borderTop: '1px solid var(--color-border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                }}
+              >
+                <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                  Approved orders remain available for receiving until cancelled or fully received.
+                </span>
+                {canCancel ? (
+                  <button
+                    type="button"
+                    className="button-danger"
+                    onClick={cancelOrder}
+                    disabled={isCancelling}
+                    style={{
+                      height: 40,
+                      padding: '0 18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <X style={{ width: 15, height: 15 }} />
+                    {isCancelling ? 'Cancelling...' : 'Cancel Purchase Order'}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                    You do not have permission to cancel POs.
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                height: '100%',
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 12,
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: 'var(--color-text-dim)',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <CheckCircle2 style={{ width: 25, height: 25 }} />
+              </div>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                  Select an approved purchase order
+                </p>
+                <p style={{ marginTop: 5, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  Choose an order to review its supplier, products, delivery date, and totals.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )
