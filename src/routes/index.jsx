@@ -228,6 +228,8 @@ export const router = createBrowserRouter([
           PERMISSIONS.masterData.orgManage,
           PERMISSIONS.masterData.territoryManage,
           PERMISSIONS.masterData.businessUnitManage,
+          PERMISSIONS.masterData.taxRead,
+          PERMISSIONS.masterData.taxManage,
         ]),
       },
       {

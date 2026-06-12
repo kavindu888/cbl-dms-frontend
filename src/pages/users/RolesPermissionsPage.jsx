@@ -79,7 +79,6 @@ export default function RolesPermissionsPage() {
     }
   }, [page, totalPages])
 
-
   const selectedRole = rolesList.find((role) => role.id === selectedRoleId)
   const permissionCount = permissionGroups.reduce(
     (total, group) => total + group.permissions.length,
