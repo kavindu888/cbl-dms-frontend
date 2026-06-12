@@ -16,6 +16,7 @@ export const PERMISSIONS = {
   },
   purchasing: {
     poCreate: 'purchasing:po:create',
+    poApprove: 'purchasing:po:approve',
     poRead: 'purchasing:po:read',
     supplierManage: 'purchasing:supplier:manage',
     grnCreate: 'purchasing:grn:create',

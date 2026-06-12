@@ -16,8 +16,10 @@ import MasterCustomerListPage from '@pages/master/CustomerListPage'
 import Product from '@pages/master/Product'
 import SalesRouteListPage from '@pages/master/SalesRouteListPage'
 import UnitOfMeasureListPage from '@pages/master/UnitOfMeasureListPage'
-import PurchaseOrderDetailPage from '@pages/purchasing/PurchaseOrderDetailPage'
-import PurchaseOrderListPage from '@pages/purchasing/PurchaseOrderListPage'
+import AllPurchaseOrdersPage from '@pages/purchasing/AllPurchaseOrdersPage'
+import ApprovedPurchaseOrdersPage from '@pages/purchasing/ApprovedPurchaseOrdersPage'
+import PurchaseOrderApprovalPage from '@pages/purchasing/PurchaseOrderApprovalPage'
+import PlacePurchaseOrderPage from '@pages/purchasing/PlacePurchaseOrderPage'
 import PurchaseReturnsPage from '@pages/purchasing/PurchaseReturnsPage'
 import ReceiptEntryPage from '@pages/purchasing/ReceiptEntryPage'
 import SupplierListPage from '@pages/master/SupplierListPage'
@@ -66,7 +68,27 @@ export const router = createBrowserRouter([
       },
       {
         path: 'purchasing',
-        element: requirePermission(<PurchaseOrderListPage />, PERMISSIONS.purchasing.poRead),
+        element: <Navigate to="/purchasing/place-order" replace />,
+      },
+      {
+        path: 'purchasing/place-order',
+        element: requirePermission(<PlacePurchaseOrderPage />, PERMISSIONS.purchasing.poCreate),
+      },
+      {
+        path: 'purchasing/approvals',
+        element: requirePermission(<PurchaseOrderApprovalPage />, PERMISSIONS.purchasing.poRead),
+      },
+      {
+        path: 'purchasing/approved',
+        element: requirePermission(<ApprovedPurchaseOrdersPage />, PERMISSIONS.purchasing.poRead),
+      },
+      {
+        path: 'purchasing/all-orders',
+        element: requirePermission(<AllPurchaseOrdersPage />, PERMISSIONS.purchasing.poRead),
+      },
+      {
+        path: 'purchasing/orders',
+        element: <Navigate to="/purchasing/all-orders" replace />,
       },
       {
         path: 'purchasing/suppliers',
@@ -75,10 +97,6 @@ export const router = createBrowserRouter([
       {
         path: 'purchasing/returns',
         element: requirePermission(<PurchaseReturnsPage />, PERMISSIONS.purchasing.poRead),
-      },
-      {
-        path: 'purchasing/:id',
-        element: requirePermission(<PurchaseOrderDetailPage />, PERMISSIONS.purchasing.poRead),
       },
       {
         path: 'purchasing/:id/receive',

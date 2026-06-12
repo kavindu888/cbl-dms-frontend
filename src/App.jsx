@@ -17,8 +17,10 @@ import MasterCustomerListPage from './pages/master/CustomerListPage'
 import Product from './pages/master/Product'
 import SalesRouteListPage from './pages/master/SalesRouteListPage'
 import UnitOfMeasureListPage from './pages/master/UnitOfMeasureListPage'
-import PurchaseOrderDetailPage from './pages/purchasing/PurchaseOrderDetailPage'
-import PurchaseOrderListPage from './pages/purchasing/PurchaseOrderListPage'
+import AllPurchaseOrdersPage from './pages/purchasing/AllPurchaseOrdersPage'
+import ApprovedPurchaseOrdersPage from './pages/purchasing/ApprovedPurchaseOrdersPage'
+import PlacePurchaseOrderPage from './pages/purchasing/PlacePurchaseOrderPage'
+import PurchaseOrderApprovalPage from './pages/purchasing/PurchaseOrderApprovalPage'
 import PurchaseReturnsPage from './pages/purchasing/PurchaseReturnsPage'
 import ReceiptEntryPage from './pages/purchasing/ReceiptEntryPage'
 import SupplierListPage from './pages/master/SupplierListPage'
@@ -85,7 +87,27 @@ export const router = createBrowserRouter([
       },
       {
         path: 'purchasing',
-        element: <PurchaseOrderListPage />,
+        element: <Navigate to="/purchasing/place-order" replace />,
+      },
+      {
+        path: 'purchasing/place-order',
+        element: <PlacePurchaseOrderPage />,
+      },
+      {
+        path: 'purchasing/approvals',
+        element: <PurchaseOrderApprovalPage />,
+      },
+      {
+        path: 'purchasing/approved',
+        element: <ApprovedPurchaseOrdersPage />,
+      },
+      {
+        path: 'purchasing/all-orders',
+        element: <AllPurchaseOrdersPage />,
+      },
+      {
+        path: 'purchasing/orders',
+        element: <Navigate to="/purchasing/all-orders" replace />,
       },
       {
         path: 'purchasing/suppliers',
@@ -94,10 +116,6 @@ export const router = createBrowserRouter([
       {
         path: 'purchasing/returns',
         element: <PurchaseReturnsPage />,
-      },
-      {
-        path: 'purchasing/:id',
-        element: <PurchaseOrderDetailPage />,
       },
       {
         path: 'purchasing/:id/receive',
