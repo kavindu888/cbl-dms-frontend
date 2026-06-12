@@ -11,6 +11,8 @@ export const PERMISSIONS = {
     orgManage: 'masterdata:org:manage',
     territoryManage: 'masterdata:territory:manage',
     businessUnitManage: 'masterdata:businessunit:manage',
+    taxRead: 'masterdata:tax:read',
+    taxManage: 'masterdata:tax:manage',
     uomManage: 'masterdata:uom:manage',
     salesRouteManage: 'masterdata:salesroute:manage',
   },
