@@ -668,11 +668,10 @@ export default function PurchaseOrderApprovalPage() {
                     <thead>
                       <tr>
                         <th>Item</th>
-                        <th style={{ textAlign: 'right' }}>Base Qty</th>
+                        <th style={{ textAlign: 'right' }}>Ordered Qty</th>
                         <th style={{ textAlign: 'right' }}>Smallest Qty</th>
-                        <th>Smallest UOM</th>
-                        <th style={{ textAlign: 'right' }}>Cost / Smallest</th>
-                        <th style={{ textAlign: 'right' }}>Subtotal</th>
+                        <th style={{ textAlign: 'right' }}>Unit Cost</th>
+                        <th style={{ textAlign: 'right' }}>Line Total</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -691,23 +690,27 @@ export default function PurchaseOrderApprovalPage() {
                               <span className="product-info-sub">{line.productName}</span>
                             </div>
                           </td>
-                          <td className="mono text-right text-sm">
-                            {Number(line.qtyBaseUnit).toLocaleString(undefined, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 4,
-                            })}
+                          <td className="text-right">
+                            <span className="mono text-sm">
+                              {Number(line.qtyBaseUnit).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 4,
+                              })}
+                            </span>{' '}
+                            <span className="uom-badge">{line.baseUomCode}</span>
                           </td>
-                          <td className="mono text-right text-sm">
-                            {Number(line.qtySmallestUnit).toLocaleString(undefined, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 4,
-                            })}
-                          </td>
-                          <td>
+                          <td className="text-right">
+                            <span className="mono text-sm">
+                              {Number(line.qtySmallestUnit).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 4,
+                              })}
+                            </span>{' '}
                             <span className="uom-badge">{line.smallestUomCode}</span>
                           </td>
                           <td className="mono text-right font-semibold text-sm">
                             {formatMoney(line.unitCostSmallest)}
+                            <span className="product-info-sub"> / {line.smallestUomCode}</span>
                           </td>
                           <td className="mono text-right font-semibold text-sm">
                             {formatMoney(line.lineSubtotal)}

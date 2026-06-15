@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
@@ -38,23 +38,32 @@ function formatMoney(value) {
   })}`
 }
 
-function getUnitsPerBigBox(product) {
-  if (!product) return 0
+function getUomDerivation(product) {
+  if (!product) return { unitsPerBase: 0, smallestUom: '' }
 
-  let currentUom = product.uomBase
-  let unitsPerBox = 1
+  let currentUom = product.uomBase?.trim().toUpperCase()
+  let unitsPerBase = 1
   const visited = new Set([currentUom])
 
   for (let index = 0; index < 5; index += 1) {
-    const conversion = product.uomConversions?.find((item) => item.fromUom === currentUom)
-    if (!conversion || conversion.factor <= 0 || visited.has(conversion.toUom)) break
+    const conversions = product.uomConversions?.filter(
+      (item) => item.fromUom?.trim().toUpperCase() === currentUom
+    )
+    if (conversions?.length !== 1) break
 
-    unitsPerBox *= Number(conversion.factor)
-    currentUom = conversion.toUom
-    visited.add(currentUom)
+    const conversion = conversions[0]
+    const nextUom = conversion?.toUom?.trim().toUpperCase()
+    if (!conversion || conversion.factor <= 0 || visited.has(nextUom)) break
+
+    unitsPerBase *= Number(conversion.factor)
+    currentUom = nextUom
+    visited.add(nextUom)
   }
 
-  return unitsPerBox
+  return {
+    unitsPerBase,
+    smallestUom: currentUom || product.uomBase || '',
+  }
 }
 
 export default function PlacePurchaseOrderPage() {
@@ -62,6 +71,11 @@ export default function PlacePurchaseOrderPage() {
   const location = useLocation()
   const editPoId = location.state?.editPoId
   const [header, setHeader] = useState(emptyHeader)
+
+  const supplierRef = useRef(null)
+  const orderDateRef = useRef(null)
+  const expectedDeliveryRef = useRef(null)
+  const notesRef = useRef(null)
   const [lines, setLines] = useState([createEmptyLine()])
   const [suppliers, setSuppliers] = useState([])
   const [products, setProducts] = useState([])
@@ -197,10 +211,9 @@ export default function PlacePurchaseOrderPage() {
 
     const subtotal = lines.reduce((sum, line) => {
       const product = products.find((item) => item.id === line.productId)
+      const { unitsPerBase } = getUomDerivation(product)
       const lineSubtotal =
-        Number(line.bigBoxQty || 0) *
-        getUnitsPerBigBox(product) *
-        Number(line.unitCostSmallest || 0)
+        Number(line.bigBoxQty || 0) * unitsPerBase * Number(line.unitCostSmallest || 0)
 
       return sum + lineSubtotal
     }, 0)
@@ -437,7 +450,8 @@ export default function PlacePurchaseOrderPage() {
                 Purchase Order Products
               </h2>
               <p style={{ marginTop: 3, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                Enter big-box quantities and the cost per smallest unit.
+                Enter the quantity in the product's base UOM. Converted quantities and totals are
+                previews; the backend recalculates them when the order is saved.
               </p>
             </div>
             <button
@@ -457,9 +471,10 @@ export default function PlacePurchaseOrderPage() {
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th>Big Box UOM</th>
-                  <th>Big Box Qty</th>
-                  <th>Smallest Unit Cost</th>
+                  <th>Base UOM</th>
+                  <th>Ordered Qty</th>
+                  <th style={{ textAlign: 'right' }}>Smallest Qty</th>
+                  <th>Cost / Smallest UOM</th>
                   <th style={{ textAlign: 'right' }}>Estimated Subtotal</th>
                   <th aria-label="Actions" />
                 </tr>
@@ -467,10 +482,9 @@ export default function PlacePurchaseOrderPage() {
               <tbody>
                 {pagedLines.map((line) => {
                   const product = products.find((item) => item.id === line.productId)
-                  const subtotal =
-                    Number(line.bigBoxQty || 0) *
-                    getUnitsPerBigBox(product) *
-                    Number(line.unitCostSmallest || 0)
+                  const { unitsPerBase, smallestUom } = getUomDerivation(product)
+                  const smallestQty = Number(line.bigBoxQty || 0) * unitsPerBase
+                  const subtotal = smallestQty * Number(line.unitCostSmallest || 0)
 
                   return (
                     <tr key={line.key}>
@@ -483,6 +497,9 @@ export default function PlacePurchaseOrderPage() {
                           }
                           disabled={isLoading || isSaving}
                           style={{ height: 38, fontSize: 13 }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.preventDefault()
+                          }}
                         >
                           <option value="">
                             {isLoading
@@ -513,7 +530,19 @@ export default function PlacePurchaseOrderPage() {
                             updateLine(line.key, 'bigBoxQty', event.target.value)
                           }
                           disabled={isSaving}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.preventDefault()
+                          }}
                         />
+                      </td>
+                      <td className="text-right">
+                        <span className="mono">
+                          {smallestQty.toLocaleString(undefined, {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 4,
+                          })}
+                        </span>{' '}
+                        {smallestUom ? <span className="uom-badge">{smallestUom}</span> : null}
                       </td>
                       <td>
                         <input
@@ -527,7 +556,15 @@ export default function PlacePurchaseOrderPage() {
                             updateLine(line.key, 'unitCostSmallest', event.target.value)
                           }
                           disabled={isSaving}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.preventDefault()
+                          }}
                         />
+                        {smallestUom ? (
+                          <div className="product-info-sub" style={{ marginTop: 4 }}>
+                            per {smallestUom}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="mono text-right font-medium">{formatMoney(subtotal)}</td>
                       <td className="text-right">
@@ -601,12 +638,19 @@ export default function PlacePurchaseOrderPage() {
           <label>
             <span className="form-label">Supplier *</span>
             <select
+              ref={supplierRef}
               className="form-input w-full"
               name="supplierId"
               value={header.supplierId}
               onChange={updateHeader}
               disabled={isLoading || isSaving}
               style={{ height: 40 }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  orderDateRef.current?.focus()
+                }
+              }}
             >
               {suppliers.length !== 1 && (
                 <option value="">
@@ -629,6 +673,7 @@ export default function PlacePurchaseOrderPage() {
             <label>
               <span className="form-label">Order Date</span>
               <input
+                ref={orderDateRef}
                 className="form-input w-full"
                 type="date"
                 name="orderDate"
@@ -636,12 +681,19 @@ export default function PlacePurchaseOrderPage() {
                 onChange={updateHeader}
                 disabled={isSaving}
                 style={{ height: 40 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    expectedDeliveryRef.current?.focus()
+                  }
+                }}
               />
             </label>
 
             <label>
               <span className="form-label">Expected Delivery</span>
               <input
+                ref={expectedDeliveryRef}
                 className="form-input w-full"
                 type="date"
                 name="expectedDeliveryDate"
@@ -650,6 +702,12 @@ export default function PlacePurchaseOrderPage() {
                 onChange={updateHeader}
                 disabled={isSaving}
                 style={{ height: 40 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    notesRef.current?.focus()
+                  }
+                }}
               />
             </label>
           </div>
@@ -657,6 +715,7 @@ export default function PlacePurchaseOrderPage() {
           <label style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 100 }}>
             <span className="form-label">Notes</span>
             <textarea
+              ref={notesRef}
               className="form-input w-full"
               name="notes"
               value={header.notes}
@@ -664,6 +723,12 @@ export default function PlacePurchaseOrderPage() {
               placeholder="Optional purchasing instructions"
               disabled={isSaving}
               style={{ resize: 'none', paddingTop: 10, flex: 1, minHeight: 60 }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  placePurchaseOrder(e)
+                }
+              }}
             />
           </label>
 

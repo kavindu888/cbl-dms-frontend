@@ -33,7 +33,6 @@ const rangeOptions = [
   { value: 'today', label: 'Today' },
   { value: 'month', label: 'This month' },
   { value: 'year', label: 'This year' },
-  { value: 'custom', label: 'Custom range' },
 ]
 
 function formatMoney(value) {
@@ -82,9 +81,9 @@ export default function AllPurchaseOrdersPage() {
   const [orders, setOrders] = useState([])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
-  const [dateRange, setDateRange] = useState('all')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [dateRange, setDateRange] = useState('month')
+  const [fromDate, setFromDate] = useState(dayjs().startOf('month').format('YYYY-MM-DD'))
+  const [toDate, setToDate] = useState(dayjs().endOf('month').format('YYYY-MM-DD'))
   const [selectedId, setSelectedId] = useState(null)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -301,6 +300,11 @@ export default function AllPurchaseOrdersPage() {
                 {option.label}
               </option>
             ))}
+            {dateRange === 'custom' && (
+              <option value="custom" hidden>
+                Custom range
+              </option>
+            )}
           </select>
         </FilterField>
 
@@ -661,11 +665,10 @@ export default function AllPurchaseOrdersPage() {
                     <thead>
                       <tr>
                         <th>Item</th>
-                        <th style={{ textAlign: 'right' }}>Base Qty</th>
+                        <th style={{ textAlign: 'right' }}>Ordered Qty</th>
                         <th style={{ textAlign: 'right' }}>Smallest Qty</th>
-                        <th>Smallest UOM</th>
-                        <th style={{ textAlign: 'right' }}>Cost / Smallest</th>
-                        <th style={{ textAlign: 'right' }}>Subtotal</th>
+                        <th style={{ textAlign: 'right' }}>Unit Cost</th>
+                        <th style={{ textAlign: 'right' }}>Line Total</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -684,23 +687,27 @@ export default function AllPurchaseOrdersPage() {
                               <span className="product-info-sub">{line.productName}</span>
                             </div>
                           </td>
-                          <td className="mono text-right text-sm">
-                            {Number(line.qtyBaseUnit).toLocaleString(undefined, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 4,
-                            })}
+                          <td className="text-right">
+                            <span className="mono text-sm">
+                              {Number(line.qtyBaseUnit).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 4,
+                              })}
+                            </span>{' '}
+                            <span className="uom-badge">{line.baseUomCode}</span>
                           </td>
-                          <td className="mono text-right text-sm">
-                            {Number(line.qtySmallestUnit).toLocaleString(undefined, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 4,
-                            })}
-                          </td>
-                          <td>
+                          <td className="text-right">
+                            <span className="mono text-sm">
+                              {Number(line.qtySmallestUnit).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 4,
+                              })}
+                            </span>{' '}
                             <span className="uom-badge">{line.smallestUomCode}</span>
                           </td>
                           <td className="mono text-right font-semibold text-sm">
                             {formatMoney(line.unitCostSmallest)}
+                            <span className="product-info-sub"> / {line.smallestUomCode}</span>
                           </td>
                           <td className="mono text-right font-semibold text-sm">
                             {formatMoney(line.lineSubtotal)}
