@@ -614,14 +614,16 @@ export default function ApprovedPurchaseOrdersPage() {
                 </div>
               </div>
 
+              {/* Lines Table */}
               <div
                 style={{
-                  minHeight: 0,
+                  minHeight: 160,
                   overflow: 'hidden',
                   border: '1px solid var(--color-border)',
                   borderRadius: 8,
                   display: 'flex',
                   flexDirection: 'column',
+                  flex: 1,
                 }}
               >
                 <div
@@ -642,61 +644,63 @@ export default function ApprovedPurchaseOrdersPage() {
                     {selectedOrder.lines?.length === 1 ? '' : 's'}
                   </span>
                 </div>
-                <table className="data-table product-table-compact">
-                  <thead>
-                    <tr>
-                      <th>Item</th>
-                      <th style={{ textAlign: 'right' }}>Ordered Qty</th>
-                      <th style={{ textAlign: 'right' }}>Smallest Qty</th>
-                      <th style={{ textAlign: 'right' }}>Unit Cost</th>
-                      <th style={{ textAlign: 'right' }}>Line Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pagedItems.map((line) => (
-                      <tr key={line.id}>
-                        <td>
-                          <div
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'flex-start',
-                              gap: 3,
-                            }}
-                          >
-                            <span className="product-sku-badge mono">{line.productSku}</span>
-                            <span className="product-info-sub">{line.productName}</span>
-                          </div>
-                        </td>
-                        <td className="text-right">
-                          <span className="mono text-sm">
-                            {Number(line.qtyBaseUnit).toLocaleString(undefined, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 4,
-                            })}
-                          </span>{' '}
-                          <span className="uom-badge">{line.baseUomCode}</span>
-                        </td>
-                        <td className="text-right">
-                          <span className="mono text-sm">
-                            {Number(line.qtySmallestUnit).toLocaleString(undefined, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 4,
-                            })}
-                          </span>{' '}
-                          <span className="uom-badge">{line.smallestUomCode}</span>
-                        </td>
-                        <td className="mono text-right font-semibold text-sm">
-                          {formatMoney(line.unitCostSmallest)}
-                          <span className="product-info-sub"> / {line.smallestUomCode}</span>
-                        </td>
-                        <td className="mono text-right font-semibold text-sm">
-                          {formatMoney(line.lineSubtotal)}
-                        </td>
+                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                  <table className="data-table product-table-compact">
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th style={{ textAlign: 'right' }}>Ordered Qty</th>
+                        <th style={{ textAlign: 'right' }}>Smallest Qty</th>
+                        <th style={{ textAlign: 'right' }}>Unit Cost</th>
+                        <th style={{ textAlign: 'right' }}>Line Total</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {pagedItems.map((line) => (
+                        <tr key={line.id}>
+                          <td>
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'flex-start',
+                                gap: 3,
+                              }}
+                            >
+                              <span className="product-sku-badge mono">{line.productSku}</span>
+                              <span className="product-info-sub">{line.productName}</span>
+                            </div>
+                          </td>
+                          <td className="text-right">
+                            <span className="mono text-sm">
+                              {Number(line.qtyBaseUnit).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 4,
+                              })}
+                            </span>{' '}
+                            <span className="uom-badge">{line.baseUomCode}</span>
+                          </td>
+                          <td className="text-right">
+                            <span className="mono text-sm">
+                              {Number(line.qtySmallestUnit).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 4,
+                              })}
+                            </span>{' '}
+                            <span className="uom-badge">{line.smallestUomCode}</span>
+                          </td>
+                          <td className="mono text-right font-semibold text-sm">
+                            {formatMoney(line.unitCostSmallest)}
+                            <span className="product-info-sub"> / {line.smallestUomCode}</span>
+                          </td>
+                          <td className="mono text-right font-semibold text-sm">
+                            {formatMoney(line.lineSubtotal)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <div style={{ padding: '0 12px 8px' }}>
                   <SimplePagination
                     page={itemPage}
