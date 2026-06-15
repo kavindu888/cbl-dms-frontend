@@ -108,7 +108,7 @@ export default function ApprovedPurchaseOrdersPage() {
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase()
 
-    const filtered = orders.filter((order) => {
+    return orders.filter((order) => {
       const orderDate = dayjs(order.orderDate).format('YYYY-MM-DD')
       const matchesSearch =
         !query ||
@@ -120,15 +120,6 @@ export default function ApprovedPurchaseOrdersPage() {
       const matchesTo = !toDate || orderDate <= toDate
 
       return matchesSearch && matchesSupplier && matchesFrom && matchesTo
-    })
-
-    return [...filtered].sort((a, b) => {
-      const dateA = dayjs(a.orderDate)
-      const dateB = dayjs(b.orderDate)
-      if (!dateA.isSame(dateB)) {
-        return dateB.isAfter(dateA) ? 1 : -1
-      }
-      return b.poNumber.localeCompare(a.poNumber, undefined, { numeric: true, sensitivity: 'base' })
     })
   }, [fromDate, orders, search, supplier, toDate])
 
@@ -151,17 +142,6 @@ export default function ApprovedPurchaseOrdersPage() {
     const totalPages = Math.max(1, Math.ceil(filteredOrders.length / orderPageSize))
     if (orderPage > totalPages) setOrderPage(totalPages)
   }, [filteredOrders.length, orderPage])
-
-  useEffect(() => {
-    if (filteredOrders.length > 0) {
-      const exists = filteredOrders.some((o) => o.id === selectedId)
-      if (!exists) {
-        setSelectedId(filteredOrders[0].id)
-      }
-    } else {
-      setSelectedId(null)
-    }
-  }, [filteredOrders, selectedId])
 
   useEffect(() => {
     setItemPage(1)
@@ -336,7 +316,6 @@ export default function ApprovedPurchaseOrdersPage() {
             display: 'grid',
             gridTemplateRows: 'auto minmax(0, 1fr) auto',
             minHeight: 0,
-            height: '100%',
             overflow: 'hidden',
           }}
         >
@@ -387,7 +366,7 @@ export default function ApprovedPurchaseOrdersPage() {
             </span>
           </div>
 
-          <div style={{ minHeight: 0, overflowY: 'auto', paddingRight: 2 }}>
+          <div style={{ minHeight: 0, overflow: 'hidden', paddingRight: 2 }}>
             {error ? (
               <div className="p-6 text-sm text-danger">{error}</div>
             ) : isLoading ? (
@@ -541,7 +520,7 @@ export default function ApprovedPurchaseOrdersPage() {
 
         <section
           className="panel"
-          style={{ padding: 16, minWidth: 0, minHeight: 0, height: '100%', overflow: 'hidden' }}
+          style={{ padding: 16, minWidth: 0, minHeight: 0, overflow: 'hidden' }}
         >
           {isLoadingDetail ? (
             <div className="h-full flex items-center justify-center text-text-muted">
@@ -637,13 +616,12 @@ export default function ApprovedPurchaseOrdersPage() {
 
               <div
                 style={{
-                  minHeight: 160,
+                  minHeight: 0,
                   overflow: 'hidden',
                   border: '1px solid var(--color-border)',
                   borderRadius: 8,
                   display: 'flex',
                   flexDirection: 'column',
-                  flex: 1,
                 }}
               >
                 <div
@@ -664,60 +642,58 @@ export default function ApprovedPurchaseOrdersPage() {
                     {selectedOrder.lines?.length === 1 ? '' : 's'}
                   </span>
                 </div>
-                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                  <table className="data-table product-table-compact">
-                    <thead>
-                      <tr>
-                        <th>Item</th>
-                        <th style={{ textAlign: 'right' }}>Base Qty</th>
-                        <th style={{ textAlign: 'right' }}>Smallest Qty</th>
-                        <th>Smallest UOM</th>
-                        <th style={{ textAlign: 'right' }}>Cost / Smallest</th>
-                        <th style={{ textAlign: 'right' }}>Subtotal</th>
+                <table className="data-table product-table-compact">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th style={{ textAlign: 'right' }}>Base Qty</th>
+                      <th style={{ textAlign: 'right' }}>Smallest Qty</th>
+                      <th>Smallest UOM</th>
+                      <th style={{ textAlign: 'right' }}>Cost / Smallest</th>
+                      <th style={{ textAlign: 'right' }}>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedItems.map((line) => (
+                      <tr key={line.id}>
+                        <td>
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
+                              gap: 3,
+                            }}
+                          >
+                            <span className="product-sku-badge mono">{line.productSku}</span>
+                            <span className="product-info-sub">{line.productName}</span>
+                          </div>
+                        </td>
+                        <td className="mono text-right text-sm">
+                          {Number(line.qtyBaseUnit).toLocaleString(undefined, {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 4,
+                          })}
+                        </td>
+                        <td className="mono text-right text-sm">
+                          {Number(line.qtySmallestUnit).toLocaleString(undefined, {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 4,
+                          })}
+                        </td>
+                        <td>
+                          <span className="uom-badge">{line.smallestUomCode}</span>
+                        </td>
+                        <td className="mono text-right font-semibold text-sm">
+                          {formatMoney(line.unitCostSmallest)}
+                        </td>
+                        <td className="mono text-right font-semibold text-sm">
+                          {formatMoney(line.lineSubtotal)}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {pagedItems.map((line) => (
-                        <tr key={line.id}>
-                          <td>
-                            <div
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'flex-start',
-                                gap: 3,
-                              }}
-                            >
-                              <span className="product-sku-badge mono">{line.productSku}</span>
-                              <span className="product-info-sub">{line.productName}</span>
-                            </div>
-                          </td>
-                          <td className="mono text-right text-sm">
-                            {Number(line.qtyBaseUnit).toLocaleString(undefined, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 4,
-                            })}
-                          </td>
-                          <td className="mono text-right text-sm">
-                            {Number(line.qtySmallestUnit).toLocaleString(undefined, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 4,
-                            })}
-                          </td>
-                          <td>
-                            <span className="uom-badge">{line.smallestUomCode}</span>
-                          </td>
-                          <td className="mono text-right font-semibold text-sm">
-                            {formatMoney(line.unitCostSmallest)}
-                          </td>
-                          <td className="mono text-right font-semibold text-sm">
-                            {formatMoney(line.lineSubtotal)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
                 <div style={{ padding: '0 12px 8px' }}>
                   <SimplePagination
                     page={itemPage}
@@ -778,9 +754,11 @@ export default function ApprovedPurchaseOrdersPage() {
                     <span className="mono">{formatMoney(selectedOrder.subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-muted">
-                      VAT ({Number(selectedOrder.vatRate || 0)}%)
-                    </span>
+                    <span className="text-text-muted">VAT rate</span>
+                    <span className="mono">{Number(selectedOrder.vatRate || 0).toFixed(2)}%</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-muted">Total tax</span>
                     <span className="mono">{formatMoney(selectedOrder.vatAmount)}</span>
                   </div>
                   <div
