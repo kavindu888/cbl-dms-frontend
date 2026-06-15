@@ -1978,7 +1978,7 @@ export default function Product() {
           }}
         >
           {/* ── Table ── */}
-          <div style={{ minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ minHeight: 0, overflow: 'hidden', width: '100%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             {isLoading ? (
               <div
                 style={{
@@ -2016,7 +2016,7 @@ export default function Product() {
                 <p style={{ color: 'var(--color-text-muted)' }}>No products match your filters.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" style={{ width: '100%', minWidth: 0 }}>
                 <table className="data-table product-table-compact">
                   <thead>
                     <tr>
