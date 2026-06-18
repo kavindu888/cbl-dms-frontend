@@ -37,6 +37,7 @@ export const purchasingService = {
     return allItems
   },
 
+// Purchase Order GET, POST, PUT, DELETE, and other actions
   // Get a single purchase order by ID
   async getPurchaseOrder(id) {
     const response = await getOnce(`/api/v1/purchase-orders/${id}`)
@@ -97,6 +98,7 @@ export const purchasingService = {
     return getValue(response, 'Unable to cancel the purchase order.')
   },
 
+// Suppliers API  
   // Suppliers List
   async listSuppliers(params = {}) {
     const response = await getOnce('/api/v1/suppliers', { params })
