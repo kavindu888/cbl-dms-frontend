@@ -1,303 +1,245 @@
-import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useForm, useFieldArray } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { ArrowLeft, Calendar, Save, Plus, Trash2, User } from 'lucide-react'
 import dayjs from 'dayjs'
+import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
-import { mockCustomers } from '@/data/mockCustomers'
-import { mockProducts } from '@/data/mockProducts'
-import { PaymentType } from '@/types/sales.types'
-const invoiceSchema = z.object({
-  customerId: z.string().min(1, 'Customer is required'),
-  invoiceDate: z.string().min(1, 'Invoice date is required'),
-  dueDate: z.string().min(1, 'Due date is required'),
-  paymentType: z.nativeEnum(PaymentType),
-  notes: z.string().optional(),
-  lines: z
-    .array(
-      z.object({
-        productId: z.string().min(1, 'Product is required'),
-        quantity: z.coerce.number().min(1, 'Min quantity 1'),
-        unitPrice: z.coerce.number().min(0, 'Min price 0'),
-        discountPercent: z.coerce.number().min(0).max(100).default(0),
-      })
-    )
-    .min(1, 'At least one line item is required'),
-})
+import { masterService } from '@/services/api/masterService'
+import { salesService } from '@/services/api/salesService'
+import { useAuthStore } from '@/stores/authStore'
+
+const emptyLine = {
+  productId: '',
+  categoryId: '',
+  unitId: '',
+  quantity: 1,
+  unitPrice: 0,
+  mrp: 0,
+  discountPercent: 0,
+  isVatApplicable: false,
+}
+
+function createDefaultValues(userId = '') {
+  return {
+    customerId: '',
+    salesRouteId: '',
+    vehicleId: '',
+    salesPersonId: userId,
+    isTaxInvoice: false,
+    customerVatTin: '',
+    lines: [{ ...emptyLine }],
+  }
+}
+
+function money(value) {
+  return `Rs. ${Number(value || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
+function fieldError(message) {
+  return message ? <p className="form-error">{message}</p> : null
+}
+
 export default function InvoiceCreatorPage() {
-  const navigate = useNavigate()
+  const currentUser = useAuthStore((state) => state.user)
+  const [customers, setCustomers] = useState([])
+  const [products, setProducts] = useState([])
+  const [isLoadingData, setIsLoadingData] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [loadError, setLoadError] = useState('')
+
   const {
     register,
     control,
     handleSubmit,
-    watch,
+    reset,
     setValue,
     formState: { errors },
   } = useForm({
-    resolver: zodResolver(invoiceSchema),
-    defaultValues: {
-      customerId: '',
-      invoiceDate: dayjs().format('YYYY-MM-DD'),
-      dueDate: dayjs().add(14, 'day').format('YYYY-MM-DD'),
-      paymentType: PaymentType.Credit,
-      notes: '',
-      lines: [{ productId: '', quantity: 1, unitPrice: 0, discountPercent: 0 }],
-    },
+    defaultValues: createDefaultValues(currentUser?.id || ''),
   })
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: 'lines',
-  })
-  const formLines = watch('lines')
+
+  const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
+  const selectedCustomerId = useWatch({ control, name: 'customerId' })
+  const isTaxInvoice = useWatch({ control, name: 'isTaxInvoice' })
+  const lines = useWatch({ control, name: 'lines' }) || []
+
+  const productById = useMemo(() => {
+    return products.reduce((map, product) => {
+      map[product.id] = product
+      return map
+    }, {})
+  }, [products])
+
   const totals = useMemo(() => {
-    let subtotal = 0
-    let totalDiscount = 0
-    formLines.forEach((line) => {
-      const lineGross = (line.quantity || 0) * (line.unitPrice || 0)
-      const lineDisc = lineGross * ((line.discountPercent || 0) / 100)
-      subtotal += lineGross
-      totalDiscount += lineDisc
+    return lines.reduce(
+      (sum, line) => {
+        const gross = Number(line.quantity || 0) * Number(line.unitPrice || 0)
+        const discount = gross * (Number(line.discountPercent || 0) / 100)
+        return {
+          gross: sum.gross + gross,
+          discount: sum.discount + discount,
+          net: sum.net + gross - discount,
+        }
+      },
+      { gross: 0, discount: 0, net: 0 }
+    )
+  }, [lines])
+
+  useEffect(() => {
+    async function loadData() {
+      setIsLoadingData(true)
+      setLoadError('')
+
+      try {
+        const [customerPage, productPage] = await Promise.all([
+          salesService.listCustomers({ page: 1, pageSize: 100, isActive: true }),
+          masterService.listProducts({ page: 1, pageSize: 100, status: 'Active' }),
+        ])
+
+        setCustomers(customerPage.items || [])
+        setProducts(productPage.items || [])
+      } catch (error) {
+        setLoadError(error.message)
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  useEffect(() => {
+    const customer = customers.find((item) => item.id === selectedCustomerId)
+    setValue('salesRouteId', customer?.salesRouteId || '')
+    setValue('customerVatTin', customer?.taxNumber || '')
+  }, [customers, selectedCustomerId, setValue])
+
+  function handleProductChange(index, productId) {
+    const product = productById[productId]
+    if (!product) return
+
+    setValue(`lines.${index}.categoryId`, product.category?.id || '', { shouldDirty: true })
+    setValue(`lines.${index}.unitId`, product.uomBase || product.baseUom || '', {
+      shouldDirty: true,
     })
-    return {
-      subtotal,
-      totalDiscount,
-      grandTotal: subtotal - totalDiscount,
+    setValue(`lines.${index}.unitPrice`, Number(product.unitPrice || 0), { shouldDirty: true })
+    setValue(`lines.${index}.mrp`, Number(product.unitPrice || 0), { shouldDirty: true })
+  }
+
+  function validate(values) {
+    if (!values.customerId) return 'Customer is required.'
+    if (!values.salesRouteId) return 'Selected customer does not have a sales route.'
+    if (!values.vehicleId.trim()) return 'Vehicle ID is required.'
+    if (!values.salesPersonId.trim()) return 'Sales person ID is required.'
+    if (values.isTaxInvoice && !values.customerVatTin.trim()) {
+      return 'Customer VAT TIN is required for tax invoices.'
     }
-  }, [formLines])
-  const handleProductSelect = (index, productId) => {
-    const product = mockProducts.find((p) => p.id === productId)
-    if (product) {
-      const unitPrice = product.units ? Math.round(product.stockValue / product.units) : 100
-      setValue(`lines.${index}.unitPrice`, unitPrice)
+
+    const invalidLine = values.lines.find(
+      (line) =>
+        !line.productId ||
+        !line.categoryId ||
+        !line.unitId ||
+        Number(line.quantity) <= 0 ||
+        Number(line.discountPercent) < 0 ||
+        Number(line.discountPercent) > 10
+    )
+
+    if (invalidLine) {
+      return 'Each line needs a product, quantity, unit, category, and discount between 0 and 10%.'
+    }
+
+    return ''
+  }
+
+  async function onSubmit(values) {
+    const validationMessage = validate(values)
+    if (validationMessage) {
+      toast.error(validationMessage)
+      return
+    }
+
+    const payload = {
+      customerId: values.customerId,
+      salesRouteId: values.salesRouteId,
+      vehicleId: values.vehicleId.trim(),
+      salesPersonId: values.salesPersonId.trim(),
+      isTaxInvoice: Boolean(values.isTaxInvoice),
+      customerVatTin: values.isTaxInvoice ? values.customerVatTin.trim() : null,
+      lines: values.lines.map((line) => ({
+        productId: line.productId,
+        categoryId: line.categoryId,
+        unitId: line.unitId,
+        quantity: Number(line.quantity),
+        unitPrice: Number(line.unitPrice),
+        mrp: Number(line.mrp || line.unitPrice),
+        discountPercent: Number(line.discountPercent || 0),
+        isVatApplicable: Boolean(line.isVatApplicable),
+      })),
+    }
+
+    setIsSaving(true)
+    try {
+      const invoiceId = await salesService.createInvoice(payload)
+      toast.success(`Invoice created successfully. ID: ${invoiceId}`)
+      reset(createDefaultValues(currentUser?.id || ''))
+    } catch (error) {
+      toast.error(error?.message || 'Invoice could not be created.')
+    } finally {
+      setIsSaving(false)
     }
   }
-  const onSubmit = async (data) => {
-    console.log('Invoice Data:', data)
-    toast.success('Invoice created successfully!')
-    navigate('/sales/invoices')
-  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingBottom: 64 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button className="icon-button" onClick={() => navigate(-1)}>
-            <ArrowLeft style={{ width: 18, height: 18 }} />
-          </button>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-              Create New Invoice
-            </h1>
-            <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-              Generate a new sales invoice for a customer.
-            </p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button className="button-secondary" type="button" onClick={() => navigate(-1)}>
-            Cancel
-          </button>
-          <button className="button-primary" type="button" onClick={handleSubmit(onSubmit)}>
-            <Save style={{ width: 16, height: 16 }} />
-            Save Invoice
-          </button>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 64 }}>
+      <div>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+          Create Invoice
+        </h1>
+        <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
+          Backend creates the invoice with today's server date: {dayjs().format('DD MMM YYYY')}.
+        </p>
       </div>
+
+      {loadError && (
+        <div className="panel" style={{ padding: 16, color: 'var(--color-danger)' }}>
+          {loadError}
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit(onSubmit)}
-        style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(360px, 440px)',
+          alignItems: 'start',
+          gap: 16,
+        }}
       >
-        {/* Top Details Panel */}
-        <div className="panel" style={{ padding: 24 }}>
-          <h2
-            style={{
-              fontSize: 16,
-              fontWeight: 600,
-              color: 'var(--color-text-primary)',
-              marginBottom: 20,
-            }}
-          >
-            Invoice Details
-          </h2>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-              gap: 24,
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.8px',
-                  color: 'var(--color-text-muted)',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                }}
-              >
-                CUSTOMER
-              </label>
-              <div style={{ position: 'relative' }}>
-                <User
-                  style={{
-                    position: 'absolute',
-                    left: 12,
-                    top: 12,
-                    width: 16,
-                    height: 16,
-                    color: 'var(--color-text-dim)',
-                  }}
-                />
-                <select
-                  {...register('customerId')}
-                  className={`form-input pl-9 ${errors.customerId ? 'error' : ''}`}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
-                    Select Customer...
-                  </option>
-                  {mockCustomers.map((c) => (
-                    <option
-                      key={c.id}
-                      value={c.id}
-                      style={{ background: 'var(--color-bg-elevated)' }}
-                    >
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {errors.customerId && <p className="form-error">{errors.customerId.message}</p>}
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.8px',
-                  color: 'var(--color-text-muted)',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                }}
-              >
-                INVOICE DATE
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Calendar
-                  style={{
-                    position: 'absolute',
-                    left: 12,
-                    top: 12,
-                    width: 16,
-                    height: 16,
-                    color: 'var(--color-text-dim)',
-                  }}
-                />
-                <input
-                  type="date"
-                  {...register('invoiceDate')}
-                  className={`form-input pl-9 ${errors.invoiceDate ? 'error' : ''}`}
-                />
-              </div>
-              {errors.invoiceDate && <p className="form-error">{errors.invoiceDate.message}</p>}
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.8px',
-                  color: 'var(--color-text-muted)',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                }}
-              >
-                DUE DATE
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Calendar
-                  style={{
-                    position: 'absolute',
-                    left: 12,
-                    top: 12,
-                    width: 16,
-                    height: 16,
-                    color: 'var(--color-text-dim)',
-                  }}
-                />
-                <input
-                  type="date"
-                  {...register('dueDate')}
-                  className={`form-input pl-9 ${errors.dueDate ? 'error' : ''}`}
-                />
-              </div>
-              {errors.dueDate && <p className="form-error">{errors.dueDate.message}</p>}
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.8px',
-                  color: 'var(--color-text-muted)',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                }}
-              >
-                PAYMENT TYPE
-              </label>
-              <select
-                {...register('paymentType')}
-                className="form-input"
-                style={{ cursor: 'pointer' }}
-              >
-                <option value={PaymentType.Cash} style={{ background: 'var(--color-bg-elevated)' }}>
-                  Cash
-                </option>
-                <option
-                  value={PaymentType.Credit}
-                  style={{ background: 'var(--color-bg-elevated)' }}
-                >
-                  Credit
-                </option>
-              </select>
-              {errors.paymentType && <p className="form-error">{errors.paymentType.message}</p>}
-            </div>
-          </div>
-        </div>
-
-        {/* Line Items Panel */}
-        <div className="panel" style={{ padding: 24 }}>
+        <section className="panel" style={{ padding: 14, overflow: 'hidden' }}>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              marginBottom: 20,
+              marginBottom: 14,
             }}
           >
-            <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-              Line Items
-            </h2>
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                Invoice Lines
+              </h2>
+              <p style={{ marginTop: 2, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                Add products, quantities, pricing, discounts, and VAT flags.
+              </p>
+            </div>
             <button
               type="button"
               className="button-secondary"
-              onClick={() =>
-                append({ productId: '', quantity: 1, unitPrice: 0, discountPercent: 0 })
-              }
-              style={{ height: 32, fontSize: 13 }}
+              onClick={() => append({ ...emptyLine })}
+              style={{ height: 34 }}
             >
               <Plus style={{ width: 14, height: 14 }} />
               Add Item
@@ -305,109 +247,99 @@ export default function InvoiceCreatorPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="data-table" style={{ minWidth: 800 }}>
+            <table className="data-table" style={{ minWidth: 980 }}>
               <thead>
                 <tr>
-                  <th style={{ width: '40%' }}>Product</th>
-                  <th style={{ width: '15%', textAlign: 'right' }}>Qty</th>
-                  <th style={{ width: '15%', textAlign: 'right' }}>Unit Price (Rs.)</th>
-                  <th style={{ width: '10%', textAlign: 'right' }}>Disc (%)</th>
-                  <th style={{ width: '15%', textAlign: 'right' }}>Amount (Rs.)</th>
-                  <th style={{ width: '5%', textAlign: 'center' }}></th>
+                  <th>Product</th>
+                  <th>Unit</th>
+                  <th className="text-right">Qty</th>
+                  <th className="text-right">Unit Price</th>
+                  <th className="text-right">MRP</th>
+                  <th className="text-right">Disc %</th>
+                  <th>VAT</th>
+                  <th className="text-right">Total</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {fields.map((field, index) => {
-                  const qty = formLines[index]?.quantity || 0
-                  const price = formLines[index]?.unitPrice || 0
-                  const disc = formLines[index]?.discountPercent || 0
-                  const amount = qty * price * (1 - disc / 100)
+                  const line = lines[index] || emptyLine
+                  const lineTotal =
+                    Number(line.quantity || 0) *
+                    Number(line.unitPrice || 0) *
+                    (1 - Number(line.discountPercent || 0) / 100)
+
                   return (
                     <tr key={field.id}>
                       <td>
                         <select
+                          className="form-input"
                           {...register(`lines.${index}.productId`)}
-                          onChange={(e) => {
-                            register(`lines.${index}.productId`).onChange(e)
-                            handleProductSelect(index, e.target.value)
-                          }}
-                          className={`form-input ${errors.lines?.[index]?.productId ? 'error' : ''}`}
-                          style={{
-                            height: 36,
-                            paddingLeft: 12,
-                            paddingRight: 32,
-                            appearance: 'none',
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2393A3BB' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'right 8px center',
+                          onChange={(event) => {
+                            register(`lines.${index}.productId`).onChange(event)
+                            handleProductChange(index, event.target.value)
                           }}
                         >
-                          <option
-                            value=""
-                            disabled
-                            style={{ background: 'var(--color-bg-elevated)' }}
-                          >
-                            Select Product...
-                          </option>
-                          {mockProducts.map((p) => (
-                            <option
-                              key={p.id}
-                              value={p.id}
-                              style={{ background: 'var(--color-bg-elevated)' }}
-                            >
-                              {p.name}
+                          <option value="">Select product...</option>
+                          {products.map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name}
                             </option>
                           ))}
                         </select>
+                        <input type="hidden" {...register(`lines.${index}.categoryId`)} />
                       </td>
                       <td>
                         <input
-                          type="number"
-                          {...register(`lines.${index}.quantity`)}
-                          className="form-input mono"
-                          style={{ height: 36, textAlign: 'right' }}
+                          className="form-input"
+                          {...register(`lines.${index}.unitId`)}
+                          readOnly
                         />
                       </td>
                       <td>
                         <input
+                          className="form-input mono text-right"
+                          type="number"
+                          step="0.01"
+                          {...register(`lines.${index}.quantity`)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="form-input mono text-right"
                           type="number"
                           step="0.01"
                           {...register(`lines.${index}.unitPrice`)}
-                          className="form-input mono"
-                          style={{ height: 36, textAlign: 'right' }}
                         />
                       </td>
                       <td>
                         <input
+                          className="form-input mono text-right"
                           type="number"
-                          step="0.1"
-                          {...register(`lines.${index}.discountPercent`)}
-                          className="form-input mono"
-                          style={{ height: 36, textAlign: 'right' }}
+                          step="0.01"
+                          {...register(`lines.${index}.mrp`)}
                         />
                       </td>
-                      <td
-                        className="mono"
-                        style={{
-                          textAlign: 'right',
-                          fontWeight: 600,
-                          color: 'var(--color-text-primary)',
-                        }}
-                      >
-                        {amount.toFixed(2)}
+                      <td>
+                        <input
+                          className="form-input mono text-right"
+                          type="number"
+                          step="0.01"
+                          max="10"
+                          {...register(`lines.${index}.discountPercent`)}
+                        />
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td>
+                        <input type="checkbox" {...register(`lines.${index}.isVatApplicable`)} />
+                      </td>
+                      <td className="mono text-right">{money(lineTotal)}</td>
+                      <td>
                         <button
                           type="button"
                           className="icon-button"
                           onClick={() => remove(index)}
                           disabled={fields.length === 1}
-                          style={{
-                            width: 32,
-                            height: 32,
-                            color:
-                              fields.length === 1 ? 'var(--color-text-dim)' : 'var(--color-danger)',
-                          }}
+                          style={{ width: 32, height: 32 }}
                         >
                           <Trash2 style={{ width: 14, height: 14 }} />
                         </button>
@@ -418,72 +350,142 @@ export default function InvoiceCreatorPage() {
               </tbody>
             </table>
           </div>
-          {errors.lines && typeof errors.lines.message === 'string' && (
-            <p className="form-error" style={{ marginTop: 12 }}>
-              {errors.lines.message}
-            </p>
-          )}
+        </section>
 
-          {/* Totals Summary */}
-          <div style={{ marginTop: 32, display: 'flex', justifyContent: 'flex-end' }}>
-            <div
-              style={{
-                width: 320,
-                padding: 20,
-                background: 'var(--color-bg-elevated)',
-                borderRadius: 'var(--radius-card)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Subtotal</span>
-                <span className="mono" style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>
-                  Rs. {totals.subtotal.toFixed(2)}
-                </span>
+        <aside
+          className="panel"
+          style={{
+            padding: 16,
+            position: 'sticky',
+            top: 16,
+            maxHeight: 'calc(100vh - 120px)',
+            overflowY: 'auto',
+          }}
+        >
+          <div style={{ marginBottom: 14 }}>
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-text-primary)' }}>
+              Add New Invoice
+            </h2>
+            <p style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
+              Route is taken from the selected customer.
+            </p>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
+            <p className="form-label" style={{ fontSize: 10 }}>
+              Basic Information
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Customer *
+                </label>
+                <select className="form-input" {...register('customerId')}>
+                  <option value="">Select customer...</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name}
+                    </option>
+                  ))}
+                </select>
+                {fieldError(errors.customerId?.message)}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-                <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Discount</span>
-                <span className="mono" style={{ fontSize: 13, color: 'var(--color-danger)' }}>
-                  - Rs. {totals.totalDiscount.toFixed(2)}
-                </span>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Sales Route ID
+                </label>
+                <input className="form-input" {...register('salesRouteId')} readOnly />
               </div>
-              <div style={{ borderTop: '1px solid var(--color-border)', margin: '16px 0' }} />
-              <div
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-              >
-                <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                  Grand Total
-                </span>
-                <span
-                  className="mono"
-                  style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-amber)' }}
-                >
-                  Rs. {totals.grandTotal.toFixed(2)}
+
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Vehicle ID *
+                </label>
+                <input
+                  className="form-input"
+                  placeholder="Enter vehicle ID"
+                  {...register('vehicleId')}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Sales Person ID *
+                </label>
+                <input className="form-input" type="password" {...register('salesPersonId')} />
+              </div>
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 14 }}>
+            <p className="form-label" style={{ fontSize: 10 }}>
+              Tax Details
+            </p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+              <input type="checkbox" {...register('isTaxInvoice')} />
+              Tax invoice
+            </label>
+
+            {isTaxInvoice && (
+              <div style={{ marginTop: 12 }}>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Customer VAT TIN *
+                </label>
+                <input className="form-input" {...register('customerVatTin')} />
+              </div>
+            )}
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 14 }}>
+            <p className="form-label" style={{ fontSize: 10 }}>
+              Invoice Summary
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Gross</span>
+                <span className="mono">{money(totals.gross)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Discount</span>
+                <span className="mono">{money(totals.discount)}</span>
+              </div>
+              <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
+                <span>Net</span>
+                <span className="mono" style={{ color: 'var(--color-amber)' }}>
+                  {money(totals.net)}
                 </span>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Notes Panel */}
-        <div className="panel" style={{ padding: 24 }}>
-          <h2
+          <div
             style={{
-              fontSize: 16,
-              fontWeight: 600,
-              color: 'var(--color-text-primary)',
-              marginBottom: 20,
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 10,
+              marginTop: 18,
             }}
           >
-            Additional Notes
-          </h2>
-          <textarea
-            {...register('notes')}
-            className="form-input"
-            style={{ width: '100%', minHeight: 100, padding: 16, resize: 'vertical' }}
-            placeholder="Add any internal notes or messages to the customer..."
-          />
-        </div>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => reset(createDefaultValues(currentUser?.id || ''))}
+            >
+              <RotateCcw style={{ width: 15, height: 15 }} />
+              Clear
+            </button>
+            <button
+              className="button-primary"
+              type="submit"
+              disabled={isSaving || isLoadingData}
+            >
+              <Save style={{ width: 15, height: 15 }} />
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </aside>
       </form>
     </div>
   )
