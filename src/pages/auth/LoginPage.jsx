@@ -192,7 +192,7 @@ export default function LoginPage() {
             style={{
               fontSize: '2.1rem',
               fontWeight: 800,
-              color: '#ffffff',
+              color: 'var(--color-text-primary)',
               lineHeight: 1.1,
               marginBottom: '6px',
               letterSpacing: '-0.5px',
@@ -240,7 +240,7 @@ export default function LoginPage() {
                 background: 'var(--color-bg-surface)',
                 padding: '0 16px',
                 fontSize: '0.92rem',
-                color: '#ffffff',
+                color: 'var(--color-text-primary)',
                 outline: '2px solid transparent',
                 outlineOffset: '2px',
                 transition: 'border-color 0.2s, background 0.2s',
@@ -308,7 +308,7 @@ export default function LoginPage() {
                   background: 'var(--color-bg-surface)',
                   padding: '0 48px 0 16px',
                   fontSize: '0.92rem',
-                  color: '#ffffff',
+                  color: 'var(--color-text-primary)',
                   outline: '2px solid transparent',
                   outlineOffset: '2px',
                   transition: 'border-color 0.2s, background 0.2s',
@@ -348,7 +348,7 @@ export default function LoginPage() {
                   border: 'none',
                   cursor: 'pointer',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-dim)')}
               >
                 {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
