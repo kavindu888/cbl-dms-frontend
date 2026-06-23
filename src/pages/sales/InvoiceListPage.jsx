@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
-import { Search } from 'lucide-react'
+import { Eye, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { salesService } from '@/services/api/salesService'
@@ -211,6 +212,7 @@ export default function InvoiceListPage() {
                 <th className="text-right">Paid</th>
                 <th className="text-right">Outstanding</th>
                 <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -229,12 +231,22 @@ export default function InvoiceListPage() {
                   <td>
                     <StatusBadge status={invoice.status.toUpperCase()} />
                   </td>
+                  <td className="text-right">
+                    <Link
+                      className="icon-button"
+                      to={`/sales/invoices/${invoice.id}`}
+                      style={{ width: 32, height: 32, display: 'inline-flex' }}
+                      title="View invoice"
+                    >
+                      <Eye style={{ width: 15, height: 15 }} />
+                    </Link>
+                  </td>
                 </tr>
               ))}
 
               {!isLoading && filteredInvoices.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ padding: 32, textAlign: 'center' }}>
+                  <td colSpan={8} style={{ padding: 32, textAlign: 'center' }}>
                     No invoices loaded.
                   </td>
                 </tr>
@@ -242,7 +254,7 @@ export default function InvoiceListPage() {
 
               {isLoading && (
                 <tr>
-                  <td colSpan={7} style={{ padding: 32, textAlign: 'center' }}>
+                  <td colSpan={8} style={{ padding: 32, textAlign: 'center' }}>
                     Loading invoices...
                   </td>
                 </tr>
