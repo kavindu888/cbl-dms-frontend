@@ -18,9 +18,11 @@ import SalesRouteListPage from '@pages/master/SalesRouteListPage'
 import UnitOfMeasureListPage from '@pages/master/UnitOfMeasureListPage'
 import AllPurchaseOrdersPage from '@pages/purchasing/AllPurchaseOrdersPage'
 import ApprovedPurchaseOrdersPage from '@pages/purchasing/ApprovedPurchaseOrdersPage'
+import GoodsReceiptListPage from '@pages/purchasing/GoodsReceiptListPage'
 import PurchaseOrderApprovalPage from '@pages/purchasing/PurchaseOrderApprovalPage'
 import PlacePurchaseOrderPage from '@pages/purchasing/PlacePurchaseOrderPage'
 import PurchaseReturnsPage from '@pages/purchasing/PurchaseReturnsPage'
+import SupplierSettlementPage from '@pages/purchasing/SupplierSettlementPage'
 import ReceiptEntryPage from '@pages/purchasing/ReceiptEntryPage'
 import SupplierListPage from '@pages/master/SupplierListPage'
 import ReportHubPage from '@pages/reports/ReportHubPage'
@@ -95,8 +97,44 @@ export const router = createBrowserRouter([
         element: requirePermission(<SupplierListPage />, PERMISSIONS.purchasing.supplierManage),
       },
       {
+        path: 'purchasing/grn-entry',
+        element: <Navigate to="/purchasing/goods-receipt-entry" replace />,
+      },
+      {
+        path: 'purchasing/goods-receipt-entry',
+        element: requirePermission(
+          <ApprovedPurchaseOrdersPage grnMode />,
+          PERMISSIONS.purchasing.grnCreate
+        ),
+      },
+      {
+        path: 'purchasing/goods-receipts',
+        element: requirePermission(<GoodsReceiptListPage />, [
+          PERMISSIONS.purchasing.grnCreate,
+          PERMISSIONS.purchasing.grnVerify,
+        ]),
+      },
+      {
+        path: 'purchasing/goods-receipts/:grnId',
+        element: requirePermission(<ReceiptEntryPage />, [
+          PERMISSIONS.purchasing.grnCreate,
+          PERMISSIONS.purchasing.grnVerify,
+        ]),
+      },
+      {
         path: 'purchasing/returns',
-        element: requirePermission(<PurchaseReturnsPage />, PERMISSIONS.purchasing.poRead),
+        element: requirePermission(<PurchaseReturnsPage />, [
+          PERMISSIONS.purchasing.returnNoteCreate,
+          PERMISSIONS.purchasing.returnNoteApprove,
+          PERMISSIONS.purchasing.returnNoteComplete,
+        ]),
+      },
+      {
+        path: 'purchasing/settlement',
+        element: requirePermission(
+          <SupplierSettlementPage />,
+          PERMISSIONS.purchasing.settlementCreate
+        ),
       },
       {
         path: 'purchasing/:id/receive',
@@ -243,3 +281,4 @@ export const router = createBrowserRouter([
     element: <Navigate to="/" replace />,
   },
 ])
+
