@@ -1,4 +1,4 @@
-import { Pencil, Plus, RefreshCw, Search, X, Copy, Globe } from 'lucide-react'
+import { Pencil, Plus, RefreshCw, Search, Copy, Globe } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
@@ -216,7 +216,7 @@ function Field({
         onChange={onChange}
         disabled={disabled}
         ref={inputRef}
-        style={{ height: 42, background: 'rgba(0,0,0,0.15)' }}
+        style={{ height: 38, background: 'rgba(0,0,0,0.15)' }}
       />
       {error ? <span className="form-error">{error}</span> : null}
     </label>
@@ -491,7 +491,6 @@ function SupplierFormModal({
   form,
   errors,
   isSaving,
-  open,
   isLoadingPaymentTerms,
   paymentTerms,
   onChange,
@@ -501,14 +500,12 @@ function SupplierFormModal({
   const codeInputRef = useRef(null)
 
   useEffect(() => {
-    if (!open || mode !== 'create') return
+    if (mode !== 'create') return
 
     window.setTimeout(() => {
       codeInputRef.current?.focus()
     }, 0)
-  }, [mode, open])
-
-  if (!open) return null
+  }, [mode])
 
   const isEdit = mode === 'edit'
 
@@ -540,356 +537,321 @@ function SupplierFormModal({
   }
 
   return (
-    <div
-      role="presentation"
+    <form
+      className="panel"
+      onSubmit={onSubmit}
+      onKeyDown={handleFormKeyDown}
       style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 50,
+        padding: '16px 20px',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        background: 'rgba(0,4,12,0.75)',
-        backdropFilter: 'blur(2px)',
+        flexDirection: 'column',
+        gap: 12,
+        minHeight: 0,
+        overflowY: 'auto',
       }}
     >
-      <form
-        className="panel"
-        onSubmit={onSubmit}
-        onKeyDown={handleFormKeyDown}
+      {/* Header */}
+      <div
         style={{
-          width: 'min(1060px, calc(100vw - 48px))',
-          height: 'auto',
-          maxHeight: 'min(820px, calc(100vh - 48px))',
-          borderRadius: 10,
-          background: 'var(--color-bg-surface)',
-          border: '1px solid var(--color-border)',
-          overflow: 'hidden',
           display: 'flex',
-          flexDirection: 'column',
-          padding: 0,
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 12,
+          paddingBottom: 10,
+          borderBottom: '1px solid var(--color-border)',
         }}
       >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 16,
-            padding: '24px 24px 16px 24px',
-            borderBottom: '1px solid var(--color-border)',
-            flexShrink: 0,
-          }}
-        >
-          <div>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-              {isEdit ? 'Edit Supplier' : 'New Supplier'}
-            </h2>
-            <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-              {isEdit
-                ? 'Update supplier details supported by the current backend API.'
-                : 'Create a purchasing supplier using the backend supplier contract.'}
-            </p>
-          </div>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            data-skip-focus="true"
-            style={{ width: 32, height: 32 }}
-          >
-            <X style={{ width: 16, height: 16 }} />
-          </button>
-        </div>
-
-        {/* Scrollable Content */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '24px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 20,
-          }}
-        >
-          {/* General Information Grid */}
-          <div
+        <div>
+          <h2 style={{ fontSize: 16, fontWeight: 650, color: 'var(--color-text-primary)' }}>
+            {isEdit ? 'Edit Supplier' : 'Add New Supplier'}
+          </h2>
+          <p
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-              gap: 20,
+              marginTop: 4,
+              fontSize: 12,
+              color: 'var(--color-text-muted)',
+              lineHeight: 1.35,
             }}
           >
+            {isEdit
+              ? 'Modify supplier company and address details.'
+              : 'Register a purchasing supplier in the system.'}
+          </p>
+        </div>
+        {isEdit ? (
+          <button
+            className="button-ghost"
+            type="button"
+            onClick={onClose}
+            data-skip-focus="true"
+            style={{ padding: '5px 10px', height: 'auto', fontSize: 12 }}
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      {/* General Information */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 12,
+          }}
+        >
+          <Field
+            label="Code"
+            name="code"
+            value={form.code}
+            error={errors.code}
+            onChange={onChange}
+            required={!isEdit}
+            disabled={isEdit}
+            inputRef={codeInputRef}
+          />
+          <Field
+            label="Nick Name"
+            name="name"
+            value={form.name}
+            error={errors.name}
+            onChange={onChange}
+            required
+          />
+        </div>
+
+        <Field label="Legal Name" name="legalName" value={form.legalName} onChange={onChange} />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field
+            label="Telephone"
+            name="telephone"
+            value={form.telephone}
+            error={errors.telephone}
+            onChange={onChange}
+            required
+          />
+          <Field label="Mobile" name="mobile" value={form.mobile} onChange={onChange} />
+          <Field
+            label="Email"
+            name="email"
+            type="email"
+            value={form.email}
+            error={errors.email}
+            onChange={onChange}
+            required
+          />
+          <Field label="Fax" name="fax" value={form.fax} onChange={onChange} />
+          <Field
+            label="VAT Reg No"
+            name="vatRegNo"
+            value={form.vatRegNo}
+            error={errors.vatRegNo}
+            onChange={onChange}
+            required
+          />
+          <Field
+            label="Business Reg No"
+            name="businessRegNo"
+            value={form.businessRegNo}
+            onChange={onChange}
+          />
+        </div>
+
+        {!isEdit ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <label>
+              <span className="form-label">Payment Mode *</span>
+              <select
+                className={`form-input ${errors.paymentTermId ? 'error' : ''}`}
+                name="paymentTermId"
+                value={form.paymentTermId}
+                onChange={onChange}
+                disabled={isLoadingPaymentTerms || !paymentTerms.length}
+                style={{ height: 38, background: 'rgba(0,0,0,0.15)', cursor: 'pointer' }}
+              >
+                <option value="">
+                  {isLoadingPaymentTerms
+                    ? 'Loading modes...'
+                    : paymentTerms.length
+                      ? 'Select mode'
+                      : 'No modes available'}
+                </option>
+                {paymentTerms.map((term) => (
+                  <option key={term.id} value={term.id}>
+                    {getPaymentTermLabel(term)}
+                    {term.isDefault ? ' (Default)' : ''}
+                  </option>
+                ))}
+              </select>
+              {errors.paymentTermId ? (
+                <span className="form-error">{errors.paymentTermId}</span>
+              ) : null}
+            </label>
             <Field
-              label="Code"
-              name="code"
-              value={form.code}
-              error={errors.code}
+              label="Credit Limit"
+              name="creditLimit"
+              type="number"
+              value={form.creditLimit}
+              error={errors.creditLimit}
               onChange={onChange}
-              required={!isEdit}
-              disabled={isEdit}
-              inputRef={codeInputRef}
             />
+          </div>
+        ) : null}
+
+        <Field label="Website" name="website" value={form.website} onChange={onChange} />
+
+        <h3
+          style={{
+            margin: '4px 0 0 0',
+            fontSize: 13,
+            fontWeight: 700,
+            color: 'var(--color-text-primary)',
+            borderBottom: '1px solid var(--color-border)',
+            paddingBottom: 6,
+          }}
+        >
+          Address
+        </h3>
+        <Field
+          label="Line 1"
+          name="addressLine1"
+          value={form.addressLine1}
+          error={errors.addressLine1}
+          onChange={onChange}
+          required
+        />
+        <Field label="Line 2" name="addressLine2" value={form.addressLine2} onChange={onChange} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field
+            label="City"
+            name="city"
+            value={form.city}
+            error={errors.city}
+            onChange={onChange}
+            required
+          />
+          <Field label="Province" name="province" value={form.province} onChange={onChange} />
+          <Field
+            label="Postal Code"
+            name="postalCode"
+            value={form.postalCode}
+            onChange={onChange}
+          />
+          <Field label="Country" name="country" value={form.country} onChange={onChange} />
+        </div>
+
+        {!isEdit ? (
+          <>
+            <h3
+              style={{
+                margin: '4px 0 0 0',
+                fontSize: 13,
+                fontWeight: 700,
+                color: 'var(--color-text-primary)',
+                borderBottom: '1px solid var(--color-border)',
+                paddingBottom: 6,
+              }}
+            >
+              Primary Contact
+            </h3>
             <Field
-              label="Nick Name"
-              name="name"
-              value={form.name}
-              error={errors.name}
+              label="Full Name"
+              name="primaryContactName"
+              value={form.primaryContactName}
+              error={errors.primaryContactName}
               onChange={onChange}
               required
             />
-            <Field label="Legal Name" name="legalName" value={form.legalName} onChange={onChange} />
             <Field
-              label="Telephone"
-              name="telephone"
-              value={form.telephone}
-              error={errors.telephone}
+              label="Designation"
+              name="primaryContactDesignation"
+              value={form.primaryContactDesignation}
               onChange={onChange}
-              required
             />
-            <Field label="Mobile" name="mobile" value={form.mobile} onChange={onChange} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Field
+                label="Telephone"
+                name="primaryContactTelephone"
+                value={form.primaryContactTelephone}
+                error={errors.primaryContactTelephone}
+                onChange={onChange}
+              />
+              <Field
+                label="Mobile"
+                name="primaryContactMobile"
+                value={form.primaryContactMobile}
+                onChange={onChange}
+              />
+            </div>
             <Field
               label="Email"
-              name="email"
+              name="primaryContactEmail"
               type="email"
-              value={form.email}
-              error={errors.email}
+              value={form.primaryContactEmail}
+              error={errors.primaryContactEmail}
               onChange={onChange}
-              required
-            />
-            <Field label="Fax" name="fax" value={form.fax} onChange={onChange} />
-            <Field
-              label="VAT Reg No"
-              name="vatRegNo"
-              value={form.vatRegNo}
-              error={errors.vatRegNo}
-              onChange={onChange}
-              required
             />
             <Field
-              label="Business Reg No"
-              name="businessRegNo"
-              value={form.businessRegNo}
+              label="Fax"
+              name="primaryContactFax"
+              value={form.primaryContactFax}
               onChange={onChange}
             />
-            {!isEdit ? (
-              <>
-                <label>
-                  <span className="form-label">Payment Mode *</span>
-                  <select
-                    className={`form-input ${errors.paymentTermId ? 'error' : ''}`}
-                    name="paymentTermId"
-                    value={form.paymentTermId}
-                    onChange={onChange}
-                    disabled={isLoadingPaymentTerms || !paymentTerms.length}
-                    style={{ height: 42, background: 'rgba(0,0,0,0.15)', cursor: 'pointer' }}
-                  >
-                    <option value="">
-                      {isLoadingPaymentTerms
-                        ? 'Loading payment modes...'
-                        : paymentTerms.length
-                          ? 'Select payment mode'
-                          : 'No payment modes available'}
-                    </option>
-                    {paymentTerms.map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {getPaymentTermLabel(term)}
-                        {term.isDefault ? ' (Default)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.paymentTermId ? (
-                    <span className="form-error">{errors.paymentTermId}</span>
-                  ) : null}
-                  <span
-                    style={{
-                      display: 'block',
-                      marginTop: 5,
-                      fontSize: 11,
-                      color: 'var(--color-text-muted)',
-                    }}
-                  >
-                    Select a mode. The system saves its payment term ID.
-                  </span>
-                </label>
-                <Field
-                  label="Credit Limit"
-                  name="creditLimit"
-                  type="number"
-                  value={form.creditLimit}
-                  error={errors.creditLimit}
-                  onChange={onChange}
-                />
-              </>
-            ) : null}
-            <Field label="Website" name="website" value={form.website} onChange={onChange} />
-          </div>
+          </>
+        ) : null}
 
-          <h3
+        <label style={{ display: 'block' }}>
+          <span className="form-label">Notes</span>
+          <textarea
+            className="form-input"
+            name="notes"
+            value={form.notes}
+            onChange={onChange}
+            onKeyDown={handleNotesKeyDown}
+            rows={3}
             style={{
-              margin: '12px 0 0 0',
-              fontSize: 15,
-              fontWeight: 700,
-              color: 'var(--color-text-primary)',
-              borderBottom: '1px solid var(--color-border)',
-              paddingBottom: 6,
+              height: 'auto',
+              minHeight: 64,
+              paddingTop: 10,
+              resize: 'vertical',
+              background: 'rgba(0,0,0,0.15)',
             }}
-          >
-            Address
-          </h3>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-              gap: 20,
-            }}
-          >
-            <Field
-              label="Line 1"
-              name="addressLine1"
-              value={form.addressLine1}
-              error={errors.addressLine1}
-              onChange={onChange}
-              required
-            />
-            <Field
-              label="Line 2"
-              name="addressLine2"
-              value={form.addressLine2}
-              onChange={onChange}
-            />
-            <Field
-              label="City"
-              name="city"
-              value={form.city}
-              error={errors.city}
-              onChange={onChange}
-              required
-            />
-          </div>
+          />
+        </label>
+      </div>
 
-          {!isEdit ? (
-            <>
-              <h3
-                style={{
-                  margin: '12px 0 0 0',
-                  fontSize: 15,
-                  fontWeight: 700,
-                  color: 'var(--color-text-primary)',
-                  borderBottom: '1px solid var(--color-border)',
-                  paddingBottom: 6,
-                }}
-              >
-                Primary Contact
-              </h3>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                  gap: 20,
-                }}
-              >
-                <Field
-                  label="Full Name"
-                  name="primaryContactName"
-                  value={form.primaryContactName}
-                  error={errors.primaryContactName}
-                  onChange={onChange}
-                  required
-                />
-                <Field
-                  label="Designation"
-                  name="primaryContactDesignation"
-                  value={form.primaryContactDesignation}
-                  onChange={onChange}
-                />
-                <Field
-                  label="Telephone"
-                  name="primaryContactTelephone"
-                  value={form.primaryContactTelephone}
-                  error={errors.primaryContactTelephone}
-                  onChange={onChange}
-                />
-                <Field
-                  label="Mobile"
-                  name="primaryContactMobile"
-                  value={form.primaryContactMobile}
-                  onChange={onChange}
-                />
-                <Field
-                  label="Email"
-                  name="primaryContactEmail"
-                  type="email"
-                  value={form.primaryContactEmail}
-                  error={errors.primaryContactEmail}
-                  onChange={onChange}
-                />
-                <Field
-                  label="Fax"
-                  name="primaryContactFax"
-                  value={form.primaryContactFax}
-                  onChange={onChange}
-                />
-              </div>
-            </>
-          ) : null}
-
-          <label style={{ display: 'block' }}>
-            <span className="form-label">Notes</span>
-            <textarea
-              className="form-input"
-              name="notes"
-              value={form.notes}
-              onChange={onChange}
-              onKeyDown={handleNotesKeyDown}
-              rows={3}
-              style={{
-                height: 'auto',
-                minHeight: 60,
-                paddingTop: 10,
-                resize: 'vertical',
-                background: 'rgba(0,0,0,0.15)',
-              }}
-            />
-          </label>
-        </div>
-
-        {/* Footer */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 12,
-            padding: '16px 24px 18px 24px',
-            borderTop: '1px solid var(--color-border)',
-            flexShrink: 0,
-          }}
+      {/* Footer */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: 10,
+          paddingTop: 10,
+          borderTop: '1px solid var(--color-border)',
+          marginTop: 'auto',
+        }}
+      >
+        <button
+          className="button-secondary"
+          type="button"
+          onClick={onClose}
+          data-skip-focus="true"
+          style={{ height: 38, padding: '0 14px', fontSize: 13 }}
         >
-          <button
-            className="button-secondary"
-            type="button"
-            onClick={onClose}
-            data-skip-focus="true"
-            style={{ minWidth: 110, height: 42 }}
-          >
-            Cancel
-          </button>
-          <button
-            className="button-primary"
-            id="save-supplier-button"
-            type="submit"
-            disabled={isSaving}
-            style={{ minWidth: 150, height: 42 }}
-          >
-            {isSaving ? 'Saving...' : isEdit ? 'Update Supplier' : 'Save Supplier'}
-          </button>
-        </div>
-      </form>
-    </div>
+          {isEdit ? 'Cancel' : 'Reset'}
+        </button>
+        <button
+          className="button-primary"
+          id="save-supplier-button"
+          type="submit"
+          disabled={isSaving}
+          style={{ height: 38, padding: '0 16px', fontSize: 13 }}
+        >
+          {isSaving ? 'Saving...' : isEdit ? 'Update Supplier' : 'Save Supplier'}
+        </button>
+      </div>
+    </form>
   )
 }
 
@@ -899,7 +861,6 @@ export default function SupplierListPage() {
   const [mode, setMode] = useState('create')
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
@@ -973,9 +934,9 @@ export default function SupplierListPage() {
   }, [])
 
   useEffect(() => {
-    if (mode !== 'create' || !isModalOpen || form.paymentTermId || !defaultPaymentTermId) return
+    if (mode !== 'create' || form.paymentTermId || !defaultPaymentTermId) return
     setForm((current) => ({ ...current, paymentTermId: defaultPaymentTermId }))
-  }, [defaultPaymentTermId, form.paymentTermId, isModalOpen, mode])
+  }, [defaultPaymentTermId, form.paymentTermId, mode])
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -987,19 +948,17 @@ export default function SupplierListPage() {
     setMode('create')
     setForm({ ...emptyForm, paymentTermId: defaultPaymentTermId })
     setErrors({})
-    setIsModalOpen(true)
   }
 
   function openEditModal(supplier) {
     setMode('edit')
     setForm(mapSupplierToForm(supplier))
     setErrors({})
-    setIsModalOpen(true)
   }
 
   function closeModal() {
-    setIsModalOpen(false)
-    setForm(emptyForm)
+    setMode('create')
+    setForm({ ...emptyForm, paymentTermId: defaultPaymentTermId })
     setErrors({})
   }
 
@@ -1079,22 +1038,6 @@ export default function SupplierListPage() {
             Manage purchasing supplier records using the backend Suppliers API.
           </p>
         </div>
-        <button
-          className="button-primary"
-          type="button"
-          onClick={openCreateModal}
-          style={{
-            height: 40,
-            padding: '0 24px',
-            fontSize: 14,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <Plus style={{ width: 16, height: 16 }} />
-          New Supplier
-        </button>
       </div>
 
       {/* ── Filter Bar ── */}
@@ -1206,75 +1149,86 @@ export default function SupplierListPage() {
       </form>
 
       <div
-        className="panel"
         style={{
-          padding: 12,
           display: 'grid',
-          gridTemplateRows: 'minmax(0, 1fr) auto',
+          gridTemplateColumns: 'minmax(0, 1fr) 460px',
+          gap: 16,
+          alignItems: 'stretch',
           flex: 1,
           minHeight: 0,
-          overflow: 'hidden',
         }}
       >
-        <SupplierTable
-          suppliers={suppliers}
-          isLoading={isLoading}
-          paymentTerms={paymentTerms}
-          onEdit={openEditModal}
-        />
-
         <div
+          className="panel"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            paddingTop: 10,
-            borderTop: '1px solid var(--color-border)',
-            marginTop: 10,
+            padding: 12,
+            display: 'grid',
+            gridTemplateRows: 'minmax(0, 1fr) auto',
+            minHeight: 0,
+            overflow: 'hidden',
           }}
         >
-          <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
-            Showing {suppliers.length} of {suppliersPage.totalItems} suppliers
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              className="button-secondary"
-              type="button"
-              disabled={page <= 1 || isLoading}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              style={{ height: 32, padding: '0 12px', fontSize: 12 }}
-            >
-              Previous
-            </button>
-            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-              Page {suppliersPage.page} of {suppliersPage.totalPages}
+          <SupplierTable
+            suppliers={suppliers}
+            isLoading={isLoading}
+            paymentTerms={paymentTerms}
+            onEdit={openEditModal}
+          />
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              paddingTop: 10,
+              borderTop: '1px solid var(--color-border)',
+              marginTop: 10,
+            }}
+          >
+            <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+              Showing {suppliers.length} of {suppliersPage.totalItems} suppliers
             </span>
-            <button
-              className="button-secondary"
-              type="button"
-              disabled={page >= suppliersPage.totalPages || isLoading}
-              onClick={() => setPage((current) => Math.min(suppliersPage.totalPages, current + 1))}
-              style={{ height: 32, padding: '0 12px', fontSize: 12 }}
-            >
-              Next
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                className="button-secondary"
+                type="button"
+                disabled={page <= 1 || isLoading}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              >
+                Previous
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                Page {suppliersPage.page} of {suppliersPage.totalPages}
+              </span>
+              <button
+                className="button-secondary"
+                type="button"
+                disabled={page >= suppliersPage.totalPages || isLoading}
+                onClick={() =>
+                  setPage((current) => Math.min(suppliersPage.totalPages, current + 1))
+                }
+                style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <SupplierFormModal
-        mode={mode}
-        form={form}
-        errors={errors}
-        isSaving={isSaving}
-        open={isModalOpen}
-        isLoadingPaymentTerms={isLoadingPaymentTerms}
-        paymentTerms={paymentTerms}
-        onChange={handleChange}
-        onClose={closeModal}
-        onSubmit={handleSubmit}
-      />
+        <SupplierFormModal
+          mode={mode}
+          form={form}
+          errors={errors}
+          isSaving={isSaving}
+          isLoadingPaymentTerms={isLoadingPaymentTerms}
+          paymentTerms={paymentTerms}
+          onChange={handleChange}
+          onClose={closeModal}
+          onSubmit={handleSubmit}
+        />
+      </div>
     </div>
   )
 }
