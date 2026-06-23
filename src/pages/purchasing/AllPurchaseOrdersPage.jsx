@@ -42,6 +42,10 @@ function formatMoney(value) {
   })}`
 }
 
+function getLifoDate(order) {
+  return dayjs(order.createdAt || order.orderDate)
+}
+
 function getStatusLabel(order) {
   if (
     Number(order.status) === Number(PurchaseOrderStatus.Submitted) ||
@@ -148,8 +152,8 @@ export default function AllPurchaseOrdersPage() {
     })
 
     return [...filtered].sort((a, b) => {
-      const dateA = dayjs(a.orderDate)
-      const dateB = dayjs(b.orderDate)
+      const dateA = getLifoDate(a)
+      const dateB = getLifoDate(b)
       if (!dateA.isSame(dateB)) {
         return dateB.isAfter(dateA) ? 1 : -1
       }
