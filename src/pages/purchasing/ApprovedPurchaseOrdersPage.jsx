@@ -3,14 +3,15 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
-  ChevronRight,
   FileText,
   Package,
+  PackageCheck,
   RefreshCw,
   Search,
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
@@ -28,7 +29,26 @@ function formatMoney(value) {
   })}`
 }
 
-export default function ApprovedPurchaseOrdersPage() {
+function getStatusText(status) {
+  const statusNumber = Number(status)
+
+  if (statusNumber === PurchaseOrderStatus.PartiallyReceived) return 'Partially Received'
+  if (statusNumber === PurchaseOrderStatus.Approved) return 'Approved'
+  return 'Receivable'
+}
+
+function getStatusColor(status) {
+  return Number(status) === PurchaseOrderStatus.PartiallyReceived
+    ? 'var(--color-amber)'
+    : 'var(--color-green)'
+}
+
+function getLifoDate(order) {
+  return dayjs(order.createdAt || order.orderDate)
+}
+
+export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
+  const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const canCancel = userHasPermission(user, PERMISSIONS.purchasing.poCreate)
 
@@ -65,6 +85,24 @@ export default function ApprovedPurchaseOrdersPage() {
     setIsLoading(true)
     setError('')
     try {
+      if (grnMode) {
+        const [approvedResult, partialResult] = await Promise.all([
+          purchasingService.listPurchaseOrders({
+            page: 1,
+            pageSize: 100,
+            status: PurchaseOrderStatus.Approved,
+          }),
+          purchasingService.listPurchaseOrders({
+            page: 1,
+            pageSize: 100,
+            status: PurchaseOrderStatus.PartiallyReceived,
+          }),
+        ])
+
+        setOrders([...(approvedResult?.items || []), ...(partialResult?.items || [])])
+        return
+      }
+
       const result = await purchasingService.listPurchaseOrders({
         page: 1,
         pageSize: 100,
@@ -77,7 +115,7 @@ export default function ApprovedPurchaseOrdersPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [grnMode])
 
   useEffect(() => {
     loadPurchaseOrders()
@@ -108,7 +146,7 @@ export default function ApprovedPurchaseOrdersPage() {
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase()
 
-    return orders.filter((order) => {
+    const filtered = orders.filter((order) => {
       const orderDate = dayjs(order.orderDate).format('YYYY-MM-DD')
       const matchesSearch =
         !query ||
@@ -120,6 +158,15 @@ export default function ApprovedPurchaseOrdersPage() {
       const matchesTo = !toDate || orderDate <= toDate
 
       return matchesSearch && matchesSupplier && matchesFrom && matchesTo
+    })
+
+    return [...filtered].sort((a, b) => {
+      const dateA = getLifoDate(a)
+      const dateB = getLifoDate(b)
+      if (!dateA.isSame(dateB)) {
+        return dateB.isAfter(dateA) ? 1 : -1
+      }
+      return b.poNumber.localeCompare(a.poNumber, undefined, { numeric: true, sensitivity: 'base' })
     })
   }, [fromDate, orders, search, supplier, toDate])
 
@@ -197,10 +244,12 @@ export default function ApprovedPurchaseOrdersPage() {
             lineHeight: 1.2,
           }}
         >
-          Approved Purchase Orders
+          {grnMode ? 'Goods Receipt Entry' : 'Approved Purchase Orders'}
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          Review approved order details and cancel orders that have not been fully received.
+          {grnMode
+            ? 'Select a receivable purchase order, then enter the goods received against it.'
+            : 'Review approved order details and cancel orders that have not been fully received.'}
         </p>
       </div>
 
@@ -291,7 +340,9 @@ export default function ApprovedPurchaseOrdersPage() {
           className="icon-button"
           onClick={loadPurchaseOrders}
           disabled={isLoading}
-          title="Refresh approved purchase orders"
+          title={
+            grnMode ? 'Refresh receivable purchase orders' : 'Refresh approved purchase orders'
+          }
           style={{ width: 40, height: 40 }}
         >
           <RefreshCw style={{ width: 16, height: 16 }} />
@@ -345,10 +396,12 @@ export default function ApprovedPurchaseOrdersPage() {
               </div>
               <div>
                 <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                  Approved orders
+                  {grnMode ? 'Receivable Purchase Orders' : 'Approved orders'}
                 </h2>
                 <p style={{ marginTop: 2, fontSize: 11, color: 'var(--color-text-dim)' }}>
-                  Select an order to view details
+                  {grnMode
+                    ? 'Newest receivable orders appear first'
+                    : 'Select an order to view details'}
                 </p>
               </div>
             </div>
@@ -379,7 +432,7 @@ export default function ApprovedPurchaseOrdersPage() {
                   fontSize: 13,
                 }}
               >
-                Loading approved orders...
+                {grnMode ? 'Loading receivable orders...' : 'Loading approved orders...'}
               </div>
             ) : filteredOrders.length ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -423,13 +476,18 @@ export default function ApprovedPurchaseOrdersPage() {
                         >
                           {order.poNumber}
                         </span>
-                        <ChevronRight
+                        <span
                           style={{
-                            width: 15,
-                            height: 15,
-                            color: isSelected ? 'var(--color-green)' : 'var(--color-text-dim)',
+                            padding: '3px 7px',
+                            borderRadius: 999,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: getStatusColor(order.status),
+                            background: 'rgba(34, 197, 94, 0.1)',
                           }}
-                        />
+                        >
+                          {getStatusText(order.status)}
+                        </span>
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <div
@@ -504,7 +562,9 @@ export default function ApprovedPurchaseOrdersPage() {
                 }}
               >
                 <CheckCircle2 style={{ width: 34, height: 34, color: 'var(--color-text-dim)' }} />
-                <span style={{ fontSize: 13 }}>No approved POs found.</span>
+                <span style={{ fontSize: 13 }}>
+                  {grnMode ? 'No receivable POs found.' : 'No approved POs found.'}
+                </span>
               </div>
             )}
           </div>
@@ -562,16 +622,18 @@ export default function ApprovedPurchaseOrdersPage() {
                         borderRadius: 999,
                         fontSize: 10,
                         fontWeight: 700,
-                        color: 'var(--color-green)',
+                        color: getStatusColor(selectedOrder.status),
                         background: 'rgba(34, 197, 94, 0.1)',
                         border: '1px solid rgba(34, 197, 94, 0.2)',
                       }}
                     >
-                      APPROVED
+                      {getStatusText(selectedOrder.status).toUpperCase()}
                     </span>
                   </div>
                   <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                    Approved order ready for receiving and supplier fulfilment.
+                    {grnMode
+                      ? 'Receivable order ready for GRN entry.'
+                      : 'Approved order ready for receiving and supplier fulfilment.'}
                   </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
@@ -650,6 +712,8 @@ export default function ApprovedPurchaseOrdersPage() {
                       <tr>
                         <th>Item</th>
                         <th style={{ textAlign: 'right' }}>Ordered Qty</th>
+                        <th style={{ textAlign: 'right' }}>Received</th>
+                        <th style={{ textAlign: 'right' }}>Remaining</th>
                         <th style={{ textAlign: 'right' }}>Smallest Qty</th>
                         <th style={{ textAlign: 'right' }}>Unit Cost</th>
                         <th style={{ textAlign: 'right' }}>Line Total</th>
@@ -674,6 +738,24 @@ export default function ApprovedPurchaseOrdersPage() {
                           <td className="text-right">
                             <span className="mono text-sm">
                               {Number(line.qtyBaseUnit).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 4,
+                              })}
+                            </span>{' '}
+                            <span className="uom-badge">{line.baseUomCode}</span>
+                          </td>
+                          <td className="text-right">
+                            <span className="mono text-sm">
+                              {Number(line.receivedQty).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 4,
+                              })}
+                            </span>{' '}
+                            <span className="uom-badge">{line.baseUomCode}</span>
+                          </td>
+                          <td className="text-right">
+                            <span className="mono text-sm">
+                              {Number(line.remainingQty).toLocaleString(undefined, {
                                 minimumFractionDigits: 0,
                                 maximumFractionDigits: 4,
                               })}
@@ -807,14 +889,37 @@ export default function ApprovedPurchaseOrdersPage() {
                 }}
               >
                 <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-                  Approved orders remain available for receiving until cancelled or fully received.
+                  {grnMode
+                    ? 'Approved and partially received orders remain available until fully received.'
+                    : 'Approved orders remain available for receiving until cancelled or fully received.'}
                 </span>
-                {canCancel ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {canCancel ? (
+                    <button
+                      type="button"
+                      className="button-danger"
+                      onClick={cancelOrder}
+                      disabled={isCancelling}
+                      style={{
+                        height: 40,
+                        padding: '0 18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <X style={{ width: 15, height: 15 }} />
+                      {isCancelling ? 'Cancelling...' : 'Cancel Purchase Order'}
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                      You do not have permission to cancel POs.
+                    </span>
+                  )}
                   <button
                     type="button"
-                    className="button-danger"
-                    onClick={cancelOrder}
-                    disabled={isCancelling}
+                    className="button-primary"
+                    onClick={() => navigate(`/purchasing/${selectedOrder.id}/receive`)}
                     style={{
                       height: 40,
                       padding: '0 18px',
@@ -823,14 +928,10 @@ export default function ApprovedPurchaseOrdersPage() {
                       gap: 8,
                     }}
                   >
-                    <X style={{ width: 15, height: 15 }} />
-                    {isCancelling ? 'Cancelling...' : 'Cancel Purchase Order'}
+                    <PackageCheck style={{ width: 15, height: 15 }} />
+                    Receive Goods
                   </button>
-                ) : (
-                  <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-                    You do not have permission to cancel POs.
-                  </span>
-                )}
+                </div>
               </div>
             </div>
           ) : (
