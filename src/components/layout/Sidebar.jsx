@@ -1,26 +1,30 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import {
-  // Banknote,
+  Banknote,
   // BarChart2,
   // Bookmark,
   ClipboardList,
+  ClipboardCheck,
   FileText,
   LayoutDashboard,
   LogOut,
   BadgeCheck,
   ListChecks,
   Package,
+  PackageCheck,
   Ruler,
   Search,
   Settings,
   // Shield,
   ShoppingCart,
+  // Store,
   Tags,
   // Truck,
   Route,
   User,
   UserCog,
   Users,
+  Undo2,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
@@ -38,6 +42,10 @@ const navGroups = [
   {
     label: 'PURCHASING',
     items: [
+      {
+        isSubHeader: true,
+        label: 'Purchasing Order',
+      },
       {
         label: 'Purchase Order',
         to: '/purchasing/place-order',
@@ -66,6 +74,46 @@ const navGroups = [
         end: true,
         permissions: PERMISSIONS.purchasing.poRead,
       },
+      {
+        isSubHeader: true,
+        label: 'GRN',
+      },
+      {
+        label: 'Goods Receipt Entry',
+        to: '/purchasing/goods-receipt-entry',
+        icon: PackageCheck,
+        end: true,
+        permissions: PERMISSIONS.purchasing.grnCreate,
+      },
+      {
+        label: 'Goods Receipts',
+        to: '/purchasing/goods-receipts',
+        icon: ClipboardCheck,
+        end: true,
+        permissions: [PERMISSIONS.purchasing.grnCreate, PERMISSIONS.purchasing.grnVerify],
+      },
+      {
+        isSubHeader: true,
+        label: 'Return Note',
+      },
+      {
+        label: 'Purchase Returns',
+        to: '/purchasing/returns',
+        icon: Undo2,
+        end: true,
+        permissions: PERMISSIONS.purchasing.poRead,
+      },
+      {
+        isSubHeader: true,
+        label: 'Settlement',
+      },
+      {
+        label: 'Supplier Settlement',
+        to: '/purchasing/settlement',
+        icon: Banknote,
+        end: true,
+        permissions: PERMISSIONS.purchasing.settlementCreate,
+      },
     ],
   },
   // {
@@ -75,7 +123,12 @@ const navGroups = [
   {
     label: 'MASTER',
     items: [
-      // { label: 'Supplier', to: '/master/suppliers', icon: Store, permissions: PERMISSIONS.purchasing.supplierManage },
+      // {
+      //   label: 'Supplier',
+      //   to: '/master/suppliers',
+      //   icon: Store,
+      //   permissions: PERMISSIONS.purchasing.supplierManage,
+      // },
       {
         label: 'Product',
         to: '/master/products',
@@ -219,14 +272,37 @@ export default function Sidebar() {
   const normalizedQuery = normalizeSearch(searchQuery)
   const accessibleNavGroups = navGroups
     .map((group) => {
-      const items = group.items.filter((item) => userHasPermission(user, item.permissions))
-      return items.length ? { ...group, items } : null
+      const items = group.items.filter((item) => {
+        if (item.isSubHeader) return true
+        return userHasPermission(user, item.permissions)
+      })
+
+      const cleanedItems = []
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.isSubHeader) {
+          let hasFollowers = false
+          for (let j = i + 1; j < items.length; j++) {
+            if (items[j].isSubHeader) break
+            hasFollowers = true
+            break
+          }
+          if (hasFollowers) {
+            cleanedItems.push(item)
+          }
+        } else {
+          cleanedItems.push(item)
+        }
+      }
+
+      return cleanedItems.length ? { ...group, items: cleanedItems } : null
     })
     .filter((group) => Boolean(group))
   const filteredNavGroups = normalizedQuery
     ? accessibleNavGroups
         .map((group) => {
           const items = group.items.filter((item) => {
+            if (item.isSubHeader) return false
             const haystack = `${group.label} ${item.label}`.toLowerCase()
             return haystack.includes(normalizedQuery)
           })
@@ -333,9 +409,17 @@ export default function Sidebar() {
               <div key={group.label} className={styles.navGroup}>
                 {!sidebarCollapsed ? <p className={styles.navGroupLabel}>{group.label}</p> : null}
                 <div className={styles.navList}>
-                  {group.items.map((item) => (
-                    <SidebarLink key={item.to} collapsed={sidebarCollapsed} item={item} />
-                  ))}
+                  {group.items.map((item, idx) =>
+                    item.isSubHeader ? (
+                      !sidebarCollapsed ? (
+                        <div key={`sub-${idx}`} className={styles.subHeader}>
+                          {item.label}
+                        </div>
+                      ) : null
+                    ) : (
+                      <SidebarLink key={item.to} collapsed={sidebarCollapsed} item={item} />
+                    )
+                  )}
                 </div>
               </div>
             ))
