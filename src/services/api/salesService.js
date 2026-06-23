@@ -89,6 +89,9 @@ function formatInvoice(invoice) {
     cancelledReason: invoice.cancelledReason ?? '',
     grossAmount: Number(invoice.grossAmount ?? 0),
     totalDiscountAmount: Number(invoice.totalDiscountAmount ?? 0),
+    totalSupplierDiscountAmount: Number(invoice.totalSupplierDiscountAmount ?? 0),
+    totalDistributorDiscountAmount: Number(invoice.totalDistributorDiscountAmount ?? 0),
+    totalReturnAmount: Number(invoice.totalReturnAmount ?? 0),
     vatAmount: Number(invoice.vatAmount ?? 0),
     netAmount: Number(invoice.netAmount ?? 0),
     paidAmount: Number(invoice.paidAmount ?? 0),
@@ -102,7 +105,11 @@ function formatInvoice(invoice) {
       unitPrice: Number(line.unitPrice ?? 0),
       mrp: Number(line.mrp ?? 0),
       discountPercent: Number(line.discountPercent ?? 0),
+      supplierDiscountPercent: Number(line.supplierDiscountPercent ?? 0),
+      distributorDiscountPercent: Number(line.distributorDiscountPercent ?? 0),
       grossAmount: Number(line.grossAmount ?? 0),
+      supplierDiscountAmount: Number(line.supplierDiscountAmount ?? 0),
+      distributorDiscountAmount: Number(line.distributorDiscountAmount ?? 0),
       discountAmount: Number(line.discountAmount ?? 0),
       vatAmount: Number(line.vatAmount ?? 0),
       lineTotal: Number(line.lineTotal ?? 0),
@@ -220,7 +227,7 @@ export const salesService = {
     return getValue(response, 'Unable to upload customer images.')
   },
 
-// Sales invoice related APIs
+  // Sales invoice related APIs
   // Create a new invoice
   async createInvoice(payload) {
     const response = await api.post('/api/v1/sales/invoices', payload)

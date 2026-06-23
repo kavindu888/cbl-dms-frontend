@@ -8,6 +8,21 @@ export const PurchaseOrderStatus = {
   Cancelled: 7,
 }
 
+export const GrnStatus = {
+  Received: 1,
+  Verified: 2,
+  Rejected: 3,
+  Draft: 4,
+}
+
+export const ReturnNoteStatus = {
+  Draft: 1,
+  Submitted: 2,
+  Approved: 3,
+  Rejected: 4,
+  Completed: 5,
+  Cancelled: 6,
+}
 export const purchaseOrderStatusOptions = [
   { value: '', label: 'All statuses' },
   { value: PurchaseOrderStatus.Draft, label: 'Draft' },

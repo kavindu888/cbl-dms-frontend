@@ -22,6 +22,12 @@ export const PERMISSIONS = {
     poRead: 'purchasing:po:read',
     supplierManage: 'purchasing:supplier:manage',
     grnCreate: 'purchasing:grn:create',
+    grnVerify: 'purchasing:grn:verify',
+    returnNoteCreate: 'purchasing:returnnote:create',
+    returnNoteApprove: 'purchasing:returnnote:approve',
+    returnNoteComplete: 'purchasing:returnnote:complete',
+    settlementCreate: 'purchasing:settlement:create',
+    settlementApprove: 'purchasing:settlement:approve',
   },
   inventory: {
     stockRead: 'inventory:stock:read',
