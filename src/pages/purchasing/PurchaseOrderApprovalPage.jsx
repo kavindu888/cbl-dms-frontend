@@ -28,6 +28,10 @@ function formatMoney(value) {
   })}`
 }
 
+function getLifoDate(order) {
+  return dayjs(order.createdAt || order.orderDate)
+}
+
 export default function PurchaseOrderApprovalPage() {
   const user = useAuthStore((state) => state.user)
   const canApprove = userHasPermission(user, PERMISSIONS.purchasing.poApprove)
@@ -107,8 +111,8 @@ export default function PurchaseOrderApprovalPage() {
     })
 
     return [...filtered].sort((a, b) => {
-      const dateA = dayjs(a.orderDate)
-      const dateB = dayjs(b.orderDate)
+      const dateA = getLifoDate(a)
+      const dateB = getLifoDate(b)
       if (!dateA.isSame(dateB)) {
         return dateB.isAfter(dateA) ? 1 : -1
       }
