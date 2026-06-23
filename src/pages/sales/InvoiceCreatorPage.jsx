@@ -2,6 +2,7 @@ import dayjs from 'dayjs'
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
@@ -42,6 +43,7 @@ function fieldError(message) {
 }
 
 export default function InvoiceCreatorPage() {
+  const navigate = useNavigate()
   const currentUser = useAuthStore((state) => state.user)
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
@@ -77,13 +79,17 @@ export default function InvoiceCreatorPage() {
       (sum, line) => {
         const gross = Number(line.quantity || 0) * Number(line.unitPrice || 0)
         const discount = gross * (Number(line.discountPercent || 0) / 100)
+        const valueAfterDiscount = gross - discount
+        const vat = line.isVatApplicable ? Math.round(valueAfterDiscount * 18) / 100 : 0
+
         return {
           gross: sum.gross + gross,
           discount: sum.discount + discount,
-          net: sum.net + gross - discount,
+          vat: sum.vat + vat,
+          net: sum.net + valueAfterDiscount + vat,
         }
       },
-      { gross: 0, discount: 0, net: 0 }
+      { gross: 0, discount: 0, vat: 0, net: 0 }
     )
   }, [lines])
 
@@ -144,11 +150,13 @@ export default function InvoiceCreatorPage() {
         !line.unitId ||
         Number(line.quantity) <= 0 ||
         Number(line.discountPercent) < 0 ||
-        Number(line.discountPercent) > 10
+        Number(line.discountPercent) > 10 ||
+        Number(line.unitPrice) < 0 ||
+        Number(line.mrp || 0) < 0
     )
 
     if (invalidLine) {
-      return 'Each line needs a product, quantity, unit, category, and discount between 0 and 10%.'
+      return 'Each line needs a product, quantity, unit, category, non-negative price, and discount between 0 and 10%.'
     }
 
     return ''
@@ -183,8 +191,9 @@ export default function InvoiceCreatorPage() {
     setIsSaving(true)
     try {
       const invoiceId = await salesService.createInvoice(payload)
-      toast.success(`Invoice created successfully. ID: ${invoiceId}`)
+      toast.success('Invoice created successfully.')
       reset(createDefaultValues(currentUser?.id || ''))
+      navigate(`/sales/invoices/${invoiceId}`)
     } catch (error) {
       toast.error(error?.message || 'Invoice could not be created.')
     } finally {
@@ -264,10 +273,11 @@ export default function InvoiceCreatorPage() {
               <tbody>
                 {fields.map((field, index) => {
                   const line = lines[index] || emptyLine
-                  const lineTotal =
-                    Number(line.quantity || 0) *
-                    Number(line.unitPrice || 0) *
-                    (1 - Number(line.discountPercent || 0) / 100)
+                  const gross = Number(line.quantity || 0) * Number(line.unitPrice || 0)
+                  const discount = gross * (Number(line.discountPercent || 0) / 100)
+                  const afterDiscount = gross - discount
+                  const vat = line.isVatApplicable ? Math.round(afterDiscount * 18) / 100 : 0
+                  const lineTotal = afterDiscount + vat
 
                   return (
                     <tr key={field.id}>
@@ -418,7 +428,9 @@ export default function InvoiceCreatorPage() {
             </div>
           </div>
 
-          <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 14 }}>
+          <div
+            style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 14 }}
+          >
             <p className="form-label" style={{ fontSize: 10 }}>
               Tax Details
             </p>
@@ -437,7 +449,9 @@ export default function InvoiceCreatorPage() {
             )}
           </div>
 
-          <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 14 }}>
+          <div
+            style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 14 }}
+          >
             <p className="form-label" style={{ fontSize: 10 }}>
               Invoice Summary
             </p>
@@ -449,6 +463,10 @@ export default function InvoiceCreatorPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--color-text-muted)' }}>Discount</span>
                 <span className="mono">{money(totals.discount)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>VAT</span>
+                <span className="mono">{money(totals.vat)}</span>
               </div>
               <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
@@ -476,11 +494,7 @@ export default function InvoiceCreatorPage() {
               <RotateCcw style={{ width: 15, height: 15 }} />
               Clear
             </button>
-            <button
-              className="button-primary"
-              type="submit"
-              disabled={isSaving || isLoadingData}
-            >
+            <button className="button-primary" type="submit" disabled={isSaving || isLoadingData}>
               <Save style={{ width: 15, height: 15 }} />
               {isSaving ? 'Saving...' : 'Save'}
             </button>
