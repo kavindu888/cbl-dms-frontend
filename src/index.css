@@ -696,3 +696,139 @@ tr:hover .copy-btn {
   color: var(--color-text-dim);
   font-size: 10px;
 }
+
+/* ── Compact Table Inputs (GRN/PO forms) ───────────────────────── */
+.product-table-compact .form-input {
+  height: 32px !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
+  border-radius: 4px !important;
+  background: var(--color-bg-surface) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.product-table-compact .form-input:focus {
+  border-color: var(--color-amber) !important;
+}
+
+:root[data-theme='light'] .product-table-compact .form-input {
+  background: #ffffff !important;
+  border-color: #bfd0ea !important;
+}
+
+:root[data-theme='light'] .product-table-compact .form-input:focus {
+  border-color: var(--color-amber) !important;
+}
+
+/* ── Modern Table Action Buttons ────────────────────────────── */
+.btn-table-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 9999px; /* Pill shape */
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Action Type: View (Neutral read-only) */
+.btn-table-action-view {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-muted);
+}
+.btn-table-action-view:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--color-text-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* Action Type: Continue / Review (Actionable/Pending) */
+.btn-table-action-continue {
+  background: color-mix(in srgb, var(--color-amber) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-amber) 20%, transparent);
+  color: var(--color-amber);
+}
+.btn-table-action-continue:hover {
+  background: color-mix(in srgb, var(--color-amber) 18%, transparent);
+  border-color: color-mix(in srgb, var(--color-amber) 40%, transparent);
+  color: var(--color-amber);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-amber) 12%, transparent);
+}
+
+/* Micro-animation: move the icon slightly on hover */
+.btn-table-action svg {
+  transition: transform 200ms ease;
+}
+.btn-table-action:hover svg {
+  transform: translateX(3px);
+}
+
+/* Light Theme Overrides */
+:root[data-theme='light'] .btn-table-action-view {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+:root[data-theme='light'] .btn-table-action-view:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+:root[data-theme='light'] .btn-table-action-continue {
+  background: color-mix(in srgb, var(--color-amber) 12%, #fef3c7);
+  border-color: color-mix(in srgb, var(--color-amber) 25%, #fde68a);
+  color: color-mix(in srgb, var(--color-amber) 82%, #083344);
+}
+:root[data-theme='light'] .btn-table-action-continue:hover {
+  background: color-mix(in srgb, var(--color-amber) 20%, #fef3c7);
+  border-color: color-mix(in srgb, var(--color-amber) 50%, #fcd34d);
+  color: color-mix(in srgb, var(--color-amber) 90%, #083344);
+}
+
+/* ── Modern Back Buttons ──────────────────────────────────────── */
+.btn-back-modern {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  color: var(--color-text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  width: fit-content;
+  text-decoration: none;
+  transition: all 200ms ease;
+}
+
+.btn-back-modern:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-primary);
+}
+
+.btn-back-modern svg {
+  transition: transform 200ms ease;
+}
+
+.btn-back-modern:hover svg {
+  transform: translateX(-3px);
+}
+
+/* Light Theme Overrides */
+:root[data-theme='light'] .btn-back-modern:hover {
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--color-text-primary);
+}
