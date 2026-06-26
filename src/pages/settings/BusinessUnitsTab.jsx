@@ -357,19 +357,13 @@ export default function BusinessUnitsTab() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td
-                      colSpan={7}
-                      className="py-12 text-center text-sm text-text-muted"
-                    >
+                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
                       Loading business units...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td
-                      colSpan={7}
-                      className="py-12 text-center text-sm text-danger"
-                    >
+                    <td colSpan={7} className="py-12 text-center text-sm text-danger">
                       {error}
                     </td>
                   </tr>
@@ -416,10 +410,7 @@ export default function BusinessUnitsTab() {
                   ))
                 ) : (
                   <tr>
-                    <td
-                      colSpan={7}
-                      className="py-12 text-center text-sm text-text-muted"
-                    >
+                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
                       No business units found.
                     </td>
                   </tr>

@@ -231,7 +231,7 @@ export const salesService = {
   // Create a new invoice
   async createInvoice(payload) {
     const response = await api.post('/api/v1/sales/invoices', payload)
-    return response.data
+    return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
   },
 
   // Get a single invoice by ID

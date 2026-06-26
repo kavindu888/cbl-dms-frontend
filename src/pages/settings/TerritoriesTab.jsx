@@ -348,19 +348,13 @@ export default function TerritoriesTab() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="py-12 text-center text-sm text-text-muted"
-                    >
+                    <td colSpan={6} className="py-12 text-center text-sm text-text-muted">
                       Loading territories...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="py-12 text-center text-sm text-danger"
-                    >
+                    <td colSpan={6} className="py-12 text-center text-sm text-danger">
                       {error}
                     </td>
                   </tr>
@@ -404,10 +398,7 @@ export default function TerritoriesTab() {
                   ))
                 ) : (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="py-12 text-center text-sm text-text-muted"
-                    >
+                    <td colSpan={6} className="py-12 text-center text-sm text-text-muted">
                       No territories found.
                     </td>
                   </tr>

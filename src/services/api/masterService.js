@@ -223,8 +223,7 @@ export const masterService = {
     return formatOrganisation(getValue(response, 'Unable to update organisation status.'))
   },
 
-
-//Business Unit List, Get, Create, Update, Activate/Deactivate
+  //Business Unit List, Get, Create, Update, Activate/Deactivate
   //Business Unit List
   async listBusinessUnits(params = {}) {
     const response = await getOnce('/api/v1/master-data/business-units', { params })
@@ -255,8 +254,7 @@ export const masterService = {
     return formatBusinessUnit(getValue(response, 'Unable to deactivate business unit.'))
   },
 
-
-//Territory List, Get, Create, Update, Activate/Deactivate
+  //Territory List, Get, Create, Update, Activate/Deactivate
   //Territory List
   async listTerritories(params = {}) {
     const response = await getOnce('/api/v1/master-data/territories', { params })
@@ -287,8 +285,7 @@ export const masterService = {
     return formatTerritory(getValue(response, 'Unable to deactivate territory.'))
   },
 
-
-// Sales Routes List, Get, Create, Update, Deactivate
+  // Sales Routes List, Get, Create, Update, Deactivate
   // Sales Routes List
   async listSalesRoutes(params = {}) {
     const response = await getOnce('/api/v1/master/sales-routes', { params })
@@ -325,8 +322,7 @@ export const masterService = {
     return getValue(response, 'Unable to deactivate sales route.')
   },
 
-
-// Payment Terms List, Get, Create, Update, Deactivate  
+  // Payment Terms List, Get, Create, Update, Deactivate
   // Payment Terms List
   async listPaymentTerms() {
     const response = await getOnce('/api/v1/master-data/payment-terms')
@@ -339,8 +335,7 @@ export const masterService = {
     return formatPaymentTerm(getValue(response, 'Unable to load payment term.'))
   },
 
-
-// Taxes List, Create, Update, Deactivate
+  // Taxes List, Create, Update, Deactivate
   // Taxes List
   async listTaxes() {
     const response = await getOnce('/api/v1/taxes')
@@ -365,8 +360,7 @@ export const masterService = {
     return formatTax(getValue(response, 'Unable to deactivate tax.'))
   },
 
-
-//Product List, Get, Create, Update, Activate/Deactivate
+  //Product List, Get, Create, Update, Activate/Deactivate
   //Product List
   async listProducts(params = {}) {
     const response = await getOnce('/api/v1/master-data/products', { params })
@@ -401,8 +395,7 @@ export const masterService = {
     return formatProduct(getValue(response, 'Unable to update product status.'))
   },
 
-
-//UOM Conversion Add, Update, Remove
+  //UOM Conversion Add, Update, Remove
   //UOM Conversion Add
   async addUomConversion(productId, payload) {
     const response = await api.post(
@@ -429,8 +422,7 @@ export const masterService = {
     return getValue(response, 'Unable to remove UOM conversion.')
   },
 
-
-// Units of Measure List, Get, Create, Update, Deactivate
+  // Units of Measure List, Get, Create, Update, Deactivate
   // Units of Measure List
   async listUnitsOfMeasure(params = {}) {
     const response = await getOnce('/api/v1/master-data/units-of-measure', { params })
@@ -461,7 +453,7 @@ export const masterService = {
     return formatUnitOfMeasure(getValue(response, 'Unable to deactivate unit of measure.'))
   },
 
-// Product Categories List, Get, Create, Update, Deactivate
+  // Product Categories List, Get, Create, Update, Deactivate
   // Product Categories List
   async listCategories(params = {}) {
     const response = await getOnce('/api/v1/master-data/product-categories', { params })
@@ -492,8 +484,7 @@ export const masterService = {
     return getValue(response, 'Unable to delete category.')
   },
 
-  
-// Brands List, Get, Create, Update, Deactivate
+  // Brands List, Get, Create, Update, Deactivate
   // Brands List
   async listBrands(params = {}) {
     const response = await getOnce('/api/v1/master/brands', { params })

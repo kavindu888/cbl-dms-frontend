@@ -348,7 +348,7 @@ export default function TaxesTab() {
               </p>
             </div>
 
-            <FormField label="Code">
+            <FormField label="Code" required>
               <input
                 className="form-input"
                 value={form.code}
@@ -358,7 +358,7 @@ export default function TaxesTab() {
               />
             </FormField>
 
-            <FormField label="Name">
+            <FormField label="Name" required>
               <input
                 className="form-input"
                 value={form.name}
@@ -368,7 +368,7 @@ export default function TaxesTab() {
               />
             </FormField>
 
-            <FormField label="Rate (%)">
+            <FormField label="Rate (%)" required>
               <input
                 className="form-input"
                 type="number"
@@ -430,10 +430,13 @@ export default function TaxesTab() {
   )
 }
 
-function FormField({ label, children }) {
+function FormField({ label, children, required = false }) {
   return (
     <label>
-      <span className="form-label">{label}</span>
+      <span className="form-label">
+        {label}
+        {required ? <span style={{ color: 'var(--color-danger)' }}> *</span> : null}
+      </span>
       {children}
     </label>
   )
