@@ -32,9 +32,7 @@ export default function KPICard({
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-3">
-        <p className="text-sm text-text-muted">
-          {sub ?? 'Awaiting live ERP metrics'}
-        </p>
+        <p className="text-sm text-text-muted">{sub ?? 'Awaiting live ERP metrics'}</p>
         {trend && trendValue ? (
           <span className={cn('mono text-sm font-medium')} style={{ color: trendColor }}>
             {trend === 'up' ? '▲' : '▼'} {trendValue}

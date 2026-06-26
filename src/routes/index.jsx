@@ -16,14 +16,15 @@ import MasterCustomerListPage from '@pages/master/CustomerListPage'
 import Product from '@pages/master/Product'
 import SalesRouteListPage from '@pages/master/SalesRouteListPage'
 import UnitOfMeasureListPage from '@pages/master/UnitOfMeasureListPage'
-import AllPurchaseOrdersPage from '@pages/purchasing/AllPurchaseOrdersPage'
-import ApprovedPurchaseOrdersPage from '@pages/purchasing/ApprovedPurchaseOrdersPage'
-import GoodsReceiptListPage from '@pages/purchasing/GoodsReceiptListPage'
-import PurchaseOrderApprovalPage from '@pages/purchasing/PurchaseOrderApprovalPage'
-import PlacePurchaseOrderPage from '@pages/purchasing/PlacePurchaseOrderPage'
-import PurchaseReturnsPage from '@pages/purchasing/PurchaseReturnsPage'
-import SupplierSettlementPage from '@pages/purchasing/SupplierSettlementPage'
-import ReceiptEntryPage from '@pages/purchasing/ReceiptEntryPage'
+import AllPurchaseOrdersPage from '@pages/purchasing/purchase-orders/AllPurchaseOrdersPage'
+import ApprovedPurchaseOrdersPage from '@pages/purchasing/purchase-orders/ApprovedPurchaseOrdersPage'
+import GoodsReceiptEntryPage from '@pages/purchasing/grn/GoodsReceiptEntryPage'
+import GoodsReceiptListPage from '@pages/purchasing/grn/GoodsReceiptListPage'
+import GrnApproveRejectPage from '@pages/purchasing/grn/GrnApproveRejectPage'
+import PurchaseOrderApprovalPage from '@pages/purchasing/purchase-orders/PurchaseOrderApprovalPage'
+import PlacePurchaseOrderPage from '@pages/purchasing/purchase-orders/PlacePurchaseOrderPage'
+import PurchaseReturnsPage from '@pages/purchasing/returns/PurchaseReturnsPage'
+import SupplierSettlementPage from '@pages/purchasing/settlement/SupplierSettlementPage'
 import SupplierListPage from '@pages/master/SupplierListPage'
 import ReportHubPage from '@pages/reports/ReportHubPage'
 import ReportPreviewPage from '@pages/reports/ReportPreviewPage'
@@ -103,7 +104,7 @@ export const router = createBrowserRouter([
       {
         path: 'purchasing/goods-receipt-entry',
         element: requirePermission(
-          <ApprovedPurchaseOrdersPage grnMode />,
+          <GoodsReceiptEntryPage />,
           PERMISSIONS.purchasing.grnCreate
         ),
       },
@@ -114,12 +115,10 @@ export const router = createBrowserRouter([
           PERMISSIONS.purchasing.grnVerify,
         ]),
       },
+
       {
-        path: 'purchasing/goods-receipts/:grnId',
-        element: requirePermission(<ReceiptEntryPage />, [
-          PERMISSIONS.purchasing.grnCreate,
-          PERMISSIONS.purchasing.grnVerify,
-        ]),
+        path: 'purchasing/grn-approve-reject',
+        element: requirePermission(<GrnApproveRejectPage />, PERMISSIONS.purchasing.grnVerify),
       },
       {
         path: 'purchasing/returns',
@@ -136,10 +135,7 @@ export const router = createBrowserRouter([
           PERMISSIONS.purchasing.settlementCreate
         ),
       },
-      {
-        path: 'purchasing/:id/receive',
-        element: requirePermission(<ReceiptEntryPage />, PERMISSIONS.purchasing.grnCreate),
-      },
+
       {
         path: 'inventory',
         element: requirePermission(<Product />, PERMISSIONS.masterData.productRead),

@@ -67,9 +67,7 @@ export function ProtectedRoute({ children, requiredRole, requiredPermission }) {
       <div className="flex min-h-screen items-center justify-center bg-bg-base px-4">
         <div className="panel w-full max-w-md p-8 text-center">
           <p className="eyebrow">Authorizing</p>
-          <p className="mt-3 text-lg text-text-primary">
-            Preparing the ERP shell...
-          </p>
+          <p className="mt-3 text-lg text-text-primary">Preparing the ERP shell...</p>
         </div>
       </div>
     )

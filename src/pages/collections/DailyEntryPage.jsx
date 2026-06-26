@@ -158,7 +158,7 @@ export default function DailyEntryPage() {
           className="form-input w-auto"
           value={dateFilter}
           onChange={(e) => setDate(e.target.value)}
-          style={{ minWidth: 150, colorScheme: 'dark' }}
+          style={{ minWidth: 150 }}
         />
       </div>
 
