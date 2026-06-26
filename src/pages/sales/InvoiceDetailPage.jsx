@@ -1,10 +1,12 @@
 import dayjs from 'dayjs'
 import { ArrowLeft, Ban, CreditCard, Hash, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { salesService } from '@/services/api/salesService'
+import { masterService } from '@/services/api/masterService'
+import { usersService } from '@/services/api/usersService'
 import { useAuthStore } from '@/stores/authStore'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
@@ -34,13 +36,65 @@ function showDate(value) {
   return value ? dayjs(value).format('DD MMM YYYY') : '-'
 }
 
-function InfoItem({ label, value }) {
+function invoiceStatusLabel(status) {
+  return String(status || '').replace(/([a-z])([A-Z])/g, '$1 $2')
+}
+
+function InfoItem({ label, value, subValue, isCode = false }) {
   return (
-    <div>
-      <p className="form-label" style={{ fontSize: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+      <span
+        className="form-label"
+        style={{
+          marginBottom: 0,
+          fontSize: '11px',
+          fontWeight: 600,
+          color: 'var(--color-text-dim)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+        }}
+      >
         {label}
-      </p>
-      <p style={{ marginTop: 4, color: 'var(--color-text-primary)' }}>{value || '-'}</p>
+      </span>
+      <div
+        className="form-input"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          padding: '8px 12px',
+          height: 'auto',
+          minHeight: 44,
+          backgroundColor: 'var(--color-bg-base)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
+        <span
+          className={isCode ? 'mono' : ''}
+          style={{
+            fontSize: '13px',
+            fontWeight: 600,
+            color: 'var(--color-text-primary)',
+            wordBreak: 'break-word',
+            lineHeight: 1.2,
+          }}
+        >
+          {value || '-'}
+        </span>
+        {subValue && (
+          <span
+            className="mono"
+            style={{
+              fontSize: '10px',
+              color: 'var(--color-text-muted)',
+              marginTop: 2,
+              wordBreak: 'break-all',
+            }}
+          >
+            {subValue}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
@@ -60,6 +114,25 @@ function AmountRow({ label, value, strong = false }) {
   )
 }
 
+function CompactTitle({ icon: Icon, title }) {
+  return (
+    <h3
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 8,
+        fontSize: 15,
+        fontWeight: 800,
+        color: 'var(--color-text-primary)',
+      }}
+    >
+      <Icon size={15} />
+      {title}
+    </h3>
+  )
+}
+
 export default function InvoiceDetailPage() {
   const { id } = useParams()
   const currentUser = useAuthStore((state) => state.user)
@@ -71,7 +144,18 @@ export default function InvoiceDetailPage() {
   const [isSavingPayment, setIsSavingPayment] = useState(false)
   const [isSavingTaxNumber, setIsSavingTaxNumber] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [customerName, setCustomerName] = useState('')
+  const [salesRouteName, setSalesRouteName] = useState('')
+  const [salesPersonName, setSalesPersonName] = useState('')
+  const [products, setProducts] = useState([])
   const [error, setError] = useState('')
+
+  const productById = useMemo(() => {
+    return products.reduce((map, p) => {
+      map[p.id] = p
+      return map
+    }, {})
+  }, [products])
 
   const canAddPayment = userHasPermission(currentUser, PERMISSIONS.sales.invoiceAddPayment)
   const canCancel = userHasPermission(currentUser, PERMISSIONS.sales.invoiceCancel)
@@ -91,6 +175,49 @@ export default function InvoiceDetailPage() {
       const result = await salesService.getInvoice(id)
       setInvoice(result)
       setTaxInvoiceNumber(result?.taxInvoiceNumber || '')
+
+      if (result) {
+        if (result.customerId) {
+          salesService
+            .getCustomer(result.customerId)
+            .then((c) => setCustomerName(c?.name || ''))
+            .catch(() => setCustomerName(''))
+        } else {
+          setCustomerName('')
+        }
+
+        if (result.salesRouteId) {
+          masterService
+            .getSalesRoute(result.salesRouteId)
+            .then((r) => setSalesRouteName(r?.name || ''))
+            .catch(() => setSalesRouteName(''))
+        } else {
+          setSalesRouteName('')
+        }
+
+        if (result.salesPersonId) {
+          usersService
+            .getUser(result.salesPersonId)
+            .then((u) => setSalesPersonName(u?.username || u?.email || ''))
+            .catch(() => setSalesPersonName(''))
+        } else {
+          setSalesPersonName('')
+        }
+
+        const productIds = Array.from(
+          new Set((result.lines || []).map((line) => line.productId).filter(Boolean))
+        )
+
+        Promise.allSettled(productIds.map((productId) => masterService.getProduct(productId)))
+          .then((responses) => {
+            setProducts(
+              responses.flatMap((response) =>
+                response.status === 'fulfilled' && response.value ? [response.value] : []
+              )
+            )
+          })
+          .catch(() => setProducts([]))
+      }
     } catch (loadError) {
       setError(loadError.message || 'Unable to load invoice.')
       setInvoice(null)
@@ -208,7 +335,16 @@ export default function InvoiceDetailPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 64 }}>
+    <div
+      style={{
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        paddingBottom: 16,
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <Link to="/sales/invoices" className="btn-back-modern" style={{ marginLeft: -8 }}>
@@ -217,13 +353,13 @@ export default function InvoiceDetailPage() {
           </Link>
           <h1
             style={{
-              marginTop: 14,
+              marginTop: 8,
               fontSize: 24,
               fontWeight: 700,
               color: 'var(--color-text-primary)',
             }}
           >
-            {invoice.invoiceNumber}
+            Invoice No: {invoice.invoiceNumber}
           </h1>
           <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
             {invoice.isTaxInvoice ? 'Tax invoice' : 'Sales invoice'} issued on{' '}
@@ -231,88 +367,209 @@ export default function InvoiceDetailPage() {
           </p>
         </div>
         <div style={{ alignSelf: 'end' }}>
-          <StatusBadge status={invoice.status.toUpperCase()} />
+          <StatusBadge status={invoiceStatusLabel(invoice.status)} />
         </div>
       </div>
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) minmax(320px, 420px)',
-          gap: 16,
-          alignItems: 'start',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(330px, 400px)',
+          gap: 14,
+          alignItems: 'stretch',
+          flex: 1,
+          minHeight: 0,
         }}
       >
-        <main style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <main
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            height: '100%',
+            minHeight: 0,
+          }}
+        >
           <section className="panel" style={{ padding: 16 }}>
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: 16,
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gap: 12,
+                rowGap: 14,
               }}
             >
-              <InfoItem label="Customer ID" value={invoice.customerId} />
-              <InfoItem label="Sales Route ID" value={invoice.salesRouteId} />
-              <InfoItem label="Vehicle ID" value={invoice.vehicleId} />
-              <InfoItem label="Sales Person ID" value={invoice.salesPersonId} />
-              <InfoItem label="Due Date" value={showDate(invoice.dueDate)} />
-              <InfoItem label="Customer VAT TIN" value={invoice.customerVatTin} />
-              <InfoItem label="Tax Invoice No" value={invoice.taxInvoiceNumber} />
+              <InfoItem
+                label="Customer"
+                value={customerName || invoice.customerId}
+                subValue={customerName ? invoice.customerId : ''}
+                isCode={!customerName}
+              />
+              <InfoItem
+                label="Sales Route"
+                value={salesRouteName || invoice.salesRouteId}
+                subValue={salesRouteName ? invoice.salesRouteId : ''}
+                isCode={!salesRouteName}
+              />
+              <InfoItem label="Vehicle" value={invoice.vehicleId} isCode />
+              <InfoItem
+                label="Sales Person"
+                value={salesPersonName || invoice.salesPersonId}
+                subValue={salesPersonName ? invoice.salesPersonId : ''}
+                isCode={!salesPersonName}
+              />
+              <InfoItem label="Due Date" value={showDate(invoice.dueDate)} isCode />
+              <InfoItem label="Customer VAT TIN" value={invoice.customerVatTin} isCode />
+              <InfoItem label="Tax Invoice No" value={invoice.taxInvoiceNumber} isCode />
               <InfoItem label="Cancelled Reason" value={invoice.cancelledReason} />
             </div>
           </section>
 
-          <section className="panel overflow-hidden">
-            <div style={{ padding: 16, borderBottom: '1px solid var(--color-border)' }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+          <section
+            className="panel overflow-hidden"
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border)' }}>
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-text-primary)' }}>
                 Invoice Lines
               </h2>
             </div>
-            <div className="overflow-x-auto">
-              <table className="data-table" style={{ minWidth: 980 }}>
+            <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              <table className="data-table" style={{ minWidth: 800 }}>
                 <thead>
                   <tr>
-                    <th>Product ID</th>
-                    <th>Unit ID</th>
-                    <th className="text-right">Qty</th>
-                    <th className="text-right">Unit Price</th>
-                    <th className="text-right">MRP</th>
-                    <th className="text-right">Disc %</th>
-                    <th className="text-right">VAT</th>
-                    <th className="text-right">Total</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Item</th>
+                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
+                      Qty
+                    </th>
+                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
+                      Unit Price
+                    </th>
+                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
+                      MRP
+                    </th>
+                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
+                      Disc %
+                    </th>
+                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
+                      VAT
+                    </th>
+                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
+                      Total
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(invoice.lines || []).map((line) => (
-                    <tr key={line.id}>
-                      <td className="mono text-sm">{line.productId}</td>
-                      <td className="mono text-sm">{line.unitId}</td>
-                      <td className="text-right mono">{line.quantity}</td>
-                      <td className="text-right mono">{money(line.unitPrice)}</td>
-                      <td className="text-right mono">{money(line.mrp)}</td>
-                      <td className="text-right mono">{line.discountPercent}%</td>
-                      <td className="text-right mono">{money(line.vatAmount)}</td>
-                      <td className="text-right mono">{money(line.lineTotal)}</td>
-                    </tr>
-                  ))}
+                  {(invoice.lines || []).map((line) => {
+                    const product = productById[line.productId]
+                    const productSku = product?.sku || line.productId
+                    const productName = product?.name || 'Unknown Product'
+
+                    return (
+                      <tr key={line.id}>
+                        <td style={{ verticalAlign: 'middle' }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 3,
+                              alignItems: 'flex-start',
+                            }}
+                          >
+                            <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                              {productSku}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: 'var(--color-text-primary)',
+                              }}
+                            >
+                              {productName}
+                            </span>
+                          </div>
+                        </td>
+                        <td
+                          className="text-right mono"
+                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+                        >
+                          {line.quantity}{' '}
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--color-text-muted)',
+                              fontWeight: 500,
+                            }}
+                          >
+                            {line.unitId}
+                          </span>
+                        </td>
+                        <td
+                          className="text-right mono"
+                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+                        >
+                          {money(line.unitPrice)}
+                        </td>
+                        <td
+                          className="text-right mono"
+                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+                        >
+                          {money(line.mrp)}
+                        </td>
+                        <td
+                          className="text-right mono"
+                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+                        >
+                          {line.discountPercent}%
+                        </td>
+                        <td
+                          className="text-right mono"
+                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+                        >
+                          {money(line.vatAmount)}
+                        </td>
+                        <td
+                          className="text-right mono"
+                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle', fontWeight: 700 }}
+                        >
+                          {money(line.lineTotal)}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           </section>
         </main>
 
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <section className="panel" style={{ padding: 16 }}>
+        <aside
+          className="panel"
+          style={{
+            padding: 14,
+            height: '100%',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}
+        >
+          <section>
             <h2
               style={{
                 fontSize: 16,
-                fontWeight: 700,
+                fontWeight: 800,
                 color: 'var(--color-text-primary)',
-                marginBottom: 12,
+                marginBottom: 10,
               }}
             >
-              Amount Summary
+              Billing
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
               <AmountRow label="Gross" value={invoice.grossAmount} />
@@ -324,7 +581,7 @@ export default function InvoiceDetailPage() {
               />
               <AmountRow label="Returns" value={invoice.totalReturnAmount} />
               <AmountRow label="VAT" value={invoice.vatAmount} />
-              <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+              <div style={{ borderTop: '1px solid var(--color-border)', margin: '3px 0' }} />
               <AmountRow label="Net" value={invoice.netAmount} strong />
               <AmountRow label="Paid" value={invoice.paidAmount} />
               <AmountRow label="Outstanding" value={invoice.outstandingAmount} strong />
@@ -332,25 +589,27 @@ export default function InvoiceDetailPage() {
           </section>
 
           {canAddPayment && !isCancelled && !isPaid && (
-            <form className="panel" style={{ padding: 16 }} onSubmit={submitPayment}>
-              <h2
+            <form
+              onSubmit={submitPayment}
+              style={{
+                marginTop: 18,
+                paddingTop: 14,
+                borderTop: '1px solid var(--color-border)',
+              }}
+            >
+              <CompactTitle icon={CreditCard} title="Add Payment" />
+              <div
                 style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: 'var(--color-text-primary)',
-                  marginBottom: 12,
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 10,
                 }}
               >
-                <CreditCard
-                  style={{ width: 16, height: 16, marginRight: 6, verticalAlign: 'text-bottom' }}
-                />
-                Add Payment
-              </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <select
                   className="form-input"
                   value={payment.paymentMethod}
                   onChange={(event) => updatePayment('paymentMethod', event.target.value)}
+                  style={{ height: 40 }}
                 >
                   {paymentMethods.map((method) => (
                     <option key={method.value} value={method.value}>
@@ -366,36 +625,46 @@ export default function InvoiceDetailPage() {
                   placeholder="Amount"
                   value={payment.amount}
                   onChange={(event) => updatePayment('amount', event.target.value)}
+                  style={{ height: 40 }}
                 />
                 <input
                   className="form-input"
                   type="date"
                   value={payment.paidDate}
                   onChange={(event) => updatePayment('paidDate', event.target.value)}
+                  style={{ height: 40 }}
                 />
-                {isChequePayment && (
+                {isChequePayment ? (
                   <>
                     <input
                       className="form-input"
                       placeholder="Cheque number"
                       value={payment.chequeNumber}
                       onChange={(event) => updatePayment('chequeNumber', event.target.value)}
+                      style={{ height: 40 }}
                     />
                     <input
                       className="form-input"
                       type="date"
                       value={payment.chequeDate}
                       onChange={(event) => updatePayment('chequeDate', event.target.value)}
+                      style={{ height: 40 }}
                     />
                     <input
                       className="form-input"
                       placeholder="Bank name"
                       value={payment.bankName}
                       onChange={(event) => updatePayment('bankName', event.target.value)}
+                      style={{ height: 40 }}
                     />
                   </>
-                )}
-                <button className="button-primary" type="submit" disabled={isSavingPayment}>
+                ) : null}
+                <button
+                  className="button-primary"
+                  type="submit"
+                  disabled={isSavingPayment}
+                  style={{ gridColumn: '1 / -1', height: 42 }}
+                >
                   <RefreshCw style={{ width: 15, height: 15 }} />
                   {isSavingPayment ? 'Saving...' : 'Record Payment'}
                 </button>
@@ -404,59 +673,61 @@ export default function InvoiceDetailPage() {
           )}
 
           {canAssignTaxNumber && invoice.isTaxInvoice && !isCancelled && (
-            <form className="panel" style={{ padding: 16 }} onSubmit={submitTaxNumber}>
-              <h2
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: 'var(--color-text-primary)',
-                  marginBottom: 12,
-                }}
-              >
-                <Hash
-                  style={{ width: 16, height: 16, marginRight: 6, verticalAlign: 'text-bottom' }}
-                />
-                Tax Invoice Number
-              </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <form
+              onSubmit={submitTaxNumber}
+              style={{
+                marginTop: 18,
+                paddingTop: 14,
+                borderTop: '1px solid var(--color-border)',
+              }}
+            >
+              <CompactTitle icon={Hash} title="Tax Invoice Number" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <input
                   className="form-input"
                   value={taxInvoiceNumber}
                   onChange={(event) => setTaxInvoiceNumber(event.target.value)}
                   placeholder="Tax invoice number"
+                  style={{ height: 40 }}
                 />
-                <button className="button-secondary" type="submit" disabled={isSavingTaxNumber}>
-                  {isSavingTaxNumber ? 'Saving...' : 'Save Number'}
+                <button
+                  className="button-secondary"
+                  type="submit"
+                  disabled={isSavingTaxNumber}
+                  style={{ height: 40, paddingInline: 12 }}
+                >
+                  {isSavingTaxNumber ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>
           )}
 
           {canCancel && !isCancelled && (
-            <form className="panel" style={{ padding: 16 }} onSubmit={submitCancel}>
-              <h2
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: 'var(--color-text-primary)',
-                  marginBottom: 12,
-                }}
-              >
-                <Ban
-                  style={{ width: 16, height: 16, marginRight: 6, verticalAlign: 'text-bottom' }}
-                />
-                Cancel Invoice
-              </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <form
+              onSubmit={submitCancel}
+              style={{
+                marginTop: 18,
+                paddingTop: 14,
+                borderTop: '1px solid var(--color-border)',
+              }}
+            >
+              <CompactTitle icon={Ban} title="Cancel Invoice" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <textarea
                   className="form-input"
-                  rows={3}
+                  rows={2}
                   value={cancelReason}
                   onChange={(event) => setCancelReason(event.target.value)}
                   placeholder="Reason"
+                  style={{ minHeight: 50, resize: 'none', paddingTop: 10 }}
                 />
-                <button className="button-secondary" type="submit" disabled={isCancelling}>
-                  {isCancelling ? 'Cancelling...' : 'Cancel Invoice'}
+                <button
+                  className="button-secondary"
+                  type="submit"
+                  disabled={isCancelling}
+                  style={{ height: 40, alignSelf: 'end', paddingInline: 12 }}
+                >
+                  {isCancelling ? 'Cancelling...' : 'Cancel'}
                 </button>
               </div>
             </form>

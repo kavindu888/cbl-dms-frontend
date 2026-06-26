@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import { useAuthStore } from '@/stores/authStore'
+import SimplePagination from '@components/ui/SimplePagination'
 
 const emptyLine = {
   productId: '',
@@ -65,7 +66,21 @@ export default function InvoiceCreatorPage() {
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const selectedCustomerId = useWatch({ control, name: 'customerId' })
   const isTaxInvoice = useWatch({ control, name: 'isTaxInvoice' })
-  const lines = useWatch({ control, name: 'lines' }) || []
+  const watchedLines = useWatch({ control, name: 'lines' })
+  const lines = useMemo(() => watchedLines || [], [watchedLines])
+
+  const [linePage, setLinePage] = useState(1)
+  const linePageSize = 5
+
+  const pagedFields = useMemo(() => {
+    const start = (linePage - 1) * linePageSize
+    return fields.map((field, index) => ({ field, index })).slice(start, start + linePageSize)
+  }, [fields, linePage])
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(fields.length / linePageSize))
+    if (linePage > totalPages) setLinePage(totalPages)
+  }, [linePage, fields.length])
 
   const productById = useMemo(() => {
     return products.reduce((map, product) => {
@@ -202,7 +217,16 @@ export default function InvoiceCreatorPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 64 }}>
+    <div
+      style={{
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+        overflow: 'hidden',
+      }}
+    >
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)' }}>
           Create Invoice
@@ -223,11 +247,23 @@ export default function InvoiceCreatorPage() {
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(0, 1fr) minmax(360px, 440px)',
-          alignItems: 'start',
+          alignItems: 'stretch',
           gap: 16,
+          flex: 1,
+          minHeight: 0,
         }}
       >
-        <section className="panel" style={{ padding: 14, overflow: 'hidden' }}>
+        <section
+          className="panel"
+          style={{
+            padding: 14,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            minHeight: 0,
+          }}
+        >
           <div
             style={{
               display: 'flex',
@@ -247,7 +283,11 @@ export default function InvoiceCreatorPage() {
             <button
               type="button"
               className="button-secondary"
-              onClick={() => append({ ...emptyLine })}
+              onClick={() => {
+                append({ ...emptyLine })
+                const nextCount = fields.length + 1
+                setLinePage(Math.ceil(nextCount / linePageSize))
+              }}
               style={{ height: 34 }}
             >
               <Plus style={{ width: 14, height: 14 }} />
@@ -255,7 +295,7 @@ export default function InvoiceCreatorPage() {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             <table className="data-table" style={{ minWidth: 980 }}>
               <thead>
                 <tr>
@@ -271,7 +311,7 @@ export default function InvoiceCreatorPage() {
                 </tr>
               </thead>
               <tbody>
-                {fields.map((field, index) => {
+                {pagedFields.map(({ field, index }) => {
                   const line = lines[index] || emptyLine
                   const gross = Number(line.quantity || 0) * Number(line.unitPrice || 0)
                   const discount = gross * (Number(line.discountPercent || 0) / 100)
@@ -360,19 +400,32 @@ export default function InvoiceCreatorPage() {
               </tbody>
             </table>
           </div>
+
+          {fields.length > linePageSize ? (
+            <div style={{ padding: '12px 14px 10px', borderTop: '1px solid var(--color-border)' }}>
+              <SimplePagination
+                page={linePage}
+                pageSize={linePageSize}
+                totalItems={fields.length}
+                onPageChange={setLinePage}
+                itemLabel="items"
+              />
+            </div>
+          ) : null}
         </section>
 
         <aside
           className="panel"
           style={{
             padding: 16,
-            position: 'sticky',
-            top: 16,
-            maxHeight: 'calc(100vh - 120px)',
+            height: '100%',
             overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
           }}
         >
-          <div style={{ marginBottom: 14 }}>
+          <div>
             <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-text-primary)' }}>
               Add New Invoice
             </h2>
@@ -428,9 +481,7 @@ export default function InvoiceCreatorPage() {
             </div>
           </div>
 
-          <div
-            style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 14 }}
-          >
+          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
             <p className="form-label" style={{ fontSize: 10 }}>
               Tax Details
             </p>
@@ -449,9 +500,7 @@ export default function InvoiceCreatorPage() {
             )}
           </div>
 
-          <div
-            style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 14 }}
-          >
+          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
             <p className="form-label" style={{ fontSize: 10 }}>
               Invoice Summary
             </p>
@@ -483,7 +532,6 @@ export default function InvoiceCreatorPage() {
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
               gap: 10,
-              marginTop: 18,
             }}
           >
             <button
