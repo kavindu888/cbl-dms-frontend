@@ -1,4 +1,4 @@
-import { Pencil, Plus, RefreshCw, Search, Copy, Globe } from 'lucide-react'
+import { Pencil, Plus, Search, Copy, Globe } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
@@ -201,12 +201,13 @@ function Field({
   required = false,
   disabled,
   inputRef,
+  placeholder,
 }) {
   return (
     <label>
       <span className="form-label">
         {label}
-        {required ? ' *' : ''}
+        {required ? <span style={{ color: 'var(--color-danger)' }}> *</span> : null}
       </span>
       <input
         className={`form-input ${error ? 'error' : ''}`}
@@ -216,6 +217,7 @@ function Field({
         onChange={onChange}
         disabled={disabled}
         ref={inputRef}
+        placeholder={placeholder ?? (required ? undefined : `Optional ${label.toLowerCase()}`)}
         style={{ height: 38, background: 'rgba(0,0,0,0.15)' }}
       />
       {error ? <span className="form-error">{error}</span> : null}
@@ -661,7 +663,9 @@ function SupplierFormModal({
         {!isEdit ? (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <label>
-              <span className="form-label">Payment Mode *</span>
+              <span className="form-label">
+                Payment Mode<span style={{ color: 'var(--color-danger)' }}> *</span>
+              </span>
               <select
                 className={`form-input ${errors.paymentTermId ? 'error' : ''}`}
                 name="paymentTermId"
@@ -1136,15 +1140,6 @@ export default function SupplierListPage() {
           style={{ height: 40, padding: '0 16px' }}
         >
           Search
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label="Refresh suppliers"
-          onClick={loadSuppliers}
-          style={{ height: 40, width: 40 }}
-        >
-          <RefreshCw style={{ width: 15, height: 15 }} />
         </button>
       </form>
 

@@ -1978,7 +1978,16 @@ export default function Product() {
           }}
         >
           {/* ── Table ── */}
-          <div style={{ minHeight: 0, overflow: 'hidden', width: '100%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div
+            style={{
+              minHeight: 0,
+              overflow: 'hidden',
+              width: '100%',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
             {isLoading ? (
               <div
                 style={{
