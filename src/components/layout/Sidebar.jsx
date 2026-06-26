@@ -47,7 +47,7 @@ const navGroups = [
         label: 'Purchasing Order',
       },
       {
-        label: 'Purchase Order',
+        label: 'New Purchase Order',
         to: '/purchasing/place-order',
         icon: ShoppingCart,
         end: true,
@@ -61,14 +61,14 @@ const navGroups = [
         permissions: PERMISSIONS.purchasing.poRead,
       },
       {
-        label: 'Approved POs',
+        label: 'Approved Purchase Orders',
         to: '/purchasing/approved',
         icon: BadgeCheck,
         end: true,
         permissions: PERMISSIONS.purchasing.poRead,
       },
       {
-        label: 'All Purchase Orders',
+        label: 'Purchase Orders List',
         to: '/purchasing/all-orders',
         icon: ClipboardList,
         end: true,
@@ -79,14 +79,21 @@ const navGroups = [
         label: 'GRN',
       },
       {
-        label: 'Goods Receipt Entry',
+        label: 'New Goods Receipt',
         to: '/purchasing/goods-receipt-entry',
         icon: PackageCheck,
         end: true,
         permissions: PERMISSIONS.purchasing.grnCreate,
       },
       {
-        label: 'Goods Receipts',
+        label: 'GRN Approve & Reject',
+        to: '/purchasing/grn-approve-reject',
+        icon: ListChecks,
+        end: true,
+        permissions: PERMISSIONS.purchasing.grnVerify,
+      },
+      {
+        label: 'Goods Receipt List',
         to: '/purchasing/goods-receipts',
         icon: ClipboardCheck,
         end: true,
@@ -456,3 +463,4 @@ export default function Sidebar() {
     </Tooltip.Provider>
   )
 }
+

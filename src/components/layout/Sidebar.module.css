@@ -509,3 +509,21 @@
 :root[data-theme='light'] .logoutButton:hover .logoutIcon {
   color: #e11d48;
 }
+
+@media (max-width: 420px) {
+  .sidebar {
+    width: min(88vw, var(--spacing-layout-sidebar));
+  }
+
+  .header {
+    padding-inline: 14px;
+  }
+
+  .navContent {
+    padding-inline: 10px;
+  }
+
+  .footer {
+    padding: 10px;
+  }
+}
