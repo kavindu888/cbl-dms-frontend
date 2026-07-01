@@ -149,22 +149,26 @@ export const purchasingService = {
     return getValue(response, 'Unable to reject the goods receipt.')
   },
 
-  // Return Notes
+// Return Notes
+  // Return Notes List
   async listReturnNotes(params = {}) {
     const response = await getOnce('/api/v1/return-notes', { params })
     return getValue(response, 'Unable to load return notes.')
   },
 
+  // Return Note GET
   async getReturnNote(id) {
     const response = await getOnce(`/api/v1/return-notes/${id}`)
     return getValue(response, 'Unable to load the return note.')
   },
 
+  // Return Note Outstanding Credits List
   async listOutstandingReturnCredits(params = {}) {
     const response = await getOnce('/api/v1/return-notes/outstanding-credits', { params })
     return getValue(response, 'Unable to load outstanding return credits.')
   },
 
+  // Return Note Create
   async createReturnNote(payload) {
     const response = await api.post('/api/v1/return-notes', payload)
     return getValue(response, 'Unable to create the return note.')

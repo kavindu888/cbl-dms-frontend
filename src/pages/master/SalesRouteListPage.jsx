@@ -200,7 +200,7 @@ export default function SalesRouteListPage() {
 
   async function handleDeactivate(route) {
     if (!route.isActive) return
-    if (!window.confirm(`Deactivate ${route.name}?`)) return
+    if (!await window.confirm(`Deactivate ${route.name}?`)) return
 
     try {
       await masterService.deactivateSalesRoute(route.id)

@@ -1,6 +1,6 @@
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@stores/authStore'
-import { userHasPermission } from '@/utils/permissions'
+import { describePermissionRequirement, userMeetsPermissionRequirement } from '@/utils/permissions'
 
 function AccessDenied({ requiredPermission }) {
   const location = useLocation()
@@ -36,9 +36,7 @@ function AccessDenied({ requiredPermission }) {
             className="mono"
             style={{ marginTop: 14, fontSize: 12, color: 'var(--color-text-dim)' }}
           >
-            {Array.isArray(requiredPermission)
-              ? requiredPermission.join(' or ')
-              : requiredPermission}
+            {describePermissionRequirement(requiredPermission)}
           </p>
         ) : null}
         <Link
@@ -78,7 +76,7 @@ export function ProtectedRoute({ children, requiredRole, requiredPermission }) {
   if (requiredRole && !hasRole(requiredRole)) {
     return <AccessDenied />
   }
-  if (!userHasPermission(user, requiredPermission)) {
+  if (!userMeetsPermissionRequirement(user, requiredPermission)) {
     return <AccessDenied requiredPermission={requiredPermission} />
   }
   return <>{children}</>

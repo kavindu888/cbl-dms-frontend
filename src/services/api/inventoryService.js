@@ -1,15 +1,239 @@
-import { getOnce } from '@/lib/api'
+import api, { getOnce } from '@/lib/api'
+
+function getValue(response, fallbackMessage = 'Request failed') {
+  const apiResponse = response.data
+  const result = apiResponse?.data
+
+  if (!apiResponse?.success || result?.isFailure) {
+    const validationMessage = result?.validationErrors?.[0]?.message
+    throw new Error(
+      validationMessage || result?.errorMessage || apiResponse?.errorMessage || fallbackMessage
+    )
+  }
+
+  return result?.value ?? result ?? apiResponse
+}
+
+function asList(value) {
+  if (Array.isArray(value)) return value
+  if (Array.isArray(value?.items)) return value.items
+  return []
+}
+
+const transferStatusLabels = {
+  1: 'Draft',
+  2: 'Dispatched',
+  3: 'Received',
+  4: 'Cancelled',
+}
+
+const stocktakeStatusLabels = {
+  1: 'Draft',
+  2: 'Counting',
+  3: 'Completed',
+  4: 'Cancelled',
+}
+
+const movementTypeLabels = {
+  1: 'Grn Receipt',
+  2: 'Sales Issue',
+  3: 'Sales Return',
+  4: 'Purchase Return',
+  5: 'Adjustment In',
+  6: 'Adjustment Out',
+  7: 'Transfer Out',
+  8: 'Transfer In',
+  9: 'Stocktake Adjust',
+}
+
+const batchStatusLabels = {
+  1: 'Active',
+  2: 'Depleted',
+  3: 'Expired',
+  4: 'Quarantined',
+}
+
+function enumLabel(value, labels) {
+  if (value === null || value === undefined || value === '') return 'Unknown'
+  return labels[value] || String(value)
+}
+
+function formatBatch(item) {
+  return {
+    ...item,
+    status: enumLabel(item.status, batchStatusLabels),
+  }
+}
+
+function formatMovement(item) {
+  return {
+    ...item,
+    movementType: enumLabel(item.movementType, movementTypeLabels),
+  }
+}
+
+function formatTransfer(item) {
+  return {
+    ...item,
+    status: enumLabel(item.status, transferStatusLabels),
+  }
+}
+
+function formatStocktake(item) {
+  return {
+    ...item,
+    status: enumLabel(item.status, stocktakeStatusLabels),
+  }
+}
+
 export const inventoryService = {
-  async listStock(params = {}) {
-    const response = await getOnce('/api/v1/inventory/stock', {
-      params,
-    })
-    return response.data
+  async listStockLevels(params = {}) {
+    const response = await getOnce('/api/v1/inventory/stock/levels', { params })
+    return asList(getValue(response, 'Unable to load stock levels.'))
   },
-  async listMovements(params = {}) {
-    const response = await getOnce('/api/v1/inventory/movements', {
-      params,
+
+  async getStockAvailability(productId) {
+    const response = await getOnce(`/api/v1/inventory/stock/availability/${productId}`)
+    return getValue(response, 'Unable to load stock availability.')
+  },
+
+  async listStockBatches(productId) {
+    const response = await getOnce(`/api/v1/inventory/stock/batches/${productId}`)
+    return asList(getValue(response, 'Unable to load stock batches.')).map(formatBatch)
+  },
+
+  async listExpiringBatches(params = {}) {
+    const response = await getOnce('/api/v1/inventory/stock/batches/expiring', { params })
+    return asList(getValue(response, 'Unable to load expiring batches.')).map(formatBatch)
+  },
+
+  async listStockMovements(params = {}) {
+    const response = await getOnce('/api/v1/inventory/stock/movements', { params })
+    return asList(getValue(response, 'Unable to load stock movements.')).map(formatMovement)
+  },
+
+  async listStockLocations(params = {}) {
+    const response = await getOnce('/api/inventory/stock-locations', { params })
+    const page = getValue(response, 'Unable to load stock locations.')
+    return {
+      ...page,
+      items: asList(page).map((item) => ({
+        ...item,
+        status: item.isActive ? 'Active' : 'Inactive',
+      })),
+    }
+  },
+
+  async getStockLocation(id) {
+    const response = await getOnce(`/api/inventory/stock-locations/${id}`)
+    const item = getValue(response, 'Unable to load stock location.')
+    return { ...item, status: item.isActive ? 'Active' : 'Inactive' }
+  },
+
+  async createStockLocation(payload) {
+    const response = await api.post('/api/inventory/stock-locations', payload)
+    return getValue(response, 'Unable to create stock location.')
+  },
+
+  async updateStockLocation(id, payload) {
+    const response = await api.put(`/api/inventory/stock-locations/${id}`, payload)
+    return getValue(response, 'Unable to update stock location.')
+  },
+
+  async activateStockLocation(id) {
+    const response = await api.post(`/api/inventory/stock-locations/${id}/activate`)
+    return getValue(response, 'Unable to activate stock location.')
+  },
+
+  async deactivateStockLocation(id) {
+    const response = await api.post(`/api/inventory/stock-locations/${id}/deactivate`)
+    return getValue(response, 'Unable to deactivate stock location.')
+  },
+
+  async listStockTransfers(params = {}) {
+    const response = await getOnce('/api/v1/inventory/stock-transfers', { params })
+    return asList(getValue(response, 'Unable to load stock transfers.')).map(formatTransfer)
+  },
+
+  async getStockTransfer(id) {
+    const response = await getOnce(`/api/v1/inventory/stock-transfers/${id}`)
+    return formatTransfer(getValue(response, 'Unable to load stock transfer.'))
+  },
+
+  async createStockTransfer(payload) {
+    const response = await api.post('/api/v1/inventory/stock-transfers', payload)
+    return getValue(response, 'Unable to create stock transfer.')
+  },
+
+  async addStockTransferLine(id, payload) {
+    const response = await api.post(`/api/v1/inventory/stock-transfers/${id}/lines`, payload)
+    return getValue(response, 'Unable to add stock transfer line.')
+  },
+
+  async removeStockTransferLine(id, lineId) {
+    const response = await api.delete(`/api/v1/inventory/stock-transfers/${id}/lines/${lineId}`)
+    return getValue(response, 'Unable to remove stock transfer line.')
+  },
+
+  async dispatchStockTransfer(id) {
+    const response = await api.post(`/api/v1/inventory/stock-transfers/${id}/dispatch`)
+    return getValue(response, 'Unable to dispatch stock transfer.')
+  },
+
+  async receiveStockTransfer(id) {
+    const response = await api.post(`/api/v1/inventory/stock-transfers/${id}/receive`)
+    return getValue(response, 'Unable to receive stock transfer.')
+  },
+
+  async cancelStockTransfer(id) {
+    const response = await api.post(`/api/v1/inventory/stock-transfers/${id}/cancel`)
+    return getValue(response, 'Unable to cancel stock transfer.')
+  },
+
+  async listStocktakes(params = {}) {
+    const response = await getOnce('/api/v1/inventory/stocktakes', { params })
+    return asList(getValue(response, 'Unable to load stocktakes.')).map(formatStocktake)
+  },
+
+  async getStocktake(id) {
+    const response = await getOnce(`/api/v1/inventory/stocktakes/${id}`)
+    return formatStocktake(getValue(response, 'Unable to load stocktake.'))
+  },
+
+  async createStocktake(payload) {
+    const response = await api.post('/api/v1/inventory/stocktakes', payload)
+    return getValue(response, 'Unable to create stocktake.')
+  },
+
+  async addStocktakeLine(id, payload) {
+    const response = await api.post(`/api/v1/inventory/stocktakes/${id}/lines`, payload)
+    return getValue(response, 'Unable to add stocktake line.')
+  },
+
+  async removeStocktakeLine(id, lineId) {
+    const response = await api.delete(`/api/v1/inventory/stocktakes/${id}/lines/${lineId}`)
+    return getValue(response, 'Unable to remove stocktake line.')
+  },
+
+  async startStocktake(id) {
+    const response = await api.post(`/api/v1/inventory/stocktakes/${id}/start`)
+    return getValue(response, 'Unable to start stocktake.')
+  },
+
+  async recordStocktakeCount(id, lineId, countedQty) {
+    const response = await api.put(`/api/v1/inventory/stocktakes/${id}/lines/${lineId}/count`, {
+      countedQty,
     })
-    return response.data
+    return getValue(response, 'Unable to record stocktake count.')
+  },
+
+  async completeStocktake(id) {
+    const response = await api.post(`/api/v1/inventory/stocktakes/${id}/complete`)
+    return getValue(response, 'Unable to complete stocktake.')
+  },
+
+  async cancelStocktake(id) {
+    const response = await api.post(`/api/v1/inventory/stocktakes/${id}/cancel`)
+    return getValue(response, 'Unable to cancel stocktake.')
   },
 }

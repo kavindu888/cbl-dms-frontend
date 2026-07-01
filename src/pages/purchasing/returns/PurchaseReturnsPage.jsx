@@ -597,7 +597,7 @@ export default function PurchaseReturnsPage() {
   }, [editingItemId, selectedLine])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0 }}>
       <div
         style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}
       >
@@ -703,10 +703,11 @@ export default function PurchaseReturnsPage() {
           display: 'grid',
           gridTemplateColumns: 'minmax(360px, 480px) minmax(0, 1fr)',
           gap: 14,
+          flex: 1,
           minHeight: 0,
         }}
       >
-        <section className="panel" style={{ overflow: 'hidden', alignSelf: 'start' }}>
+        <section className="panel" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div
             style={{
               padding: 14,
@@ -720,7 +721,7 @@ export default function PurchaseReturnsPage() {
               {filteredNotes.length} notes
             </span>
           </div>
-          <div style={{ overflow: 'hidden' }}>
+          <div style={{ overflowY: 'auto', flex: 1 }}>
             {error ? (
               <EmptyMessage>{error}</EmptyMessage>
             ) : isLoading ? (
@@ -813,11 +814,11 @@ export default function PurchaseReturnsPage() {
           </div>
         </section>
 
-        <section className="panel" style={{ padding: 14, minWidth: 0 }}>
+        <section className="panel" style={{ padding: 14, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {isDetailLoading ? (
             <EmptyMessage>Loading return note...</EmptyMessage>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}>
               <div
                 style={{
                   display: 'flex',
@@ -839,7 +840,8 @@ export default function PurchaseReturnsPage() {
                 <StatusBadge status={selectedNote?.statusLabel || 'Draft'} />
               </div>
 
-              <section
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingRight: 4, marginBottom: 12 }}>
+                <section
                 style={{
                   border: '1px solid var(--color-border)',
                   borderRadius: 8,
@@ -1248,8 +1250,9 @@ export default function PurchaseReturnsPage() {
                   </div>
                 </section>
               </div>
+              </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
                 {canEdit && canCreate ? (
                   <>
                     <button

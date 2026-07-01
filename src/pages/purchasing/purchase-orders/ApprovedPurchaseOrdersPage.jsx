@@ -518,6 +518,12 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
     )
   }
 
+  function handleGrnFormSubmit(event) {
+    event.preventDefault()
+    if (!grnMode || isSubmittingGrn || pendingReceipt) return
+    void submitGrn()
+  }
+
   async function submitGrn() {
     if (!selectedOrder) return
 
@@ -1037,7 +1043,8 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
               Loading purchase order details...
             </div>
           ) : selectedOrder ? (
-            <div
+            <form
+              onSubmit={handleGrnFormSubmit}
               style={{
                 height: '100%',
                 display: 'flex',
@@ -1583,9 +1590,8 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   {grnMode ? (
                     <button
-                      type="button"
+                      type="submit"
                       className="button-primary"
-                      onClick={submitGrn}
                       disabled={isSubmittingGrn || Boolean(pendingReceipt)}
                       style={{
                         height: 40,
@@ -1632,7 +1638,7 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
                   )}
                 </div>
               </div>
-            </div>
+            </form>
           ) : (
             <div
               style={{
@@ -1690,3 +1696,5 @@ function EditableCell({ value, onChange, disabled = false }) {
     </td>
   )
 }
+
+

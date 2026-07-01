@@ -19,6 +19,15 @@ function getValue(response, fallbackMessage = 'Request failed') {
   return result?.value ?? result
 }
 
+function asList(value) {
+  if (Array.isArray(value)) return value
+  if (Array.isArray(value?.items)) return value.items
+  if (Array.isArray(value?.Items)) return value.Items
+  if (Array.isArray(value?.value)) return value.value
+  if (Array.isArray(value?.Value)) return value.Value
+  return []
+}
+
 function roleName(role) {
   return typeof role === 'string' ? role : role?.name
 }
@@ -48,12 +57,19 @@ function mapUser(user) {
 }
 
 function mapRole(role) {
+  if (!role) return null
+
+  const id = role.id ?? role.Id ?? role.roleId ?? role.RoleId ?? ''
+  const name = role.name ?? role.Name ?? role.roleName ?? role.RoleName ?? ''
+
+  if (!id || !name) return null
+
   return {
-    id: role.id,
-    name: role.name,
-    description: role.description ?? '',
-    isSystemRole: Boolean(role.isSystemRole),
-    permissionCount: role.permissionCount ?? 0,
+    id,
+    name,
+    description: role.description ?? role.Description ?? '',
+    isSystemRole: Boolean(role.isSystemRole ?? role.IsSystemRole),
+    permissionCount: role.permissionCount ?? role.PermissionCount ?? 0,
   }
 }
 
@@ -123,7 +139,7 @@ export const usersService = {
   // Role Listing
   async listRoles() {
     const response = await getOnce(identityPath('/roles'))
-    return (getValue(response, 'Unable to load roles.') || []).map(mapRole)
+    return asList(getValue(response, 'Unable to load roles.')).map(mapRole).filter(Boolean)
   },
 
   // Permission Listing
@@ -155,3 +171,4 @@ export const usersService = {
     return getValue(response, 'Unable to revoke permission.')
   },
 }
+

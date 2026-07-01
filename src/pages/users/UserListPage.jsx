@@ -12,7 +12,7 @@ import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { masterService } from '@services/api/masterService'
 import { usersService } from '@services/api/usersService'
 import { useAuthStore } from '@stores/authStore'
-import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
+import { PERMISSIONS, userHasAllPermissions, userHasPermission } from '@/utils/permissions'
 
 const DEFAULT_ORG_ID = '01JXDEFAULTORGID0000000000'
 const userSchema = z.object({
@@ -92,7 +92,7 @@ function sortUsersByAddedOrder(users) {
   })
 }
 
-function UserFormModal({ open, mode, user, roles, organisations, onClose, onSaved }) {
+function UserFormModal({ open, mode, user, roles, organisations, rolesLoading = false, onClose, onSaved }) {
   const currentUser = useAuthStore((state) => state.user)
   const [showPassword, setShowPassword] = useState(false)
   const formRef = useRef(null)
@@ -143,7 +143,7 @@ function UserFormModal({ open, mode, user, roles, organisations, onClose, onSave
       password: '',
       roleId: roles[0]?.id || '',
     })
-  }, [mode, open, reset, roles, user])
+  }, [mode, open, organisations, reset, roles, user])
 
   useEffect(() => {
     if (!open) return
@@ -412,9 +412,10 @@ function UserFormModal({ open, mode, user, roles, organisations, onClose, onSave
                 {...(mode === 'edit' ? { 'data-auto-focus-field': true } : {})}
                 {...enterKeyProps}
                 {...register('roleId')}
-                style={{ height: 42, background: 'rgba(0,0,0,0.15)', cursor: 'pointer' }}
+                disabled={rolesLoading || roles.length === 0}
+                style={{ height: 42, background: 'rgba(0,0,0,0.15)', cursor: rolesLoading || roles.length === 0 ? 'not-allowed' : 'pointer' }}
               >
-                <option value="">Select role</option>
+                <option value="">{rolesLoading ? 'Loading roles...' : roles.length === 0 ? 'No roles available' : 'Select role'}</option>
                 {roles.map((role) => (
                   <option key={role.id} value={role.id}>
                     {role.name}
@@ -553,7 +554,7 @@ export default function UserListPage() {
   const [modalState, setModalState] = useState({ open: false, mode: 'create', user: null })
 
   const orgId = currentUser?.orgId || DEFAULT_ORG_ID
-  const canCreateUsers = userHasPermission(currentUser, PERMISSIONS.identity.userManage)
+  const canCreateUsers = userHasAllPermissions(currentUser, [PERMISSIONS.identity.userManage, PERMISSIONS.identity.roleManage])
   const canManagePermissions = userHasPermission(currentUser, PERMISSIONS.identity.permissionManage)
 
   useEffect(() => {
@@ -586,11 +587,15 @@ export default function UserListPage() {
   }, [orgId, page, roleFilter, search])
 
   const loadRoles = useCallback(async () => {
+    setRolesLoading(true)
     try {
       const rolesList = await usersService.listRoles()
       setRoles(rolesList)
     } catch (loadError) {
+      setRoles([])
       toast.error(getErrorMessage(loadError, 'Unable to load roles.'))
+    } finally {
+      setRolesLoading(false)
     }
   }, [])
 
@@ -782,7 +787,7 @@ export default function UserListPage() {
   }
 
   async function handleDeactivate(user) {
-    if (!window.confirm(`Deactivate "${user.username}"? They will no longer be able to log in.`))
+    if (!await window.confirm(`Deactivate "${user.username}"? They will no longer be able to log in.`))
       return
     try {
       await usersService.deactivateUser(user.id)
@@ -1376,3 +1381,6 @@ export default function UserListPage() {
     </div>
   )
 }
+
+
+

@@ -12,6 +12,8 @@ import {
   ListChecks,
   Package,
   PackageCheck,
+  ArrowLeftRight,
+  Warehouse,
   Ruler,
   Search,
   Settings,
@@ -32,7 +34,7 @@ import { useAuthStore } from '@stores/authStore'
 import { useUIStore } from '@stores/uiStore'
 import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { cn } from '@/utils'
-import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
+import { PERMISSIONS, userMeetsPermissionRequirement } from '@/utils/permissions'
 import styles from './Sidebar.module.css'
 const navGroups = [
   {
@@ -58,7 +60,7 @@ const navGroups = [
         to: '/purchasing/approvals',
         icon: ListChecks,
         end: true,
-        permissions: PERMISSIONS.purchasing.poRead,
+        permissions: { all: [PERMISSIONS.purchasing.poRead, PERMISSIONS.purchasing.poApprove] },
       },
       {
         label: 'Approved Purchase Orders',
@@ -108,7 +110,11 @@ const navGroups = [
         to: '/purchasing/returns',
         icon: Undo2,
         end: true,
-        permissions: PERMISSIONS.purchasing.poRead,
+        permissions: [
+          PERMISSIONS.purchasing.returnNoteCreate,
+          PERMISSIONS.purchasing.returnNoteApprove,
+          PERMISSIONS.purchasing.returnNoteComplete,
+        ],
       },
       {
         isSubHeader: true,
@@ -164,6 +170,48 @@ const navGroups = [
     ],
   },
   {
+    label: 'INVENTORY',
+    items: [
+      {
+        label: 'Stock Levels',
+        to: '/inventory/stock',
+        icon: Package,
+        end: true,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'Stock Batches',
+        to: '/inventory/batches',
+        icon: PackageCheck,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'Stock Locations',
+        to: '/inventory/locations',
+        icon: Warehouse,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'Stock Transfers',
+        to: '/inventory/transfers',
+        icon: ArrowLeftRight,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'Stocktakes',
+        to: '/inventory/stocktakes',
+        icon: ClipboardCheck,
+        permissions: PERMISSIONS.inventory.stocktakeManage,
+      },
+      {
+        label: 'Movements',
+        to: '/inventory/movements',
+        icon: ListChecks,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+    ],
+  },
+  {
     label: 'SALES',
     items: [
       {
@@ -201,7 +249,7 @@ const navGroups = [
         to: '/users',
         icon: UserCog,
         end: true,
-        permissions: PERMISSIONS.identity.userManage,
+        permissions: { all: [PERMISSIONS.identity.userManage, PERMISSIONS.identity.roleManage] },
       },
       // { label: 'Roles & Permissions', to: '/users/roles', icon: Shield },
       {
@@ -212,6 +260,8 @@ const navGroups = [
           PERMISSIONS.masterData.orgManage,
           PERMISSIONS.masterData.territoryManage,
           PERMISSIONS.masterData.businessUnitManage,
+          PERMISSIONS.masterData.taxRead,
+          PERMISSIONS.masterData.taxManage,
         ],
       },
     ],
@@ -281,7 +331,7 @@ export default function Sidebar() {
     .map((group) => {
       const items = group.items.filter((item) => {
         if (item.isSubHeader) return true
-        return userHasPermission(user, item.permissions)
+        return userMeetsPermissionRequirement(user, item.permissions)
       })
 
       const cleanedItems = []
@@ -463,4 +513,7 @@ export default function Sidebar() {
     </Tooltip.Provider>
   )
 }
+
+
+
 

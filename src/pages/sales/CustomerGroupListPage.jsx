@@ -166,7 +166,7 @@ export default function CustomerGroupListPage() {
 
   async function handleDeactivate(group) {
     if (!group.isActive) return
-    if (!window.confirm(`Deactivate ${group.name}?`)) return
+    if (!await window.confirm(`Deactivate ${group.name}?`)) return
 
     try {
       await salesService.deactivateCustomerGroup(group.id)

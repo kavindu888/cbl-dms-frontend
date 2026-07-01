@@ -162,9 +162,9 @@ export default function BrandListPage() {
     }
   }
 
-  function handleDeactivate(brand) {
+  async function handleDeactivate(brand) {
     if (!brand.isActive) return
-    if (!window.confirm(`Deactivate ${brand.name}?`)) return
+    if (!await window.confirm(`Deactivate ${brand.name}?`)) return
 
     setBrands((currentBrands) =>
       currentBrands.map((item) => (item.id === brand.id ? { ...item, isActive: false } : item))

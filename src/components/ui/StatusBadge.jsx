@@ -133,13 +133,19 @@ const FALLBACK = {
   text: 'var(--color-text-muted)',
   border: 'rgba(148,163,184,0.20)',
 }
+function normalizeStatus(status) {
+  if (status === null || status === undefined || status === '') return 'Unknown'
+  return String(status)
+}
+
 export default function StatusBadge({ status, className }) {
-  const key = status
+  const safeStatus = normalizeStatus(status)
+  const key = safeStatus
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, '_')
   const style = STATUS_STYLES[key] ?? FALLBACK
-  const label = status.replace(/_/g, ' ').toUpperCase()
+  const label = safeStatus.replace(/_/g, ' ').toUpperCase()
   return (
     <span
       className={cn('mono inline-flex items-center', className)}

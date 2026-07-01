@@ -182,7 +182,7 @@ export default function CategoryListPage() {
   }
 
   async function handleDeactivate(category) {
-    if (!window.confirm(`Deactivate ${category.name}?`)) return
+    if (!await window.confirm(`Deactivate ${category.name}?`)) return
 
     try {
       await masterService.deleteCategory(category.id)

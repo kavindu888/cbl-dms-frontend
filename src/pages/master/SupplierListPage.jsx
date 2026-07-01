@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@services/api/masterService'
 import { purchasingService } from '@services/api/purchasingService'
+import { nonNegativeNumber, required, requiredWhen, validateFields } from '@/utils/validation'
 
 const pageSize = 8
 
@@ -150,32 +151,27 @@ function updateSupplierPayload(form) {
 }
 
 function validateSupplier(form, mode) {
-  const errors = {}
+  const needsContact =
+    mode === 'create' && !form.primaryContactTelephone.trim() && !form.primaryContactEmail.trim()
 
-  if (mode === 'create' && !form.code.trim()) errors.code = 'Supplier code is required.'
-  if (!form.name.trim()) errors.name = 'Supplier name is required.'
-  if (!form.telephone.trim()) errors.telephone = 'Telephone is required.'
-  if (!form.email.trim()) errors.email = 'Email is required.'
-  if (!form.vatRegNo.trim()) errors.vatRegNo = 'VAT registration number is required.'
-  if (!form.addressLine1.trim()) errors.addressLine1 = 'Address line 1 is required.'
-  if (!form.city.trim()) errors.city = 'City is required.'
-  if (mode === 'create' && !form.primaryContactName.trim()) {
-    errors.primaryContactName = 'Primary contact name is required.'
-  }
-  if (mode === 'create' && !form.paymentTermId) {
-    errors.paymentTermId = 'Payment mode is required.'
-  }
-  if (
-    mode === 'create' &&
-    !form.primaryContactTelephone.trim() &&
-    !form.primaryContactEmail.trim()
-  ) {
-    errors.primaryContactTelephone = 'Enter contact telephone or email.'
-    errors.primaryContactEmail = 'Enter contact telephone or email.'
-  }
-  if (Number(form.creditLimit || 0) < 0) errors.creditLimit = 'Credit limit cannot be negative.'
-
-  return errors
+  return validateFields({
+    code: requiredWhen(mode === 'create', form.code, 'Supplier code is required.'),
+    name: required(form.name, 'Supplier name is required.'),
+    telephone: required(form.telephone, 'Telephone is required.'),
+    email: required(form.email, 'Email is required.'),
+    vatRegNo: required(form.vatRegNo, 'VAT registration number is required.'),
+    addressLine1: required(form.addressLine1, 'Address line 1 is required.'),
+    city: required(form.city, 'City is required.'),
+    primaryContactName: requiredWhen(
+      mode === 'create',
+      form.primaryContactName,
+      'Primary contact name is required.'
+    ),
+    paymentTermId: requiredWhen(mode === 'create', form.paymentTermId, 'Payment mode is required.'),
+    primaryContactTelephone: needsContact ? 'Enter contact telephone or email.' : '',
+    primaryContactEmail: needsContact ? 'Enter contact telephone or email.' : '',
+    creditLimit: nonNegativeNumber(form.creditLimit || 0, 'Credit limit cannot be negative.'),
+  })
 }
 
 function formatMoney(value) {
@@ -1227,3 +1223,4 @@ export default function SupplierListPage() {
     </div>
   )
 }
+

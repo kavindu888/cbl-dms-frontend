@@ -9,8 +9,8 @@ import ReconciliationPage from '@pages/collections/ReconciliationPage'
 import DashboardPage from '@pages/dashboard/DashboardPage'
 import FleetOverviewPage from '@pages/fleet/FleetOverviewPage'
 import VehicleDetailPage from '@pages/fleet/VehicleDetailPage'
-import MonthlyAdjustmentPage from '@pages/inventory/MonthlyAdjustmentPage'
-import MovementLogPage from '@pages/inventory/MovementLogPage'
+import StockModulePage from '@pages/inventory/StockModulePage'
+import StockBatchesPage from '@pages/inventory/StockBatchesPage'
 import CategoryListPage from '@pages/master/CategoryListPage'
 import MasterCustomerListPage from '@pages/master/CustomerListPage'
 import Product from '@pages/master/Product'
@@ -52,7 +52,7 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     element: (
-      <ProtectedRoute requiredRole={Role.Admin}>
+      <ProtectedRoute requiredRole={Role.Admin} requiredPermission={PERMISSIONS.identity.userManage}>
         <RegisterPage />
       </ProtectedRoute>
     ),
@@ -79,7 +79,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'purchasing/approvals',
-        element: requirePermission(<PurchaseOrderApprovalPage />, PERMISSIONS.purchasing.poRead),
+        element: requirePermission(<PurchaseOrderApprovalPage />, { all: [PERMISSIONS.purchasing.poRead, PERMISSIONS.purchasing.poApprove] }),
       },
       {
         path: 'purchasing/approved',
@@ -138,7 +138,27 @@ export const router = createBrowserRouter([
 
       {
         path: 'inventory',
-        element: requirePermission(<Product />, PERMISSIONS.masterData.productRead),
+        element: <Navigate to="/inventory/stock" replace />,
+      },
+      {
+        path: 'inventory/stock',
+        element: requirePermission(<StockModulePage initialTab="levels" />, PERMISSIONS.inventory.stockRead),
+      },
+      {
+        path: 'inventory/batches',
+        element: requirePermission(<StockBatchesPage />, PERMISSIONS.inventory.stockRead),
+      },
+      {
+        path: 'inventory/locations',
+        element: requirePermission(<StockModulePage initialTab="locations" />, PERMISSIONS.inventory.stockRead),
+      },
+      {
+        path: 'inventory/transfers',
+        element: requirePermission(<StockModulePage initialTab="transfers" />, PERMISSIONS.inventory.stockRead),
+      },
+      {
+        path: 'inventory/stocktakes',
+        element: requirePermission(<StockModulePage initialTab="stocktakes" />, PERMISSIONS.inventory.stocktakeManage),
       },
       {
         path: 'master/suppliers',
@@ -185,11 +205,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'inventory/movements',
-        element: requirePermission(<MovementLogPage />, PERMISSIONS.inventory.stockRead),
+        element: requirePermission(<StockModulePage initialTab="movements" />, PERMISSIONS.inventory.stockRead),
       },
       {
         path: 'inventory/adjustments',
-        element: requirePermission(<MonthlyAdjustmentPage />, PERMISSIONS.inventory.stockAdjust),
+        element: <Navigate to="/inventory/stocktakes" replace />,
       },
       {
         path: 'sales/customer-groups',
@@ -247,7 +267,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'users',
-        element: requirePermission(<UserListPage />, PERMISSIONS.identity.roleManage),
+        element: requirePermission(<UserListPage />, { all: [PERMISSIONS.identity.userManage, PERMISSIONS.identity.roleManage] }),
       },
       {
         path: 'users/roles',
@@ -277,4 +297,7 @@ export const router = createBrowserRouter([
     element: <Navigate to="/" replace />,
   },
 ])
+
+
+
 
