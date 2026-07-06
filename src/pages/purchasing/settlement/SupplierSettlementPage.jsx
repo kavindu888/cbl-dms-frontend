@@ -7,4 +7,3 @@ const SupplierSettlementPage = createPlaceholderPage({
 })
 
 export default SupplierSettlementPage
-
