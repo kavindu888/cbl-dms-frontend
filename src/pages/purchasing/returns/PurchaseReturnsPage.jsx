@@ -707,7 +707,10 @@ export default function PurchaseReturnsPage() {
           minHeight: 0,
         }}
       >
-        <section className="panel" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <section
+          className="panel"
+          style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}
+        >
           <div
             style={{
               padding: 14,
@@ -814,11 +817,22 @@ export default function PurchaseReturnsPage() {
           </div>
         </section>
 
-        <section className="panel" style={{ padding: 14, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <section
+          className="panel"
+          style={{
+            padding: 14,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+          }}
+        >
           {isDetailLoading ? (
             <EmptyMessage>Loading return note...</EmptyMessage>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}>
+            <div
+              style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}
+            >
               <div
                 style={{
                   display: 'flex',
@@ -840,419 +854,452 @@ export default function PurchaseReturnsPage() {
                 <StatusBadge status={selectedNote?.statusLabel || 'Draft'} />
               </div>
 
-              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingRight: 4, marginBottom: 12 }}>
-                <section
-                style={{
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 8,
-                  padding: 12,
-                }}
-              >
-                <SectionHeading title="Return Details" />
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(220px, 1fr) 150px 130px minmax(220px, 1fr)',
-                    gap: 10,
-                  }}
-                >
-                  <Field label="Supplier" required>
-                    <SelectControl>
-                      <select
-                        className="form-input"
-                        value={header.supplierId}
-                        disabled={!canEdit || Boolean(selectedNote)}
-                        onChange={(event) => updateHeader('supplierId', event.target.value)}
-                        style={{ appearance: 'none', backgroundImage: 'none', paddingRight: 36 }}
-                      >
-                        <option value="">Select supplier</option>
-                        {suppliers.map((supplier) => (
-                          <option key={supplier.id} value={supplier.id}>
-                            {supplier.code} - {supplier.name}
-                          </option>
-                        ))}
-                      </select>
-                    </SelectControl>
-                  </Field>
-                  <Field label="Return Date" required>
-                    <input
-                      type="date"
-                      className="form-input"
-                      value={header.returnDate}
-                      disabled={!canEdit}
-                      onChange={(event) => updateHeader('returnDate', event.target.value)}
-                    />
-                  </Field>
-                  <Field label="NBT Amount">
-                    <input
-                      type="number"
-                      min="0"
-                      className="form-input"
-                      value={header.nbtAmount}
-                      disabled={!canEdit}
-                      placeholder="Optional amount"
-                      onChange={(event) => updateHeader('nbtAmount', event.target.value)}
-                    />
-                  </Field>
-                  <Field label="Notes">
-                    <input
-                      className="form-input"
-                      value={header.notes}
-                      disabled={!canEdit}
-                      onChange={(event) => updateHeader('notes', event.target.value)}
-                      placeholder="Optional note"
-                    />
-                  </Field>
-                </div>
-              </section>
-
-              {canEdit ? (
-                <section
-                  style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: 12 }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <PackageSearch size={16} color="var(--color-teal)" />
-                    <strong>{editingItemId ? 'Edit Return Item' : 'Add Return Item'}</strong>
-                  </div>
-                  {!editingItemId ? (
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '220px minmax(260px, 1fr)',
-                        gap: 10,
-                        marginBottom: 10,
-                      }}
-                    >
-                      <Field label="Verified GRN" required>
-                        <SelectControl>
-                          <select
-                            className="form-input"
-                            value={selectedReceiptId}
-                            disabled={!selectedSupplierId}
-                            onChange={(event) => setSelectedReceiptId(event.target.value)}
-                            style={{
-                              appearance: 'none',
-                              backgroundImage: 'none',
-                              paddingRight: 36,
-                            }}
-                          >
-                            <option value="">Select GRN</option>
-                            {receipts.map((receipt) => (
-                              <option key={receipt.id} value={receipt.id}>
-                                {receipt.grNumber} -{' '}
-                                {dayjs(receipt.receiptDate).format('DD MMM YYYY')}
-                              </option>
-                            ))}
-                          </select>
-                        </SelectControl>
-                      </Field>
-                      <Field label="GRN Item" required>
-                        <SelectControl>
-                          <select
-                            className="form-input"
-                            value={itemForm.goodsReceiptLineId}
-                            disabled={!selectedReceipt}
-                            onChange={(event) =>
-                              updateItem('goodsReceiptLineId', event.target.value)
-                            }
-                            style={{
-                              appearance: 'none',
-                              backgroundImage: 'none',
-                              paddingRight: 36,
-                            }}
-                          >
-                            <option value="">Select item</option>
-                            {(selectedReceipt?.lines || []).map((line) => (
-                              <option key={line.id} value={line.id}>
-                                {lineOptionLabel(line)}
-                              </option>
-                            ))}
-                          </select>
-                        </SelectControl>
-                      </Field>
-                    </div>
-                  ) : null}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '120px 130px minmax(160px, 1fr) 150px 150px',
-                      gap: 10,
-                    }}
-                  >
-                    <Field label="Qty Smallest" required>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        className="form-input"
-                        value={itemForm.qtySmallestUnit}
-                        onChange={(event) => updateItem('qtySmallestUnit', event.target.value)}
-                      />
-                    </Field>
-                    <Field label="Unit Cost" required>
-                      <input
-                        type="number"
-                        min="0"
-                        className="form-input"
-                        value={itemForm.unitCostSmallest}
-                        onChange={(event) => updateItem('unitCostSmallest', event.target.value)}
-                      />
-                    </Field>
-                    <Field label="Reason">
-                      <input
-                        className="form-input"
-                        value={itemForm.returnReason}
-                        onChange={(event) => updateItem('returnReason', event.target.value)}
-                        placeholder="Optional reason"
-                      />
-                    </Field>
-                    <Field label="Batch">
-                      <input
-                        className="form-input"
-                        value={itemForm.batchNo}
-                        placeholder="Optional batch"
-                        onChange={(event) => updateItem('batchNo', event.target.value)}
-                      />
-                    </Field>
-                    <Field label="Expiry">
-                      <OptionalDateInput
-                        value={itemForm.expiryDate}
-                        onChange={(value) => updateItem('expiryDate', value)}
-                      />
-                    </Field>
-                  </div>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '170px 150px minmax(220px, 1fr) auto auto',
-                      gap: 10,
-                      alignItems: 'end',
-                      marginTop: 10,
-                    }}
-                  >
-                    <Field label="Ref Invoice No">
-                      <input
-                        className="form-input"
-                        value={itemForm.refInvoiceNo}
-                        placeholder="Optional invoice no"
-                        onChange={(event) => updateItem('refInvoiceNo', event.target.value)}
-                      />
-                    </Field>
-                    <Field label="Ref Invoice Date">
-                      <OptionalDateInput
-                        value={itemForm.refInvoiceDate}
-                        onChange={(value) => updateItem('refInvoiceDate', value)}
-                      />
-                    </Field>
-                    <Field label="Item Notes">
-                      <input
-                        className="form-input"
-                        value={itemForm.notes}
-                        placeholder="Optional item note"
-                        onChange={(event) => updateItem('notes', event.target.value)}
-                      />
-                    </Field>
-                    <button
-                      type="button"
-                      className="button-secondary"
-                      onClick={() => {
-                        setEditingItemId('')
-                        setItemForm(emptyItemForm())
-                      }}
-                    >
-                      Clear
-                    </button>
-                    <button
-                      type="button"
-                      className="button-primary"
-                      onClick={saveItem}
-                      disabled={isSaving}
-                    >
-                      <Save size={16} /> Save Item
-                    </button>
-                  </div>
-                </section>
-              ) : null}
-
-              <section
-                style={{
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    padding: '10px 12px',
-                    borderBottom: '1px solid var(--color-border)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 12,
-                  }}
-                >
-                  <strong>Return Items</strong>
-                  <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                    {(selectedNote?.items || []).length} items
-                  </span>
-                </div>
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="data-table product-table-compact" style={{ minWidth: 900 }}>
-                    <thead>
-                      <tr>
-                        <th>Item</th>
-                        <th style={{ textAlign: 'right' }}>Qty</th>
-                        <th style={{ textAlign: 'right' }}>Unit Cost</th>
-                        <th style={{ textAlign: 'right' }}>Line Total</th>
-                        <th>Reason</th>
-                        <th>Batch</th>
-                        <th style={{ width: 130 }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(selectedNote?.items || []).length ? (
-                        selectedNote.items.map((item) => (
-                          <tr key={item.id}>
-                            <td>
-                              <span className="product-sku-badge mono">{item.productSku}</span>
-                              <div style={{ marginTop: 4 }}>{item.productName}</div>
-                            </td>
-                            <td className="mono" style={{ textAlign: 'right' }}>
-                              {item.qtySmallestUnit} {item.smallestUomCode}
-                            </td>
-                            <td className="mono" style={{ textAlign: 'right' }}>
-                              {formatMoney(item.unitCostSmallest)}
-                            </td>
-                            <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-                              {formatMoney(item.lineTotal)}
-                            </td>
-                            <td>{item.returnReason || '-'}</td>
-                            <td>{item.batchNo || '-'}</td>
-                            <td>
-                              {canEdit ? (
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                  <button
-                                    type="button"
-                                    className="button-secondary"
-                                    onClick={() => editItem(item)}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="icon-button"
-                                    onClick={() => removeItem(item.id)}
-                                    disabled={isSaving}
-                                    title="Remove item"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              ) : null}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td
-                            colSpan={7}
-                            style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}
-                          >
-                            No return items added.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
               <div
-                className="responsive-summary-grid"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) 300px',
+                  flex: 1,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
                   gap: 12,
+                  paddingRight: 4,
+                  marginBottom: 12,
                 }}
               >
-                <section
-                  style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: 12 }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <ClipboardCheck size={16} color="var(--color-text-dim)" />
-                    <strong>Action Details</strong>
-                  </div>
-                  {canMarkComplete ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 170px', gap: 10 }}>
-                      <Field label="Supplier CR Note No">
-                        <input
-                          className="form-input"
-                          value={completeForm.crNoteNo}
-                          placeholder="Optional CR note no"
-                          onChange={(event) =>
-                            setCompleteForm((current) => ({
-                              ...current,
-                              crNoteNo: event.target.value.replace(/[^a-zA-Z0-9\s-]/g, ''),
-                            }))
-                          }
-                        />
-                      </Field>
-                      <Field label="CR Note Date">
-                        <OptionalDateInput
-                          value={completeForm.crNoteDate}
-                          onChange={(value) =>
-                            setCompleteForm((current) => ({
-                              ...current,
-                              crNoteDate: value,
-                            }))
-                          }
-                        />
-                      </Field>
-                    </div>
-                  ) : (
-                    <textarea
-                      className="form-input"
-                      value={reason}
-                      onChange={(event) =>
-                        setReason(event.target.value.replace(/[^a-zA-Z0-9\s-]/g, ''))
-                      }
-                      placeholder="Reason required for reject or cancel."
-                      style={{ height: 76, resize: 'none', paddingTop: 10 }}
-                    />
-                  )}
-                </section>
                 <section
                   style={{
                     border: '1px solid var(--color-border)',
                     borderRadius: 8,
                     padding: 12,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
                   }}
                 >
-                  <SectionHeading title="Amount Summary" />
-                  <SummaryRow label="Sub total" value={formatMoney(selectedNote?.subTotal || 0)} />
-                  <SummaryRow label="NBT amount" value={formatMoney(header.nbtAmount)} />
+                  <SectionHeading title="Return Details" />
                   <div
                     style={{
-                      borderTop: '1px solid var(--color-border)',
-                      paddingTop: 8,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontWeight: 700,
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(220px, 1fr) 150px 130px minmax(220px, 1fr)',
+                      gap: 10,
                     }}
                   >
-                    <span>Total</span>
-                    <span className="mono" style={{ color: 'var(--color-amber)' }}>
-                      {formatMoney(selectedNote?.totalAmount ?? 0)}
-                    </span>
+                    <Field label="Supplier" required>
+                      <SelectControl>
+                        <select
+                          className="form-input"
+                          value={header.supplierId}
+                          disabled={!canEdit || Boolean(selectedNote)}
+                          onChange={(event) => updateHeader('supplierId', event.target.value)}
+                          style={{ appearance: 'none', backgroundImage: 'none', paddingRight: 36 }}
+                        >
+                          <option value="">Select supplier</option>
+                          {suppliers.map((supplier) => (
+                            <option key={supplier.id} value={supplier.id}>
+                              {supplier.code} - {supplier.name}
+                            </option>
+                          ))}
+                        </select>
+                      </SelectControl>
+                    </Field>
+                    <Field label="Return Date" required>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={header.returnDate}
+                        disabled={!canEdit}
+                        onChange={(event) => updateHeader('returnDate', event.target.value)}
+                      />
+                    </Field>
+                    <Field label="NBT Amount">
+                      <input
+                        type="number"
+                        min="0"
+                        className="form-input"
+                        value={header.nbtAmount}
+                        disabled={!canEdit}
+                        placeholder="Optional amount"
+                        onChange={(event) => updateHeader('nbtAmount', event.target.value)}
+                      />
+                    </Field>
+                    <Field label="Notes">
+                      <input
+                        className="form-input"
+                        value={header.notes}
+                        disabled={!canEdit}
+                        onChange={(event) => updateHeader('notes', event.target.value)}
+                        placeholder="Optional note"
+                      />
+                    </Field>
                   </div>
                 </section>
-              </div>
+
+                {canEdit ? (
+                  <section
+                    style={{
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 8,
+                      padding: 12,
+                    }}
+                  >
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}
+                    >
+                      <PackageSearch size={16} color="var(--color-teal)" />
+                      <strong>{editingItemId ? 'Edit Return Item' : 'Add Return Item'}</strong>
+                    </div>
+                    {!editingItemId ? (
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '220px minmax(260px, 1fr)',
+                          gap: 10,
+                          marginBottom: 10,
+                        }}
+                      >
+                        <Field label="Verified GRN" required>
+                          <SelectControl>
+                            <select
+                              className="form-input"
+                              value={selectedReceiptId}
+                              disabled={!selectedSupplierId}
+                              onChange={(event) => setSelectedReceiptId(event.target.value)}
+                              style={{
+                                appearance: 'none',
+                                backgroundImage: 'none',
+                                paddingRight: 36,
+                              }}
+                            >
+                              <option value="">Select GRN</option>
+                              {receipts.map((receipt) => (
+                                <option key={receipt.id} value={receipt.id}>
+                                  {receipt.grNumber} -{' '}
+                                  {dayjs(receipt.receiptDate).format('DD MMM YYYY')}
+                                </option>
+                              ))}
+                            </select>
+                          </SelectControl>
+                        </Field>
+                        <Field label="GRN Item" required>
+                          <SelectControl>
+                            <select
+                              className="form-input"
+                              value={itemForm.goodsReceiptLineId}
+                              disabled={!selectedReceipt}
+                              onChange={(event) =>
+                                updateItem('goodsReceiptLineId', event.target.value)
+                              }
+                              style={{
+                                appearance: 'none',
+                                backgroundImage: 'none',
+                                paddingRight: 36,
+                              }}
+                            >
+                              <option value="">Select item</option>
+                              {(selectedReceipt?.lines || []).map((line) => (
+                                <option key={line.id} value={line.id}>
+                                  {lineOptionLabel(line)}
+                                </option>
+                              ))}
+                            </select>
+                          </SelectControl>
+                        </Field>
+                      </div>
+                    ) : null}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '120px 130px minmax(160px, 1fr) 150px 150px',
+                        gap: 10,
+                      }}
+                    >
+                      <Field label="Qty Smallest" required>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          className="form-input"
+                          value={itemForm.qtySmallestUnit}
+                          onChange={(event) => updateItem('qtySmallestUnit', event.target.value)}
+                        />
+                      </Field>
+                      <Field label="Unit Cost" required>
+                        <input
+                          type="number"
+                          min="0"
+                          className="form-input"
+                          value={itemForm.unitCostSmallest}
+                          onChange={(event) => updateItem('unitCostSmallest', event.target.value)}
+                        />
+                      </Field>
+                      <Field label="Reason">
+                        <input
+                          className="form-input"
+                          value={itemForm.returnReason}
+                          onChange={(event) => updateItem('returnReason', event.target.value)}
+                          placeholder="Optional reason"
+                        />
+                      </Field>
+                      <Field label="Batch">
+                        <input
+                          className="form-input"
+                          value={itemForm.batchNo}
+                          placeholder="Optional batch"
+                          onChange={(event) => updateItem('batchNo', event.target.value)}
+                        />
+                      </Field>
+                      <Field label="Expiry">
+                        <OptionalDateInput
+                          value={itemForm.expiryDate}
+                          onChange={(value) => updateItem('expiryDate', value)}
+                        />
+                      </Field>
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '170px 150px minmax(220px, 1fr) auto auto',
+                        gap: 10,
+                        alignItems: 'end',
+                        marginTop: 10,
+                      }}
+                    >
+                      <Field label="Ref Invoice No">
+                        <input
+                          className="form-input"
+                          value={itemForm.refInvoiceNo}
+                          placeholder="Optional invoice no"
+                          onChange={(event) => updateItem('refInvoiceNo', event.target.value)}
+                        />
+                      </Field>
+                      <Field label="Ref Invoice Date">
+                        <OptionalDateInput
+                          value={itemForm.refInvoiceDate}
+                          onChange={(value) => updateItem('refInvoiceDate', value)}
+                        />
+                      </Field>
+                      <Field label="Item Notes">
+                        <input
+                          className="form-input"
+                          value={itemForm.notes}
+                          placeholder="Optional item note"
+                          onChange={(event) => updateItem('notes', event.target.value)}
+                        />
+                      </Field>
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        onClick={() => {
+                          setEditingItemId('')
+                          setItemForm(emptyItemForm())
+                        }}
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        className="button-primary"
+                        onClick={saveItem}
+                        disabled={isSaving}
+                      >
+                        <Save size={16} /> Save Item
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
+
+                <section
+                  style={{
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderBottom: '1px solid var(--color-border)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <strong>Return Items</strong>
+                    <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                      {(selectedNote?.items || []).length} items
+                    </span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="data-table product-table-compact" style={{ minWidth: 900 }}>
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th style={{ textAlign: 'right' }}>Qty</th>
+                          <th style={{ textAlign: 'right' }}>Unit Cost</th>
+                          <th style={{ textAlign: 'right' }}>Line Total</th>
+                          <th>Reason</th>
+                          <th>Batch</th>
+                          <th style={{ width: 130 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(selectedNote?.items || []).length ? (
+                          selectedNote.items.map((item) => (
+                            <tr key={item.id}>
+                              <td>
+                                <span className="product-sku-badge mono">{item.productSku}</span>
+                                <div style={{ marginTop: 4 }}>{item.productName}</div>
+                              </td>
+                              <td className="mono" style={{ textAlign: 'right' }}>
+                                {item.qtySmallestUnit} {item.smallestUomCode}
+                              </td>
+                              <td className="mono" style={{ textAlign: 'right' }}>
+                                {formatMoney(item.unitCostSmallest)}
+                              </td>
+                              <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                                {formatMoney(item.lineTotal)}
+                              </td>
+                              <td>{item.returnReason || '-'}</td>
+                              <td>{item.batchNo || '-'}</td>
+                              <td>
+                                {canEdit ? (
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    <button
+                                      type="button"
+                                      className="button-secondary"
+                                      onClick={() => editItem(item)}
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="icon-button"
+                                      onClick={() => removeItem(item.id)}
+                                      disabled={isSaving}
+                                      title="Remove item"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={7}
+                              style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}
+                            >
+                              No return items added.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <div
+                  className="responsive-summary-grid"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) 300px',
+                    gap: 12,
+                  }}
+                >
+                  <section
+                    style={{
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 8,
+                      padding: 12,
+                    }}
+                  >
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}
+                    >
+                      <ClipboardCheck size={16} color="var(--color-text-dim)" />
+                      <strong>Action Details</strong>
+                    </div>
+                    {canMarkComplete ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 170px', gap: 10 }}>
+                        <Field label="Supplier CR Note No">
+                          <input
+                            className="form-input"
+                            value={completeForm.crNoteNo}
+                            placeholder="Optional CR note no"
+                            onChange={(event) =>
+                              setCompleteForm((current) => ({
+                                ...current,
+                                crNoteNo: event.target.value.replace(/[^a-zA-Z0-9\s-]/g, ''),
+                              }))
+                            }
+                          />
+                        </Field>
+                        <Field label="CR Note Date">
+                          <OptionalDateInput
+                            value={completeForm.crNoteDate}
+                            onChange={(value) =>
+                              setCompleteForm((current) => ({
+                                ...current,
+                                crNoteDate: value,
+                              }))
+                            }
+                          />
+                        </Field>
+                      </div>
+                    ) : (
+                      <textarea
+                        className="form-input"
+                        value={reason}
+                        onChange={(event) =>
+                          setReason(event.target.value.replace(/[^a-zA-Z0-9\s-]/g, ''))
+                        }
+                        placeholder="Reason required for reject or cancel."
+                        style={{ height: 76, resize: 'none', paddingTop: 10 }}
+                      />
+                    )}
+                  </section>
+                  <section
+                    style={{
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 8,
+                      padding: 12,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <SectionHeading title="Amount Summary" />
+                    <SummaryRow
+                      label="Sub total"
+                      value={formatMoney(selectedNote?.subTotal || 0)}
+                    />
+                    <SummaryRow label="NBT amount" value={formatMoney(header.nbtAmount)} />
+                    <div
+                      style={{
+                        borderTop: '1px solid var(--color-border)',
+                        paddingTop: 8,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <span>Total</span>
+                      <span className="mono" style={{ color: 'var(--color-amber)' }}>
+                        {formatMoney(selectedNote?.totalAmount ?? 0)}
+                      </span>
+                    </div>
+                  </section>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 8,
+                  borderTop: '1px solid var(--color-border)',
+                  paddingTop: 12,
+                }}
+              >
                 {canEdit && canCreate ? (
                   <>
                     <button
