@@ -149,7 +149,7 @@ export const purchasingService = {
     return getValue(response, 'Unable to reject the goods receipt.')
   },
 
-// Return Notes
+  // Return Notes
   // Return Notes List
   async listReturnNotes(params = {}) {
     const response = await getOnce('/api/v1/return-notes', { params })

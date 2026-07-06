@@ -1,4 +1,4 @@
-export const PERMISSIONS = {
+﻿export const PERMISSIONS = {
   identity: {
     userManage: 'identity:user:manage',
     roleManage: 'identity:role:manage',
@@ -52,6 +52,17 @@ export const PERMISSIONS = {
     priceListManage: 'sales:pricelist:manage',
     creditManage: 'sales:credit:manage',
   },
+  salesOrders: {
+    view: 'sales:salesorder:view',
+    create: 'sales:salesorder:create',
+    addLine: 'sales:salesorder:addline',
+    updateLine: 'sales:salesorder:updateline',
+    removeLine: 'sales:salesorder:removeline',
+    confirm: 'sales:salesorder:confirm',
+    cancelDraft: 'sales:salesorder:cancel:draft',
+    cancelConfirmed: 'sales:salesorder:cancel:confirmed',
+    convert: 'sales:salesorder:convert',
+  },
   collections: {
     sessionManage: 'collections:session:manage',
     chequeProcess: 'collections:cheque:process',
@@ -72,18 +83,52 @@ export const PERMISSIONS = {
   },
 }
 
+function getPermissionKey(permission) {
+  if (!permission) return ''
+  if (typeof permission === 'string') return permission
+
+  const module = permission.module ?? permission.Module
+  const resource = permission.resource ?? permission.Resource
+  const action = permission.action ?? permission.Action
+
+  return (
+    permission.permissionKey ??
+    permission.PermissionKey ??
+    permission.key ??
+    permission.Key ??
+    permission.value ??
+    permission.Value ??
+    permission.name ??
+    permission.Name ??
+    (module && resource && action ? `${module}:${resource}:${action}` : '')
+  )
+}
+
+function getRoleName(role) {
+  if (!role) return ''
+  if (typeof role === 'string') return role
+  return role.name ?? role.Name ?? role.roleName ?? role.RoleName ?? ''
+}
+
 function normalizePermissions(permissions) {
   if (!permissions) return []
-  return Array.isArray(permissions) ? permissions.filter(Boolean) : [permissions]
+  return Array.isArray(permissions)
+    ? permissions.map(getPermissionKey).filter(Boolean)
+    : [getPermissionKey(permissions)].filter(Boolean)
 }
 
 function getUserPermissions(user) {
-  return Array.isArray(user?.permissions) ? user.permissions : []
+  return normalizePermissions(user?.permissions)
+}
+
+function userHasAdminRole(user) {
+  const roles = Array.isArray(user?.roles) ? user.roles : []
+  return roles.some((role) => getRoleName(role).toLowerCase() === 'admin')
 }
 
 function hasPermissionToken(user, permission) {
   const userPermissions = getUserPermissions(user)
-  return userPermissions.includes('*') || userPermissions.includes(permission)
+  return userHasAdminRole(user) || userPermissions.includes('*') || userPermissions.includes(permission)
 }
 
 export function userHasAnyPermission(user, requiredPermissions) {

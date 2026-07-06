@@ -1,8 +1,12 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { authService } from '@services/api/authService'
 import { Role } from '@/types'
-import { userHasAllPermissions, userHasAnyPermission, userMeetsPermissionRequirement } from '@/utils/permissions'
+import {
+  userHasAllPermissions,
+  userHasAnyPermission,
+  userMeetsPermissionRequirement,
+} from '@/utils/permissions'
 import { clearAuthStorage } from '@/utils'
 export const useAuthStore = create()(
   persist(
@@ -87,7 +91,12 @@ export const useAuthStore = create()(
 
       hasRole: (role) => {
         const userRoles = get().user?.roles ?? []
-        return userRoles.includes(role) || userRoles.includes(Role.Admin)
+        const normalizedRole = String(role || '').toLowerCase()
+        return userRoles.some((userRole) => {
+          const roleName = typeof userRole === 'string' ? userRole : userRole?.name ?? userRole?.Name
+          const normalizedUserRole = String(roleName || '').toLowerCase()
+          return normalizedUserRole === normalizedRole || normalizedUserRole === Role.Admin.toLowerCase()
+        })
       },
 
       hasPermission: (permission) => {
@@ -121,3 +130,4 @@ export const useAuthStore = create()(
     }
   )
 )
+

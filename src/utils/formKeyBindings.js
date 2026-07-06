@@ -81,4 +81,3 @@ export function handleFormKeyboardEvent(event) {
 
   submitForm(form)
 }
-

@@ -227,6 +227,75 @@ export const salesService = {
     return getValue(response, 'Unable to upload customer images.')
   },
 
+  // Sales order related APIs
+  async createSalesOrder(payload) {
+    const response = await api.post('/api/sales/orders', payload)
+    return response.data
+  },
+
+  async getSalesOrder(id) {
+    const response = await getOnce(`/api/sales/orders/${id}`)
+    return formatSalesOrder(response.data)
+  },
+
+  async listMySalesOrders() {
+    const response = await getOnce('/api/sales/orders/my-orders')
+    return (response.data || []).map(formatSalesOrder)
+  },
+
+  async listSalesOrdersByRouteAndDate({ salesRouteId, date }) {
+    const response = await getOnce('/api/sales/orders/by-route', {
+      params: { salesRouteId, date },
+    })
+    return (response.data || []).map(formatSalesOrder)
+  },
+
+  async checkSalesOrderStock({ productId, unitId }) {
+    const response = await getOnce('/api/sales/orders/stock-check', {
+      params: { productId, unitId },
+    })
+    return response.data
+  },
+
+  async getSalesOrderDiscountLimit({ productId, categoryId }) {
+    const response = await getOnce('/api/sales/orders/discount-limit', {
+      params: { productId, categoryId },
+    })
+    return Number(response.data?.maxDiscountPercent ?? 0)
+  },
+
+  async getSalesOrderDiscountUsage({ salesPersonId, from, to }) {
+    const response = await getOnce('/api/sales/orders/discount-usage', {
+      params: { salesPersonId, from, to },
+    })
+    return response.data
+  },
+
+  async addSalesOrderLine(id, payload) {
+    const response = await api.post(`/api/sales/orders/${id}/lines`, payload)
+    return response.data
+  },
+
+  async updateSalesOrderLine(id, lineId, payload) {
+    await api.put(`/api/sales/orders/${id}/lines/${lineId}`, payload)
+  },
+
+  async removeSalesOrderLine(id, lineId) {
+    await api.delete(`/api/sales/orders/${id}/lines/${lineId}`)
+  },
+
+  async confirmSalesOrder(id) {
+    await api.put(`/api/sales/orders/${id}/confirm`)
+  },
+
+  async cancelSalesOrder(id, reason) {
+    await api.put(`/api/sales/orders/${id}/cancel`, { reason })
+  },
+
+  async convertSalesOrderToInvoice(id, payload) {
+    const response = await api.post(`/api/sales/orders/${id}/convert-to-invoice`, payload)
+    return response.data
+  },
   // Sales invoice related APIs
   // Create a new invoice
   async createInvoice(payload) {
@@ -238,6 +307,12 @@ export const salesService = {
   async getInvoice(id) {
     const response = await getOnce(`/api/v1/sales/invoices/${id}`)
     return formatInvoice(response.data)
+  },
+
+  // List all invoices
+  async listAllInvoices() {
+    const response = await getOnce('/api/v1/sales/invoices')
+    return (response.data || []).map(formatInvoice)
   },
 
   // List invoices with optional filters

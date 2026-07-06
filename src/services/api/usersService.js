@@ -1,4 +1,4 @@
-import api, { getOnce } from '@/lib/api'
+﻿import api, { getOnce } from '@/lib/api'
 
 const identityPath = (path) =>
   import.meta.env.DEV ? `/identity-proxy/${path.replace(/^\//, '')}` : `/${path.replace(/^\//, '')}`
@@ -29,7 +29,26 @@ function asList(value) {
 }
 
 function roleName(role) {
-  return typeof role === 'string' ? role : role?.name
+  return typeof role === 'string'
+    ? role
+    : (role?.name ?? role?.Name ?? role?.roleName ?? role?.RoleName)
+}
+
+function permissionKey(permission) {
+  if (!permission) return ''
+  if (typeof permission === 'string') return permission
+
+  const module = permission.module ?? permission.Module
+  const resource = permission.resource ?? permission.Resource
+  const action = permission.action ?? permission.Action
+
+  return (
+    permission.permissionKey ??
+    permission.PermissionKey ??
+    permission.key ??
+    permission.Key ??
+    (module && resource && action ? `${module}:${resource}:${action}` : '')
+  )
 }
 
 function mapUser(user) {
@@ -47,7 +66,7 @@ function mapUser(user) {
       return name ? [name] : []
     }),
     roleDtos: user.roles || [],
-    permissions: user.permissions || [],
+    permissions: (user.permissions || []).map(permissionKey).filter(Boolean),
     isActive: Boolean(user.isActive),
     isLocked: Boolean(user.isLocked),
     orgId: user.organizationId ?? user.orgId ?? '',
@@ -74,15 +93,39 @@ function mapRole(role) {
 }
 
 function mapPermission(permission) {
+  const module = permission.module ?? permission.Module ?? ''
+  const resource = permission.resource ?? permission.Resource ?? ''
+  const action = permission.action ?? permission.Action ?? ''
+  const key = permissionKey({ ...permission, module, resource, action })
+
   return {
-    id: permission.id,
-    module: permission.module,
-    resource: permission.resource,
-    action: permission.action,
-    key:
-      permission.permissionKey ||
-      `${permission.module}:${permission.resource}:${permission.action}`,
-    label: `${permission.module}:${permission.resource}:${permission.action}`,
+    id: permission.id ?? permission.Id,
+    module,
+    resource,
+    action,
+    key,
+    label: key,
+  }
+}
+
+function mapDirectPermission(permission) {
+  return {
+    id: permission.id ?? permission.Id,
+    userId: permission.userId ?? permission.UserId,
+    permissionId: permission.permissionId ?? permission.PermissionId,
+    permissionKey: permission.permissionKey ?? permission.PermissionKey,
+    permissionModule: permission.permissionModule ?? permission.PermissionModule,
+    permissionResource: permission.permissionResource ?? permission.PermissionResource,
+    permissionAction: permission.permissionAction ?? permission.PermissionAction,
+    permissionDescription: permission.permissionDescription ?? permission.PermissionDescription,
+    grantedBy: permission.grantedBy ?? permission.GrantedBy,
+    grantedAt: permission.grantedAt ?? permission.GrantedAt,
+    expiresAt: permission.expiresAt ?? permission.ExpiresAt,
+    reason: permission.reason ?? permission.Reason,
+    isActive: Boolean(permission.isActive ?? permission.IsActive),
+    isExpired: Boolean(permission.isExpired ?? permission.IsExpired),
+    isEffective: Boolean(permission.isEffective ?? permission.IsEffective),
+    status: permission.status ?? permission.Status,
   }
 }
 
@@ -146,21 +189,21 @@ export const usersService = {
   async listPermissions() {
     const response = await getOnce(identityPath('/permissions'))
     return (getValue(response, 'Unable to load permissions.') || []).map((group) => ({
-      module: group.module,
-      permissions: (group.permissions || []).map(mapPermission),
+      module: group.module ?? group.Module,
+      permissions: (group.permissions ?? group.Permissions ?? []).map(mapPermission),
     }))
   },
 
   // User Permissions Management
   async getDirectPermissions(userId) {
     const response = await getOnce(`/api/v1/users/${userId}/get-direct-permissions`)
-    return getValue(response, 'Unable to load user permissions.') || []
+    return (getValue(response, 'Unable to load user permissions.') || []).map(mapDirectPermission)
   },
 
   // Direct Permission Assignment and Revocation
   async assignDirectPermission(userId, payload) {
     const response = await api.post(`/api/v1/users/${userId}/create-direct-permission`, payload)
-    return getValue(response, 'Unable to assign permission.')
+    return mapDirectPermission(getValue(response, 'Unable to assign permission.'))
   },
 
   // Note: Direct permission revocation endpoint is assumed to be a DELETE request to /users/{userId}/direct-permissions/{directPermissionId}
@@ -171,4 +214,5 @@ export const usersService = {
     return getValue(response, 'Unable to revoke permission.')
   },
 }
+
 

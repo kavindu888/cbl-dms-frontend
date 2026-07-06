@@ -63,4 +63,3 @@ export function firstFieldError(errors) {
 export function hasValidationErrors(errors) {
   return Object.keys(errors).length > 0
 }
-

@@ -86,32 +86,39 @@ function formatStocktake(item) {
   }
 }
 
+//Inventory service for interacting with the inventory API endpoints
+//Inventory List 
 export const inventoryService = {
   async listStockLevels(params = {}) {
     const response = await getOnce('/api/v1/inventory/stock/levels', { params })
     return asList(getValue(response, 'Unable to load stock levels.'))
   },
 
+  //Inventory Stock Availability
   async getStockAvailability(productId) {
     const response = await getOnce(`/api/v1/inventory/stock/availability/${productId}`)
     return getValue(response, 'Unable to load stock availability.')
   },
 
+  //Inventory Stock Batches
   async listStockBatches(productId) {
     const response = await getOnce(`/api/v1/inventory/stock/batches/${productId}`)
     return asList(getValue(response, 'Unable to load stock batches.')).map(formatBatch)
   },
 
+  //Inventory Expiring Batches
   async listExpiringBatches(params = {}) {
     const response = await getOnce('/api/v1/inventory/stock/batches/expiring', { params })
     return asList(getValue(response, 'Unable to load expiring batches.')).map(formatBatch)
   },
 
+  //Inventory Stock Movements
   async listStockMovements(params = {}) {
     const response = await getOnce('/api/v1/inventory/stock/movements', { params })
     return asList(getValue(response, 'Unable to load stock movements.')).map(formatMovement)
   },
 
+  //Inventory Stock Locations
   async listStockLocations(params = {}) {
     const response = await getOnce('/api/inventory/stock-locations', { params })
     const page = getValue(response, 'Unable to load stock locations.')
@@ -124,52 +131,62 @@ export const inventoryService = {
     }
   },
 
+  //Inventory Stock Location
   async getStockLocation(id) {
     const response = await getOnce(`/api/inventory/stock-locations/${id}`)
     const item = getValue(response, 'Unable to load stock location.')
     return { ...item, status: item.isActive ? 'Active' : 'Inactive' }
   },
 
+  //Inventory Stock Location Management
   async createStockLocation(payload) {
     const response = await api.post('/api/inventory/stock-locations', payload)
     return getValue(response, 'Unable to create stock location.')
   },
 
+  //Inventory Stock Location Update
   async updateStockLocation(id, payload) {
     const response = await api.put(`/api/inventory/stock-locations/${id}`, payload)
     return getValue(response, 'Unable to update stock location.')
   },
 
+  //Inventory Stock Location Activation
   async activateStockLocation(id) {
     const response = await api.post(`/api/inventory/stock-locations/${id}/activate`)
     return getValue(response, 'Unable to activate stock location.')
   },
 
+  //Inventory Stock Location Deactivation
   async deactivateStockLocation(id) {
     const response = await api.post(`/api/inventory/stock-locations/${id}/deactivate`)
     return getValue(response, 'Unable to deactivate stock location.')
   },
 
+  //Inventory Stock Transfers
   async listStockTransfers(params = {}) {
     const response = await getOnce('/api/v1/inventory/stock-transfers', { params })
     return asList(getValue(response, 'Unable to load stock transfers.')).map(formatTransfer)
   },
 
+  //Inventory Stock Transfer
   async getStockTransfer(id) {
     const response = await getOnce(`/api/v1/inventory/stock-transfers/${id}`)
     return formatTransfer(getValue(response, 'Unable to load stock transfer.'))
   },
 
+  //Inventory Stock Transfer Management
   async createStockTransfer(payload) {
     const response = await api.post('/api/v1/inventory/stock-transfers', payload)
     return getValue(response, 'Unable to create stock transfer.')
   },
 
+  //
   async addStockTransferLine(id, payload) {
     const response = await api.post(`/api/v1/inventory/stock-transfers/${id}/lines`, payload)
     return getValue(response, 'Unable to add stock transfer line.')
   },
 
+  //Inventory Stock Transfer Line Removal
   async removeStockTransferLine(id, lineId) {
     const response = await api.delete(`/api/v1/inventory/stock-transfers/${id}/lines/${lineId}`)
     return getValue(response, 'Unable to remove stock transfer line.')
