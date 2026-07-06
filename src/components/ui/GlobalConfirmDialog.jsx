@@ -23,7 +23,7 @@ const toneStyles = {
     iconBg: 'color-mix(in srgb, var(--color-amber) 12%, transparent)',
     border: 'color-mix(in srgb, var(--color-amber) 26%, var(--color-border))',
     buttonClass: 'button-primary',
-  }
+  },
 }
 
 export default function GlobalConfirmDialog() {
@@ -37,7 +37,11 @@ export default function GlobalConfirmDialog() {
     const msgLower = message.toLowerCase()
     if (msgLower.includes('deactivate')) {
       tone = 'warning'
-    } else if (msgLower.includes('remove') || msgLower.includes('delete') || msgLower.includes('permanently')) {
+    } else if (
+      msgLower.includes('remove') ||
+      msgLower.includes('delete') ||
+      msgLower.includes('permanently')
+    ) {
       tone = 'danger'
     } else {
       tone = 'info'
@@ -47,12 +51,25 @@ export default function GlobalConfirmDialog() {
   const styles = toneStyles[tone] || toneStyles.info
   const Icon = styles.icon
 
-  const title = options.title || (tone === 'danger' ? 'Confirm Deletion' : tone === 'warning' ? 'Confirm Deactivation' : 'Confirm Action')
-  const confirmLabel = options.confirmLabel || (tone === 'danger' ? 'Remove' : tone === 'warning' ? 'Deactivate' : 'Confirm')
+  const title =
+    options.title ||
+    (tone === 'danger'
+      ? 'Confirm Deletion'
+      : tone === 'warning'
+        ? 'Confirm Deactivation'
+        : 'Confirm Action')
+  const confirmLabel =
+    options.confirmLabel ||
+    (tone === 'danger' ? 'Remove' : tone === 'warning' ? 'Deactivate' : 'Confirm')
   const cancelLabel = options.cancelLabel || 'Cancel'
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) onCancel() }}>
+    <Dialog.Root
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onCancel()
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Overlay
           className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm"
@@ -86,10 +103,19 @@ export default function GlobalConfirmDialog() {
             </div>
 
             <div style={{ minWidth: 0, flex: 1 }}>
-              <Dialog.Title style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+              <Dialog.Title
+                style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}
+              >
                 {title}
               </Dialog.Title>
-              <Dialog.Description style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--color-text-muted)' }}>
+              <Dialog.Description
+                style={{
+                  marginTop: 8,
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  color: 'var(--color-text-muted)',
+                }}
+              >
                 {message}
               </Dialog.Description>
             </div>
@@ -99,7 +125,15 @@ export default function GlobalConfirmDialog() {
               className="icon-button"
               aria-label="Close"
               onClick={onCancel}
-              style={{ width: 28, height: 28, flex: '0 0 auto', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-dim)' }}
+              style={{
+                width: 28,
+                height: 28,
+                flex: '0 0 auto',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: 'var(--color-text-dim)',
+              }}
             >
               <X size={16} />
             </button>

@@ -1,4 +1,4 @@
-import * as Tooltip from '@radix-ui/react-tooltip'
+﻿import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   Banknote,
   // BarChart2,
@@ -40,6 +40,53 @@ const navGroups = [
   {
     label: 'OPERATIONS',
     items: [{ label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true }],
+  },
+  {
+    label: 'SALES',
+    items: [
+      {
+        label: 'Customer',
+        to: '/sales/customers',
+        icon: User,
+        permissions: [PERMISSIONS.sales.customerRead, PERMISSIONS.sales.customerManage],
+      },
+      {
+        label: 'Customer Groups',
+        to: '/sales/customer-groups',
+        icon: Users,
+        permissions: PERMISSIONS.sales.customerManage,
+      },
+      {
+        label: 'Sales Orders',
+        to: '/sales/orders',
+        icon: ClipboardList,
+        permissions: [
+          PERMISSIONS.salesOrders.view,
+          PERMISSIONS.salesOrders.create,
+          PERMISSIONS.sales.orderRead,
+          PERMISSIONS.sales.orderCreate,
+        ],
+      },
+      {
+        label: 'Invoices',
+        to: '/sales/invoices',
+        icon: FileText,
+        end: true,
+        permissions: PERMISSIONS.sales.invoiceRead,
+      },
+      {
+        label: 'New Invoice',
+        to: '/sales/invoices/new',
+        icon: ClipboardList,
+        permissions: PERMISSIONS.sales.invoiceCreate,
+      },
+      {
+        label: 'Invoice Payment Record',
+        to: '/sales/invoice-payment-record',
+        icon: Banknote,
+        permissions: { all: [PERMISSIONS.sales.invoiceRead, PERMISSIONS.sales.invoiceAddPayment] },
+      },
+    ],
   },
   {
     label: 'PURCHASING',
@@ -208,36 +255,6 @@ const navGroups = [
         to: '/inventory/movements',
         icon: ListChecks,
         permissions: PERMISSIONS.inventory.stockRead,
-      },
-    ],
-  },
-  {
-    label: 'SALES',
-    items: [
-      {
-        label: 'Customer',
-        to: '/sales/customers',
-        icon: User,
-        permissions: [PERMISSIONS.sales.customerRead, PERMISSIONS.sales.customerManage],
-      },
-      {
-        label: 'Customer Groups',
-        to: '/sales/customer-groups',
-        icon: Users,
-        permissions: PERMISSIONS.sales.customerManage,
-      },
-      {
-        label: 'Invoices',
-        to: '/sales/invoices',
-        icon: FileText,
-        end: true,
-        permissions: PERMISSIONS.sales.invoiceRead,
-      },
-      {
-        label: 'New Invoice',
-        to: '/sales/invoices/new',
-        icon: ClipboardList,
-        permissions: PERMISSIONS.sales.invoiceCreate,
       },
     ],
   },
@@ -513,7 +530,4 @@ export default function Sidebar() {
     </Tooltip.Provider>
   )
 }
-
-
-
 

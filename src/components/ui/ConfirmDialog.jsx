@@ -79,10 +79,19 @@ export default function ConfirmDialog({
             </div>
 
             <div style={{ minWidth: 0, flex: 1 }}>
-              <Dialog.Title style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-text-primary)' }}>
+              <Dialog.Title
+                style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-text-primary)' }}
+              >
                 {title}
               </Dialog.Title>
-              <Dialog.Description style={{ marginTop: 8, fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>
+              <Dialog.Description
+                style={{
+                  marginTop: 8,
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  color: 'var(--color-text-muted)',
+                }}
+              >
                 {description}
               </Dialog.Description>
               {details ? (
