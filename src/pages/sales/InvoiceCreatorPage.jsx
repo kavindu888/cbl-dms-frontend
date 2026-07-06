@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
-import { useAuthStore } from '@/stores/authStore'
 import SimplePagination from '@components/ui/SimplePagination'
 
 const emptyLine = {
@@ -20,14 +19,10 @@ const emptyLine = {
   isVatApplicable: false,
 }
 
-function createDefaultValues(userId = '') {
+function createDefaultValues() {
   return {
     customerId: '',
     salesRouteId: '',
-    vehicleId: '',
-    salesPersonId: userId,
-    isTaxInvoice: false,
-    customerVatTin: '',
     lines: [{ ...emptyLine }],
   }
 }
@@ -45,12 +40,13 @@ function fieldError(message) {
 
 export default function InvoiceCreatorPage() {
   const navigate = useNavigate()
-  const currentUser = useAuthStore((state) => state.user)
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [salesRouteName, setSalesRouteName] = useState('')
+  const [selectedCustomerDetails, setSelectedCustomerDetails] = useState(null)
 
   const {
     register,
@@ -60,14 +56,17 @@ export default function InvoiceCreatorPage() {
     setValue,
     formState: { errors },
   } = useForm({
-    defaultValues: createDefaultValues(currentUser?.id || ''),
+    defaultValues: createDefaultValues(),
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const selectedCustomerId = useWatch({ control, name: 'customerId' })
-  const isTaxInvoice = useWatch({ control, name: 'isTaxInvoice' })
+  const selectedSalesRouteId = useWatch({ control, name: 'salesRouteId' })
   const watchedLines = useWatch({ control, name: 'lines' })
   const lines = useMemo(() => watchedLines || [], [watchedLines])
+  const selectedCustomer = useMemo(() => {
+    return customers.find((item) => item.id === selectedCustomerId) || null
+  }, [customers, selectedCustomerId])
 
   const [linePage, setLinePage] = useState(1)
   const linePageSize = 5
@@ -132,10 +131,60 @@ export default function InvoiceCreatorPage() {
   }, [])
 
   useEffect(() => {
-    const customer = customers.find((item) => item.id === selectedCustomerId)
-    setValue('salesRouteId', customer?.salesRouteId || '')
-    setValue('customerVatTin', customer?.taxNumber || '')
-  }, [customers, selectedCustomerId, setValue])
+    setValue('salesRouteId', selectedCustomer?.salesRouteId || '')
+  }, [selectedCustomer, setValue])
+
+  useEffect(() => {
+    let isCurrent = true
+
+    async function loadSelectedCustomerDetails() {
+      if (!selectedCustomerId) {
+        setSelectedCustomerDetails(null)
+        return
+      }
+
+      setSelectedCustomerDetails(null)
+
+      try {
+        const customer = await salesService.getCustomer(selectedCustomerId)
+        if (isCurrent) setSelectedCustomerDetails(customer)
+      } catch {
+        if (isCurrent) setSelectedCustomerDetails(null)
+      }
+    }
+
+    loadSelectedCustomerDetails()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [selectedCustomerId])
+
+  useEffect(() => {
+    let isCurrent = true
+
+    async function loadSalesRouteName() {
+      if (!selectedSalesRouteId) {
+        setSalesRouteName('')
+        return
+      }
+
+      setSalesRouteName('')
+
+      try {
+        const route = await masterService.getSalesRoute(selectedSalesRouteId)
+        if (isCurrent) setSalesRouteName(route?.name || '')
+      } catch {
+        if (isCurrent) setSalesRouteName('')
+      }
+    }
+
+    loadSalesRouteName()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [selectedSalesRouteId])
 
   function handleProductChange(index, productId) {
     const product = productById[productId]
@@ -152,12 +201,6 @@ export default function InvoiceCreatorPage() {
   function validate(values) {
     if (!values.customerId) return 'Customer is required.'
     if (!values.salesRouteId) return 'Selected customer does not have a sales route.'
-    if (!values.vehicleId.trim()) return 'Vehicle ID is required.'
-    if (!values.salesPersonId.trim()) return 'Sales person ID is required.'
-    if (values.isTaxInvoice && !values.customerVatTin.trim()) {
-      return 'Customer VAT TIN is required for tax invoices.'
-    }
-
     const invalidLine = values.lines.find(
       (line) =>
         !line.productId ||
@@ -187,10 +230,6 @@ export default function InvoiceCreatorPage() {
     const payload = {
       customerId: values.customerId,
       salesRouteId: values.salesRouteId,
-      vehicleId: values.vehicleId.trim(),
-      salesPersonId: values.salesPersonId.trim(),
-      isTaxInvoice: Boolean(values.isTaxInvoice),
-      customerVatTin: values.isTaxInvoice ? values.customerVatTin.trim() : null,
       lines: values.lines.map((line) => ({
         productId: line.productId,
         categoryId: line.categoryId,
@@ -207,7 +246,7 @@ export default function InvoiceCreatorPage() {
     try {
       const invoiceId = await salesService.createInvoice(payload)
       toast.success('Invoice created successfully.')
-      reset(createDefaultValues(currentUser?.id || ''))
+      reset(createDefaultValues())
       navigate(`/sales/invoices/${invoiceId}`)
     } catch (error) {
       toast.error(error?.message || 'Invoice could not be created.')
@@ -360,6 +399,14 @@ export default function InvoiceCreatorPage() {
                           type="number"
                           step="0.01"
                           {...register(`lines.${index}.unitPrice`)}
+                          readOnly
+                          tabIndex={-1}
+                          style={{
+                            cursor: 'not-allowed',
+                            backgroundColor: 'var(--color-bg-hover)',
+                            opacity: 0.7,
+                            userSelect: 'none',
+                          }}
                         />
                       </td>
                       <td>
@@ -368,6 +415,14 @@ export default function InvoiceCreatorPage() {
                           type="number"
                           step="0.01"
                           {...register(`lines.${index}.mrp`)}
+                          readOnly
+                          tabIndex={-1}
+                          style={{
+                            cursor: 'not-allowed',
+                            backgroundColor: 'var(--color-bg-hover)',
+                            opacity: 0.7,
+                            userSelect: 'none',
+                          }}
                         />
                       </td>
                       <td>
@@ -451,53 +506,29 @@ export default function InvoiceCreatorPage() {
                     </option>
                   ))}
                 </select>
+                {selectedCustomer && (
+                  <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    TIN:{' '}
+                    {selectedCustomerDetails?.taxNumber ||
+                      selectedCustomer.taxNumber ||
+                      'Not assigned'}
+                  </p>
+                )}
                 {fieldError(errors.customerId?.message)}
               </div>
 
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Sales Route ID
-                </label>
-                <input className="form-input" {...register('salesRouteId')} readOnly />
-              </div>
-
-              <div>
-                <label className="form-label" style={{ fontSize: 10 }}>
-                  Vehicle ID *
+                  Sales Route
                 </label>
                 <input
                   className="form-input"
-                  placeholder="Enter vehicle ID"
-                  {...register('vehicleId')}
+                  value={salesRouteName || selectedSalesRouteId || ''}
+                  readOnly
                 />
-              </div>
-
-              <div>
-                <label className="form-label" style={{ fontSize: 10 }}>
-                  Sales Person ID *
-                </label>
-                <input className="form-input" type="password" {...register('salesPersonId')} />
+                <input type="hidden" {...register('salesRouteId')} />
               </div>
             </div>
-          </div>
-
-          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
-            <p className="form-label" style={{ fontSize: 10 }}>
-              Tax Details
-            </p>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-              <input type="checkbox" {...register('isTaxInvoice')} />
-              Tax invoice
-            </label>
-
-            {isTaxInvoice && (
-              <div style={{ marginTop: 12 }}>
-                <label className="form-label" style={{ fontSize: 10 }}>
-                  Customer VAT TIN *
-                </label>
-                <input className="form-input" {...register('customerVatTin')} />
-              </div>
-            )}
           </div>
 
           <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
@@ -537,7 +568,7 @@ export default function InvoiceCreatorPage() {
             <button
               type="button"
               className="button-secondary"
-              onClick={() => reset(createDefaultValues(currentUser?.id || ''))}
+              onClick={() => reset(createDefaultValues())}
             >
               <RotateCcw style={{ width: 15, height: 15 }} />
               Clear

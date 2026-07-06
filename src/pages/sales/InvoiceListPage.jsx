@@ -1,17 +1,10 @@
 import dayjs from 'dayjs'
-import {
-  CalendarDays,
-  ChevronRight,
-  ClipboardCheck,
-  FilePlus2,
-  FileText,
-  Search,
-  X,
-} from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { CalendarDays, ChevronRight, ClipboardCheck, FileText, Search, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
+import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import SimplePagination from '@components/ui/SimplePagination'
 
@@ -20,18 +13,6 @@ function money(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
-}
-
-function uniqueRoutes(customers) {
-  const routes = new Map()
-
-  customers.forEach((customer) => {
-    if (customer.salesRouteId) {
-      routes.set(customer.salesRouteId, customer.salesRouteId)
-    }
-  })
-
-  return Array.from(routes.values())
 }
 
 const pageSize = 12
@@ -43,13 +24,14 @@ function invoiceStatusLabel(status) {
 export default function InvoiceListPage() {
   const [customers, setCustomers] = useState([])
   const [invoices, setInvoices] = useState([])
-  const [customerId, setCustomerId] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [salesRouteId, setSalesRouteId] = useState('')
-  const [invoiceDate, setInvoiceDate] = useState(dayjs().format('YYYY-MM-DD'))
+  const [invoiceDate, setInvoiceDate] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [allRoutes, setAllRoutes] = useState([])
 
   const customerNameById = useMemo(() => {
     return customers.reduce((map, customer) => {
@@ -58,25 +40,71 @@ export default function InvoiceListPage() {
     }, {})
   }, [customers])
 
-  const routeOptions = useMemo(() => uniqueRoutes(customers), [customers])
+  useEffect(() => {
+    let isCurrent = true
+
+    async function loadRoutes() {
+      try {
+        const territoriesList = await masterService.listTerritories()
+        if (!isCurrent) return
+
+        const results = await Promise.all(
+          territoriesList.map((t) =>
+            masterService
+              .listSalesRoutes({ territoryId: t.id, page: 1, pageSize: 100 })
+              .catch(() => ({ items: [] }))
+          )
+        )
+        if (!isCurrent) return
+
+        const routes = results.flatMap((r) => r.items || [])
+        setAllRoutes(routes)
+      } catch (e) {
+        console.error('Failed to load sales routes:', e)
+      }
+    }
+    loadRoutes()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
 
   const filteredInvoices = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    if (!term) return invoices
+    let result = invoices
 
-    return invoices.filter((invoice) => {
-      const customerName = customerNameById[invoice.customerId] || ''
-      return (
-        invoice.invoiceNumber.toLowerCase().includes(term) ||
-        invoice.id.toLowerCase().includes(term) ||
-        customerName.toLowerCase().includes(term)
-      )
-    })
-  }, [customerNameById, invoices, search])
+    const term = search.trim().toLowerCase()
+    if (term) {
+      result = result.filter((invoice) => {
+        const customerName = customerNameById[invoice.customerId] || ''
+        return (
+          invoice.invoiceNumber.toLowerCase().includes(term) ||
+          invoice.id.toLowerCase().includes(term) ||
+          customerName.toLowerCase().includes(term)
+        )
+      })
+    }
+
+    if (statusFilter) {
+      result = result.filter((invoice) => invoice.status === statusFilter)
+    }
+
+    if (salesRouteId) {
+      result = result.filter((invoice) => invoice.salesRouteId === salesRouteId)
+    }
+
+    if (invoiceDate) {
+      result = result.filter((invoice) => {
+        return dayjs(invoice.invoiceDate).format('YYYY-MM-DD') === invoiceDate
+      })
+    }
+
+    return result
+  }, [customerNameById, invoices, search, statusFilter, salesRouteId, invoiceDate])
 
   useEffect(() => {
     setPage(1)
-  }, [customerId, salesRouteId, invoiceDate, search])
+  }, [statusFilter, salesRouteId, invoiceDate, search])
 
   const pagedInvoices = useMemo(() => {
     const startIndex = (page - 1) * pageSize
@@ -84,47 +112,73 @@ export default function InvoiceListPage() {
   }, [filteredInvoices, page])
 
   useEffect(() => {
+    let isCurrent = true
     async function loadCustomers() {
       try {
         const result = await salesService.listCustomers({ page: 1, pageSize: 100, isActive: true })
+        if (!isCurrent) return
         setCustomers(result.items || [])
       } catch (loadError) {
+        if (!isCurrent) return
         setError(loadError.message)
       }
     }
-
     loadCustomers()
+    return () => {
+      isCurrent = false
+    }
   }, [])
 
-  const loadInvoices = useCallback(async () => {
-    if (!customerId && (!salesRouteId || !invoiceDate)) return
-
-    setIsLoading(true)
-    setError('')
-
-    try {
-      const result = customerId
-        ? await salesService.listOutstandingInvoicesByCustomer(customerId)
-        : await salesService.listInvoicesByRouteAndDate({
-            salesRouteId,
-            date: `${invoiceDate}T00:00:00Z`,
-          })
-
-      setInvoices(result)
-    } catch (loadError) {
-      setError(loadError.message)
-      setInvoices([])
-      toast.error(loadError.message)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [customerId, invoiceDate, salesRouteId])
-
   useEffect(() => {
-    if (customerId || (salesRouteId && invoiceDate)) {
-      loadInvoices()
+    if (customers.length === 0) return
+
+    let isCurrent = true
+
+    async function loadInvoicesData() {
+      setIsLoading(true)
+      setError('')
+      try {
+        let fetchedInvoices = []
+        if (salesRouteId && invoiceDate) {
+          fetchedInvoices = await salesService.listInvoicesByRouteAndDate({
+            salesRouteId,
+            date: invoiceDate,
+          })
+        } else {
+          const invoiceResults = await Promise.all(
+            customers.map(async (customer) => {
+              try {
+                return await salesService.listOutstandingInvoicesByCustomer(customer.id)
+              } catch (e) {
+                return []
+              }
+            })
+          )
+          fetchedInvoices = invoiceResults.flat()
+        }
+
+        if (!isCurrent) return
+
+        fetchedInvoices.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate))
+        setInvoices(fetchedInvoices)
+      } catch (loadError) {
+        if (!isCurrent) return
+        setError(loadError.message)
+        setInvoices([])
+        toast.error(loadError.message)
+      } finally {
+        if (isCurrent) {
+          setIsLoading(false)
+        }
+      }
     }
-  }, [customerId, invoiceDate, loadInvoices, salesRouteId])
+
+    loadInvoicesData()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [customers, salesRouteId, invoiceDate])
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / pageSize))
@@ -132,7 +186,7 @@ export default function InvoiceListPage() {
   }, [filteredInvoices.length, page])
 
   function clearFilters() {
-    setCustomerId('')
+    setStatusFilter('')
     setSalesRouteId('')
     setInvoiceDate('')
     setSearch('')
@@ -165,112 +219,177 @@ export default function InvoiceListPage() {
             Search by customer outstanding invoices, or by sales route and date.
           </p>
         </div>
-        <Link
-          to="/sales/invoices/new"
-          className="button-primary"
-          style={{ height: 40, padding: '0 16px' }}
-        >
-          <FilePlus2 size={16} /> New Invoice
-        </Link>
       </div>
 
-      <section
-        className="panel"
+      <div
+        className="panel responsive-filter-bar"
         style={{
           padding: 16,
-          display: 'grid',
-          gridTemplateColumns: 'minmax(220px, 1fr) repeat(3, minmax(145px, 180px)) auto auto',
-          alignItems: 'end',
-          gap: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexShrink: 0,
         }}
       >
-        <Field label="Search">
-          <div style={{ position: 'relative' }}>
-            <Search
-              size={16}
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                color: 'var(--color-text-dim)',
-                transform: 'translateY(-50%)',
-              }}
-            />
-            <input
-              className="form-input"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Invoice, ID, or customer"
-              style={{ paddingLeft: 36 }}
-            />
-          </div>
-        </Field>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 16,
+              height: 16,
+              color: 'var(--color-text-dim)',
+            }}
+          />
+          <input
+            className="form-input"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Invoice, ID, or customer"
+            style={{
+              width: '100%',
+              height: 40,
+              paddingLeft: 36,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
+          />
+        </div>
 
-        <Field label="Customer">
+        <div style={{ position: 'relative', width: 160 }}>
           <select
             className="form-input"
-            value={customerId}
-            onChange={(event) => {
-              setCustomerId(event.target.value)
-              if (event.target.value) setSalesRouteId('')
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
             }}
           >
-            <option value="">Customer outstanding...</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
+            <option value="" style={{ background: 'var(--color-bg-elevated)' }}>
+              All statuses
+            </option>
+            <option value="Draft" style={{ background: 'var(--color-bg-elevated)' }}>
+              Draft
+            </option>
+            <option value="Unpaid" style={{ background: 'var(--color-bg-elevated)' }}>
+              Unpaid
+            </option>
+            <option value="PartiallyPaid" style={{ background: 'var(--color-bg-elevated)' }}>
+              Partially Paid
+            </option>
+            <option value="Paid" style={{ background: 'var(--color-bg-elevated)' }}>
+              Paid
+            </option>
+            <option value="Cancelled" style={{ background: 'var(--color-bg-elevated)' }}>
+              Cancelled
+            </option>
           </select>
-        </Field>
+          <div
+            style={{
+              pointerEvents: 'none',
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-dim)',
+            }}
+          >
+            <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
+          </div>
+        </div>
 
-        <Field label="Sales Route">
+        <div style={{ position: 'relative', width: 180 }}>
           <select
             className="form-input"
             value={salesRouteId}
-            onChange={(event) => {
-              setSalesRouteId(event.target.value)
-              if (event.target.value) setCustomerId('')
+            onChange={(event) => setSalesRouteId(event.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
             }}
-            disabled={Boolean(customerId)}
           >
-            <option value="">Sales route...</option>
-            {routeOptions.map((routeId) => (
-              <option key={routeId} value={routeId}>
-                {routeId}
+            <option value="" style={{ background: 'var(--color-bg-elevated)' }}>
+              Sales route...
+            </option>
+            {allRoutes.map((route) => (
+              <option
+                key={route.id}
+                value={route.id}
+                style={{ background: 'var(--color-bg-elevated)' }}
+              >
+                {route.name || route.id}
               </option>
             ))}
           </select>
-        </Field>
+          <div
+            style={{
+              pointerEvents: 'none',
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-dim)',
+            }}
+          >
+            <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
+          </div>
+        </div>
 
-        <Field label="Invoice Date">
+        <div style={{ width: 150 }}>
           <input
             className="form-input"
             type="date"
             value={invoiceDate}
             onChange={(event) => setInvoiceDate(event.target.value)}
-            disabled={Boolean(customerId)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
           />
-        </Field>
+        </div>
 
-        <button
-          className="button-primary"
-          type="button"
-          onClick={loadInvoices}
-          disabled={isLoading || (!customerId && !salesRouteId) || (salesRouteId && !invoiceDate)}
-          style={{ height: 40 }}
-        >
-          {isLoading ? 'Loading...' : 'Load'}
-        </button>
         <button
           type="button"
           className="button-secondary"
           onClick={clearFilters}
-          style={{ height: 40 }}
+          style={{ height: 40, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7 }}
         >
           <X size={15} /> Clear
         </button>
-      </section>
+      </div>
 
       <section
         className="panel"
@@ -374,17 +493,6 @@ export default function InvoiceListPage() {
         </div>
       </section>
     </div>
-  )
-}
-
-function Field({ label, children }) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 7, minWidth: 0 }}>
-      <span className="form-label" style={{ marginBottom: 0 }}>
-        {label}
-      </span>
-      {children}
-    </label>
   )
 }
 
