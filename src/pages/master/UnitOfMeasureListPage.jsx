@@ -168,7 +168,7 @@ export default function UnitOfMeasureListPage() {
 
   async function handleDeactivate(unit) {
     if (!unit.isActive) return
-    if (!await window.confirm(`Deactivate ${unit.name}?`)) return
+    if (!(await window.confirm(`Deactivate ${unit.name}?`))) return
 
     try {
       await masterService.deactivateUnitOfMeasure(unit.id)

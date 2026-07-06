@@ -1223,4 +1223,3 @@ export default function SupplierListPage() {
     </div>
   )
 }
-
