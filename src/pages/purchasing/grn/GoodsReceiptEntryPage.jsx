@@ -1593,4 +1593,3 @@ function EditableCell({ value, onChange, disabled = false }) {
     </td>
   )
 }
-

@@ -699,12 +699,14 @@ export default function GoodsReceiptListPage() {
                   className="responsive-table-shell"
                   style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
                 >
-                  <table className="data-table product-table-compact" style={{ minWidth: 800 }}>
+                  <table className="data-table product-table-compact" style={{ minWidth: 1040 }}>
                     <thead>
                       <tr>
                         <th>Item</th>
                         <th style={{ textAlign: 'right' }}>Received Qty</th>
                         <th style={{ textAlign: 'right' }}>Unit Cost</th>
+                        <th style={{ textAlign: 'right' }}>Selling Price</th>
+                        <th style={{ textAlign: 'right' }}>MRP</th>
                         <th style={{ textAlign: 'right' }}>Rejected Qty</th>
                         <th>Reject Reason</th>
                         <th>Expiry</th>
@@ -738,6 +740,12 @@ export default function GoodsReceiptListPage() {
                           </td>
                           <td className="mono text-right font-semibold text-sm">
                             {formatMoney(line.unitCostSmallest)}
+                          </td>
+                          <td className="mono text-right font-semibold text-sm">
+                            {formatMoney(line.sellingPrice)}
+                          </td>
+                          <td className="mono text-right font-semibold text-sm">
+                            {formatMoney(line.mrp)}
                           </td>
                           <td className="text-right">
                             <span className="mono text-sm">
