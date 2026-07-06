@@ -1018,10 +1018,9 @@ tr:hover .copy-btn {
 .grn-filter-bar {
   padding: 14px !important;
   display: grid !important;
-  grid-template-columns: minmax(280px, 1fr) minmax(170px, 220px) minmax(150px, 190px) minmax(
-      150px,
-      190px
-    ) auto !important;
+  grid-template-columns:
+    minmax(280px, 1fr) minmax(170px, 220px) minmax(150px, 190px) minmax(150px, 190px)
+    auto !important;
   align-items: center !important;
   gap: 14px !important;
   flex-shrink: 0;
@@ -1032,10 +1031,9 @@ tr:hover .copy-btn {
 }
 
 .grn-filter-bar--list {
-  grid-template-columns: minmax(280px, 1fr) minmax(160px, 190px) minmax(170px, 200px) minmax(
-      150px,
-      170px
-    ) minmax(150px, 170px) auto !important;
+  grid-template-columns:
+    minmax(280px, 1fr) minmax(160px, 190px) minmax(170px, 200px) minmax(150px, 170px)
+    minmax(150px, 170px) auto !important;
 }
 
 .grn-filter-control,
@@ -1165,8 +1163,12 @@ tr:hover .copy-btn {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes scaleUp {
@@ -1179,4 +1181,3 @@ tr:hover .copy-btn {
     transform: translate(-50%, -50%) scale(1);
   }
 }
-
