@@ -141,7 +141,7 @@ export default function TaxesTab() {
   }
 
   async function deactivateTax(tax) {
-    if (!await window.confirm(`Deactivate ${tax.code} - ${tax.name}?`)) return
+    if (!(await window.confirm(`Deactivate ${tax.code} - ${tax.name}?`))) return
 
     try {
       const updatedTax = await masterService.deactivateTax(tax.id)
