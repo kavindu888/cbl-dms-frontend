@@ -1,774 +1,521 @@
 import dayjs from 'dayjs'
-import { Plus, Search, X, Pencil } from 'lucide-react'
+import { CalendarDays, ChevronRight, ClipboardCheck, FileText, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import * as Dialog from '@radix-ui/react-dialog'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
-import { InvoiceStatus, PaymentType } from '@/types/sales.types'
-import { mockCustomers } from '@/data/mockCustomers'
-const mockInvoices = [
-  {
-    id: 'INV-2026-0148',
-    customer: 'Perera Stores',
-    date: '2026-04-29',
-    due: '2026-05-13',
-    amount: 43380,
-    paid: 0,
-    type: PaymentType.Credit,
-    status: InvoiceStatus.Posted,
-  },
-  {
-    id: 'INV-2026-0147',
-    customer: 'Silva Mart',
-    date: '2026-04-29',
-    due: '2026-04-29',
-    amount: 28900,
-    paid: 28900,
-    type: PaymentType.Cash,
-    status: InvoiceStatus.Posted,
-  },
-  {
-    id: 'INV-2026-0146',
-    customer: 'Dissanayake SM',
-    date: '2026-04-28',
-    due: '2026-05-05',
-    amount: 61200,
-    paid: 0,
-    type: PaymentType.Credit,
-    status: InvoiceStatus.Posted,
-  },
-  {
-    id: 'INV-2026-0145',
-    customer: 'Fernando Grocery',
-    date: '2026-04-28',
-    due: '2026-04-28',
-    amount: 12750,
-    paid: 12750,
-    type: PaymentType.Cash,
-    status: InvoiceStatus.Posted,
-  },
-  {
-    id: 'INV-2026-0144',
-    customer: 'Jayawardena Pvt',
-    date: '2026-04-27',
-    due: '2026-05-11',
-    amount: 94500,
-    paid: 0,
-    type: PaymentType.Credit,
-    status: InvoiceStatus.Posted,
-  },
-  {
-    id: 'INV-2026-0143',
-    customer: 'Bandara Traders',
-    date: '2026-04-26',
-    due: '2026-04-26',
-    amount: 18600,
-    paid: 18600,
-    type: PaymentType.Cash,
-    status: InvoiceStatus.Posted,
-  },
-  {
-    id: 'INV-2026-0142',
-    customer: 'Perera Stores',
-    date: '2026-04-25',
-    due: '2026-05-09',
-    amount: 37800,
-    paid: 0,
-    type: PaymentType.Credit,
-    status: InvoiceStatus.Posted,
-  },
-  {
-    id: 'INV-2026-0141',
-    customer: 'Silva Mart',
-    date: '2026-04-24',
-    due: '2026-04-24',
-    amount: 55200,
-    paid: 55200,
-    type: PaymentType.Cash,
-    status: InvoiceStatus.Posted,
-  },
-]
-function deriveDisplayStatus(inv) {
-  if (inv.status === InvoiceStatus.Draft) return 'DRAFT'
-  if (inv.paid >= inv.amount && inv.amount > 0) return 'PAID'
-  const overdue = dayjs().isAfter(dayjs(inv.due))
-  return overdue ? 'OVERDUE' : 'PENDING'
-}
-const STATUS_OPTIONS = ['All', 'DRAFT', 'PENDING', 'PAID', 'OVERDUE']
-const TYPE_OPTIONS = ['All', PaymentType.Cash, PaymentType.Credit]
-const invoiceSchema = z.object({
-  customerId: z.string().min(1, 'Customer is required'),
-  invoiceDate: z.string().min(1, 'Invoice date is required'),
-  dueDate: z.string().min(1, 'Due date is required'),
-  paymentType: z.nativeEnum(PaymentType),
-  notes: z.string().optional(),
-})
-function InvoiceFormModal({ open, invoice, onClose, onSaved }) {
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(invoiceSchema),
-    defaultValues: {
-      customerId: '',
-      invoiceDate: dayjs().format('YYYY-MM-DD'),
-      dueDate: dayjs().add(14, 'day').format('YYYY-MM-DD'),
-      paymentType: PaymentType.Credit,
-      notes: '',
-    },
+import { masterService } from '@/services/api/masterService'
+import { salesService } from '@/services/api/salesService'
+import SimplePagination from '@components/ui/SimplePagination'
+
+function money(value) {
+  return Number(value || 0).toLocaleString('en-LK', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })
+}
+
+const pageSize = 12
+
+function invoiceStatusLabel(status) {
+  return String(status || '').replace(/([a-z])([A-Z])/g, '$1 $2')
+}
+
+export default function InvoiceListPage() {
+  const [customers, setCustomers] = useState([])
+  const [invoices, setInvoices] = useState([])
+  const [statusFilter, setStatusFilter] = useState('')
+  const [salesRouteId, setSalesRouteId] = useState('')
+  const [invoiceDate, setInvoiceDate] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [allRoutes, setAllRoutes] = useState([])
+
+  const customerNameById = useMemo(() => {
+    return customers.reduce((map, customer) => {
+      map[customer.id] = customer.name
+      return map
+    }, {})
+  }, [customers])
+
   useEffect(() => {
-    if (open) {
-      if (invoice) {
-        const foundCustomer = mockCustomers.find((c) => c.name === invoice.customer)
-        reset({
-          customerId: foundCustomer ? foundCustomer.id : '',
-          invoiceDate: dayjs(invoice.date).format('YYYY-MM-DD'),
-          dueDate: dayjs(invoice.due).format('YYYY-MM-DD'),
-          paymentType: invoice.type || PaymentType.Credit,
-          notes: invoice.notes || '',
-        })
-      } else {
-        reset({
-          customerId: '',
-          invoiceDate: dayjs().format('YYYY-MM-DD'),
-          dueDate: dayjs().add(14, 'day').format('YYYY-MM-DD'),
-          paymentType: PaymentType.Credit,
-          notes: '',
-        })
+    let isCurrent = true
+
+    async function loadRoutes() {
+      try {
+        const territoriesList = await masterService.listTerritories()
+        if (!isCurrent) return
+
+        const results = await Promise.all(
+          territoriesList.map((t) =>
+            masterService
+              .listSalesRoutes({ territoryId: t.id, page: 1, pageSize: 100 })
+              .catch(() => ({ items: [] }))
+          )
+        )
+        if (!isCurrent) return
+
+        const routes = results.flatMap((r) => r.items || [])
+        setAllRoutes(routes)
+      } catch (e) {
+        console.error('Failed to load sales routes:', e)
       }
-      setTimeout(() => {
-        const firstInput = document.querySelector('select[name="customerId"]')
-        if (firstInput) firstInput.focus()
-      }, 50)
     }
-  }, [open, invoice, reset])
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      const form = e.currentTarget.closest('form')
-      if (!form) return
-      const elements = Array.from(
-        form.querySelectorAll('input, select, textarea, button[type="submit"]')
-      ).filter(
-        (el) =>
-          !el.hasAttribute('disabled') && el.tabIndex !== -1 && !el.hasAttribute('data-skip-focus')
-      )
-      const index = elements.indexOf(e.currentTarget)
-      if (index > -1 && index < elements.length - 1) {
-        elements[index + 1].focus()
-      } else if (index === elements.length - 1) {
-        if (elements[index] instanceof HTMLButtonElement) {
-          elements[index].click()
+    loadRoutes()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  const filteredInvoices = useMemo(() => {
+    let result = invoices
+
+    const term = search.trim().toLowerCase()
+    if (term) {
+      result = result.filter((invoice) => {
+        const customerName = customerNameById[invoice.customerId] || ''
+        return (
+          invoice.invoiceNumber.toLowerCase().includes(term) ||
+          invoice.id.toLowerCase().includes(term) ||
+          customerName.toLowerCase().includes(term)
+        )
+      })
+    }
+
+    if (statusFilter) {
+      result = result.filter((invoice) => invoice.status === statusFilter)
+    }
+
+    if (salesRouteId) {
+      result = result.filter((invoice) => invoice.salesRouteId === salesRouteId)
+    }
+
+    if (invoiceDate) {
+      result = result.filter((invoice) => {
+        return dayjs(invoice.invoiceDate).format('YYYY-MM-DD') === invoiceDate
+      })
+    }
+
+    return result
+  }, [customerNameById, invoices, search, statusFilter, salesRouteId, invoiceDate])
+
+  useEffect(() => {
+    setPage(1)
+  }, [statusFilter, salesRouteId, invoiceDate, search])
+
+  const pagedInvoices = useMemo(() => {
+    const startIndex = (page - 1) * pageSize
+    return filteredInvoices.slice(startIndex, startIndex + pageSize)
+  }, [filteredInvoices, page])
+
+  useEffect(() => {
+    let isCurrent = true
+    async function loadCustomers() {
+      try {
+        const result = await salesService.listCustomers({ page: 1, pageSize: 100, isActive: true })
+        if (!isCurrent) return
+        setCustomers(result.items || [])
+      } catch (loadError) {
+        if (!isCurrent) return
+        setError(loadError.message)
+      }
+    }
+    loadCustomers()
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (customers.length === 0) return
+
+    let isCurrent = true
+
+    async function loadInvoicesData() {
+      setIsLoading(true)
+      setError('')
+      try {
+        let fetchedInvoices = []
+        if (salesRouteId && invoiceDate) {
+          fetchedInvoices = await salesService.listInvoicesByRouteAndDate({
+            salesRouteId,
+            date: invoiceDate,
+          })
+        } else {
+          const invoiceResults = await Promise.all(
+            customers.map(async (customer) => {
+              try {
+                return await salesService.listOutstandingInvoicesByCustomer(customer.id)
+              } catch (e) {
+                return []
+              }
+            })
+          )
+          fetchedInvoices = invoiceResults.flat()
+        }
+
+        if (!isCurrent) return
+
+        fetchedInvoices.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate))
+        setInvoices(fetchedInvoices)
+      } catch (loadError) {
+        if (!isCurrent) return
+        setError(loadError.message)
+        setInvoices([])
+        toast.error(loadError.message)
+      } finally {
+        if (isCurrent) {
+          setIsLoading(false)
         }
       }
     }
-  }
-  async function onSubmit(values) {
-    await new Promise((r) => setTimeout(r, 600))
-    const customer = mockCustomers.find((c) => c.id === values.customerId)
-    if (invoice) {
-      const updatedInvoice = {
-        ...invoice,
-        customer: customer ? customer.name : 'Unknown Customer',
-        date: values.invoiceDate,
-        due: values.dueDate,
-        type: values.paymentType,
-        notes: values.notes,
-      }
-      onSaved(updatedInvoice)
-      toast.success(`Invoice ${updatedInvoice.id} updated.`)
-      onClose()
-    } else {
-      const newInvoice = {
-        id: `INV-2026-0${Math.floor(150 + Math.random() * 850)}`,
-        customer: customer ? customer.name : 'Unknown Customer',
-        date: values.invoiceDate,
-        due: values.dueDate,
-        amount: 0,
-        paid: 0,
-        type: values.paymentType,
-        status: InvoiceStatus.Draft,
-        notes: values.notes,
-      }
-      onSaved(newInvoice)
-      toast.success(`Draft Invoice ${newInvoice.id} created.`)
-      onClose()
+
+    loadInvoicesData()
+
+    return () => {
+      isCurrent = false
     }
+  }, [customers, salesRouteId, invoiceDate])
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / pageSize))
+    if (page > totalPages) setPage(totalPages)
+  }, [filteredInvoices.length, page])
+
+  function clearFilters() {
+    setStatusFilter('')
+    setSalesRouteId('')
+    setInvoiceDate('')
+    setSearch('')
   }
+
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay
-          className="fixed inset-0 z-50"
-          style={{ background: 'rgba(0,4,12,0.75)', backdropFilter: 'blur(2px)' }}
-        />
-        <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 shadow-2xl"
-          style={{
-            maxWidth: 500,
-            background: 'var(--color-bg-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 12,
-          }}
-        >
-          <div
-            style={{
-              padding: '32px 32px 24px 32px',
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
-              <Dialog.Title
-                style={{ fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)' }}
-              >
-                {invoice ? 'Edit Invoice' : 'Create Draft Invoice'}
-              </Dialog.Title>
-              <Dialog.Description
-                style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}
-              >
-                {invoice
-                  ? 'Update the details for this invoice.'
-                  : 'Initialize a new draft invoice. Line items can be added on the detail page.'}
-              </Dialog.Description>
-            </div>
-            <Dialog.Close asChild>
-              <button
-                aria-label="Close"
-                style={{
-                  width: 32,
-                  height: 32,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--color-text-muted)',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  borderRadius: '50%',
-                }}
-              >
-                <X style={{ width: 18, height: 18 }} />
-              </button>
-            </Dialog.Close>
-          </div>
-
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            style={{
-              padding: '0 32px 32px 32px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 24,
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.8px',
-                  color: 'var(--color-text-muted)',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                }}
-              >
-                CUSTOMER
-              </label>
-              <select
-                className={`form-input ${errors.customerId ? 'error' : ''}`}
-                style={{
-                  width: '100%',
-                  height: 44,
-                  background: 'rgba(0,0,0,0.15)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 6,
-                  padding: '0 16px',
-                  color: 'var(--color-text-primary)',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                }}
-                autoFocus
-                onKeyDown={handleKeyDown}
-                {...register('customerId')}
-              >
-                <option
-                  value=""
-                  disabled
-                  style={{ background: 'var(--color-bg-elevated)', color: 'var(--color-text-dim)' }}
-                >
-                  Select a customer...
-                </option>
-                {mockCustomers.map((c) => (
-                  <option
-                    key={c.id}
-                    value={c.id}
-                    style={{
-                      background: 'var(--color-bg-elevated)',
-                      color: 'var(--color-text-primary)',
-                    }}
-                  >
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              {errors.customerId && (
-                <p
-                  className="form-error mt-1"
-                  style={{ fontSize: 12, color: 'var(--color-danger)' }}
-                >
-                  {errors.customerId.message}
-                </p>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: 16 }}>
-              <div style={{ flex: 1 }}>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    letterSpacing: '0.8px',
-                    color: 'var(--color-text-muted)',
-                    marginBottom: 8,
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  INVOICE DATE
-                </label>
-                <input
-                  type="date"
-                  className={`form-input ${errors.invoiceDate ? 'error' : ''}`}
-                  style={{
-                    width: '100%',
-                    height: 44,
-                    background: 'rgba(0,0,0,0.15)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 6,
-                    padding: '0 16px',
-                    color: 'var(--color-text-primary)',
-                    fontSize: 14,
-                    cursor: 'pointer',
-                  }}
-                  onKeyDown={handleKeyDown}
-                  {...register('invoiceDate')}
-                />
-                {errors.invoiceDate && (
-                  <p
-                    className="form-error mt-1"
-                    style={{ fontSize: 12, color: 'var(--color-danger)' }}
-                  >
-                    {errors.invoiceDate.message}
-                  </p>
-                )}
-              </div>
-              <div style={{ flex: 1 }}>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    letterSpacing: '0.8px',
-                    color: 'var(--color-text-muted)',
-                    marginBottom: 8,
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  DUE DATE
-                </label>
-                <input
-                  type="date"
-                  className={`form-input ${errors.dueDate ? 'error' : ''}`}
-                  style={{
-                    width: '100%',
-                    height: 44,
-                    background: 'rgba(0,0,0,0.15)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 6,
-                    padding: '0 16px',
-                    color: 'var(--color-text-primary)',
-                    fontSize: 14,
-                    cursor: 'pointer',
-                  }}
-                  onKeyDown={handleKeyDown}
-                  {...register('dueDate')}
-                />
-                {errors.dueDate && (
-                  <p
-                    className="form-error mt-1"
-                    style={{ fontSize: 12, color: 'var(--color-danger)' }}
-                  >
-                    {errors.dueDate.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.8px',
-                  color: 'var(--color-text-muted)',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                }}
-              >
-                PAYMENT TYPE
-              </label>
-              <select
-                className={`form-input ${errors.paymentType ? 'error' : ''}`}
-                style={{
-                  width: '100%',
-                  height: 44,
-                  background: 'rgba(0,0,0,0.15)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 6,
-                  padding: '0 16px',
-                  color: 'var(--color-text-primary)',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                }}
-                onKeyDown={handleKeyDown}
-                {...register('paymentType')}
-              >
-                <option value={PaymentType.Cash} style={{ background: 'var(--color-bg-elevated)' }}>
-                  Cash
-                </option>
-                <option
-                  value={PaymentType.Credit}
-                  style={{ background: 'var(--color-bg-elevated)' }}
-                >
-                  Credit
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.8px',
-                  color: 'var(--color-text-muted)',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                }}
-              >
-                NOTES (OPTIONAL)
-              </label>
-              <textarea
-                className={`form-input ${errors.notes ? 'error' : ''}`}
-                style={{
-                  width: '100%',
-                  minHeight: 80,
-                  background: 'rgba(0,0,0,0.15)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 6,
-                  padding: '12px 16px',
-                  color: 'var(--color-text-primary)',
-                  fontSize: 14,
-                  resize: 'vertical',
-                }}
-                placeholder="E.g. Delivery requested in the morning."
-                onKeyDown={handleKeyDown}
-                {...register('notes')}
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={onClose}
-                data-skip-focus="true"
-                style={{ height: 40, padding: '0 24px', fontSize: 14 }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="button-primary"
-                onKeyDown={handleKeyDown}
-                style={{ height: 40, padding: '0 24px', fontSize: 14 }}
-              >
-                {invoice ? 'Save Changes' : 'Create Draft Invoice'}
-              </button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  )
-}
-export default function InvoiceListPage() {
-  const navigate = useNavigate()
-  const [invoices, setInvoices] = useState(mockInvoices)
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatus] = useState('All')
-  const [typeFilter, setType] = useState('All')
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingInvoice, setEditingInvoice] = useState(null)
-  const filtered = useMemo(() => {
-    return invoices.filter((inv) => {
-      const displayStatus = deriveDisplayStatus(inv)
-      const matchSearch =
-        !search ||
-        inv.id.toLowerCase().includes(search.toLowerCase()) ||
-        inv.customer.toLowerCase().includes(search.toLowerCase())
-      const matchStatus = statusFilter === 'All' || displayStatus === statusFilter
-      const matchType = typeFilter === 'All' || inv.type === typeFilter
-      return matchSearch && matchStatus && matchType
-    })
-  }, [invoices, search, statusFilter, typeFilter])
-  const handleInvoiceSaved = (savedInv) => {
-    const isExisting = invoices.some((i) => i.id === savedInv.id)
-    if (isExisting) {
-      setInvoices(invoices.map((i) => (i.id === savedInv.id ? savedInv : i)))
-    } else {
-      setInvoices([savedInv, ...invoices])
-    }
-  }
-  const openNewInvoiceModal = () => {
-    setEditingInvoice(null)
-    setIsModalOpen(true)
-  }
-  const openEditInvoiceModal = (inv, e) => {
-    e.stopPropagation()
-    setEditingInvoice(inv)
-    setIsModalOpen(true)
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* ── Page Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div
+      style={{
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 16,
+        }}
+      >
         <div>
-          <h1
-            style={{
-              fontSize: 26,
-              fontWeight: 700,
-              color: 'var(--color-text-primary)',
-              lineHeight: 1.2,
-            }}
-          >
-            Sales — Invoices
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+            Sales Invoices
           </h1>
           <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-            {invoices.length} invoices this month
+            Search by customer outstanding invoices, or by sales route and date.
           </p>
         </div>
-        <button
-          className="button-primary"
-          onClick={openNewInvoiceModal}
-          style={{
-            height: 40,
-            padding: '0 24px',
-            fontSize: 14,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <Plus style={{ width: 16, height: 16 }} />
-          New Invoice
-        </button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* ── Filter Bar ── */}
-        <div
-          className="panel"
-          style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}
-        >
-          <div style={{ position: 'relative', flex: 1 }}>
-            <Search
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: 16,
-                height: 16,
-                color: 'var(--color-text-dim)',
-              }}
-            />
-            <input
-              className="form-input"
-              placeholder="Search invoice # or customer..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: '100%',
-                height: 40,
-                paddingLeft: 36,
-                background: 'rgba(0,0,0,0.15)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 6,
-                color: 'var(--color-text-primary)',
-                fontSize: 14,
-              }}
-            />
-          </div>
+      <div
+        className="panel responsive-filter-bar"
+        style={{
+          padding: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 16,
+              height: 16,
+              color: 'var(--color-text-dim)',
+            }}
+          />
+          <input
+            className="form-input"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Invoice, ID, or customer"
+            style={{
+              width: '100%',
+              height: 40,
+              paddingLeft: 36,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
+          />
+        </div>
+
+        <div style={{ position: 'relative', width: 160 }}>
           <select
             className="form-input"
             value={statusFilter}
-            onChange={(e) => setStatus(e.target.value)}
+            onChange={(event) => setStatusFilter(event.target.value)}
             style={{
-              width: 180,
+              width: '100%',
               height: 40,
               background: 'rgba(0,0,0,0.15)',
               border: '1px solid var(--color-border)',
               borderRadius: 6,
-              padding: '0 16px',
               color: 'var(--color-text-primary)',
               fontSize: 14,
               cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
             }}
           >
-            {STATUS_OPTIONS.map((s) => (
-              <option
-                key={s}
-                value={s}
-                style={{
-                  background: 'var(--color-bg-elevated)',
-                  color: 'var(--color-text-primary)',
-                }}
-              >
-                {s === 'All' ? 'All Statuses' : s}
-              </option>
-            ))}
+            <option value="" style={{ background: 'var(--color-bg-elevated)' }}>
+              All statuses
+            </option>
+            <option value="Draft" style={{ background: 'var(--color-bg-elevated)' }}>
+              Draft
+            </option>
+            <option value="Unpaid" style={{ background: 'var(--color-bg-elevated)' }}>
+              Unpaid
+            </option>
+            <option value="PartiallyPaid" style={{ background: 'var(--color-bg-elevated)' }}>
+              Partially Paid
+            </option>
+            <option value="Paid" style={{ background: 'var(--color-bg-elevated)' }}>
+              Paid
+            </option>
+            <option value="Cancelled" style={{ background: 'var(--color-bg-elevated)' }}>
+              Cancelled
+            </option>
           </select>
-          <select
-            className="form-input"
-            value={typeFilter}
-            onChange={(e) => setType(e.target.value)}
+          <div
             style={{
-              width: 220,
-              height: 40,
-              background: 'rgba(0,0,0,0.15)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 6,
-              padding: '0 16px',
-              color: 'var(--color-text-primary)',
-              fontSize: 14,
-              cursor: 'pointer',
+              pointerEvents: 'none',
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-dim)',
             }}
           >
-            {TYPE_OPTIONS.map((t) => (
-              <option
-                key={t}
-                value={t}
-                style={{
-                  background: 'var(--color-bg-elevated)',
-                  color: 'var(--color-text-primary)',
-                }}
-              >
-                {t === 'All' ? 'All Types' : t}
-              </option>
-            ))}
-          </select>
+            <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
+          </div>
         </div>
 
-        {/* ── Table ── */}
-        <div className="panel overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="data-table">
+        <div style={{ position: 'relative', width: 180 }}>
+          <select
+            className="form-input"
+            value={salesRouteId}
+            onChange={(event) => setSalesRouteId(event.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+              cursor: 'pointer',
+              appearance: 'none',
+              paddingLeft: 12,
+              paddingRight: 36,
+            }}
+          >
+            <option value="" style={{ background: 'var(--color-bg-elevated)' }}>
+              Sales route...
+            </option>
+            {allRoutes.map((route) => (
+              <option
+                key={route.id}
+                value={route.id}
+                style={{ background: 'var(--color-bg-elevated)' }}
+              >
+                {route.name || route.id}
+              </option>
+            ))}
+          </select>
+          <div
+            style={{
+              pointerEvents: 'none',
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-dim)',
+            }}
+          >
+            <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ width: 150 }}>
+          <input
+            className="form-input"
+            type="date"
+            value={invoiceDate}
+            onChange={(event) => setInvoiceDate(event.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
+          />
+        </div>
+
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={clearFilters}
+          style={{ height: 40, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7 }}
+        >
+          <X size={15} /> Clear
+        </button>
+      </div>
+
+      <section
+        className="panel"
+        style={{
+          minHeight: 0,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+        }}
+      >
+        <div
+          style={{
+            padding: '13px 16px',
+            borderBottom: '1px solid var(--color-border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FileText size={16} color="var(--color-teal)" />
+            <h2 style={{ fontSize: 14, fontWeight: 700 }}>Invoice Register</h2>
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+            {filteredInvoices.length} invoices
+          </span>
+        </div>
+
+        {error ? (
+          <EmptyMessage>{error}</EmptyMessage>
+        ) : isLoading ? (
+          <EmptyMessage>Loading invoices...</EmptyMessage>
+        ) : filteredInvoices.length ? (
+          <div style={{ overflowX: 'auto', flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            <table className="data-table product-table-compact" style={{ minWidth: 920 }}>
               <thead>
                 <tr>
-                  <th>Invoice #</th>
+                  <th>Invoice</th>
                   <th>Customer</th>
                   <th>Date</th>
-                  <th>Due</th>
-                  <th className="text-right">Amount</th>
-                  <th>Type</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  <th style={{ textAlign: 'right' }}>Net Amount (Rs.)</th>
+                  <th style={{ textAlign: 'right' }}>Paid (Rs.)</th>
+                  <th style={{ textAlign: 'right' }}>Outstanding (Rs.)</th>
+                  <th style={{ width: 120 }}></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((inv) => {
-                  const displayStatus = deriveDisplayStatus(inv)
-                  return (
-                    <tr
-                      key={inv.id}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/sales/invoices/${inv.id}`)}
-                    >
-                      <td>
-                        <span
-                          className="mono text-sm font-semibold"
-                          style={{ color: 'var(--color-amber)' }}
-                        >
-                          {inv.id}
-                        </span>
-                      </td>
-                      <td className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
-                        {inv.customer}
-                      </td>
-                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {dayjs(inv.date).format('DD MMM YYYY')}
-                      </td>
-                      <td
-                        className="text-sm"
-                        style={{
-                          color:
-                            displayStatus === 'OVERDUE'
-                              ? 'var(--color-danger)'
-                              : 'var(--color-text-muted)',
-                        }}
+                {pagedInvoices.map((invoice) => (
+                  <tr key={invoice.id}>
+                    <td className="mono" style={{ fontWeight: 700, color: 'var(--color-amber)' }}>
+                      {invoice.invoiceNumber}
+                    </td>
+                    <td>{customerNameById[invoice.customerId] || invoice.customerId}</td>
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <CalendarDays size={13} color="var(--color-text-dim)" />
+                        {dayjs(invoice.invoiceDate).format('DD MMM YYYY')}
+                      </span>
+                    </td>
+                    <td>
+                      <StatusBadge status={invoiceStatusLabel(invoice.status)} />
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                      {money(invoice.netAmount)}
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                      {money(invoice.paidAmount)}
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                      {money(invoice.outstandingAmount)}
+                    </td>
+                    <td>
+                      <Link
+                        className="btn-table-action btn-table-action-view"
+                        to={`/sales/invoices/${invoice.id}`}
+                        title="View invoice"
                       >
-                        {dayjs(inv.due).format('DD MMM YYYY')}
-                      </td>
-                      <td
-                        className="text-right mono text-sm font-medium"
-                        style={{ color: 'var(--color-text-primary)' }}
-                      >
-                        Rs. {inv.amount.toLocaleString()}
-                      </td>
-                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {inv.type}
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <StatusBadge status={displayStatus} />
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="icon-button"
-                          title="Edit invoice"
-                          style={{ width: 28, height: 28 }}
-                          onClick={(e) => openEditInvoiceModal(inv, e)}
-                        >
-                          <Pencil style={{ width: 13, height: 13 }} />
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
+                        <span>View</span>
+                        <ChevronRight size={13} />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
+        ) : (
+          <EmptyMessage>No invoices loaded.</EmptyMessage>
+        )}
 
-      <InvoiceFormModal
-        open={isModalOpen}
-        invoice={editingInvoice}
-        onClose={() => setIsModalOpen(false)}
-        onSaved={handleInvoiceSaved}
-      />
+        <div style={{ padding: '0 16px 12px' }}>
+          <SimplePagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={filteredInvoices.length}
+            onPageChange={setPage}
+            itemLabel="invoices"
+          />
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function EmptyMessage({ children }) {
+  return (
+    <div
+      style={{
+        flex: 1,
+        display: 'grid',
+        placeItems: 'center',
+        padding: 24,
+        color: 'var(--color-text-muted)',
+        textAlign: 'center',
+        fontSize: 13,
+      }}
+    >
+      <div>
+        <ClipboardCheck
+          size={34}
+          style={{ margin: '0 auto 10px', color: 'var(--color-text-dim)' }}
+        />
+        {children}
+      </div>
     </div>
   )
 }

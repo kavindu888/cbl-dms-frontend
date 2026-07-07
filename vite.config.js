@@ -9,6 +9,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, '')
   const apiTarget = env.VITE_API_BASE_URL || 'https://staging.ceyservice.store'
+  const devPort =
+    Number.parseInt(process.env.VITE_DEV_PORT || env.VITE_DEV_PORT || '5300', 10) || 5300
   const proxyToApi = {
     target: apiTarget,
     changeOrigin: true,
@@ -37,8 +39,8 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: '127.0.0.1',
-      port: 3000,
-      strictPort: true,
+      port: devPort,
+      strictPort: false,
       proxy: {
         '/api': proxyToApi,
         '/change-password': proxyPostToApi,

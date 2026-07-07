@@ -7,7 +7,7 @@ import { useUIStore } from '@stores/uiStore'
 import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { cn } from '@/utils'
 import styles from './TopBar.module.css'
-const notifications = [
+const initialNotifications = [
   {
     id: 1,
     title: '6 overdue accounts',
@@ -63,6 +63,13 @@ export default function TopBar() {
   const { toggleSidebar } = useUIStore()
   const { user, logout } = useAuthStore()
   const [now, setNow] = useState(() => dayjs())
+  const [readNotificationIds, setReadNotificationIds] = useState(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem('dms-read-notifications') || '[]')
+    } catch {
+      return []
+    }
+  })
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const notificationsRef = useRef(null)
@@ -90,6 +97,24 @@ export default function TopBar() {
   const breadcrumb = buildBreadcrumb(location.pathname)
   const pageTitle = breadcrumb[breadcrumb.length - 1] || 'Dashboard'
   const parentBreadcrumb = breadcrumb.slice(0, -1)
+  const unreadNotifications = initialNotifications.filter(
+    (item) => !readNotificationIds.includes(item.id)
+  )
+
+  function persistReadNotifications(ids) {
+    setReadNotificationIds(ids)
+    window.localStorage.setItem('dms-read-notifications', JSON.stringify(ids))
+  }
+
+  function markNotificationRead(id) {
+    persistReadNotifications([...new Set([...readNotificationIds, id])])
+    setIsNotificationsOpen(false)
+  }
+
+  function markAllNotificationsRead() {
+    persistReadNotifications(initialNotifications.map((item) => item.id))
+  }
+
   const displayName = user?.username ?? 'admin'
   const displayRole = user?.roles[0] ?? 'Admin'
   return (
@@ -143,57 +168,67 @@ export default function TopBar() {
               }}
             >
               <Bell className={styles.notificationIcon} />
-              <span className={styles.notificationBadge}>{notifications.length}</span>
+              {unreadNotifications.length > 0 && (
+                <span className={styles.notificationBadge}>{unreadNotifications.length}</span>
+              )}
             </button>
 
             {isNotificationsOpen && (
-              <div className={styles.notificationsDropdown}>
+              <div className={styles.notificationsDropdown} role="menu">
                 <div className={styles.notificationsHeader}>
                   <div>
                     <p className={styles.notificationsTitle}>Notifications</p>
                     <p className={styles.notificationsSubtitle}>
-                      {notifications.length} new alerts
+                      {unreadNotifications.length} new alert
+                      {unreadNotifications.length === 1 ? '' : 's'}
                     </p>
                   </div>
                   <button
                     type="button"
                     className={styles.notificationsMarkRead}
-                    onClick={() => setIsNotificationsOpen(false)}
+                    onClick={markAllNotificationsRead}
+                    disabled={unreadNotifications.length === 0}
                   >
-                    Mark as read
+                    {unreadNotifications.length > 0 ? 'Mark as read' : 'All read'}
                   </button>
                 </div>
 
                 <div className={styles.notificationsList}>
-                  {notifications.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={styles.notificationItem}
-                      onClick={() => setIsNotificationsOpen(false)}
-                    >
-                      <span
-                        className={cn(
-                          styles.notificationDot,
-                          item.tone === 'danger' && styles.notificationDotDanger,
-                          item.tone === 'warning' && styles.notificationDotWarning,
-                          item.tone === 'success' && styles.notificationDotSuccess
-                        )}
-                      />
-                      <span className={styles.notificationBody}>
-                        <span className={styles.notificationItemTitle}>{item.title}</span>
-                        <span className={styles.notificationItemDescription}>
-                          {item.description}
+                  {unreadNotifications.length > 0 ? (
+                    unreadNotifications.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={styles.notificationItem}
+                        onClick={() => markNotificationRead(item.id)}
+                      >
+                        <span
+                          className={cn(
+                            styles.notificationDot,
+                            item.tone === 'danger' && styles.notificationDotDanger,
+                            item.tone === 'warning' && styles.notificationDotWarning,
+                            item.tone === 'success' && styles.notificationDotSuccess
+                          )}
+                        />
+                        <span className={styles.notificationBody}>
+                          <span className={styles.notificationItemTitle}>{item.title}</span>
+                          <span className={styles.notificationItemDescription}>
+                            {item.description}
+                          </span>
                         </span>
-                      </span>
-                      <span className={styles.notificationTime}>{item.time}</span>
-                    </button>
-                  ))}
+                        <span className={styles.notificationTime}>{item.time}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className={styles.notificationsEmpty}>
+                      <p className={styles.notificationsEmptyTitle}>No new notifications</p>
+                      <p className={styles.notificationsEmptyText}>You are all caught up.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </div>
-
           <div className={styles.profileWrap} ref={profileRef}>
             <button
               type="button"
@@ -218,10 +253,8 @@ export default function TopBar() {
             {isProfileOpen && (
               <div className={styles.dropdown}>
                 <div className={styles.dropdownMobileHeader}>
-                  <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                    {displayName}
-                  </p>
-                  <p className="mt-0.5 text-xs text-[var(--color-text-dim)]">{displayRole}</p>
+                  <p className="text-sm font-semibold text-text-primary">{displayName}</p>
+                  <p className="mt-0.5 text-xs text-text-dim">{displayRole}</p>
                 </div>
                 <div className={styles.dropdownMobileDivider} />
 

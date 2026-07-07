@@ -6,6 +6,31 @@ const STATUS_STYLES = {
     text: 'var(--color-blue)',
     border: 'rgba(102,181,250,0.25)',
   },
+  pending_approval: {
+    bg: 'rgba(102,181,250,0.10)',
+    text: 'var(--color-blue)',
+    border: 'rgba(102,181,250,0.25)',
+  },
+  approved: {
+    bg: 'rgba(32,212,191,0.12)',
+    text: 'var(--color-teal)',
+    border: 'rgba(32,212,191,0.30)',
+  },
+  rejected: {
+    bg: 'rgba(244,63,94,0.10)',
+    text: 'var(--color-danger)',
+    border: 'rgba(244,63,94,0.25)',
+  },
+  partially_received: {
+    bg: 'rgba(250,204,21,0.10)',
+    text: 'var(--color-warning)',
+    border: 'rgba(250,204,21,0.25)',
+  },
+  fully_received: {
+    bg: 'rgba(32,212,191,0.12)',
+    text: 'var(--color-teal)',
+    border: 'rgba(32,212,191,0.30)',
+  },
   received: {
     bg: 'rgba(32,212,191,0.12)',
     text: 'var(--color-teal)',
@@ -108,13 +133,19 @@ const FALLBACK = {
   text: 'var(--color-text-muted)',
   border: 'rgba(148,163,184,0.20)',
 }
+function normalizeStatus(status) {
+  if (status === null || status === undefined || status === '') return 'Unknown'
+  return String(status)
+}
+
 export default function StatusBadge({ status, className }) {
-  const key = status
+  const safeStatus = normalizeStatus(status)
+  const key = safeStatus
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, '_')
   const style = STATUS_STYLES[key] ?? FALLBACK
-  const label = status.replace(/_/g, ' ').toUpperCase()
+  const label = safeStatus.replace(/_/g, ' ').toUpperCase()
   return (
     <span
       className={cn('mono inline-flex items-center', className)}

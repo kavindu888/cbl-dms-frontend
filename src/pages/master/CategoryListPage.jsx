@@ -182,7 +182,7 @@ export default function CategoryListPage() {
   }
 
   async function handleDeactivate(category) {
-    if (!window.confirm(`Deactivate ${category.name}?`)) return
+    if (!(await window.confirm(`Deactivate ${category.name}?`))) return
 
     try {
       await masterService.deleteCategory(category.id)
@@ -310,7 +310,7 @@ export default function CategoryListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'hidden' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>

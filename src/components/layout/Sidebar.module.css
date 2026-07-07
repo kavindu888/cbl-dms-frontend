@@ -224,6 +224,18 @@
   gap: 2px;
 }
 
+.subHeader {
+  padding: 8px 14px 4px;
+  color: var(--color-text-dim);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+  margin-top: 8px;
+  margin-bottom: 2px;
+}
+
 .navLink {
   display: flex;
   min-height: 40px;
@@ -496,4 +508,22 @@
 
 :root[data-theme='light'] .logoutButton:hover .logoutIcon {
   color: #e11d48;
+}
+
+@media (max-width: 420px) {
+  .sidebar {
+    width: min(88vw, var(--spacing-layout-sidebar));
+  }
+
+  .header {
+    padding-inline: 14px;
+  }
+
+  .navContent {
+    padding-inline: 10px;
+  }
+
+  .footer {
+    padding: 10px;
+  }
 }

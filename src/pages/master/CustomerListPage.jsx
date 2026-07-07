@@ -570,7 +570,7 @@ export default function CustomerListPage() {
   }
 
   async function handleRemoveContact(contactId) {
-    if (!window.confirm('Remove this contact?')) return
+    if (!(await window.confirm('Remove this contact?'))) return
     setIsSavingContact(true)
     try {
       await salesService.removeCustomerContact(editingCustomer.id, contactId)
@@ -703,7 +703,7 @@ export default function CustomerListPage() {
   }
 
   async function handleDeleteImage(imageId) {
-    if (!window.confirm('Remove this image permanently?')) return
+    if (!(await window.confirm('Remove this image permanently?'))) return
     setIsSaving(true)
     try {
       await salesService.deleteCustomerImage(editingCustomer.id, imageId)
@@ -812,7 +812,7 @@ export default function CustomerListPage() {
 
   async function handleDeactivate(customer) {
     if (!customer.isActive) return
-    if (!window.confirm(`Deactivate ${customer.name}?`)) return
+    if (!(await window.confirm(`Deactivate ${customer.name}?`))) return
 
     try {
       await salesService.deactivateCustomer(customer.id)
@@ -948,7 +948,7 @@ export default function CustomerListPage() {
             minHeight: 0,
           }}
         >
-          <div style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div style={{ minHeight: 0, overflowY: 'hidden' }}>
             <table className="data-table master-table-compact" style={{ width: '100%' }}>
               <thead>
                 <tr>

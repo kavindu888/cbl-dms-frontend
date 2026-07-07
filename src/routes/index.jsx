@@ -1,4 +1,4 @@
-import { Navigate, createBrowserRouter } from 'react-router-dom'
+﻿import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { AppShell } from '@components/layout'
 import { Role } from '@/types/auth.types'
 import LoginPage from '@pages/auth/LoginPage'
@@ -9,17 +9,22 @@ import ReconciliationPage from '@pages/collections/ReconciliationPage'
 import DashboardPage from '@pages/dashboard/DashboardPage'
 import FleetOverviewPage from '@pages/fleet/FleetOverviewPage'
 import VehicleDetailPage from '@pages/fleet/VehicleDetailPage'
-import MonthlyAdjustmentPage from '@pages/inventory/MonthlyAdjustmentPage'
-import MovementLogPage from '@pages/inventory/MovementLogPage'
+import StockModulePage from '@pages/inventory/StockModulePage'
+import StockBatchesPage from '@pages/inventory/StockBatchesPage'
 import CategoryListPage from '@pages/master/CategoryListPage'
 import MasterCustomerListPage from '@pages/master/CustomerListPage'
 import Product from '@pages/master/Product'
 import SalesRouteListPage from '@pages/master/SalesRouteListPage'
 import UnitOfMeasureListPage from '@pages/master/UnitOfMeasureListPage'
-import PurchaseOrderDetailPage from '@pages/purchasing/PurchaseOrderDetailPage'
-import PurchaseOrderListPage from '@pages/purchasing/PurchaseOrderListPage'
-import PurchaseReturnsPage from '@pages/purchasing/PurchaseReturnsPage'
-import ReceiptEntryPage from '@pages/purchasing/ReceiptEntryPage'
+import AllPurchaseOrdersPage from '@pages/purchasing/purchase-orders/AllPurchaseOrdersPage'
+import ApprovedPurchaseOrdersPage from '@pages/purchasing/purchase-orders/ApprovedPurchaseOrdersPage'
+import GoodsReceiptEntryPage from '@pages/purchasing/grn/GoodsReceiptEntryPage'
+import GoodsReceiptListPage from '@pages/purchasing/grn/GoodsReceiptListPage'
+import GrnApproveRejectPage from '@pages/purchasing/grn/GrnApproveRejectPage'
+import PurchaseOrderApprovalPage from '@pages/purchasing/purchase-orders/PurchaseOrderApprovalPage'
+import PlacePurchaseOrderPage from '@pages/purchasing/purchase-orders/PlacePurchaseOrderPage'
+import PurchaseReturnsPage from '@pages/purchasing/returns/PurchaseReturnsPage'
+import SupplierSettlementPage from '@pages/purchasing/settlement/SupplierSettlementPage'
 import SupplierListPage from '@pages/master/SupplierListPage'
 import ReportHubPage from '@pages/reports/ReportHubPage'
 import ReportPreviewPage from '@pages/reports/ReportPreviewPage'
@@ -28,6 +33,8 @@ import CustomerGroupListPage from '@pages/sales/CustomerGroupListPage'
 import InvoiceCreatorPage from '@pages/sales/InvoiceCreatorPage'
 import InvoiceDetailPage from '@pages/sales/InvoiceDetailPage'
 import InvoiceListPage from '@pages/sales/InvoiceListPage'
+import InvoicePaymentRecordPage from '@pages/sales/InvoicePaymentRecordPage'
+import SalesOrderModulePage from '@pages/sales/SalesOrderModulePage'
 import SettingsPage from '@pages/settings/SettingsPage'
 import RolesPermissionsPage from '@pages/users/RolesPermissionsPage'
 import UserListPage from '@pages/users/UserListPage'
@@ -47,7 +54,10 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     element: (
-      <ProtectedRoute requiredRole={Role.Admin}>
+      <ProtectedRoute
+        requiredRole={Role.Admin}
+        requiredPermission={PERMISSIONS.identity.userManage}
+      >
         <RegisterPage />
       </ProtectedRoute>
     ),
@@ -66,27 +76,105 @@ export const router = createBrowserRouter([
       },
       {
         path: 'purchasing',
-        element: requirePermission(<PurchaseOrderListPage />, PERMISSIONS.purchasing.poRead),
+        element: <Navigate to="/purchasing/place-order" replace />,
+      },
+      {
+        path: 'purchasing/place-order',
+        element: requirePermission(<PlacePurchaseOrderPage />, PERMISSIONS.purchasing.poCreate),
+      },
+      {
+        path: 'purchasing/approvals',
+        element: requirePermission(<PurchaseOrderApprovalPage />, {
+          all: [PERMISSIONS.purchasing.poRead, PERMISSIONS.purchasing.poApprove],
+        }),
+      },
+      {
+        path: 'purchasing/approved',
+        element: requirePermission(<ApprovedPurchaseOrdersPage />, PERMISSIONS.purchasing.poRead),
+      },
+      {
+        path: 'purchasing/all-orders',
+        element: requirePermission(<AllPurchaseOrdersPage />, PERMISSIONS.purchasing.poRead),
+      },
+      {
+        path: 'purchasing/orders',
+        element: <Navigate to="/purchasing/all-orders" replace />,
       },
       {
         path: 'purchasing/suppliers',
         element: requirePermission(<SupplierListPage />, PERMISSIONS.purchasing.supplierManage),
       },
       {
+        path: 'purchasing/grn-entry',
+        element: <Navigate to="/purchasing/goods-receipt-entry" replace />,
+      },
+      {
+        path: 'purchasing/goods-receipt-entry',
+        element: requirePermission(<GoodsReceiptEntryPage />, PERMISSIONS.purchasing.grnCreate),
+      },
+      {
+        path: 'purchasing/goods-receipts',
+        element: requirePermission(<GoodsReceiptListPage />, [
+          PERMISSIONS.purchasing.grnCreate,
+          PERMISSIONS.purchasing.grnVerify,
+        ]),
+      },
+
+      {
+        path: 'purchasing/grn-approve-reject',
+        element: requirePermission(<GrnApproveRejectPage />, PERMISSIONS.purchasing.grnVerify),
+      },
+      {
         path: 'purchasing/returns',
-        element: requirePermission(<PurchaseReturnsPage />, PERMISSIONS.purchasing.poRead),
+        element: requirePermission(<PurchaseReturnsPage />, [
+          PERMISSIONS.purchasing.returnNoteCreate,
+          PERMISSIONS.purchasing.returnNoteApprove,
+          PERMISSIONS.purchasing.returnNoteComplete,
+        ]),
       },
       {
-        path: 'purchasing/:id',
-        element: requirePermission(<PurchaseOrderDetailPage />, PERMISSIONS.purchasing.poRead),
+        path: 'purchasing/settlement',
+        element: requirePermission(
+          <SupplierSettlementPage />,
+          PERMISSIONS.purchasing.settlementCreate
+        ),
       },
-      {
-        path: 'purchasing/:id/receive',
-        element: requirePermission(<ReceiptEntryPage />, PERMISSIONS.purchasing.grnCreate),
-      },
+
       {
         path: 'inventory',
-        element: requirePermission(<Product />, PERMISSIONS.masterData.productRead),
+        element: <Navigate to="/inventory/stock" replace />,
+      },
+      {
+        path: 'inventory/stock',
+        element: requirePermission(
+          <StockModulePage initialTab="levels" />,
+          PERMISSIONS.inventory.stockRead
+        ),
+      },
+      {
+        path: 'inventory/batches',
+        element: requirePermission(<StockBatchesPage />, PERMISSIONS.inventory.stockRead),
+      },
+      {
+        path: 'inventory/locations',
+        element: requirePermission(
+          <StockModulePage initialTab="locations" />,
+          PERMISSIONS.inventory.stockRead
+        ),
+      },
+      {
+        path: 'inventory/transfers',
+        element: requirePermission(
+          <StockModulePage initialTab="transfers" />,
+          PERMISSIONS.inventory.stockRead
+        ),
+      },
+      {
+        path: 'inventory/stocktakes',
+        element: requirePermission(
+          <StockModulePage initialTab="stocktakes" />,
+          PERMISSIONS.inventory.stocktakeManage
+        ),
       },
       {
         path: 'master/suppliers',
@@ -133,11 +221,14 @@ export const router = createBrowserRouter([
       },
       {
         path: 'inventory/movements',
-        element: requirePermission(<MovementLogPage />, PERMISSIONS.inventory.stockRead),
+        element: requirePermission(
+          <StockModulePage initialTab="movements" />,
+          PERMISSIONS.inventory.stockRead
+        ),
       },
       {
         path: 'inventory/adjustments',
-        element: requirePermission(<MonthlyAdjustmentPage />, PERMISSIONS.inventory.stockAdjust),
+        element: <Navigate to="/inventory/stocktakes" replace />,
       },
       {
         path: 'sales/customer-groups',
@@ -151,12 +242,27 @@ export const router = createBrowserRouter([
         ]),
       },
       {
+        path: 'sales/orders',
+        element: requirePermission(<SalesOrderModulePage />, [
+          PERMISSIONS.salesOrders.view,
+          PERMISSIONS.salesOrders.create,
+          PERMISSIONS.sales.orderRead,
+          PERMISSIONS.sales.orderCreate,
+        ]),
+      },
+      {
         path: 'sales/invoices',
         element: requirePermission(<InvoiceListPage />, PERMISSIONS.sales.invoiceRead),
       },
       {
         path: 'sales/invoices/new',
         element: requirePermission(<InvoiceCreatorPage />, PERMISSIONS.sales.invoiceCreate),
+      },
+      {
+        path: 'sales/invoice-payment-record',
+        element: requirePermission(<InvoicePaymentRecordPage />, {
+          all: [PERMISSIONS.sales.invoiceRead, PERMISSIONS.sales.invoiceAddPayment],
+        }),
       },
       {
         path: 'sales/invoices/:id',
@@ -195,7 +301,9 @@ export const router = createBrowserRouter([
       },
       {
         path: 'users',
-        element: requirePermission(<UserListPage />, PERMISSIONS.identity.roleManage),
+        element: requirePermission(<UserListPage />, {
+          all: [PERMISSIONS.identity.userManage, PERMISSIONS.identity.roleManage],
+        }),
       },
       {
         path: 'users/roles',
@@ -210,6 +318,8 @@ export const router = createBrowserRouter([
           PERMISSIONS.masterData.orgManage,
           PERMISSIONS.masterData.territoryManage,
           PERMISSIONS.masterData.businessUnitManage,
+          PERMISSIONS.masterData.taxRead,
+          PERMISSIONS.masterData.taxManage,
         ]),
       },
       {
@@ -223,3 +333,5 @@ export const router = createBrowserRouter([
     element: <Navigate to="/" replace />,
   },
 ])
+
+

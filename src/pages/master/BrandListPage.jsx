@@ -17,7 +17,7 @@ const emptyForm = {
   isActive: true,
 }
 
-const pageSize = 10
+const pageSize = 8
 
 function toBrandCode(value) {
   return value.trim().toUpperCase()
@@ -162,9 +162,9 @@ export default function BrandListPage() {
     }
   }
 
-  function handleDeactivate(brand) {
+  async function handleDeactivate(brand) {
     if (!brand.isActive) return
-    if (!window.confirm(`Deactivate ${brand.name}?`)) return
+    if (!(await window.confirm(`Deactivate ${brand.name}?`))) return
 
     setBrands((currentBrands) =>
       currentBrands.map((item) => (item.id === brand.id ? { ...item, isActive: false } : item))
@@ -298,7 +298,7 @@ export default function BrandListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'hidden' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>

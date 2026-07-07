@@ -6,6 +6,10 @@ import { RouterProvider } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import './index.css'
 import { router } from './routes'
+import { useConfirmStore } from './stores/confirmStore'
+import GlobalConfirmDialog from './components/ui/GlobalConfirmDialog'
+import FormKeyboardManager from './components/ui/FormKeyboardManager'
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -85,6 +89,10 @@ function applyStoredTheme() {
   }
   return 'dark'
 }
+window.confirm = (message, options) => {
+  return useConfirmStore.getState().confirm(message, options)
+}
+
 const initialThemeMode = applyStoredTheme()
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -92,6 +100,8 @@ createRoot(document.getElementById('root')).render(
       <>
         <RouterProvider router={router} />
         <Toaster position="top-right" theme={initialThemeMode} richColors />
+        <GlobalConfirmDialog />
+        <FormKeyboardManager />
         {import.meta.env.DEV ? <ReactQueryDevtools initialIsOpen={false} /> : null}
       </>
     </QueryClientProvider>

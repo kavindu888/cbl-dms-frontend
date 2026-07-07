@@ -7,9 +7,9 @@ export var CreditPeriod
 export var InvoiceStatus
 ;(function (InvoiceStatus) {
   InvoiceStatus['Draft'] = 'Draft'
-  InvoiceStatus['Posted'] = 'Posted'
+  InvoiceStatus['Unpaid'] = 'Unpaid'
+  InvoiceStatus['PartiallyPaid'] = 'PartiallyPaid'
   InvoiceStatus['Paid'] = 'Paid'
-  InvoiceStatus['Overdue'] = 'Overdue'
   InvoiceStatus['Cancelled'] = 'Cancelled'
 })(InvoiceStatus || (InvoiceStatus = {}))
 export var PaymentType

@@ -1,6 +1,6 @@
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@stores/authStore'
-import { userHasPermission } from '@/utils/permissions'
+import { describePermissionRequirement, userMeetsPermissionRequirement } from '@/utils/permissions'
 
 function AccessDenied({ requiredPermission }) {
   const location = useLocation()
@@ -36,9 +36,7 @@ function AccessDenied({ requiredPermission }) {
             className="mono"
             style={{ marginTop: 14, fontSize: 12, color: 'var(--color-text-dim)' }}
           >
-            {Array.isArray(requiredPermission)
-              ? requiredPermission.join(' or ')
-              : requiredPermission}
+            {describePermissionRequirement(requiredPermission)}
           </p>
         ) : null}
         <Link
@@ -64,12 +62,10 @@ export function ProtectedRoute({ children, requiredRole, requiredPermission }) {
   const { isAuthenticated, isLoading, hasRole, user } = useAuthStore()
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-base)] px-4">
+      <div className="flex min-h-screen items-center justify-center bg-bg-base px-4">
         <div className="panel w-full max-w-md p-8 text-center">
           <p className="eyebrow">Authorizing</p>
-          <p className="mt-3 text-lg text-[var(--color-text-primary)]">
-            Preparing the ERP shell...
-          </p>
+          <p className="mt-3 text-lg text-text-primary">Preparing the ERP shell...</p>
         </div>
       </div>
     )
@@ -80,7 +76,7 @@ export function ProtectedRoute({ children, requiredRole, requiredPermission }) {
   if (requiredRole && !hasRole(requiredRole)) {
     return <AccessDenied />
   }
-  if (!userHasPermission(user, requiredPermission)) {
+  if (!userMeetsPermissionRequirement(user, requiredPermission)) {
     return <AccessDenied requiredPermission={requiredPermission} />
   }
   return <>{children}</>
