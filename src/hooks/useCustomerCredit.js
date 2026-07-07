@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import * as salesApi from '@/api/salesApi'
+import { salesService } from '@/services/api/salesService'
 
 // Query keys:
 // ['sales', 'customer-credit', customerId, 'balance']
@@ -10,7 +10,7 @@ export function useCustomerCreditBalance(customerId) {
   return useQuery({
     queryKey: ['sales', 'customer-credit', customerId, 'balance'],
     queryFn: async () => {
-      const res = await salesApi.getCustomerCreditBalance(customerId)
+      const res = await salesService.getCustomerCreditBalance(customerId)
       return res
     },
     enabled: Boolean(customerId),
@@ -21,7 +21,7 @@ export function useCustomerCreditTransactions(customerId) {
   return useQuery({
     queryKey: ['sales', 'customer-credit', customerId, 'transactions'],
     queryFn: async () => {
-      const res = await salesApi.getCustomerCreditTransactions(customerId)
+      const res = await salesService.getCustomerCreditTransactions(customerId)
       return res || []
     },
     enabled: Boolean(customerId),
@@ -31,7 +31,7 @@ export function useCustomerCreditTransactions(customerId) {
 export function useApplyCredit() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: salesApi.applyCredit,
+    mutationFn: salesService.applyCredit,
     onSuccess: (data, variables) => {
       toast.success('Customer credit applied successfully.')
       queryClient.invalidateQueries({

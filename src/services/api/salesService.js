@@ -404,16 +404,18 @@ export const salesService = {
   // Customer Credit
   async getCustomerCreditBalance(customerId) {
     const response = await getOnce(`/api/sales/customer-credit/${customerId}/balance`)
-    return getValue(response, 'Unable to load credit balance.')
+    return getResponseData(response, 'Unable to load credit balance.')
   },
 
   async getCustomerCreditTransactions(customerId) {
     const response = await getOnce(`/api/sales/customer-credit/${customerId}/transactions`)
-    return getValue(response, 'Unable to load credit history.')
+    return getResponseData(response, 'Unable to load credit history.') || []
   },
 
   async applyCredit(payload) {
-    const response = await api.post('/api/sales/customer-credit/apply', payload)
-    return getValue(response, 'Unable to apply credit.')
+    const response = await api.post('/api/sales/customer-credit/apply', {
+      invoiceId: payload.invoiceId,
+    })
+    return getResponseData(response, 'Unable to apply credit.')
   },
 }

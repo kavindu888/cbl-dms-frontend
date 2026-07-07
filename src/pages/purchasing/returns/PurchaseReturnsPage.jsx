@@ -17,6 +17,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import ConfirmDialog from '@components/ui/ConfirmDialog'
 import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
+import { inventoryService } from '@/services/api/inventoryService'
 import { useAuthStore } from '@stores/authStore'
 import { GrnStatus, ReturnNoteStatus } from '@/types/purchasing.types'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
@@ -109,6 +110,7 @@ function emptyItemForm() {
     batchNo: '',
     expiryDate: '',
     notes: '',
+    stockReturnEntryId: '',
   }
 }
 
@@ -130,6 +132,7 @@ function getItemPayload(line, form) {
     batchNo: normalizeText(form.batchNo),
     expiryDate: toIsoDate(form.expiryDate),
     notes: normalizeText(form.notes),
+    stockReturnEntryId: normalizeText(form.stockReturnEntryId),
   }
 }
 
@@ -165,6 +168,8 @@ export default function PurchaseReturnsPage() {
   const [selectedReceipt, setSelectedReceipt] = useState(null)
   const [header, setHeader] = useState(emptyHeader)
   const [itemForm, setItemForm] = useState(emptyItemForm)
+  const [availableReturnEntries, setAvailableReturnEntries] = useState([])
+  const [isLoadingReturnEntries, setIsLoadingReturnEntries] = useState(false)
   const [editingItemId, setEditingItemId] = useState('')
   const [search, setSearch] = useState('')
   const [supplierFilter, setSupplierFilter] = useState('')
@@ -338,6 +343,10 @@ export default function PurchaseReturnsPage() {
     () => getSelectedLine(selectedReceipt, itemForm.goodsReceiptLineId),
     [itemForm.goodsReceiptLineId, selectedReceipt]
   )
+  const selectedReturnEntry = useMemo(
+    () => availableReturnEntries.find((entry) => entry.id === itemForm.stockReturnEntryId) || null,
+    [availableReturnEntries, itemForm.stockReturnEntryId]
+  )
 
   useEffect(() => {
     setPage(1)
@@ -429,6 +438,12 @@ export default function PurchaseReturnsPage() {
       return 'Return quantity must be a whole smallest-unit quantity.'
     }
     if (toNumber(itemForm.unitCostSmallest) < 0) return 'Unit cost cannot be negative.'
+    if (
+      selectedReturnEntry &&
+      toNumber(itemForm.qtySmallestUnit) > toNumber(selectedReturnEntry.qty)
+    ) {
+      return `Return quantity cannot exceed staged quantity (${selectedReturnEntry.qty}).`
+    }
     return ''
   }
 
@@ -478,6 +493,7 @@ export default function PurchaseReturnsPage() {
       batchNo: item.batchNo || '',
       expiryDate: item.expiryDate ? dayjs(item.expiryDate).format('YYYY-MM-DD') : '',
       notes: item.notes || '',
+      stockReturnEntryId: item.stockReturnEntryId || '',
     })
   }
 
@@ -595,6 +611,48 @@ export default function PurchaseReturnsPage() {
         (selectedLine.expiryDate ? dayjs(selectedLine.expiryDate).format('YYYY-MM-DD') : ''),
     }))
   }, [editingItemId, selectedLine])
+
+  useEffect(() => {
+    if (!selectedLine || editingItemId) {
+      setAvailableReturnEntries([])
+      return
+    }
+
+    let active = true
+    setIsLoadingReturnEntries(true)
+    inventoryService
+      .getReturnStockByProduct(selectedLine.productId)
+      .then((entries) => {
+        if (active) setAvailableReturnEntries(entries)
+      })
+      .catch((requestError) => {
+        if (active) {
+          setAvailableReturnEntries([])
+          toast.error(requestError.message)
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingReturnEntries(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [editingItemId, selectedLine])
+
+  function selectReturnEntry(entryId) {
+    const entry = availableReturnEntries.find((item) => item.id === entryId)
+    setItemForm((current) => ({
+      ...current,
+      stockReturnEntryId: entryId,
+      qtySmallestUnit: entry ? String(entry.qty) : current.qtySmallestUnit,
+      batchNo: entry?.batchNo || current.batchNo,
+      expiryDate: entry?.expiryDate
+        ? dayjs(entry.expiryDate).format('YYYY-MM-DD')
+        : current.expiryDate,
+      returnReason: entry?.reason || current.returnReason,
+    }))
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0 }}>
@@ -948,7 +1006,7 @@ export default function PurchaseReturnsPage() {
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: '220px minmax(260px, 1fr)',
+                          gridTemplateColumns: '220px minmax(260px, 1fr) minmax(260px, 1fr)',
                           gap: 10,
                           marginBottom: 10,
                         }}
@@ -995,6 +1053,30 @@ export default function PurchaseReturnsPage() {
                               {(selectedReceipt?.lines || []).map((line) => (
                                 <option key={line.id} value={line.id}>
                                   {lineOptionLabel(line)}
+                                </option>
+                              ))}
+                            </select>
+                          </SelectControl>
+                        </Field>
+                        <Field label="Staged Return Stock">
+                          <SelectControl>
+                            <select
+                              className="form-input"
+                              value={itemForm.stockReturnEntryId}
+                              disabled={!selectedLine || isLoadingReturnEntries}
+                              onChange={(event) => selectReturnEntry(event.target.value)}
+                              style={{
+                                appearance: 'none',
+                                backgroundImage: 'none',
+                                paddingRight: 36,
+                              }}
+                            >
+                              <option value="">
+                                {isLoadingReturnEntries ? 'Loading staged stock...' : 'Not linked'}
+                              </option>
+                              {availableReturnEntries.map((entry) => (
+                                <option key={entry.id} value={entry.id}>
+                                  {entry.batchNo || 'No batch'} - {entry.qty} {entry.reason}
                                 </option>
                               ))}
                             </select>

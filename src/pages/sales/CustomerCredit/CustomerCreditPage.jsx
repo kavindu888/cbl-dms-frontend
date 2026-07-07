@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
-import { Banknote, CreditCard, History, Search } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Banknote, CreditCard, History } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
@@ -26,7 +26,6 @@ export default function CustomerCreditPage() {
   const [customers, setCustomers] = useState([])
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false)
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('')
-  const [applyAmount, setApplyAmount] = useState('')
   const [outstandingInvoices, setOutstandingInvoices] = useState([])
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false)
 
@@ -52,7 +51,6 @@ export default function CustomerCreditPage() {
     if (!customerId || !isApplyModalOpen) {
       setOutstandingInvoices([])
       setSelectedInvoiceId('')
-      setApplyAmount('')
       return
     }
 
@@ -70,20 +68,6 @@ export default function CustomerCreditPage() {
     loadInvoices()
   }, [customerId, isApplyModalOpen])
 
-  // Pre-fill amount to apply based on selected invoice
-  useEffect(() => {
-    if (!selectedInvoiceId) {
-      setApplyAmount('')
-      return
-    }
-    const inv = outstandingInvoices.find(i => i.id === selectedInvoiceId)
-    if (inv) {
-      const maxAvailable = balanceData?.creditBalance || balanceData?.balance || 0
-      const amountToApply = Math.min(inv.outstandingAmount, maxAvailable)
-      setApplyAmount(String(amountToApply))
-    }
-  }, [selectedInvoiceId, outstandingInvoices, balanceData])
-
   function handleCustomerChange(e) {
     const nextId = e.target.value
     if (nextId) {
@@ -98,23 +82,13 @@ export default function CustomerCreditPage() {
     if (!customerId) return toast.error('No customer selected.')
     if (!selectedInvoiceId) return toast.error('Invoice selection is required.')
     
-    const amountVal = Number(applyAmount)
-    if (amountVal <= 0) return toast.error('Apply amount must be greater than zero.')
-
-    const maxAvailable = balanceData?.creditBalance || balanceData?.balance || 0
-    if (amountVal > maxAvailable) {
-      return toast.error(`Insufficient credit balance. Maximum available is LKR ${money(maxAvailable)}`)
-    }
-
     applyCreditMutation.mutate({
       customerId,
       invoiceId: selectedInvoiceId,
-      amount: amountVal,
     }, {
       onSuccess: () => {
         setIsApplyModalOpen(false)
         setSelectedInvoiceId('')
-        setApplyAmount('')
         refetchBalance()
         refetchTransactions()
       }
@@ -133,13 +107,6 @@ export default function CustomerCreditPage() {
     if (typeLabel === '1' || typeLabel.toLowerCase() === 'earned') return 'earned'
     if (typeLabel === '2' || typeLabel.toLowerCase() === 'consumed') return 'consumed'
     return 'adjusted'
-  }
-
-  function formatTypeLabel(typeValue) {
-    const typeLabel = String(typeValue)
-    if (typeLabel === '1' || typeLabel.toLowerCase() === 'earned') return 'Earned'
-    if (typeLabel === '2' || typeLabel.toLowerCase() === 'consumed') return 'Consumed'
-    return 'Adjusted'
   }
 
   return (
@@ -186,7 +153,7 @@ export default function CustomerCreditPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '10px 0' }}>
               <p style={{ fontSize: 10, color: 'var(--color-text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Available Credit</p>
               <p className="mono" style={{ fontSize: 32, fontWeight: 900, color: 'var(--color-teal)' }}>
-                LKR {money(balanceData?.creditBalance ?? balanceData?.balance ?? 0)}
+                LKR {money(balanceData?.currentBalance ?? 0)}
               </p>
             </div>
 
@@ -201,14 +168,14 @@ export default function CustomerCreditPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Last Updated:</span>
-                <span>{dayjs(balanceData?.updatedAt || new Date()).format('DD MMM YYYY')}</span>
+                <span>{dayjs(balanceData?.lastUpdated || new Date()).format('DD MMM YYYY')}</span>
               </div>
             </div>
 
             <button
               onClick={() => setIsApplyModalOpen(true)}
               className="button-primary"
-              disabled={!(balanceData?.creditBalance || balanceData?.balance)}
+              disabled={!balanceData?.currentBalance}
               style={{ width: '100%', height: 38, marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
             >
               <Banknote size={15} /> Apply to Invoice
@@ -243,11 +210,11 @@ export default function CustomerCreditPage() {
                     </tr>
                   ) : (
                     transactions.map((tx) => {
-                      const badgeType = getTransactionTypeBadge(tx.type || tx.movementType)
+                      const badgeType = getTransactionTypeBadge(tx.creditType)
                       const isMinus = badgeType === 'consumed'
                       return (
                         <tr key={tx.id}>
-                          <td>{dayjs(tx.occurredOn || tx.createdAt).format('DD MMM YYYY HH:mm')}</td>
+                          <td>{dayjs(tx.transactionDate).format('DD MMM YYYY HH:mm')}</td>
                           <td>
                             <StatusBadge status={badgeType} />
                           </td>
@@ -256,7 +223,7 @@ export default function CustomerCreditPage() {
                           </td>
                           <td className="mono" style={{ textAlign: 'right' }}>{money(tx.balanceAfter)}</td>
                           <td className="mono" style={{ color: 'var(--color-amber)' }}>{tx.referenceId || tx.referenceNumber || '-'}</td>
-                          <td>{tx.notes || tx.description || '-'}</td>
+                          <td>{tx.description || '-'}</td>
                         </tr>
                       )
                     })
@@ -287,7 +254,7 @@ export default function CustomerCreditPage() {
             <div style={{ backgroundColor: 'rgba(32,212,191,0.06)', padding: 12, borderRadius: 6 }}>
               <p style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>Credit Balance Available</p>
               <p className="mono" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-teal)', marginTop: 2 }}>
-                LKR {money(balanceData?.creditBalance ?? balanceData?.balance ?? 0)}
+                LKR {money(balanceData?.currentBalance ?? 0)}
               </p>
             </div>
 
@@ -297,10 +264,13 @@ export default function CustomerCreditPage() {
                 className="form-input"
                 required
                 value={selectedInvoiceId}
+                disabled={isLoadingInvoices}
                 onChange={(e) => setSelectedInvoiceId(e.target.value)}
                 style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', borderRadius: 6 }}
               >
-                <option value="">Select invoice...</option>
+                <option value="">
+                  {isLoadingInvoices ? 'Loading invoices...' : 'Select invoice...'}
+                </option>
                 {outstandingInvoices.map((inv) => (
                   <option key={inv.id} value={inv.id}>
                     {inv.invoiceNumber} (Outstanding: Rs. {money(inv.outstandingAmount)})
@@ -309,18 +279,9 @@ export default function CustomerCreditPage() {
               </select>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="form-label" style={{ fontSize: 11 }}>Amount to Apply (Rs.) <span style={{ color: 'var(--color-danger)' }}>*</span></label>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                className="form-input"
-                required
-                value={applyAmount}
-                onChange={(e) => setApplyAmount(e.target.value)}
-              />
-            </div>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              The backend will apply the smaller of the available credit balance and the invoice outstanding amount.
+            </p>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
               <button

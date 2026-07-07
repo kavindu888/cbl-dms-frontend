@@ -1,10 +1,9 @@
 import dayjs from 'dayjs'
-import { CalendarDays, PackageOpen, Plus, RefreshCw, X, AlertTriangle } from 'lucide-react'
+import { PackageOpen, Plus, RefreshCw, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import SimplePagination from '@components/ui/SimplePagination'
-import { useAuthStore } from '@stores/authStore'
 import { masterService } from '@/services/api/masterService'
 import { inventoryService } from '@/services/api/inventoryService'
 import { useReturnStockList, useFlagStockForReturn, useCancelReturnFlag } from '@/hooks/useReturnStock'
@@ -238,9 +237,8 @@ export default function ReturnStockPage() {
     }
 
     flagStockMutation.mutate({
-      productId: selectedProductId,
       sourceBatchId: selectedBatch.id,
-      quantity: qtyVal,
+      qty: qtyVal,
       reason: reasonMap[flagReason],
       notes: flagNotes.trim() || null,
     }, {
