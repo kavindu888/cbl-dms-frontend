@@ -1,4 +1,4 @@
-﻿import * as Tooltip from '@radix-ui/react-tooltip'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   Banknote,
   // BarChart2,
@@ -85,6 +85,18 @@ const navGroups = [
         to: '/sales/invoice-payment-record',
         icon: Banknote,
         permissions: { all: [PERMISSIONS.sales.invoiceRead, PERMISSIONS.sales.invoiceAddPayment] },
+      },
+      {
+        label: 'Return Notes',
+        to: '/sales/return-notes',
+        icon: Undo2,
+        permissions: PERMISSIONS.sales.crnView,
+      },
+      {
+        label: 'Customer Credit',
+        to: '/sales/customer-credit',
+        icon: Banknote,
+        permissions: PERMISSIONS.sales.customerCreditView,
       },
     ],
   },
@@ -220,10 +232,16 @@ const navGroups = [
     label: 'INVENTORY',
     items: [
       {
-        label: 'Stock Levels',
+        label: 'Stock Overview',
         to: '/inventory/stock',
         icon: Package,
         end: true,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'Return Stock',
+        to: '/inventory/return-stock',
+        icon: Undo2,
         permissions: PERMISSIONS.inventory.stockRead,
       },
       {

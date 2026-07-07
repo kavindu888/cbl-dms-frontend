@@ -1,4 +1,4 @@
-﻿import { Navigate, createBrowserRouter } from 'react-router-dom'
+import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { AppShell } from '@components/layout'
 import { Role } from '@/types/auth.types'
 import LoginPage from '@pages/auth/LoginPage'
@@ -39,6 +39,12 @@ import SettingsPage from '@pages/settings/SettingsPage'
 import RolesPermissionsPage from '@pages/users/RolesPermissionsPage'
 import UserListPage from '@pages/users/UserListPage'
 import UserProfilePage from '@pages/users/UserProfilePage'
+import CrnListPage from '@pages/sales/CustomerReturnNotes/CrnListPage'
+import CrnDetailPage from '@pages/sales/CustomerReturnNotes/CrnDetailPage'
+import CustomerCreditPage from '@pages/sales/CustomerCredit/CustomerCreditPage'
+import ReturnStockPage from '@pages/inventory/ReturnStock/ReturnStockPage'
+import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
+import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { PERMISSIONS } from '@/utils/permissions'
 
@@ -147,7 +153,21 @@ export const router = createBrowserRouter([
       {
         path: 'inventory/stock',
         element: requirePermission(
-          <StockModulePage initialTab="levels" />,
+          <StockOverviewPage />,
+          PERMISSIONS.inventory.stockRead
+        ),
+      },
+      {
+        path: 'inventory/return-stock',
+        element: requirePermission(
+          <ReturnStockPage />,
+          PERMISSIONS.inventory.stockRead
+        ),
+      },
+      {
+        path: 'inventory/stock/batches/:productId',
+        element: requirePermission(
+          <StockBatchesDetailPage />,
           PERMISSIONS.inventory.stockRead
         ),
       },
@@ -229,6 +249,18 @@ export const router = createBrowserRouter([
       {
         path: 'inventory/adjustments',
         element: <Navigate to="/inventory/stocktakes" replace />,
+      },
+      {
+        path: 'sales/return-notes',
+        element: requirePermission(<CrnListPage />, PERMISSIONS.sales.crnView),
+      },
+      {
+        path: 'sales/return-notes/:id',
+        element: requirePermission(<CrnDetailPage />, PERMISSIONS.sales.crnView),
+      },
+      {
+        path: 'sales/customer-credit',
+        element: requirePermission(<CustomerCreditPage />, PERMISSIONS.sales.customerCreditView),
       },
       {
         path: 'sales/customer-groups',

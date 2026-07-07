@@ -127,6 +127,56 @@ const STATUS_STYLES = {
     text: 'var(--color-text-muted)',
     border: 'rgba(148,163,184,0.20)',
   },
+  verified: {
+    bg: 'rgba(32,212,191,0.12)',
+    text: 'var(--color-teal)',
+    border: 'rgba(32,212,191,0.30)',
+  },
+  claimed: {
+    bg: 'rgba(250,204,21,0.10)',
+    text: 'var(--color-warning)',
+    border: 'rgba(250,204,21,0.25)',
+  },
+  available: {
+    bg: 'rgba(102,181,250,0.10)',
+    text: 'var(--color-blue)',
+    border: 'rgba(102,181,250,0.25)',
+  },
+  earned: {
+    bg: 'rgba(32,212,191,0.12)',
+    text: 'var(--color-teal)',
+    border: 'rgba(32,212,191,0.30)',
+  },
+  consumed: {
+    bg: 'rgba(250,204,21,0.10)',
+    text: 'var(--color-warning)',
+    border: 'rgba(250,204,21,0.25)',
+  },
+  adjusted: {
+    bg: 'rgba(102,181,250,0.10)',
+    text: 'var(--color-blue)',
+    border: 'rgba(102,181,250,0.25)',
+  },
+  damage: {
+    bg: 'rgba(244,63,94,0.10)',
+    text: 'var(--color-danger)',
+    border: 'rgba(244,63,94,0.25)',
+  },
+  expire: {
+    bg: 'rgba(249,115,22,0.10)',
+    text: 'var(--color-orange, #f97316)',
+    border: 'rgba(249,115,22,0.25)',
+  },
+  shortexpire: {
+    bg: 'rgba(250,204,21,0.10)',
+    text: 'var(--color-warning)',
+    border: 'rgba(250,204,21,0.25)',
+  },
+  others: {
+    bg: 'rgba(148,163,184,0.10)',
+    text: 'var(--color-text-muted)',
+    border: 'rgba(148,163,184,0.20)',
+  },
 }
 const FALLBACK = {
   bg: 'transparent',

@@ -10,6 +10,14 @@ function getValue(response, fallbackMessage = 'Request failed') {
   return result?.value ?? result
 }
 
+function getResponseData(response, fallbackMessage = 'Request failed') {
+  if (typeof response.data?.success === 'boolean') {
+    return getValue(response, fallbackMessage)
+  }
+
+  return response.data
+}
+
 function formatCustomerGroup(group) {
   if (!group) return null
   return {
@@ -344,5 +352,68 @@ export const salesService = {
   // Assign or update the tax invoice number for an invoice
   async assignTaxInvoiceNumber(id, taxInvoiceNumber) {
     await api.put(`/api/v1/sales/invoices/${id}/tax-invoice-number`, { taxInvoiceNumber })
+  },
+
+  // Customer Return Notes (CRN)
+  async createCrn(payload) {
+    const response = await api.post('/api/sales/return-notes', payload)
+    const result = getResponseData(response, 'Unable to create return note.')
+    return { id: result?.id ?? result?.value ?? result }
+  },
+
+  async getCrn(id) {
+    const response = await getOnce(`/api/sales/return-notes/${id}`)
+    return getResponseData(response, 'Unable to load return note.')
+  },
+
+  async listCrnsByCustomer(customerId) {
+    const response = await getOnce('/api/sales/return-notes/by-customer', { params: { customerId } })
+    return getResponseData(response, 'Unable to load return notes.') || []
+  },
+
+  async listMyReturnNotes() {
+    const response = await getOnce('/api/sales/return-notes/my-returns')
+    return getResponseData(response, 'Unable to load your return notes.') || []
+  },
+
+  async addCrnLine(id, payload) {
+    const response = await api.post(`/api/sales/return-notes/${id}/lines`, payload)
+    return getResponseData(response, 'Unable to add return note line.')
+  },
+
+  async removeCrnLine(id, lineId) {
+    await api.delete(`/api/sales/return-notes/${id}/lines/${lineId}`)
+  },
+
+  async submitCrn(id) {
+    await api.put(`/api/sales/return-notes/${id}/submit`)
+  },
+
+  async verifyCrn(id) {
+    await api.put(`/api/sales/return-notes/${id}/verify`)
+  },
+
+  async rejectCrn(id, payload) {
+    await api.put(`/api/sales/return-notes/${id}/reject`, payload)
+  },
+
+  async cancelCrn(id, payload) {
+    await api.put(`/api/sales/return-notes/${id}/cancel`, payload)
+  },
+
+  // Customer Credit
+  async getCustomerCreditBalance(customerId) {
+    const response = await getOnce(`/api/sales/customer-credit/${customerId}/balance`)
+    return getValue(response, 'Unable to load credit balance.')
+  },
+
+  async getCustomerCreditTransactions(customerId) {
+    const response = await getOnce(`/api/sales/customer-credit/${customerId}/transactions`)
+    return getValue(response, 'Unable to load credit history.')
+  },
+
+  async applyCredit(payload) {
+    const response = await api.post('/api/sales/customer-credit/apply', payload)
+    return getValue(response, 'Unable to apply credit.')
   },
 }

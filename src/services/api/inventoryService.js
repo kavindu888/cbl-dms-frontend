@@ -253,4 +253,73 @@ export const inventoryService = {
     const response = await api.post(`/api/v1/inventory/stocktakes/${id}/cancel`)
     return getValue(response, 'Unable to cancel stocktake.')
   },
+
+  // Return Stock (Supplier Returns Staging)
+  async flagStockForReturn(payload) {
+    const response = await api.post('/api/v1/inventory/return-stock/flag', payload)
+    return getValue(response, 'Unable to flag stock for supplier return.')
+  },
+
+  async cancelReturnFlag(id) {
+    const response = await api.post(`/api/v1/inventory/return-stock/${id}/cancel`)
+    return getValue(response, 'Unable to cancel return stock flag.')
+  },
+
+  async listReturnStock(params = {}) {
+    const response = await getOnce('/api/v1/inventory/return-stock', { params })
+    const data = getValue(response, 'Unable to load return stock staging.')
+    
+    const returnStockStatusLabels = {
+      1: 'Available',
+      2: 'Claimed',
+      3: 'Returned',
+      4: 'Cancelled',
+    }
+
+    const returnStockReasonLabels = {
+      1: 'Expired',
+      2: 'ShortExpiry',
+      3: 'Damaged',
+      4: 'Other',
+    }
+
+    const items = asList(data).map(item => ({
+      ...item,
+      status: returnStockStatusLabels[item.status] || String(item.status),
+      reason: returnStockReasonLabels[item.reason] || String(item.reason),
+    }))
+    
+    return {
+      items,
+      totalItems: data.totalItems ?? items.length,
+      totalPages: data.totalPages ?? 1,
+      page: data.page ?? 1,
+      pageSize: data.pageSize ?? items.length,
+    }
+  },
+
+  async getReturnStockByProduct(productId) {
+    const response = await getOnce(`/api/v1/inventory/return-stock/by-product/${productId}`)
+    const data = getValue(response, 'Unable to load return stock by product.')
+    
+    const returnStockStatusLabels = {
+      1: 'Available',
+      2: 'Claimed',
+      3: 'Returned',
+      4: 'Cancelled',
+    }
+
+    const returnStockReasonLabels = {
+      1: 'Expired',
+      2: 'ShortExpiry',
+      3: 'Damaged',
+      4: 'Other',
+    }
+
+    return asList(data).map(item => ({
+      ...item,
+      status: returnStockStatusLabels[item.status] || String(item.status),
+      reason: returnStockReasonLabels[item.reason] || String(item.reason),
+    }))
+  },
 }
