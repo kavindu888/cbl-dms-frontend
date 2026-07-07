@@ -393,6 +393,11 @@ export default function StockModulePage({ initialTab = 'levels' }) {
     return location ? `${location.code} - ${location.name}` : id || '-'
   }
 
+  function locationOnlyName(id) {
+    const location = locations.find((item) => item.id === id)
+    return location ? location.name : id || '-'
+  }
+
   function businessUnitName(id) {
     const unit = businessUnits.find((item) => item.id === id)
     return unit ? `${unit.code} - ${unit.name}` : id || '-'
@@ -401,6 +406,11 @@ export default function StockModulePage({ initialTab = 'levels' }) {
   function productSku(id) {
     const product = products.find((item) => item.id === id)
     return product?.sku || id || ''
+  }
+
+  function productName(id) {
+    const product = products.find((item) => item.id === id)
+    return product ? product.name : id || ''
   }
 
   function productUom(id) {
@@ -1099,9 +1109,9 @@ export default function StockModulePage({ initialTab = 'levels' }) {
               <thead>
                 <tr>
                   {/* <th>ID</th> */}
-                  <th>Product ID</th>
+                  <th>Product Name</th>
                   <th>Product SKU</th>
-                  <th>Location ID</th>
+                  <th>Location Name</th>
                   <th>Location</th>
                   <th>Available</th>
                   <th>Reserved</th>
@@ -1119,13 +1129,13 @@ export default function StockModulePage({ initialTab = 'levels' }) {
                   ? pagedLevels.map((item) => (
                       <tr key={item.id}>
                         {/* <td className="mono">{item.id}</td> */}
-                        <td className="mono">{item.productId}</td>
+                        <td>{productName(item.productId)}</td>
                         <td>
                           <span className="mono" style={{ color: 'var(--color-amber)' }}>
                             {item.productSku}
                           </span>
                         </td>
-                        <td className="mono">{item.stockLocationId}</td>
+                        <td>{locationOnlyName(item.stockLocationId)}</td>
                         <td>{locationName(item.stockLocationId)}</td>
                         <td className="amount-primary">
                           {formatNumber(item.totalAvailable)}{' '}
