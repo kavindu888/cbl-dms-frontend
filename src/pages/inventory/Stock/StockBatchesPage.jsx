@@ -172,11 +172,11 @@ export default function StockBatchesPage() {
               ) : (
                 batches.map((batch) => {
                   const sellable = Number(batch.qtyAvailable || 0) - Number(batch.qtyReserved || 0)
-                  const uom = product?.uomBase || ''
+                  const uom = batch.smallestUnitCode || 'PCS'
                   return (
                     <tr key={batch.id}>
                       <td className="mono" style={{ fontWeight: 700, color: 'var(--color-amber)' }}>
-                        {batch.batchNo || '-'}
+                        {batch.batchNo}
                       </td>
                       <td className="mono" style={getExpiryStyle(batch.expiryDate)}>
                         {batch.expiryDate ? dayjs(batch.expiryDate).format('DD MMM YYYY') : '-'}
@@ -260,7 +260,7 @@ export default function StockBatchesPage() {
               ) : (
                 rawMovements.map((movement) => {
                   const isNegative = Number(movement.quantity || 0) < 0
-                  const uom = product?.uomBase || ''
+                  const uom = batches?.[0]?.smallestUnitCode || 'PCS'
                   return (
                     <tr key={movement.id}>
                       <td>

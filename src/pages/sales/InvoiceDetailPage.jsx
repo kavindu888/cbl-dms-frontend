@@ -444,6 +444,7 @@ export default function InvoiceDetailPage() {
                 <thead>
                   <tr>
                     <th style={{ whiteSpace: 'nowrap' }}>Item</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Batch</th>
                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
                       Qty
                     </th>
@@ -496,6 +497,12 @@ export default function InvoiceDetailPage() {
                           </div>
                         </td>
                         <td
+                          className="font-mono text-xs text-cyan-600"
+                          style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}
+                        >
+                          {line.batchNo}
+                        </td>
+                        <td
                           className="text-right mono"
                           style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
                         >
@@ -507,7 +514,7 @@ export default function InvoiceDetailPage() {
                               fontWeight: 500,
                             }}
                           >
-                            {line.unitId}
+                            {line.smallestUnitCode || line.unitId}
                           </span>
                         </td>
                         <td

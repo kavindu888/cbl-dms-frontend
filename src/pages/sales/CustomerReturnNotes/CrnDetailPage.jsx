@@ -187,7 +187,7 @@ export default function CrnDetailPage() {
   useEffect(() => {
     async function loadProducts() {
       try {
-        const res = await masterService.listProducts({ page: 1, pageSize: 150 })
+        const res = await masterService.listProducts({ page: 1, pageSize: 100 })
         setProducts(res.items || [])
       } catch (err) {
         console.error('Failed to load products:', err)
@@ -236,6 +236,14 @@ export default function CrnDetailPage() {
       }
     }
   }, [selectedProductId, linkedInvoice, products])
+
+  const filteredProductsList = useMemo(() => {
+    if (linkedInvoice && linkedInvoice.lines) {
+      const invoiceProductIds = new Set(linkedInvoice.lines.map(l => l.productId))
+      return products.filter(p => invoiceProductIds.has(p.id))
+    }
+    return products
+  }, [linkedInvoice, products])
 
   const calculatedLiveCredit = useMemo(() => {
     const qty = Number(lineQty || 0)
@@ -334,31 +342,95 @@ export default function CrnDetailPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Page Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button
-          onClick={() => navigate('/sales/return-notes')}
-          className="button-secondary"
-          style={{ height: 36, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 6 }}
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
-        <div>
-          <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--color-text-dim)' }}>
-            Customer Return Note Detail
-          </span>
-          <h1 className="mono" style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>
-            {crn.returnNumber || crn.id.substring(0, 8).toUpperCase()}
-          </h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => navigate('/sales/return-notes')}
+            className="button-secondary"
+            style={{ height: 36, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <ArrowLeft size={16} /> Back
+          </button>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--color-text-dim)' }}>
+                Customer Return Note Detail
+              </span>
+              <StatusBadge status={crn.status} />
+            </div>
+            <h1 className="mono" style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>
+              {crn.returnNumber || crn.id.substring(0, 8).toUpperCase()}
+            </h1>
+          </div>
+        </div>
+
+        {/* Right Header Side: Actions and Total Credit */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--color-text-dim)', letterSpacing: 0.5 }}>
+              Total Credit Issued
+            </span>
+            <span className="mono" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-teal)', marginTop: 2 }}>
+              LKR {money(crn.totalCreditAmount || totalCalculatedCredit)}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            {isDraft && (
+              <>
+                {canSubmit && (
+                  <button
+                    onClick={handleSubmit}
+                    className="button-primary"
+                    style={{ backgroundColor: 'var(--color-teal)', borderColor: 'var(--color-teal)', color: '#000', fontWeight: 600, height: 38 }}
+                  >
+                    Submit Return Note
+                  </button>
+                )}
+                {canCancel && (
+                  <button
+                    onClick={() => setIsCancelModalOpen(true)}
+                    className="button-secondary"
+                    style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)', height: 38 }}
+                  >
+                    Cancel Note
+                  </button>
+                )}
+              </>
+            )}
+
+            {isSubmitted && (
+              <>
+                {canVerify && (
+                  <button
+                    onClick={handleVerify}
+                    className="button-primary"
+                    style={{ backgroundColor: 'var(--color-teal)', borderColor: 'var(--color-teal)', color: '#000', fontWeight: 600, height: 38 }}
+                  >
+                    Verify & Issue Credit
+                  </button>
+                )}
+                {canReject && (
+                  <button
+                    onClick={() => setIsRejectModalOpen(true)}
+                    className="button-secondary"
+                    style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)', height: 38 }}
+                  >
+                    Reject Note
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Info Card */}
-        <div className="lg:col-span-2 panel" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className={isDraft && canAddLine ? "lg:col-span-2 panel" : "lg:col-span-3 panel"} style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700 }}>Summary</h2>
-            <StatusBadge status={crn.status} />
           </div>
 
           <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)' }} />
@@ -441,82 +513,79 @@ export default function CrnDetailPage() {
           )}
         </div>
 
-        {/* Right Column: Actions / Credit Display */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Credit Amount KPI panel */}
-          <div className="panel" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <p style={{ fontSize: 11, color: 'var(--color-text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Total Credit Issued</p>
-            <p className="mono" style={{ fontSize: 28, fontWeight: 850, color: 'var(--color-teal)' }}>
-              LKR {money(crn.totalCreditAmount || totalCalculatedCredit)}
-            </p>
-          </div>
-
-          {/* Operations Panel */}
-          <div className="panel" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>Operations</h3>
-            
-            {isDraft && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {canAddLine ? (
-                  <button
-                    onClick={() => setIsLineModalOpen(true)}
-                    className="button-primary"
-                    style={{ width: '100%', height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                  >
-                    <Plus size={16} /> Add Line Item
-                  </button>
-                ) : null}
-                {canSubmit ? (
-                  <button
-                    onClick={handleSubmit}
-                    className="button-success"
-                    style={{ width: '100%', height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-teal)', border: 'none', color: '#000', fontWeight: 600 }}
-                  >
-                    Submit Return Note
-                  </button>
-                ) : null}
-                {canCancel ? (
-                  <button
-                    onClick={() => setIsCancelModalOpen(true)}
-                    className="button-secondary"
-                    style={{ width: '100%', height: 38, color: 'var(--color-danger)' }}
-                  >
-                    Cancel Note
-                  </button>
-                ) : null}
+        {/* Right Column: Inline Add Return Line Item Form */}
+        {isDraft && canAddLine && (
+          <div className="panel" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14, height: 'fit-content' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+              Add Return Line Item
+            </h3>
+            <form onSubmit={handleAddLine} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Product <span style={{ color: 'var(--color-danger)' }}>*</span></label>
+                <ProductSelect
+                  value={selectedProductId}
+                  onChange={setSelectedProductId}
+                  products={filteredProductsList}
+                />
               </div>
-            )}
 
-            {isSubmitted && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {canVerify ? (
-                  <button
-                    onClick={handleVerify}
-                    className="button-success"
-                    style={{ width: '100%', height: 38, backgroundColor: 'var(--color-teal)', border: 'none', color: '#000', fontWeight: 600 }}
-                  >
-                    Verify & Issue Credit
-                  </button>
-                ) : null}
-                {canReject ? (
-                  <button
-                    onClick={() => setIsRejectModalOpen(true)}
-                    className="button-secondary"
-                    style={{ width: '100%', height: 38, color: 'var(--color-danger)' }}
-                  >
-                    Reject Note
-                  </button>
-                ) : null}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label className="form-label" style={{ fontSize: 11 }}>Quantity <span style={{ color: 'var(--color-danger)' }}>*</span></label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    required
+                    min="1"
+                    value={lineQty}
+                    onChange={(e) => setLineQty(Number(e.target.value))}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label className="form-label" style={{ fontSize: 11 }}>MRP (Rs.) <span style={{ color: 'var(--color-danger)' }}>*</span></label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-input"
+                    required
+                    min="0"
+                    value={lineMrp}
+                    onChange={(e) => setLineMrp(Number(e.target.value))}
+                  />
+                </div>
               </div>
-            )}
 
-            {!isDraft && !isSubmitted && (
-              <p style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center', padding: 8 }}>
-                No active actions available in {crn.status} status.
-              </p>
-            )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Discount %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  className="form-input"
+                  value={lineDiscount}
+                  onChange={(e) => setLineDiscount(Number(e.target.value))}
+                />
+              </div>
+
+              <div style={{ backgroundColor: 'rgba(255,255,255,0.03)', padding: 12, borderRadius: 6 }}>
+                <p style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>Estimated Line Credit</p>
+                <p className="mono" style={{ fontSize: 18, fontWeight: 750, color: 'var(--color-teal)', marginTop: 2 }}>
+                  LKR {money(calculatedLiveCredit)}
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                className="button-primary"
+                disabled={addLineMutation.isPending}
+                style={{ height: 40, marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                {addLineMutation.isPending ? 'Adding Line...' : <><Plus size={16} /> Add Line Item</>}
+              </button>
+            </form>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Lines Table */}
@@ -581,91 +650,6 @@ export default function CrnDetailPage() {
           </table>
         </div>
       </div>
-
-      {/* Add Line Modal */}
-      {isLineModalOpen && (
-        <Modal
-          open={isLineModalOpen}
-          onOpenChange={setIsLineModalOpen}
-          title="Add Return Line Item"
-        >
-          <form onSubmit={handleAddLine} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '6px 2px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="form-label" style={{ fontSize: 11 }}>Product <span style={{ color: 'var(--color-danger)' }}>*</span></label>
-              <ProductSelect
-                value={selectedProductId}
-                onChange={setSelectedProductId}
-                products={products}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Quantity <span style={{ color: 'var(--color-danger)' }}>*</span></label>
-                <input
-                  type="number"
-                  className="form-input"
-                  required
-                  min="1"
-                  value={lineQty}
-                  onChange={(e) => setLineQty(Number(e.target.value))}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label className="form-label" style={{ fontSize: 11 }}>MRP (Rs.) <span style={{ color: 'var(--color-danger)' }}>*</span></label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="form-input"
-                  required
-                  min="0"
-                  value={lineMrp}
-                  onChange={(e) => setLineMrp(Number(e.target.value))}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="form-label" style={{ fontSize: 11 }}>Discount %</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                className="form-input"
-                value={lineDiscount}
-                onChange={(e) => setLineDiscount(Number(e.target.value))}
-              />
-            </div>
-
-            <div style={{ backgroundColor: 'rgba(255,255,255,0.03)', padding: 12, borderRadius: 6, marginTop: 4 }}>
-              <p style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>Estimated Line Credit</p>
-              <p className="mono" style={{ fontSize: 18, fontWeight: 750, color: 'var(--color-teal)', marginTop: 2 }}>
-                LKR {money(calculatedLiveCredit)}
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => setIsLineModalOpen(false)}
-                style={{ height: 40 }}
-              >
-                Close
-              </button>
-              <button
-                type="submit"
-                className="button-primary"
-                disabled={addLineMutation.isPending}
-                style={{ height: 40 }}
-              >
-                {addLineMutation.isPending ? 'Adding...' : 'Add Line'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
 
       {/* Reject Modal */}
       {isRejectModalOpen && (

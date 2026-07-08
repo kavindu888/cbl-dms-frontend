@@ -294,7 +294,7 @@ function BatchSummary({ batches }) {
   )
 }
 
-function BatchTable({ batches, isLoading, error, productUom }) {
+function BatchTable({ batches, isLoading, error }) {
   return (
     <div
       className="panel responsive-table-shell"
@@ -316,7 +316,6 @@ function BatchTable({ batches, isLoading, error, productUom }) {
               <th>Reserved</th>
               <th>Sellable</th>
               <th>Unit Cost Smallest</th>
-              <th>Selling Price</th>
               <th>MRP</th>
               <th>Expiry</th>
               <th>Received Date</th>
@@ -325,10 +324,10 @@ function BatchTable({ batches, isLoading, error, productUom }) {
             </tr>
           </thead>
           <tbody>
-            {isLoading ? <LoadingRow colSpan={18} /> : null}
-            {!isLoading && error ? <ErrorRow colSpan={18} message={error} /> : null}
+            {isLoading ? <LoadingRow colSpan={17} /> : null}
+            {!isLoading && error ? <ErrorRow colSpan={17} message={error} /> : null}
             {!isLoading && !error && batches.length === 0 ? (
-              <EmptyRow colSpan={18} message="No batches found." />
+              <EmptyRow colSpan={17} message="No batches found." />
             ) : null}
             {!isLoading && !error
               ? batches.map((item) => {
@@ -344,14 +343,14 @@ function BatchTable({ batches, isLoading, error, productUom }) {
                       </td>
                       <td className="mono">{item.stockLocationId}</td>
                       <td>{item.stockLocationName || item.locationName || '-'}</td>
-                      <td>{item.batchNo || '-'}</td>
+                      <td className="font-mono text-sm text-cyan-600">{item.batchNo}</td>
                       <td className="mono">{item.grnLineId}</td>
-                      <td className="amount">
+                       <td className="amount">
                         {formatNumber(item.qtyReceived)}{' '}
                         <span
                           style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 2 }}
                         >
-                          {productUom(item.productId)}
+                          {item.smallestUnitCode || 'PCS'}
                         </span>
                       </td>
                       <td className="amount-primary">
@@ -359,7 +358,7 @@ function BatchTable({ batches, isLoading, error, productUom }) {
                         <span
                           style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 2 }}
                         >
-                          {productUom(item.productId)}
+                          {item.smallestUnitCode || 'PCS'}
                         </span>
                       </td>
                       <td className="amount">
@@ -367,7 +366,7 @@ function BatchTable({ batches, isLoading, error, productUom }) {
                         <span
                           style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 2 }}
                         >
-                          {productUom(item.productId)}
+                          {item.smallestUnitCode || 'PCS'}
                         </span>
                       </td>
                       <td className="amount-success">
@@ -375,11 +374,10 @@ function BatchTable({ batches, isLoading, error, productUom }) {
                         <span
                           style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 2 }}
                         >
-                          {productUom(item.productId)}
+                          {item.smallestUnitCode || 'PCS'}
                         </span>
                       </td>
                       <td className="amount">{formatCurrency(item.unitCostSmallest)}</td>
-                      <td className="amount">{formatCurrency(item.sellingPrice)}</td>
                       <td className="amount">{formatCurrency(item.mrp)}</td>
                       <td>{formatDate(item.expiryDate)}</td>
                       <td>{formatDate(item.receivedDate)}</td>
@@ -491,13 +489,7 @@ export default function StockBatchesPage() {
     }
   }, [withinDays])
 
-  const productUom = useCallback(
-    (id) => {
-      const product = products.find((item) => item.id === id)
-      return product?.uomBase || ''
-    },
-    [products]
-  )
+
 
   const title =
     mode === 'expiring' ? `Expiring Batches - Next ${withinDays} Days` : 'Product Batches'
@@ -590,7 +582,7 @@ export default function StockBatchesPage() {
       </div>
 
       <BatchSummary batches={batches} />
-      <BatchTable batches={batches} isLoading={isLoading} error={error} productUom={productUom} />
+      <BatchTable batches={batches} isLoading={isLoading} error={error} />
     </div>
   )
 }

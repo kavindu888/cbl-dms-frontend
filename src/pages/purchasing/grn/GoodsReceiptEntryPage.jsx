@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
+import { inventoryService } from '@services/api/inventoryService'
 import { GrnStatus, PurchaseOrderStatus } from '@/types/purchasing.types'
 import { useLocation } from 'react-router-dom'
 
@@ -103,7 +104,6 @@ function createReceiptLine(line, grnLine = null) {
     grnLineId: grnLine?.id || '',
     qtyBaseUnit: grnLine?.qtyBaseUnit ?? line.remainingQty ?? '',
     unitCostSmallest: getDefaultPrice(grnLine?.unitCostSmallest, line.unitCostSmallest),
-    sellingPrice: getDefaultPrice(grnLine?.sellingPrice, line.sellingPrice, line.unitCostSmallest),
     mrp: getDefaultPrice(grnLine?.mrp, line.mrp, line.unitCostSmallest),
     rejectedQtyBase: grnLine?.rejectedQtyBase ?? 0,
     rejectionReason: grnLine?.rejectionReason || '',
@@ -151,7 +151,6 @@ function getReceiptLinePayload(line) {
     productName: line.productName,
     qtyBaseUnit: toNumber(line.qtyBaseUnit),
     unitCostSmallest: toNumber(line.unitCostSmallest),
-    sellingPrice: toNumber(line.sellingPrice),
     mrp: toNumber(line.mrp),
     rejectedQtyBase: toNumber(line.rejectedQtyBase),
     rejectionReason: normalizeText(line.rejectionReason),
@@ -419,9 +418,32 @@ export default function GoodsReceiptEntryPage() {
         const grnLinesByPoLine = new Map(
           (draft?.lines || []).map((line) => [line.purchaseOrderLineId, line])
         )
-        setReceiptLines(
-          (detail.lines || []).map((line) => createReceiptLine(line, grnLinesByPoLine.get(line.id)))
-        )
+        const initialLines = (detail.lines || []).map((line) => createReceiptLine(line, grnLinesByPoLine.get(line.id)))
+        setReceiptLines(initialLines)
+
+        initialLines.forEach((line, index) => {
+          const cost = Number(line.unitCostSmallest || 0)
+          const mrp = Number(line.mrp || 0)
+          if (cost <= 0 || mrp <= 0) {
+            inventoryService.getLastPrices(line.productId)
+              .then((prices) => {
+                if (prices) {
+                  setReceiptLines((prev) =>
+                    prev.map((l, idx) =>
+                      idx === index
+                        ? {
+                            ...l,
+                            unitCostSmallest: l.unitCostSmallest && Number(l.unitCostSmallest) > 0 ? l.unitCostSmallest : (prices.lastCost ? String(prices.lastCost) : l.unitCostSmallest),
+                            mrp: l.mrp && Number(l.mrp) > 0 ? l.mrp : (prices.lastMrp ? String(prices.lastMrp) : l.mrp),
+                          }
+                        : l
+                    )
+                  )
+                }
+              })
+              .catch((err) => console.error('Error fetching last prices:', err))
+          }
+        })
       } catch (requestError) {
         toast.error(`Unable to load purchase order details: ${requestError.message}`)
         setSelectedOrder(null)
@@ -1212,7 +1234,6 @@ export default function GoodsReceiptEntryPage() {
                           <th style={{ textAlign: 'right' }}>Remaining</th>
                           <th style={{ width: 110 }}>Receive Qty</th>
                           <th style={{ width: 120 }}>Unit Cost</th>
-                          <th style={{ width: 120 }}>Selling Price</th>
                           <th style={{ width: 110 }}>MRP</th>
                           <th style={{ width: 110 }}>Rejected Qty</th>
                           <th style={{ width: 170 }}>Reject Reason</th>
@@ -1251,13 +1272,6 @@ export default function GoodsReceiptEntryPage() {
                                 value={line.unitCostSmallest}
                                 onChange={(value) =>
                                   updateReceiptLine(lineIndex, 'unitCostSmallest', value)
-                                }
-                              />
-                              <EditableCell
-                                disabled={Boolean(pendingReceipt)}
-                                value={line.sellingPrice}
-                                onChange={(value) =>
-                                  updateReceiptLine(lineIndex, 'sellingPrice', value)
                                 }
                               />
                               <EditableCell

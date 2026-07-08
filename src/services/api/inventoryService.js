@@ -322,4 +322,14 @@ export const inventoryService = {
       reason: returnStockReasonLabels[item.reason] || String(item.reason),
     }))
   },
+
+  async getLastBatchCost(productId) {
+    const response = await api.get(`/api/v1/inventory/stock/last-cost/${productId}`)
+    return getValue(response, 'Unable to load last batch cost.')
+  },
+
+  async getLastPrices(productId) {
+    const response = await api.get(`/api/v1/inventory/stock/last-prices/${productId}`)
+    return getValue(response, 'Unable to load last prices.')
+  },
 }

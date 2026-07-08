@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@services/api/masterService'
 import { purchasingService } from '@services/api/purchasingService'
+import { inventoryService } from '@services/api/inventoryService'
 
 const linePageSize = 5
 
@@ -259,9 +260,31 @@ export default function PlacePurchaseOrderPage() {
         if (line.key !== key) return line
 
         if (field === 'productId') {
+          if (value) {
+            inventoryService.getLastBatchCost(value)
+              .then((cost) => {
+                if (cost !== null && cost !== undefined) {
+                  setLines((prev) =>
+                    prev.map((l) =>
+                      l.key === key
+                        ? {
+                            ...l,
+                            unitCostSmallest: String(cost),
+                            lastCostReference: cost,
+                          }
+                        : l
+                    )
+                  )
+                }
+              })
+              .catch((err) => console.error('Error fetching last batch cost:', err))
+          }
+
           return {
             ...line,
             productId: value,
+            unitCostSmallest: '',
+            lastCostReference: undefined,
           }
         }
 
@@ -573,6 +596,11 @@ export default function PlacePurchaseOrderPage() {
                         {smallestUom ? (
                           <div className="product-info-sub" style={{ marginTop: 4 }}>
                             per {smallestUom}
+                          </div>
+                        ) : null}
+                        {line.lastCostReference !== undefined ? (
+                          <div className="product-info-sub" style={{ color: 'var(--color-emerald)', marginTop: 2, fontSize: 11 }}>
+                            Last: Rs. {Number(line.lastCostReference).toFixed(2)}
                           </div>
                         ) : null}
                       </td>

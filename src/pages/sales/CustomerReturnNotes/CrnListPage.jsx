@@ -137,7 +137,7 @@ export default function CrnListPage() {
   const invoiceOptions = useMemo(
     () => customerInvoices.map((invoice) => ({
       value: invoice.id,
-      label: `${invoice.invoiceNumber} | ${dayjs(invoice.invoiceDate).format('DD MMM YYYY')} | Rs. ${money(invoice.netAmount)}`,
+      label: `${invoice.invoiceNumber}${invoice.status === 'Paid' ? ' ✓' : ''} | ${dayjs(invoice.invoiceDate).format('DD MMM YYYY')} | Rs. ${money(invoice.netAmount)}`,
     })),
     [customerInvoices]
   )
@@ -190,7 +190,7 @@ export default function CrnListPage() {
     async function loadInvoices() {
       setIsLoadingInvoices(true)
       try {
-        const list = await salesService.listOutstandingInvoicesByCustomer(newCustomerId)
+        const list = await salesService.getInvoicesByCustomer(newCustomerId)
         setCustomerInvoices(list || [])
       } catch (err) {
         toast.error('Failed to load customer invoices.')

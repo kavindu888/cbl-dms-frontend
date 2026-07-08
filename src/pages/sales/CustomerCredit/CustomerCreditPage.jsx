@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { Banknote, CreditCard, History } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
@@ -17,6 +17,132 @@ function money(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
+}
+
+function InvoiceSelect({ value, onChange, invoices, emptyLabel = 'Select invoice...', isLoading }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const selectedInvoice = invoices.find((inv) => inv.id === value)
+  const displayValue = isOpen ? searchQuery : selectedInvoice ? `${selectedInvoice.invoiceNumber} (Outstanding: LKR ${money(selectedInvoice.outstandingAmount)})` : ''
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim()
+    if (!q) return invoices
+    return invoices.filter((inv) => {
+      return (
+        inv.invoiceNumber?.toLowerCase().includes(q) ||
+        String(inv.outstandingAmount).includes(q)
+      )
+    })
+  }, [searchQuery, invoices])
+
+  useEffect(() => {
+    if (!isOpen) return
+    function handleOutsideClick(event) {
+      if (!event.target.closest('.searchable-select-container')) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('click', handleOutsideClick)
+    return () => document.removeEventListener('click', handleOutsideClick)
+  }, [isOpen])
+
+  return (
+    <div className="searchable-select-container" style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          className="form-input"
+          style={{ paddingRight: 36, width: '100%', cursor: 'pointer' }}
+          type="text"
+          placeholder={isLoading ? 'Loading invoices...' : emptyLabel}
+          value={displayValue}
+          disabled={isLoading}
+          onFocus={() => {
+            setIsOpen(true)
+            setSearchQuery('')
+          }}
+          onChange={(event) => {
+            setSearchQuery(event.target.value)
+            setIsOpen(true)
+          }}
+        />
+        <div
+          style={{
+            pointerEvents: 'none',
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--color-text-dim)',
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
+            <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+          </svg>
+        </div>
+      </div>
+
+      {isOpen && !isLoading ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            marginTop: 4,
+            backgroundColor: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 6,
+            boxShadow: 'var(--shadow-lg)',
+            zIndex: 100,
+            maxHeight: 220,
+            overflowY: 'auto',
+          }}
+        >
+          {filtered.length === 0 ? (
+            <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center' }}>
+              No outstanding invoices found
+            </div>
+          ) : (
+            filtered.map((inv) => {
+              const isSelected = inv.id === value
+              return (
+                <div
+                  key={inv.id}
+                  style={{
+                    padding: '10px 12px',
+                    fontSize: 13,
+                    color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                    backgroundColor: isSelected ? 'var(--color-bg-hover)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.15s ease',
+                    textAlign: 'left',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderBottom: '1px solid rgba(255,255,255,0.02)'
+                  }}
+                  onClick={() => {
+                    onChange(inv.id)
+                    setIsOpen(false)
+                    setSearchQuery('')
+                  }}
+                >
+                  <span className="mono" style={{ fontWeight: 600, color: 'var(--color-amber)' }}>{inv.invoiceNumber}</span>
+                  <span style={{ fontSize: 12, color: 'var(--color-teal)' }}>
+                    Outstanding: LKR {money(inv.outstandingAmount)}
+                  </span>
+                </div>
+              )
+            })
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 export default function CustomerCreditPage() {
@@ -251,37 +377,65 @@ export default function CustomerCreditPage() {
           title="Apply Customer Credit to Invoice"
         >
           <form onSubmit={handleApplyCredit} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '6px 2px' }}>
-            <div style={{ backgroundColor: 'rgba(32,212,191,0.06)', padding: 12, borderRadius: 6 }}>
-              <p style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>Credit Balance Available</p>
-              <p className="mono" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-teal)', marginTop: 2 }}>
-                LKR {money(balanceData?.currentBalance ?? 0)}
-              </p>
+            {/* Credit Balance Card */}
+            <div style={{ 
+              background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.08) 0%, rgba(20, 184, 166, 0.01) 100%)', 
+              border: '1px solid rgba(20, 184, 166, 0.15)',
+              padding: '16px 18px', 
+              borderRadius: 8,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <p style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--color-text-dim)', letterSpacing: 0.6 }}>Credit Balance Available</p>
+                <p className="mono font-bold" style={{ fontSize: 24, color: 'var(--color-teal)', marginTop: 4 }}>
+                  LKR {money(balanceData?.currentBalance ?? 0)}
+                </p>
+              </div>
+              <div style={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(20, 184, 166, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-teal)'
+              }}>
+                <CreditCard size={20} />
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label className="form-label" style={{ fontSize: 11 }}>Invoice <span style={{ color: 'var(--color-danger)' }}>*</span></label>
-              <select
-                className="form-input"
-                required
+              <InvoiceSelect
                 value={selectedInvoiceId}
-                disabled={isLoadingInvoices}
-                onChange={(e) => setSelectedInvoiceId(e.target.value)}
-                style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', borderRadius: 6 }}
-              >
-                <option value="">
-                  {isLoadingInvoices ? 'Loading invoices...' : 'Select invoice...'}
-                </option>
-                {outstandingInvoices.map((inv) => (
-                  <option key={inv.id} value={inv.id}>
-                    {inv.invoiceNumber} (Outstanding: Rs. {money(inv.outstandingAmount)})
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedInvoiceId}
+                invoices={outstandingInvoices}
+                isLoading={isLoadingInvoices}
+              />
             </div>
 
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-              The backend will apply the smaller of the available credit balance and the invoice outstanding amount.
-            </p>
+            {/* Info warning alert */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 8,
+              padding: 10,
+              backgroundColor: 'rgba(255,255,255,0.02)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-secondary)',
+              fontSize: 12,
+              lineHeight: '1.4'
+            }}>
+              <span style={{ color: 'var(--color-amber)', display: 'inline-flex', marginTop: 1 }}>⚠️</span>
+              <p>
+                The backend will automatically apply the smaller of the available credit balance and the invoice outstanding amount.
+              </p>
+            </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
               <button
@@ -295,8 +449,8 @@ export default function CustomerCreditPage() {
               <button
                 type="submit"
                 className="button-primary"
-                disabled={applyCreditMutation.isPending}
-                style={{ height: 40 }}
+                disabled={applyCreditMutation.isPending || !selectedInvoiceId}
+                style={{ height: 40, backgroundColor: 'var(--color-teal)', borderColor: 'var(--color-teal)', color: '#000', fontWeight: 600 }}
               >
                 {applyCreditMutation.isPending ? 'Applying...' : 'Apply Credit'}
               </button>

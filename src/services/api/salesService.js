@@ -125,6 +125,9 @@ function formatInvoice(invoice) {
       discountAmount: Number(line.discountAmount ?? 0),
       vatAmount: Number(line.vatAmount ?? 0),
       lineTotal: Number(line.lineTotal ?? 0),
+      batchId: line.batchId ?? null,
+      batchNo: line.batchNo ?? '',
+      smallestUnitCode: line.smallestUnitCode ?? '',
     })),
   }
 }
@@ -321,10 +324,27 @@ export const salesService = {
     return formatInvoice(response.data)
   },
 
+  // List invoices with generic parameters (customer, status, etc)
+  async listInvoices(params = {}) {
+    const response = await getOnce('/api/v1/sales/invoices', { params })
+    const data = getResponseData(response, 'Unable to load invoices.')
+    return (data || []).map(formatInvoice)
+  },
+
+  // Get invoices by customer including paid ones (used for CRN linking)
+  async getInvoicesByCustomer(customerId) {
+    const response = await getOnce('/api/v1/sales/invoices', {
+      params: { customerId, pageSize: 100 }
+    })
+    const data = getResponseData(response, 'Unable to load customer invoices.')
+    return (data || []).map(formatInvoice)
+  },
+
   // List all invoices
   async listAllInvoices() {
     const response = await getOnce('/api/v1/sales/invoices')
-    return (response.data || []).map(formatInvoice)
+    const data = getResponseData(response, 'Unable to load invoices.')
+    return (data || []).map(formatInvoice)
   },
 
   // List invoices with optional filters

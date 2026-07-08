@@ -148,6 +148,7 @@ export default function StockOverviewPage() {
         totalReserved: 0,
         locationIds: new Set(),
         lastMovementAt: null,
+        smallestUnitCode: level.smallestUnitCode || 'PCS',
       }
 
       current.totalAvailable += Number(level.totalAvailable || 0)
@@ -410,13 +411,22 @@ export default function StockOverviewPage() {
                         </span>
                       </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-                        {formatNumber(row.totalAvailable)} <small style={{ color: 'var(--color-text-dim)' }}>{uom}</small>
+                        {formatNumber(row.totalAvailable)}{' '}
+                        <small style={{ color: 'var(--color-text-dim)' }}>
+                          {row.smallestUnitCode || 'PCS'}
+                        </small>
                       </td>
                       <td className="mono" style={{ textAlign: 'right', color: row.totalReserved ? 'var(--color-amber)' : 'var(--color-text-muted)' }}>
-                        {formatNumber(row.totalReserved)}
+                        {formatNumber(row.totalReserved)}{' '}
+                        <small style={{ color: 'var(--color-text-dim)' }}>
+                          {row.smallestUnitCode || 'PCS'}
+                        </small>
                       </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 800, color: row.sellable <= 0 ? 'var(--color-danger)' : 'var(--color-teal)' }}>
-                        {formatNumber(row.sellable)}
+                        {formatNumber(row.sellable)}{' '}
+                        <small style={{ color: 'var(--color-text-dim)' }}>
+                          {row.smallestUnitCode || 'PCS'}
+                        </small>
                       </td>
                       <td>
                         <div style={{ fontSize: 12 }}>
