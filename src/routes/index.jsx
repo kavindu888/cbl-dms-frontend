@@ -45,6 +45,7 @@ import CustomerCreditPage from '@pages/sales/CustomerCredit/CustomerCreditPage'
 import ReturnStockPage from '@pages/inventory/ReturnStock/ReturnStockPage'
 import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
 import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
+import StockAuditPage from '@pages/inventory/StockAudit/StockAuditPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { PERMISSIONS } from '@/utils/permissions'
 
@@ -161,6 +162,13 @@ export const router = createBrowserRouter([
         path: 'inventory/return-stock',
         element: requirePermission(
           <ReturnStockPage />,
+          PERMISSIONS.inventory.stockRead
+        ),
+      },
+      {
+        path: 'inventory/stock-audit',
+        element: requirePermission(
+          <StockAuditPage />,
           PERMISSIONS.inventory.stockRead
         ),
       },

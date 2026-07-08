@@ -645,12 +645,14 @@ export default function PurchaseReturnsPage() {
     setItemForm((current) => ({
       ...current,
       stockReturnEntryId: entryId,
-      qtySmallestUnit: entry ? String(entry.qty) : current.qtySmallestUnit,
-      batchNo: entry?.batchNo || current.batchNo,
+      qtySmallestUnit: entry ? String(entry.qty) : selectedLine?.qtySmallestUnit || '',
+      batchNo: entry?.batchNo || selectedLine?.batchNo || '',
       expiryDate: entry?.expiryDate
         ? dayjs(entry.expiryDate).format('YYYY-MM-DD')
-        : current.expiryDate,
-      returnReason: entry?.reason || current.returnReason,
+        : selectedLine?.expiryDate
+          ? dayjs(selectedLine.expiryDate).format('YYYY-MM-DD')
+          : '',
+      returnReason: entry?.reason || '',
     }))
   }
 
@@ -1076,7 +1078,8 @@ export default function PurchaseReturnsPage() {
                               </option>
                               {availableReturnEntries.map((entry) => (
                                 <option key={entry.id} value={entry.id}>
-                                  {entry.batchNo || 'No batch'} - {entry.qty} {entry.reason}
+                                  {entry.batchNo || 'No batch'} | {entry.reason} | Qty {entry.qty} |{' '}
+                                  {entry.expiryDate ? dayjs(entry.expiryDate).format('DD MMM YYYY') : 'No expiry'}
                                 </option>
                               ))}
                             </select>
@@ -1218,6 +1221,7 @@ export default function PurchaseReturnsPage() {
                           <th style={{ textAlign: 'right' }}>Line Total</th>
                           <th>Reason</th>
                           <th>Batch</th>
+                          <th>Source</th>
                           <th style={{ width: 130 }}></th>
                         </tr>
                       </thead>
@@ -1239,7 +1243,33 @@ export default function PurchaseReturnsPage() {
                                 {formatMoney(item.lineTotal)}
                               </td>
                               <td>{item.returnReason || '-'}</td>
-                              <td>{item.batchNo || '-'}</td>
+                              <td className="mono">{item.batchNo || '-'}</td>
+                              <td>
+                                <span
+                                  className="mono"
+                                  style={{
+                                    display: 'inline-flex',
+                                    padding: '3px 7px',
+                                    borderRadius: 999,
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    letterSpacing: '0.06em',
+                                    color: item.stockReturnEntryId
+                                      ? 'var(--color-amber)'
+                                      : 'var(--color-text-muted)',
+                                    background: item.stockReturnEntryId
+                                      ? 'color-mix(in srgb, var(--color-amber) 14%, transparent)'
+                                      : 'rgba(255,255,255,0.06)',
+                                    border: `1px solid ${
+                                      item.stockReturnEntryId
+                                        ? 'color-mix(in srgb, var(--color-amber) 35%, transparent)'
+                                        : 'var(--color-border)'
+                                    }`,
+                                  }}
+                                >
+                                  {item.stockReturnEntryId ? 'STAGED' : 'MANUAL'}
+                                </span>
+                              </td>
                               <td>
                                 {canEdit ? (
                                   <div style={{ display: 'flex', gap: 6 }}>
@@ -1267,7 +1297,7 @@ export default function PurchaseReturnsPage() {
                         ) : (
                           <tr>
                             <td
-                              colSpan={7}
+                              colSpan={8}
                               style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}
                             >
                               No return items added.

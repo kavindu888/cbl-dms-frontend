@@ -18,6 +18,10 @@ function getResponseData(response, fallbackMessage = 'Request failed') {
   return response.data
 }
 
+function formatSalesOrder(order) {
+  return order || null
+}
+
 function formatCustomerGroup(group) {
   if (!group) return null
   return {

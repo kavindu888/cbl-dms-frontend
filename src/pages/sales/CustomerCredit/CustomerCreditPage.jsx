@@ -37,7 +37,7 @@ export default function CustomerCreditPage() {
   useEffect(() => {
     async function loadCustomers() {
       try {
-        const result = await salesService.listCustomers({ page: 1, pageSize: 150, isActive: true })
+        const result = await salesService.listCustomers({ page: 1, pageSize: 50, isActive: true })
         setCustomers(result.items || [])
       } catch (err) {
         console.error('Failed to load customers:', err)
@@ -246,8 +246,8 @@ export default function CustomerCreditPage() {
       {/* Apply Credit Modal */}
       {isApplyModalOpen && (
         <Modal
-          isOpen={isApplyModalOpen}
-          onClose={() => setIsApplyModalOpen(false)}
+          open={isApplyModalOpen}
+          onOpenChange={setIsApplyModalOpen}
           title="Apply Customer Credit to Invoice"
         >
           <form onSubmit={handleApplyCredit} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '6px 2px' }}>

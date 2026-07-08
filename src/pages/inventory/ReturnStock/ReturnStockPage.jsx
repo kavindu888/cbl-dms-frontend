@@ -8,6 +8,7 @@ import { masterService } from '@/services/api/masterService'
 import { inventoryService } from '@/services/api/inventoryService'
 import { useReturnStockList, useFlagStockForReturn, useCancelReturnFlag } from '@/hooks/useReturnStock'
 import Modal from '@components/ui/Modal'
+import ConfirmDialog from '@components/ui/ConfirmDialog'
 
 function money(value) {
   return Number(value || 0).toLocaleString(undefined, {
@@ -162,7 +163,7 @@ export default function ReturnStockPage() {
   useEffect(() => {
     async function loadProducts() {
       try {
-        const res = await masterService.listProducts({ page: 1, pageSize: 150 })
+        const res = await masterService.listProducts({ page: 1, pageSize: 50 })
         setProducts(res.items || [])
       } catch (err) {
         console.error('Failed to load products:', err)
@@ -210,11 +211,13 @@ export default function ReturnStockPage() {
     setPage(1)
   }, [activeTab])
 
-  function handleCancelFlag(id) {
-    if (!window.confirm('Cancel this flagged return entry? This will move items back to active stock.')) return
-    cancelFlagMutation.mutate(id, {
-      onSuccess: () => refetch()
-    })
+  async function handleCancelFlag(id) {
+    try {
+      await cancelFlagMutation.mutateAsync(id)
+      await refetch()
+    } catch {
+      // The mutation owns user-facing error feedback.
+    }
   }
 
   function handleFlagStock(e) {
@@ -268,7 +271,7 @@ export default function ReturnStockPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-            Supplier Return Staging
+            Staged Returns
           </h1>
           <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
             Stage damaged, expired, or short-expiry goods for returns to suppliers.
@@ -349,7 +352,7 @@ export default function ReturnStockPage() {
                       {item.expiryDate ? dayjs(item.expiryDate).format('DD MMM YYYY') : '-'}
                     </td>
                     <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>
-                      {money(item.quantity)}
+                      {money(item.qty)}
                     </td>
                     <td>
                       <StatusBadge status={item.reason} />
@@ -357,17 +360,27 @@ export default function ReturnStockPage() {
                     <td>
                       <StatusBadge status={item.status} />
                     </td>
-                    <td>{item.createdBy || 'System'}</td>
-                    <td>{dayjs(item.createdAt).format('DD MMM YYYY HH:mm')}</td>
+                    <td className="mono">{item.flaggedByUserId || '-'}</td>
+                    <td>{item.flaggedOn ? dayjs(item.flaggedOn).format('DD MMM YYYY HH:mm') : '-'}</td>
                     <td>
                       {item.status === 'Available' && (
-                        <button
-                          onClick={() => handleCancelFlag(item.id)}
-                          className="button-secondary"
-                          style={{ height: 26, padding: '0 8px', fontSize: 11, color: 'var(--color-danger)' }}
-                        >
-                          Cancel Staging
-                        </button>
+                        <ConfirmDialog
+                          title="Cancel staged return stock?"
+                          description="The flagged quantity will be moved back to active stock."
+                          details={`${item.productSku} | ${item.batchNo || 'No batch'} | Qty ${item.qty}`}
+                          confirmLabel="Cancel Flag"
+                          loadingLabel="Cancelling..."
+                          onConfirm={() => handleCancelFlag(item.id)}
+                          trigger={
+                            <button
+                              type="button"
+                              className="button-secondary"
+                              style={{ height: 26, padding: '0 8px', fontSize: 11, color: 'var(--color-danger)' }}
+                            >
+                              Cancel Flag
+                            </button>
+                          }
+                        />
                       )}
                     </td>
                   </tr>
@@ -393,10 +406,9 @@ export default function ReturnStockPage() {
       {/* Flag Stock Modal */}
       {isModalOpen && (
         <Modal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          open={isModalOpen}
+          onOpenChange={setIsModalOpen}
           title="Flag Stock for Supplier Return"
-          size="lg"
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 2px' }}>
             {/* Step 1: Select Product */}
@@ -511,7 +523,7 @@ export default function ReturnStockPage() {
                       style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', borderRadius: 6 }}
                     >
                       <option value="Expired">Expired</option>
-                      <option value="ShortExpiry">ShortExpiry</option>
+                      <option value="ShortExpiry">Short Expiry</option>
                       <option value="Damaged">Damaged</option>
                       <option value="Other">Other</option>
                     </select>

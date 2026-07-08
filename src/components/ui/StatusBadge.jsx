@@ -142,6 +142,11 @@ const STATUS_STYLES = {
     text: 'var(--color-blue)',
     border: 'rgba(102,181,250,0.25)',
   },
+  allocated: {
+    bg: 'rgba(250,204,21,0.10)',
+    text: 'var(--color-warning)',
+    border: 'rgba(250,204,21,0.25)',
+  },
   earned: {
     bg: 'rgba(32,212,191,0.12)',
     text: 'var(--color-teal)',
@@ -162,6 +167,11 @@ const STATUS_STYLES = {
     text: 'var(--color-danger)',
     border: 'rgba(244,63,94,0.25)',
   },
+  damaged: {
+    bg: 'rgba(249,115,22,0.10)',
+    text: 'var(--color-orange, #f97316)',
+    border: 'rgba(249,115,22,0.25)',
+  },
   expire: {
     bg: 'rgba(249,115,22,0.10)',
     text: 'var(--color-orange, #f97316)',
@@ -171,6 +181,21 @@ const STATUS_STYLES = {
     bg: 'rgba(250,204,21,0.10)',
     text: 'var(--color-warning)',
     border: 'rgba(250,204,21,0.25)',
+  },
+  shortexpiry: {
+    bg: 'rgba(250,204,21,0.10)',
+    text: 'var(--color-warning)',
+    border: 'rgba(250,204,21,0.25)',
+  },
+  short_expiry: {
+    bg: 'rgba(250,204,21,0.10)',
+    text: 'var(--color-warning)',
+    border: 'rgba(250,204,21,0.25)',
+  },
+  other: {
+    bg: 'rgba(148,163,184,0.10)',
+    text: 'var(--color-text-muted)',
+    border: 'rgba(148,163,184,0.20)',
   },
   others: {
     bg: 'rgba(148,163,184,0.10)',

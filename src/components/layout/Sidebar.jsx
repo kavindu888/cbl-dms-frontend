@@ -12,6 +12,7 @@ import {
   ListChecks,
   Package,
   PackageCheck,
+  PackageX,
   ArrowLeftRight,
   Warehouse,
   Ruler,
@@ -239,9 +240,15 @@ const navGroups = [
         permissions: PERMISSIONS.inventory.stockRead,
       },
       {
-        label: 'Return Stock',
+        label: 'Staged Returns',
         to: '/inventory/return-stock',
-        icon: Undo2,
+        icon: PackageX,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'Stock Audit',
+        to: '/inventory/stock-audit',
+        icon: Search,
         permissions: PERMISSIONS.inventory.stockRead,
       },
       {

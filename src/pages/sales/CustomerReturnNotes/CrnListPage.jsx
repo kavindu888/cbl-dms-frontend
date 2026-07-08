@@ -9,7 +9,6 @@ import { useAuthStore } from '@stores/authStore'
 import { salesService } from '@/services/api/salesService'
 import { useCreateCrn } from '@/hooks/useCrn'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
-import Modal from '@components/ui/Modal'
 
 function money(value) {
   return Number(value || 0).toLocaleString('en-LK', {
@@ -19,6 +18,82 @@ function money(value) {
 }
 
 const pageSize = 10
+
+function SearchableSelect({ value, onChange, options, placeholder, disabled = false }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const selected = options.find((option) => option.value === value)
+  const visibleOptions = options.filter((option) =>
+    option.label.toLowerCase().includes(query.trim().toLowerCase())
+  )
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        className="form-input"
+        disabled={disabled}
+        value={isOpen ? query : selected?.label || ''}
+        placeholder={placeholder}
+        onFocus={() => {
+          setQuery('')
+          setIsOpen(true)
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setIsOpen(true)
+        }}
+        onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
+        style={{ width: '100%' }}
+      />
+      {isOpen && !disabled ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            maxHeight: 220,
+            overflowY: 'auto',
+            zIndex: 20,
+            border: '1px solid var(--color-border)',
+            borderRadius: 7,
+            background: 'var(--color-bg-surface)',
+            boxShadow: 'var(--shadow-lg)',
+          }}
+        >
+          {visibleOptions.length ? visibleOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option.value)
+                setIsOpen(false)
+                setQuery('')
+              }}
+              style={{
+                width: '100%',
+                padding: '9px 11px',
+                borderBottom: '1px solid var(--color-border)',
+                background: option.value === value ? 'var(--color-bg-hover)' : 'transparent',
+                color: 'var(--color-text-primary)',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontSize: 12,
+              }}
+            >
+              {option.label}
+            </button>
+          )) : (
+            <div style={{ padding: 10, color: 'var(--color-text-muted)', fontSize: 12 }}>
+              No matching records.
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 export default function CrnListPage() {
   const navigate = useNavigate()
@@ -38,6 +113,7 @@ export default function CrnListPage() {
   const [newCustomerId, setNewCustomerId] = useState('')
   const [newInvoiceId, setNewInvoiceId] = useState('')
   const [newReason, setNewReason] = useState('1')
+  const [newReturnDate] = useState(dayjs().format('YYYY-MM-DD'))
   const [newNotes, setNewNotes] = useState('')
   const [customerInvoices, setCustomerInvoices] = useState([])
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false)
@@ -51,6 +127,20 @@ export default function CrnListPage() {
       return map
     }, {})
   }, [customers])
+  const customerOptions = useMemo(
+    () => customers.map((customer) => ({
+      value: customer.id,
+      label: `${customer.code ? `${customer.code} - ` : ''}${customer.name}`,
+    })),
+    [customers]
+  )
+  const invoiceOptions = useMemo(
+    () => customerInvoices.map((invoice) => ({
+      value: invoice.id,
+      label: `${invoice.invoiceNumber} | ${dayjs(invoice.invoiceDate).format('DD MMM YYYY')} | Rs. ${money(invoice.netAmount)}`,
+    })),
+    [customerInvoices]
+  )
 
   // Load Customers
   useEffect(() => {
@@ -183,6 +273,14 @@ export default function CrnListPage() {
     })
   }
 
+  function closeCreatePanel() {
+    setIsModalOpen(false)
+    setNewCustomerId('')
+    setNewInvoiceId('')
+    setNewReason('1')
+    setNewNotes('')
+  }
+
   return (
     <div
       style={{
@@ -222,15 +320,26 @@ export default function CrnListPage() {
       </div>
 
       <div
-        className="panel responsive-filter-bar"
+        className="responsive-master-detail"
         style={{
-          padding: 16,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          flexShrink: 0,
+          display: 'grid',
+          gridTemplateColumns: isModalOpen ? 'minmax(0, 1fr) 380px' : 'minmax(0, 1fr)',
+          gap: 14,
+          flex: 1,
+          minHeight: 0,
         }}
       >
+        <main style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+          <div
+            className="panel responsive-filter-bar"
+            style={{
+              padding: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+              flexShrink: 0,
+            }}
+          >
         <div style={{ position: 'relative', flex: 1 }}>
           <Search
             style={{
@@ -375,9 +484,9 @@ export default function CrnListPage() {
         >
           <X size={15} /> Clear
         </button>
-      </div>
+          </div>
 
-      <section
+          <section
         className="panel"
         style={{
           minHeight: 0,
@@ -473,99 +582,113 @@ export default function CrnListPage() {
             itemLabel="notes"
           />
         </div>
-      </section>
+          </section>
+        </main>
 
-      {/* Creation Modal */}
-      {isModalOpen && (
-        <Modal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          title="New Customer Return Note"
-        >
-          <form onSubmit={handleCreateDraft} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '8px 4px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="form-label" style={{ fontSize: 11 }}>Customer <span style={{ color: 'var(--color-danger)' }}>*</span></label>
-              <select
-                className="form-input"
-                required
-                value={newCustomerId}
-                onChange={(e) => setNewCustomerId(e.target.value)}
-                style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', borderRadius: 6 }}
-              >
-                <option value="">Select customer...</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="form-label" style={{ fontSize: 11 }}>Link Invoice (Optional)</label>
-              <select
-                className="form-input"
-                value={newInvoiceId}
-                disabled={!newCustomerId || isLoadingInvoices}
-                onChange={(e) => setNewInvoiceId(e.target.value)}
-                style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', borderRadius: 6 }}
-              >
-                <option value="">{isLoadingInvoices ? 'Loading invoices...' : 'Select invoice...'}</option>
-                {customerInvoices.map((inv) => (
-                  <option key={inv.id} value={inv.id}>
-                    {inv.invoiceNumber} (Rs. {money(inv.netAmount)})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="form-label" style={{ fontSize: 11 }}>Return Reason <span style={{ color: 'var(--color-danger)' }}>*</span></label>
-              <select
-                className="form-input"
-                required
-                value={newReason}
-                onChange={(e) => setNewReason(e.target.value)}
-                style={{ width: '100%', height: 40, background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', borderRadius: 6 }}
-              >
-                <option value="1">Damage</option>
-                <option value="2">Expired</option>
-                <option value="3">Short Expiry</option>
-                <option value="4">Other</option>
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="form-label" style={{ fontSize: 11 }}>Notes (Optional)</label>
-              <textarea
-                className="form-input"
-                value={newNotes}
-                onChange={(e) => setNewNotes(e.target.value)}
-                placeholder="Enter returns details or batch references..."
-                rows={3}
-                style={{ width: '100%', background: 'rgba(0,0,0,0.15)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', borderRadius: 6, padding: '10px' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+        {isModalOpen ? (
+          <aside
+            className="panel"
+            style={{
+              minHeight: 0,
+              overflowY: 'auto',
+              alignSelf: 'stretch',
+              padding: 16,
+              borderTop: '3px solid var(--color-teal)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 12,
+                paddingBottom: 14,
+                borderBottom: '1px solid var(--color-border)',
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h2 style={{ fontSize: 17, fontWeight: 800 }}>New Return Note</h2>
+                  <StatusBadge status="Draft" />
+                </div>
+                <p style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  Create the draft before adding return lines.
+                </p>
+              </div>
               <button
                 type="button"
-                className="button-secondary"
-                onClick={() => setIsModalOpen(false)}
-                style={{ height: 40 }}
+                className="icon-button"
+                onClick={closeCreatePanel}
+                aria-label="Close create return note panel"
               >
-                Cancel
+                <X size={17} />
               </button>
+            </div>
+
+            <form onSubmit={handleCreateDraft} style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 16 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="form-label">Customer <span style={{ color: 'var(--color-danger)' }}>*</span></span>
+                <SearchableSelect
+                  value={newCustomerId}
+                  onChange={setNewCustomerId}
+                  options={customerOptions}
+                  placeholder="Search customer..."
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="form-label">Return Reason <span style={{ color: 'var(--color-danger)' }}>*</span></span>
+                <select className="form-input" required value={newReason} onChange={(event) => setNewReason(event.target.value)}>
+                  <option value="1">Damage</option>
+                  <option value="2">Expire</option>
+                  <option value="3">Short Expire</option>
+                  <option value="4">Others</option>
+                </select>
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="form-label">Return Date</span>
+                <input className="form-input mono" type="date" value={newReturnDate} readOnly />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="form-label">Link to Invoice</span>
+                <SearchableSelect
+                  value={newInvoiceId}
+                  onChange={setNewInvoiceId}
+                  options={invoiceOptions}
+                  placeholder={isLoadingInvoices ? 'Loading invoices...' : 'Search customer invoice...'}
+                  disabled={!newCustomerId || isLoadingInvoices}
+                />
+                <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                  Optional. Select a customer first to load invoices.
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="form-label">Notes</span>
+                <textarea
+                  className="form-input"
+                  value={newNotes}
+                  onChange={(event) => setNewNotes(event.target.value)}
+                  placeholder="Optional return details or batch references..."
+                  rows={4}
+                  style={{ paddingTop: 10, resize: 'vertical' }}
+                />
+              </label>
+
               <button
                 type="submit"
                 className="button-primary"
                 disabled={createCrnMutation.isPending}
-                style={{ height: 40 }}
+                style={{ width: '100%', height: 42, justifyContent: 'center', marginTop: 4 }}
               >
-                {createCrnMutation.isPending ? 'Creating...' : 'Create Draft'}
+                {createCrnMutation.isPending ? 'Saving Draft...' : 'Save Draft'}
               </button>
-            </div>
-          </form>
-        </Modal>
-      )}
+            </form>
+          </aside>
+        ) : null}
+      </div>
     </div>
   )
 }

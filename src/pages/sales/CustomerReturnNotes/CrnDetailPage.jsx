@@ -585,8 +585,8 @@ export default function CrnDetailPage() {
       {/* Add Line Modal */}
       {isLineModalOpen && (
         <Modal
-          isOpen={isLineModalOpen}
-          onClose={() => setIsLineModalOpen(false)}
+          open={isLineModalOpen}
+          onOpenChange={setIsLineModalOpen}
           title="Add Return Line Item"
         >
           <form onSubmit={handleAddLine} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '6px 2px' }}>
@@ -670,8 +670,8 @@ export default function CrnDetailPage() {
       {/* Reject Modal */}
       {isRejectModalOpen && (
         <Modal
-          isOpen={isRejectModalOpen}
-          onClose={() => setIsRejectModalOpen(false)}
+          open={isRejectModalOpen}
+          onOpenChange={setIsRejectModalOpen}
           title="Reject Customer Return Note"
         >
           <form onSubmit={handleReject} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -712,8 +712,8 @@ export default function CrnDetailPage() {
       {/* Cancel Modal */}
       {isCancelModalOpen && (
         <Modal
-          isOpen={isCancelModalOpen}
-          onClose={() => setIsCancelModalOpen(false)}
+          open={isCancelModalOpen}
+          onOpenChange={setIsCancelModalOpen}
           title="Cancel Customer Return Note"
         >
           <form onSubmit={handleCancel} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
