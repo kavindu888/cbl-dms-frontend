@@ -277,37 +277,6 @@ export default function GoodsReceiptEntryPage() {
 
         missingDraftOrders.filter(Boolean).forEach((order) => ordersById.set(order.id, order))
 
-        const openReceiptsByPoId = new Map()
-        await Promise.all(
-          [...ordersById.keys()].map(async (purchaseOrderId) => {
-            try {
-              const result = await purchasingService.listGoodsReceipts({
-                page: 1,
-                pageSize: 100,
-                poId: purchaseOrderId,
-              })
-              const openReceipt = (result?.items || []).find((receipt) =>
-                [GrnStatus.Draft, GrnStatus.Received].includes(Number(receipt.status))
-              )
-              if (openReceipt) openReceiptsByPoId.set(purchaseOrderId, openReceipt)
-            } catch (requestError) {
-              console.error('Unable to load purchase order GRNs:', requestError)
-            }
-          })
-        )
-
-        openReceiptsByPoId.forEach((receipt, purchaseOrderId) => {
-          if (Number(receipt.status) === Number(GrnStatus.Draft)) {
-            draftReceiptsByPoId.set(purchaseOrderId, receipt)
-            draftGrnPoIds.add(purchaseOrderId)
-            return
-          }
-
-          if (Number(receipt.status) === Number(GrnStatus.Received)) {
-            pendingGrnPoIds.add(purchaseOrderId)
-          }
-        })
-
         setOrders(
           [...ordersById.values()]
             .filter((order) => !pendingGrnPoIds.has(order.id))

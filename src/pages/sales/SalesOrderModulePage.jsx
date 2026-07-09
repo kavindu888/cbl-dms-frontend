@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { ArrowLeft, CheckCircle2, FileText, PackagePlus, RefreshCw, Search, Trash2, XCircle } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
@@ -683,9 +683,9 @@ export default function SalesOrderModulePage() {
                         <table className="data-table" style={{ minWidth: 820 }}>
                           <thead>
                             <tr>
-                              <th>Item</th>
+                              <th>Item / Batch</th>
                               <th style={{ textAlign: 'right' }}>Qty</th>
-                              <th style={{ textAlign: 'right' }}>Unit Price</th>
+                              <th style={{ textAlign: 'right' }}>Selling Price</th>
                               <th style={{ textAlign: 'right' }}>Disc %</th>
                               <th style={{ textAlign: 'right' }}>VAT</th>
                               <th style={{ textAlign: 'right' }}>Total</th>
@@ -698,6 +698,68 @@ export default function SalesOrderModulePage() {
                                 const product = productById[orderLine.productId]
                                 const draft = lineDrafts[orderLine.id] || {}
 
+                                if (!isDraft && orderLine.isPicked && orderLine.batchPicks?.length > 0) {
+                                  return (
+                                    <React.Fragment key={orderLine.id}>
+                                      {/* Header row for product name */}
+                                      <tr style={{ background: 'rgba(255, 255, 255, 0.03)' }}>
+                                        <td colSpan={6} style={{ padding: '8px 12px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                              {product?.sku || orderLine.productId}
+                                            </span>
+                                            <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                                              {product?.name || 'Unknown Product'}
+                                            </span>
+                                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
+                                              ({orderLine.quantitySmallest} {orderLine.smallestUnitCode || 'PCS'} total)
+                                            </span>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                      {orderLine.batchPicks
+                                        .slice()
+                                        .sort((a, b) => a.pickOrder - b.pickOrder)
+                                        .map((pick) => {
+                                          const pickSellingPrice = pick.sellingPrice ?? Math.round(pick.mrp * (1 - orderLine.discountPercent / 100) * 100) / 100;
+                                          const pickSubtotal = pickSellingPrice * pick.qtyPicked;
+                                          const pickVat = orderLine.isVatApplicable
+                                            ? Math.round(pickSubtotal * 0.18 * 100) / 100
+                                            : 0;
+                                          const pickTotal = pickSubtotal + pickVat;
+
+                                          return (
+                                            <tr key={pick.batchId} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.1)' }}>
+                                              <td style={{ paddingLeft: 24 }}>
+                                                <span className="mono text-cyan-600" style={{ fontSize: 11 }}>
+                                                  {pick.batchNo || 'No Batch'}
+                                                </span>
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right' }}>
+                                                {pick.qtyPicked} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right' }}>
+                                                <div>{formatMoney(pickSellingPrice)}</div>
+                                                <div className="text-xs text-gray-500 font-mono">
+                                                  MRP: {formatMoney(pick.mrp)}
+                                                </div>
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right' }}>
+                                                {orderLine.discountPercent}%
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right' }}>
+                                                {orderLine.isVatApplicable ? formatMoney(pickVat) : '—'}
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                                                {formatMoney(pickTotal)}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                    </React.Fragment>
+                                  );
+                                }
+
                                 return (
                                   <tr key={orderLine.id}>
                                     <td>
@@ -708,28 +770,6 @@ export default function SalesOrderModulePage() {
                                         <span style={{ fontWeight: 700 }}>
                                           {product?.name || 'Unknown Product'}
                                         </span>
-                                        {selectedOrder.status === 'Confirmed' && orderLine.batchPicks?.length > 0 && (
-                                          <div className="mt-2 border-t border-gray-800 pt-2" style={{ maxWidth: 300 }}>
-                                            <p className="text-xs text-gray-500 mb-1" style={{ fontSize: 9 }}>BATCH ALLOCATION (FEFO)</p>
-                                            {orderLine.batchPicks
-                                              .slice()
-                                              .sort((a, b) => a.pickOrder - b.pickOrder)
-                                              .map(pick => (
-                                                <div key={pick.batchId}
-                                                  className="flex justify-between text-xs font-mono text-gray-400"
-                                                  style={{ gap: 10 }}>
-                                                  <span className="text-cyan-600">{pick.batchNo}</span>
-                                                  <span>{pick.qtyPicked} {orderLine.smallestUnitCode || 'PCS'}</span>
-                                                  <span>@ Rs.{pick.sellingPrice}</span>
-                                                  {pick.expiryDate && (
-                                                    <span className="text-amber-500">
-                                                      Exp: {dayjs(pick.expiryDate).format('MMM YYYY')}
-                                                    </span>
-                                                  )}
-                                                </div>
-                                              ))}
-                                          </div>
-                                        )}
                                       </div>
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
@@ -750,27 +790,30 @@ export default function SalesOrderModulePage() {
                                           </span>
                                         </div>
                                       ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                          <div>
-                                            {orderLine.quantity} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
-                                          </div>
-                                          {orderLine.isPicked && orderLine.batchPicks?.length > 0 && (
-                                            <div className="mt-1 space-y-0.5 text-right">
-                                              {orderLine.batchPicks.map(pick => (
-                                                <div key={pick.batchId} className="text-xs text-gray-500 font-mono" style={{ fontSize: 10 }}>
-                                                  <span className="text-cyan-600">{pick.batchNo}</span> — {pick.qtyPicked} {orderLine.smallestUnitCode} @ Rs.{pick.sellingPrice}
-                                                </div>
-                                              ))}
-                                            </div>
-                                          )}
+                                        <div>
+                                          {orderLine.quantity} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
                                         </div>
                                       )}
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
-                                      {orderLine.unitPrice > 0
-                                        ? formatMoney(orderLine.unitPrice)
-                                        : <span className="text-gray-500 text-xs">Pending confirm</span>
-                                      }
+                                      {orderLine.unitPrice > 0 ? (
+                                        <>
+                                          <div className="font-mono text-white">{formatMoney(orderLine.unitPrice)}</div>
+                                          {isDraft ? (
+                                            <div className="text-xs text-gray-500 font-mono">
+                                              Draft — final price after confirmation
+                                            </div>
+                                          ) : (
+                                            orderLine.mrp > 0 && (
+                                              <div className="text-xs text-gray-500 font-mono">
+                                                MRP: {formatMoney(orderLine.mrp)}
+                                              </div>
+                                            )
+                                          )}
+                                        </>
+                                      ) : (
+                                        <span className="text-gray-500 text-xs">Pending confirm</span>
+                                      )}
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
                                       {isDraft ? (
@@ -790,7 +833,7 @@ export default function SalesOrderModulePage() {
                                       )}
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
-                                      {formatMoney(orderLine.vatAmount)}
+                                      {isDraft ? '—' : formatMoney(orderLine.vatAmount)}
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                                       {orderLine.lineTotal > 0
@@ -821,7 +864,7 @@ export default function SalesOrderModulePage() {
                                       </td>
                                     ) : null}
                                   </tr>
-                                )
+                                );
                               })
                             ) : (
                               <tr>

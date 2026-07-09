@@ -449,7 +449,7 @@ export default function InvoiceDetailPage() {
                       Qty
                     </th>
                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
-                      Unit Price
+                      Selling Price
                     </th>
                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
                       MRP

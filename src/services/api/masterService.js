@@ -377,6 +377,11 @@ export const masterService = {
     return formatProduct(getValue(response, 'Unable to load product.'))
   },
 
+  async getProductUomChain(id) {
+    const response = await getOnce(`/api/v1/master-data/products/${id}/uom-chain`)
+    return getValue(response, 'Unable to load product UOM chain.')
+  },
+
   //Product Create
   async createProduct(payload) {
     const response = await api.post('/api/v1/master-data/products', payload)
