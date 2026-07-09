@@ -61,8 +61,18 @@ function toNumber(value) {
   return Number.isFinite(number) ? number : 0
 }
 
-function toIsoDate(value) {
-  return value ? dayjs(value).toISOString() : null
+function toIsoDate(value, includeTime = false) {
+  if (!value) return null
+  let d = dayjs(value)
+  if (includeTime) {
+    const now = dayjs()
+    d = d
+      .hour(now.hour())
+      .minute(now.minute())
+      .second(now.second())
+      .millisecond(now.millisecond())
+  }
+  return d.toISOString()
 }
 
 function normalizeText(value) {
@@ -155,7 +165,7 @@ function getReceiptLinePayload(line) {
 function getReceiptHeaderPayload(selectedOrder, receiptHeader) {
   return {
     purchaseOrderId: selectedOrder.id,
-    receiptDate: toIsoDate(receiptHeader.receiptDate),
+    receiptDate: toIsoDate(receiptHeader.receiptDate, true),
     discount: toNumber(receiptHeader.discount),
     supplierInvoiceNo: normalizeText(receiptHeader.supplierInvoiceNo),
     notes: normalizeText(receiptHeader.notes),
@@ -1310,11 +1320,25 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
                                   updateReceiptLine(lineIndex, 'unitCostSmallest', value)
                                 }
                               />
-                              <EditableCell
-                                disabled={Boolean(pendingReceipt)}
-                                value={line.mrp}
-                                onChange={(value) => updateReceiptLine(lineIndex, 'mrp', value)}
-                              />
+                              <td>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="form-input"
+                                  disabled={Boolean(pendingReceipt)}
+                                  value={line.mrp}
+                                  onChange={(event) => updateReceiptLine(lineIndex, 'mrp', event.target.value)}
+                                  style={{ height: 34, textAlign: 'right' }}
+                                />
+                                {(() => {
+                                  const poLine = selectedOrder?.lines?.find(l => l.id === line.purchaseOrderLineId);
+                                  return poLine && Number(poLine.mrp) > 0 ? (
+                                    <div className="product-info-sub" style={{ textAlign: 'right', marginTop: 2, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                                      Last: Rs. {Number(poLine.mrp).toFixed(2)}
+                                    </div>
+                                  ) : null;
+                                })()}
+                              </td>
                               <EditableCell
                                 disabled={Boolean(pendingReceipt)}
                                 value={line.rejectedQtyBase}
