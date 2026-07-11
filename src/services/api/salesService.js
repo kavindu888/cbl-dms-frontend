@@ -117,6 +117,15 @@ export const salesService = {
     }
   },
 
+  async checkCustomerCode(code) {
+    const response = await api.get('/api/v1/sales/customers/check-code', {
+      params: { code },
+      timeout: 3000,
+    })
+
+    return response.data?.data ?? response.data ?? {}
+  },
+
   //
   // Get single customer by ID
   async getCustomer(id) {

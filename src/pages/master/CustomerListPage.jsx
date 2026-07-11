@@ -1,7 +1,21 @@
-import { ImageUp, Pencil, Plus, Search, Trash2, X, Copy, Globe, Store } from 'lucide-react'
+import {
+  CheckCircle2,
+  Copy,
+  Globe,
+  ImageUp,
+  LoaderCircle,
+  Pencil,
+  Plus,
+  Search,
+  Store,
+  Trash2,
+  X,
+  XCircle,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
+import { useCustomerCodeCheck } from '@hooks/useCustomerCodeCheck'
 import { masterService } from '@services/api/masterService'
 import { getR2ImageUrl, validateCustomerImage } from '@services/cloudinary/customerImageUpload'
 import { salesService } from '@services/api/salesService'
@@ -198,6 +212,7 @@ export default function CustomerListPage() {
     isPrimary: false,
   })
   const [isSavingContact, setIsSavingContact] = useState(false)
+  const codeStatus = useCustomerCodeCheck(editingCustomer ? '' : form.code)
 
   useEffect(() => {
     if (businessUnits.length && !newTerritory.businessUnitId) {
@@ -228,6 +243,8 @@ export default function CustomerListPage() {
   const routeOptions = useMemo(() => {
     return routes.filter((route) => route.isActive || route.id === form.salesRouteId)
   }, [form.salesRouteId, routes])
+
+  const customerCodeStatus = editingCustomer ? 'idle' : codeStatus
 
   const loadLookups = useCallback(async () => {
     setIsLoadingLookups(true)
@@ -1285,14 +1302,39 @@ export default function CustomerListPage() {
                 <label className="form-label" style={{ fontSize: 10 }}>
                   Customer Code *
                 </label>
-                <input
-                  className="form-input"
-                  placeholder="e.g. CUST-0001"
-                  value={form.code}
-                  maxLength={30}
-                  onChange={(event) => updateField('code', event.target.value)}
-                  style={{ height: 38 }}
-                />
+                <div style={{ position: 'relative', marginTop: 4 }}>
+                  <input
+                    className={`form-input ${
+                      customerCodeStatus === 'taken'
+                        ? 'error'
+                        : customerCodeStatus === 'available'
+                          ? 'validated'
+                          : ''
+                    }`}
+                    placeholder="e.g. CUST-0001"
+                    value={form.code}
+                    maxLength={30}
+                    onChange={(event) => updateField('code', event.target.value.toUpperCase())}
+                    style={{ height: 38, paddingRight: 34 }}
+                  />
+                  {customerCodeStatus !== 'idle' ? (
+                    <div className="customer-code-status-icon" aria-hidden="true">
+                      {customerCodeStatus === 'checking' ? (
+                        <LoaderCircle className="customer-code-status-icon--checking" size={16} />
+                      ) : null}
+                      {customerCodeStatus === 'available' ? <CheckCircle2 size={16} /> : null}
+                      {customerCodeStatus === 'taken' ? <XCircle size={16} /> : null}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="customer-code-status-message" aria-live="polite">
+                  {customerCodeStatus === 'available' ? (
+                    <span className="customer-code-status-message--available">Available</span>
+                  ) : null}
+                  {customerCodeStatus === 'taken' ? (
+                    <span className="customer-code-status-message--taken">Already registered</span>
+                  ) : null}
+                </div>
               </div>
 
               <div>
@@ -2446,7 +2488,7 @@ export default function CustomerListPage() {
             <button
               type="submit"
               className="button-primary"
-              disabled={isSaving}
+              disabled={isSaving || customerCodeStatus === 'taken'}
               style={{ flex: 1, height: 38, fontSize: 13 }}
             >
               {isSaving ? 'Saving...' : editingCustomer ? 'Save Changes' : 'Save'}
