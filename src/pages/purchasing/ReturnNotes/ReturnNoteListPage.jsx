@@ -6,6 +6,7 @@ import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@/services/api/purchasingService'
 import { useReturnNotes } from '@/hooks/useReturnNotes'
 import { ReturnNoteStatus } from '@/types/purchasing.types'
+import { formatDate } from '@/utils'
 import { formatMoney, getLifoDate, pageShellStyle } from './returnNoteHelpers'
 import ReturnNoteStatusBadge from './components/ReturnNoteStatusBadge'
 
@@ -152,7 +153,7 @@ export default function ReturnNoteListPage() {
                   <tr key={note.id} onClick={() => navigate(`/purchasing/return-notes/${note.id}`)} style={{ cursor: 'pointer' }}>
                     <td className="mono" style={{ color: 'var(--color-amber)', fontWeight: 800 }}>{note.rnNumber}</td>
                     <td>{note.supplierName}</td>
-                    <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CalendarDays size={13} />{dayjs(note.returnDate).format('DD MMM YYYY')}</span></td>
+                    <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CalendarDays size={13} />{formatDate(note.returnDate)}</span></td>
                     <td className="mono" style={{ textAlign: 'right' }}>{note.itemCount ?? note.items?.length ?? 0}</td>
                     <td><ReturnNoteStatusBadge status={note.status} /></td>
                     <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>{formatMoney(note.totalAmount)}</td>

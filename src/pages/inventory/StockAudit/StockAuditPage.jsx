@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
+import { formatDate, formatShortDateTime } from '@/utils'
 
 function number(value) {
   return Number(value || 0).toLocaleString('en-LK', { maximumFractionDigits: 2 })
@@ -182,7 +183,7 @@ export default function StockAuditPage() {
               {audit.batches.length ? audit.batches.map((batch, index) => (
                 <tr key={batch.id}>
                   <td className="mono">{batch.batchNo || '-'}</td>
-                  <td className="mono" style={expiryStyle(batch.expiryDate)}>{batch.expiryDate ? dayjs(batch.expiryDate).format('DD MMM YYYY') : '-'} {index === audit.batches.findIndex((item) => Number(item.sellableQty) > 0) ? <span style={{ color: 'var(--color-teal)', fontSize: 10 }}>FEFO FIRST</span> : null}</td>
+                  <td className="mono" style={expiryStyle(batch.expiryDate)}>{formatDate(batch.expiryDate)} {index === audit.batches.findIndex((item) => Number(item.sellableQty) > 0) ? <span style={{ color: 'var(--color-teal)', fontSize: 10 }}>FEFO FIRST</span> : null}</td>
                   <td className="mono" style={{ textAlign: 'right' }}>{number(batch.qtyReceived)}</td>
                   <td className="mono" style={{ textAlign: 'right' }}>{number(batch.qtyAvailable)}</td>
                   <td className="mono" style={{ textAlign: 'right' }}>{number(batch.qtyReserved)}</td>
@@ -199,7 +200,7 @@ export default function StockAuditPage() {
             <tbody>
               {audit.movements.length ? audit.movements.map((movement) => (
                 <tr key={movement.id} style={{ boxShadow: `inset 3px 0 ${movementColors[movement.movementType] || 'transparent'}` }}>
-                  <td>{dayjs(movement.occurredOn).format('DD MMM YYYY HH:mm')}</td>
+                  <td>{formatShortDateTime(movement.occurredOn)}</td>
                   <td><StatusBadge status={movement.movementType} /></td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800, color: Number(movement.quantity) >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>{Number(movement.quantity) > 0 ? '+' : ''}{number(movement.quantity)}</td>
                   <td>{movement.referenceType}</td>
@@ -216,11 +217,11 @@ export default function StockAuditPage() {
               {audit.staged.length ? audit.staged.map((entry) => (
                 <tr key={entry.id}>
                   <td className="mono">{entry.batchNo || '-'}</td>
-                  <td className="mono" style={expiryStyle(entry.expiryDate)}>{entry.expiryDate ? dayjs(entry.expiryDate).format('DD MMM YYYY') : '-'}</td>
+                  <td className="mono" style={expiryStyle(entry.expiryDate)}>{formatDate(entry.expiryDate)}</td>
                   <td className="mono" style={{ textAlign: 'right' }}>{number(entry.qty)}</td>
                   <td><StatusBadge status={entry.reason} /></td>
                   <td><StatusBadge status={entry.status} /></td>
-                  <td>{entry.flaggedOn ? dayjs(entry.flaggedOn).format('DD MMM YYYY HH:mm') : '-'}</td>
+                  <td>{formatShortDateTime(entry.flaggedOn)}</td>
                 </tr>
               )) : <EmptyRow columns={6} />}
             </tbody>

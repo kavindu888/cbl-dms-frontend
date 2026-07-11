@@ -8,6 +8,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import { usersService } from '@/services/api/usersService'
+import { formatDate as formatSriLankaDate } from '@/utils'
 
 const orderPageSize = 10
 
@@ -37,7 +38,7 @@ function formatMoney(value) {
 }
 
 function formatDate(value) {
-  return value ? dayjs(value).format('DD MMM YYYY') : '-'
+  return formatSriLankaDate(value)
 }
 
 function toIsoDate(value) {

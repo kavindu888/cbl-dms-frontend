@@ -1,10 +1,10 @@
-import dayjs from 'dayjs'
 import { CalendarDays, ChevronRight, ClipboardCheck, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@/services/api/purchasingService'
 import { useApproveReturnNote, usePendingReturnNotes, useRejectReturnNote } from '@/hooks/useReturnNotes'
+import { formatDate } from '@/utils'
 import { formatMoney, pageShellStyle, supplierRefundTotal } from './returnNoteHelpers'
 import ReturnItemsTable from './components/ReturnItemsTable'
 import ReturnNoteStatusBadge from './components/ReturnNoteStatusBadge'
@@ -111,7 +111,7 @@ export default function ReturnNoteApprovalsPage() {
                       </div>
                       <div style={{ marginTop: 9, fontWeight: 600 }}>{note.supplierName}</div>
                       <div style={{ marginTop: 10, borderTop: '1px solid var(--color-border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}><CalendarDays size={13} />{dayjs(note.returnDate).format('DD MMM YYYY')}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}><CalendarDays size={13} />{formatDate(note.returnDate)}</span>
                         <span className="mono">{formatMoney(note.totalAmount)}</span>
                       </div>
                     </button>

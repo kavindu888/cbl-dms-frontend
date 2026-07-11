@@ -7,6 +7,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import SimplePagination from '@components/ui/SimplePagination'
+import { formatDate } from '@/utils'
 
 function money(value) {
   return Number(value || 0).toLocaleString('en-LK', {
@@ -482,7 +483,7 @@ export default function InvoiceListPage() {
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <CalendarDays size={13} color="var(--color-text-dim)" />
-                        {dayjs(invoice.invoiceDate).format('DD MMM YYYY')}
+                        {formatDate(invoice.invoiceDate)}
                       </span>
                     </td>
                     <td>

@@ -18,6 +18,7 @@ import { inventoryService } from '@services/api/inventoryService'
 import { useAuthStore } from '@stores/authStore'
 import { GrnStatus, PurchaseOrderStatus } from '@/types/purchasing.types'
 import { useLocation } from 'react-router-dom'
+import { formatDate } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
 const orderPageSize = 3
@@ -988,7 +989,7 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
                           }}
                         >
                           <CalendarDays style={{ width: 13, height: 13 }} />
-                          {dayjs(order.grnQueueDate || order.orderDate).format('DD MMM YYYY')}
+                          {formatDate(order.grnQueueDate || order.orderDate)}
                         </span>
                         <span
                           className="mono"
@@ -1164,7 +1165,7 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
                         }}
                       >
                         {selectedOrder.expectedDeliveryDate
-                          ? dayjs(selectedOrder.expectedDeliveryDate).format('DD MMM YYYY')
+                          ? formatDate(selectedOrder.expectedDeliveryDate)
                           : 'Not specified'}
                       </div>
                     </div>

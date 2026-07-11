@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { inventoryService } from '@/services/api/inventoryService'
 import { purchasingService } from '@/services/api/purchasingService'
 import { GrnStatus } from '@/types/purchasing.types'
+import { formatDate } from '@/utils'
 import {
   emptyItemForm,
   formatMoney,
@@ -505,7 +506,7 @@ export default function ReturnItemForm({
                   <option value="">Select verified GRN</option>
                   {receipts.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.grNumber} - {dayjs(item.receiptDate || item.createdAt).format('DD MMM YYYY')}
+                      {item.grNumber} - {formatDate(item.receiptDate || item.createdAt)}
                     </option>
                   ))}
                 </select>

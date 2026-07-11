@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useStockBatches, useStockMovements } from '@/hooks/useStock'
 import { masterService } from '@/services/api/masterService'
+import { formatDate, formatShortDateTime } from '@/utils'
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
@@ -179,7 +180,7 @@ export default function StockBatchesPage() {
                         {batch.batchNo}
                       </td>
                       <td className="mono" style={getExpiryStyle(batch.expiryDate)}>
-                        {batch.expiryDate ? dayjs(batch.expiryDate).format('DD MMM YYYY') : '-'}
+                        {formatDate(batch.expiryDate)}
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {formatNumber(batch.qtyReceived)} <span style={{ fontSize: 10, color: 'var(--color-text-dim)' }}>{uom}</span>
@@ -266,7 +267,7 @@ export default function StockBatchesPage() {
                       <td>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                           <CalendarDays size={13} color="var(--color-text-dim)" />
-                          {dayjs(movement.occurredOn || movement.createdAt).format('DD MMM YYYY HH:mm')}
+                          {formatShortDateTime(movement.occurredOn || movement.createdAt)}
                         </span>
                       </td>
                       <td>

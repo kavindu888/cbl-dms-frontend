@@ -1,4 +1,3 @@
-import dayjs from 'dayjs'
 import { Banknote, CreditCard, History } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -11,6 +10,7 @@ import {
   useApplyCredit,
 } from '@/hooks/useCustomerCredit'
 import Modal from '@components/ui/Modal'
+import { formatDate, formatShortDateTime } from '@/utils'
 
 function money(value) {
   return Number(value || 0).toLocaleString('en-LK', {
@@ -294,7 +294,7 @@ export default function CustomerCreditPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Last Updated:</span>
-                <span>{dayjs(balanceData?.lastUpdated || new Date()).format('DD MMM YYYY')}</span>
+                <span>{formatDate(balanceData?.lastUpdated || new Date())}</span>
               </div>
             </div>
 
@@ -340,7 +340,7 @@ export default function CustomerCreditPage() {
                       const isMinus = badgeType === 'consumed'
                       return (
                         <tr key={tx.id}>
-                          <td>{dayjs(tx.transactionDate).format('DD MMM YYYY HH:mm')}</td>
+                          <td>{formatShortDateTime(tx.transactionDate)}</td>
                           <td>
                             <StatusBadge status={badgeType} />
                           </td>

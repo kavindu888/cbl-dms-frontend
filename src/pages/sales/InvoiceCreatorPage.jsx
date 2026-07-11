@@ -1,4 +1,3 @@
-import dayjs from 'dayjs'
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
@@ -6,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
+import { formatDate } from '@/utils'
 import SimplePagination from '@components/ui/SimplePagination'
 
 const emptyLine = {
@@ -271,7 +271,7 @@ export default function InvoiceCreatorPage() {
           Create Invoice
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          Backend creates the invoice with today's server date: {dayjs().format('DD MMM YYYY')}.
+          Backend creates the invoice with today's server date: {formatDate(new Date())}.
         </p>
       </div>
 

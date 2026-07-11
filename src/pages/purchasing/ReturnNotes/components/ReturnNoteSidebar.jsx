@@ -1,7 +1,7 @@
-import dayjs from 'dayjs'
 import { CheckCircle2, Save, Send, Undo2, XCircle } from 'lucide-react'
 import ConfirmDialog from '@components/ui/ConfirmDialog'
 import { ReturnNoteStatus } from '@/types/purchasing.types'
+import { formatDate } from '@/utils'
 import { formatMoney, supplierRefundTotal } from '../returnNoteHelpers'
 import ReturnNoteStatusBadge from './ReturnNoteStatusBadge'
 
@@ -100,7 +100,7 @@ export default function ReturnNoteSidebar({
             />
           ) : (
             <p className="mono" style={{ marginTop: 4, fontSize: 13 }}>
-              {returnNote?.returnDate ? dayjs(returnNote.returnDate).format('DD MMM YYYY') : '-'}
+              {formatDate(returnNote?.returnDate)}
             </p>
           )}
         </label>

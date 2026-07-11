@@ -8,6 +8,7 @@ import SimplePagination from '@components/ui/SimplePagination'
 import { useAuthStore } from '@stores/authStore'
 import { salesService } from '@/services/api/salesService'
 import { useCreateCrn } from '@/hooks/useCrn'
+import { formatDate } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
 function money(value) {
@@ -136,7 +137,7 @@ export default function CrnListPage() {
   const invoiceOptions = useMemo(
     () => customerInvoices.map((invoice) => ({
       value: invoice.id,
-      label: `${invoice.invoiceNumber}${invoice.status === 'Paid' ? ' ✓' : ''} | ${dayjs(invoice.invoiceDate).format('DD MMM YYYY')} | Rs. ${money(invoice.netAmount)}`,
+      label: `${invoice.invoiceNumber}${invoice.status === 'Paid' ? ' ✓' : ''} | ${formatDate(invoice.invoiceDate)} | Rs. ${money(invoice.netAmount)}`,
     })),
     [customerInvoices]
   )
@@ -538,7 +539,7 @@ export default function CrnListPage() {
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <CalendarDays size={13} color="var(--color-text-dim)" />
-                        {dayjs(crn.createdAt || crn.returnDate).format('DD MMM YYYY')}
+                        {formatDate(crn.createdAt || crn.returnDate)}
                       </span>
                     </td>
                     <td>

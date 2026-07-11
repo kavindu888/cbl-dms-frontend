@@ -1,4 +1,3 @@
-import dayjs from 'dayjs'
 import { ArrowLeft, Plus, Trash2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
@@ -7,6 +6,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import { salesService } from '@/services/api/salesService'
 import { inventoryService } from '@/services/api/inventoryService'
 import { useAuthStore } from '@stores/authStore'
+import { formatDateTime } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import {
   useCrnById,
@@ -571,7 +571,7 @@ export default function CrnDetailPage() {
             <div>
               <p style={{ fontSize: 11, color: 'var(--color-text-dim)', textTransform: 'uppercase' }}>Return Date</p>
               <p style={{ fontWeight: 600, marginTop: 4 }}>
-                {dayjs(crn.createdAt || crn.returnDate).format('DD MMMM YYYY (hh:mm A)')}
+                {formatDateTime(crn.createdAt || crn.returnDate)}
               </p>
             </div>
 

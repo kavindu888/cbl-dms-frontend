@@ -17,6 +17,7 @@ import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
 import { useAuthStore } from '@stores/authStore'
 import { GrnStatus } from '@/types/purchasing.types'
+import { formatDate } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
 const queuePageSize = 3
@@ -523,7 +524,7 @@ export default function GrnApproveRejectPage() {
                           }}
                         >
                           <CalendarDays style={{ width: 13, height: 13 }} />
-                          {dayjs(receipt.receiptDate).format('DD MMM YYYY')}
+                          {formatDate(receipt.receiptDate)}
                         </span>
                         <span
                           className="mono text-xs font-semibold"
@@ -684,7 +685,7 @@ export default function GrnApproveRejectPage() {
                           color: 'var(--color-text-primary)',
                         }}
                       >
-                        {dayjs(selectedGrnDetail.receiptDate).format('DD MMM YYYY')}
+                        {formatDate(selectedGrnDetail.receiptDate)}
                       </div>
                     </div>
                   </div>
@@ -781,7 +782,7 @@ export default function GrnApproveRejectPage() {
                           </td>
                           <td>
                             <span className="text-sm text-text-muted">
-                              {line.expiryDate ? dayjs(line.expiryDate).format('DD MMM YYYY') : '-'}
+                              {formatDate(line.expiryDate)}
                             </span>
                           </td>
                           <td className="mono text-right font-semibold text-sm">

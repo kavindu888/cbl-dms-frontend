@@ -1,3 +1,5 @@
+import { formatDate as formatSriLankaDate } from '@/utils'
+
 export const IN_STORE_RETURN_STATUSES = [
   { label: 'All', value: '' },
   { label: 'Draft', value: 1 },
@@ -49,12 +51,7 @@ export function formatNumber(value, digits = 2) {
 }
 
 export function formatDate(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleDateString('en-LK', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-  })
+  return formatSriLankaDate(value)
 }
 
 export function getQtyAvailable(batch) {

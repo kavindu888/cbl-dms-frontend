@@ -6,6 +6,7 @@ import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
 import { inventoryService } from '@services/api/inventoryService'
 import { GrnStatus, PurchaseOrderStatus } from '@/types/purchasing.types'
+import { formatDate } from '@/utils'
 import { useLocation } from 'react-router-dom'
 
 const orderPageSize = 3
@@ -964,7 +965,7 @@ export default function GoodsReceiptEntryPage() {
                           }}
                         >
                           <CalendarDays style={{ width: 13, height: 13 }} />
-                          {dayjs(order.grnQueueDate || order.orderDate).format('DD MMM YYYY')}
+                          {formatDate(order.grnQueueDate || order.orderDate)}
                         </span>
                         <span
                           className="mono"
@@ -1108,7 +1109,7 @@ export default function GoodsReceiptEntryPage() {
                         }}
                       >
                         {selectedOrder.expectedDeliveryDate
-                          ? dayjs(selectedOrder.expectedDeliveryDate).format('DD MMM YYYY')
+                          ? formatDate(selectedOrder.expectedDeliveryDate)
                           : 'Not specified'}
                       </div>
                     </div>
