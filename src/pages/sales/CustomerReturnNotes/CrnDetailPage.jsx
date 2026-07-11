@@ -5,7 +5,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { salesService } from '@/services/api/salesService'
-import { masterService } from '@/services/api/masterService'
+import { inventoryService } from '@/services/api/inventoryService'
 import { useAuthStore } from '@stores/authStore'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import {
@@ -24,6 +24,33 @@ function money(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
+}
+
+function lineCreditAmount({ mrp, quantity, discountPercent }) {
+  const safeDiscount = Math.min(Number(discountPercent || 0), 10)
+  return Number(mrp || 0) * Number(quantity || 0) * (1 - safeDiscount / 100)
+}
+
+function getLastKnownMrp(prices) {
+  return Number(prices?.lastMrp ?? prices?.LastMrp ?? prices?.mrp ?? 0)
+}
+
+const reasonOptions = [
+  { value: '1', label: 'Damaged' },
+  { value: '2', label: 'Expired' },
+  { value: '3', label: 'Short Expiry' },
+  { value: '4', label: 'Other' },
+]
+
+function reasonLabel(reason) {
+  const normalized = String(reason || '')
+  const option = reasonOptions.find((item) => item.value === normalized)
+  if (option) return option.label
+  if (normalized === 'Damage') return 'Damaged'
+  if (normalized === 'Expire') return 'Expired'
+  if (normalized === 'ShortExpire') return 'Short Expiry'
+  if (normalized === 'Others') return 'Other'
+  return normalized || 'Other'
 }
 
 function ProductSelect({ value, onChange, products, emptyLabel = 'Select product...' }) {
@@ -154,6 +181,7 @@ export default function CrnDetailPage() {
   const [customer, setCustomer] = useState(null)
   const [linkedInvoice, setLinkedInvoice] = useState(null)
   const [products, setProducts] = useState([])
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   
   // Modals state
   const [isLineModalOpen, setIsLineModalOpen] = useState(false)
@@ -165,6 +193,10 @@ export default function CrnDetailPage() {
   const [lineQty, setLineQty] = useState(1)
   const [lineMrp, setLineMrp] = useState(0)
   const [lineDiscount, setLineDiscount] = useState(0)
+  const [lineReason, setLineReason] = useState('1')
+  const [selectedInvoiceLineId, setSelectedInvoiceLineId] = useState(null)
+  const [lastKnownMrp, setLastKnownMrp] = useState(null)
+  const [discountError, setDiscountError] = useState('')
 
   // Rejection/Cancel reason state
   const [actionReason, setActionReason] = useState('')
@@ -183,18 +215,46 @@ export default function CrnDetailPage() {
   const canReject = userHasPermission(user, PERMISSIONS.sales.crnReject)
   const canCancel = userHasPermission(user, PERMISSIONS.sales.crnCancel)
 
-  // Load products list
+  // Load only products sold to this customer for CRN line selection.
   useEffect(() => {
+    if (!crn?.customerId) {
+      setProducts([])
+      return
+    }
+
+    let isCurrent = true
     async function loadProducts() {
+      setIsLoadingProducts(true)
       try {
-        const res = await masterService.listProducts({ page: 1, pageSize: 100 })
-        setProducts(res.items || [])
+        const soldProducts = await salesService.getProductsSoldToCustomer(crn.customerId)
+        if (!isCurrent) return
+
+        setProducts((soldProducts || []).map((product) => ({
+          id: product.productId,
+          sku: product.productSku || product.productId,
+          name: product.productName || product.productId,
+          mrp: Number(product.lastMrp || 0),
+          lastDiscountPercent: Number(product.lastDiscountPercent || 0),
+          lastInvoiceLineId: product.lastInvoiceLineId || null,
+          totalInvoicedQty: Number(product.totalInvoicedQty || 0),
+          totalReturnedQty: Number(product.totalReturnedQty || 0),
+          maxReturnableQty: Number(product.maxReturnableQty || 0),
+        })))
       } catch (err) {
-        console.error('Failed to load products:', err)
+        if (isCurrent) {
+          setProducts([])
+          toast.error(err.message || 'Unable to load products sold to this customer.')
+        }
+      } finally {
+        if (isCurrent) setIsLoadingProducts(false)
       }
     }
     loadProducts()
-  }, [])
+
+    return () => {
+      isCurrent = false
+    }
+  }, [crn?.customerId])
 
   // Load customer details
   useEffect(() => {
@@ -216,41 +276,90 @@ export default function CrnDetailPage() {
     }
   }, [crn?.invoiceId])
 
-  // Auto-fill MRP and discount when product is selected in Add Line modal
+  const productById = useMemo(() => {
+    return products.reduce((map, product) => {
+      map[product.id] = product
+      return map
+    }, {})
+  }, [products])
+
+  // Auto-fill MRP from inventory last prices when product is selected.
   useEffect(() => {
-    if (!selectedProductId) return
+    if (!selectedProductId) {
+      setLastKnownMrp(null)
+      return
+    }
 
     const product = products.find(p => p.id === selectedProductId)
     if (!product) return
 
-    // Default pre-fill from product catalog
-    setLineMrp(product.mrp || 0)
-    setLineDiscount(0)
+    let isCurrent = true
+    setLastKnownMrp(null)
+    setDiscountError('')
 
-    // Pre-fill from linked invoice if match is found
-    if (linkedInvoice) {
-      const invoiceLine = linkedInvoice.lines?.find(l => l.productId === selectedProductId)
-      if (invoiceLine) {
-        setLineMrp(invoiceLine.mrp || 0)
-        setLineDiscount(invoiceLine.discountPercent || 0)
-      }
-    }
-  }, [selectedProductId, linkedInvoice, products])
+    inventoryService.getLastPrices(selectedProductId)
+      .then((prices) => {
+        if (!isCurrent) return
+        const mrp = getLastKnownMrp(prices)
+        setLastKnownMrp(mrp || null)
+        setLineMrp(mrp || Number(product.mrp || 0))
+      })
+      .catch((err) => {
+        if (!isCurrent) return
+        setLineMrp(Number(product.mrp || 0))
+        toast.error(err.message || 'Unable to load last known MRP.')
+      })
 
-  const filteredProductsList = useMemo(() => {
-    if (linkedInvoice && linkedInvoice.lines) {
-      const invoiceProductIds = new Set(linkedInvoice.lines.map(l => l.productId))
-      return products.filter(p => invoiceProductIds.has(p.id))
+    return () => {
+      isCurrent = false
     }
-    return products
-  }, [linkedInvoice, products])
+  }, [selectedProductId, products])
+
+  function handleProductSelect(productId) {
+    const product = products.find((item) => item.id === productId)
+    setSelectedProductId(productId)
+    setSelectedInvoiceLineId(product?.lastInvoiceLineId || null)
+    setLineDiscount(Math.min(Number(product?.lastDiscountPercent || 0), 10))
+    setLineQty(Math.min(Number(lineQty || 1), Number(product?.maxReturnableQty ?? 999)))
+    setDiscountError('')
+  }
+
+  function handleDiscountChange(value) {
+    const nextValue = Number(value || 0)
+    if (nextValue > 10) {
+      setLineDiscount(10)
+      setDiscountError('Maximum discount is 10%')
+      return
+    }
+    if (nextValue < 0) {
+      setLineDiscount(0)
+      setDiscountError('')
+      return
+    }
+    setLineDiscount(nextValue)
+    setDiscountError('')
+  }
+
+  const filteredProductsList = useMemo(() => products, [products])
 
   const calculatedLiveCredit = useMemo(() => {
-    const qty = Number(lineQty || 0)
-    const mrp = Number(lineMrp || 0)
-    const disc = Number(lineDiscount || 0)
-    return mrp * qty * (1 - disc / 100)
+    return lineCreditAmount({
+      mrp: lineMrp,
+      quantity: lineQty,
+      discountPercent: lineDiscount,
+    })
   }, [lineQty, lineMrp, lineDiscount])
+
+  const selectedHistory = useMemo(() => {
+    return products.find((product) => product.id === selectedProductId) || null
+  }, [products, selectedProductId])
+
+  const qtyExceedsMax = Boolean(
+    selectedHistory && Number(lineQty || 0) > Number(selectedHistory.maxReturnableQty || 0)
+  )
+  const noReturnableQty = Boolean(
+    selectedHistory && Number(selectedHistory.maxReturnableQty || 0) <= 0
+  )
 
   if (isLoading) return <div style={{ padding: 24, textAlign: 'center' }}>Loading Customer Return Note...</div>
   if (error) return <div style={{ padding: 24, color: 'var(--color-danger)' }}>Error: {error.message}</div>
@@ -263,7 +372,7 @@ export default function CrnDetailPage() {
   const isCancelled = crn.status === 'Cancelled'
 
   const totalCalculatedCredit = (crn.lines || []).reduce((sum, line) => {
-    return sum + (line.mrp * line.quantity * (1 - (line.discountPercent || 0) / 100))
+    return sum + lineCreditAmount(line)
   }, 0)
 
   async function handleAddLine(e) {
@@ -271,20 +380,30 @@ export default function CrnDetailPage() {
     if (!selectedProductId) return toast.error('Product selection is required.')
     if (lineQty <= 0) return toast.error('Quantity must be greater than zero.')
     if (lineMrp < 0) return toast.error('MRP cannot be negative.')
-    if (lineDiscount < 0 || lineDiscount > 100) return toast.error('Discount must be between 0 and 100%.')
+    if (lineDiscount < 0) return toast.error('Discount cannot be negative.')
+    if (lineDiscount > 10) return toast.error('Maximum discount is 10%')
+    if (!lineReason) return toast.error('Return reason is required.')
+    if (noReturnableQty) return toast.error('No returnable quantity remains for this product.')
+    if (qtyExceedsMax) return toast.error(`Quantity exceeds returnable balance (${selectedHistory.maxReturnableQty}).`)
 
     addLineMutation.mutate({
       productId: selectedProductId,
       quantity: Number(lineQty),
       mrp: Number(lineMrp),
-      discountPercent: Number(lineDiscount),
+      discountPercent: Math.min(Number(lineDiscount), 10),
+      reason: Number(lineReason),
+      invoiceLineId: selectedInvoiceLineId,
     }, {
       onSuccess: () => {
         setIsLineModalOpen(false)
         setSelectedProductId('')
+        setSelectedInvoiceLineId(null)
         setLineQty(1)
         setLineMrp(0)
         setLineDiscount(0)
+        setLineReason('1')
+        setLastKnownMrp(null)
+        setDiscountError('')
         refetch()
       }
     })
@@ -524,9 +643,40 @@ export default function CrnDetailPage() {
                 <label className="form-label" style={{ fontSize: 11 }}>Product <span style={{ color: 'var(--color-danger)' }}>*</span></label>
                 <ProductSelect
                   value={selectedProductId}
-                  onChange={setSelectedProductId}
+                  onChange={handleProductSelect}
                   products={filteredProductsList}
+                  emptyLabel={isLoadingProducts ? 'Loading sold products...' : 'Select sold product...'}
                 />
+                {!isLoadingProducts && filteredProductsList.length === 0 ? (
+                  <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                    No sold products were found for this customer.
+                  </span>
+                ) : null}
+                {selectedHistory ? (
+                  <div
+                    className="mono"
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      fontSize: 11,
+                      color: noReturnableQty ? 'var(--color-danger)' : 'var(--color-text-dim)',
+                    }}
+                  >
+                    <span>Sold: {selectedHistory.totalInvoicedQty}</span>
+                    <span>•</span>
+                    <span>Returned: {selectedHistory.totalReturnedQty}</span>
+                    <span>•</span>
+                    <span style={{ color: noReturnableQty ? 'var(--color-danger)' : 'var(--color-teal)', fontWeight: 700 }}>
+                      Returnable: {selectedHistory.maxReturnableQty}
+                    </span>
+                  </div>
+                ) : null}
+                {noReturnableQty ? (
+                  <span style={{ fontSize: 11, color: 'var(--color-danger)' }}>
+                    All sold units for this product have already been returned.
+                  </span>
+                ) : null}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -537,9 +687,25 @@ export default function CrnDetailPage() {
                     className="form-input"
                     required
                     min="1"
+                    max={selectedHistory?.maxReturnableQty ?? undefined}
                     value={lineQty}
-                    onChange={(e) => setLineQty(Number(e.target.value))}
+                    onChange={(e) => {
+                      const nextValue = Number(e.target.value || 1)
+                      const maxQty = selectedHistory?.maxReturnableQty
+                      const capped = maxQty != null ? Math.min(nextValue, maxQty) : nextValue
+                      setLineQty(Math.max(1, capped))
+                    }}
                   />
+                  {selectedHistory ? (
+                    <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                      Max returnable: {selectedHistory.maxReturnableQty}
+                    </span>
+                  ) : null}
+                  {qtyExceedsMax ? (
+                    <span className="form-error">
+                      Quantity exceeds returnable balance ({selectedHistory.maxReturnableQty})
+                    </span>
+                  ) : null}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -547,12 +713,15 @@ export default function CrnDetailPage() {
                   <input
                     type="number"
                     step="0.01"
-                    className="form-input"
+                    className="form-input mono"
                     required
                     min="0"
                     value={lineMrp}
                     onChange={(e) => setLineMrp(Number(e.target.value))}
                   />
+                  <span className="text-[11px] text-[var(--color-text-dim)]">
+                    Last known MRP: <span className="mono">Rs.{money(lastKnownMrp)}</span>
+                  </span>
                 </div>
               </div>
 
@@ -561,15 +730,38 @@ export default function CrnDetailPage() {
                 <input
                   type="number"
                   min="0"
-                  max="100"
-                  className="form-input"
+                  max={10}
+                  className={`form-input mono ${discountError ? 'error' : ''}`}
                   value={lineDiscount}
-                  onChange={(e) => setLineDiscount(Number(e.target.value))}
+                  onChange={(e) => handleDiscountChange(e.target.value)}
                 />
+                {discountError ? (
+                  <span className="form-error">{discountError}</span>
+                ) : selectedInvoiceLineId ? (
+                  <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                    Pre-filled from the customer&apos;s last invoice line. Maximum discount is 10%.
+                  </span>
+                ) : null}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Reason <span style={{ color: 'var(--color-danger)' }}>*</span></label>
+                <select
+                  className="form-input"
+                  required
+                  value={lineReason}
+                  onChange={(event) => setLineReason(event.target.value)}
+                >
+                  {reasonOptions.map((reason) => (
+                    <option key={reason.value} value={reason.value}>
+                      {reason.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ backgroundColor: 'rgba(255,255,255,0.03)', padding: 12, borderRadius: 6 }}>
-                <p style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>Estimated Line Credit</p>
+                <p style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>Estimated Credit</p>
                 <p className="mono" style={{ fontSize: 18, fontWeight: 750, color: 'var(--color-teal)', marginTop: 2 }}>
                   LKR {money(calculatedLiveCredit)}
                 </p>
@@ -578,7 +770,14 @@ export default function CrnDetailPage() {
               <button
                 type="submit"
                 className="button-primary"
-                disabled={addLineMutation.isPending}
+                disabled={
+                  addLineMutation.isPending ||
+                  !selectedProductId ||
+                  !lineQty ||
+                  !lineReason ||
+                  qtyExceedsMax ||
+                  noReturnableQty
+                }
                 style={{ height: 40, marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
                 {addLineMutation.isPending ? 'Adding Line...' : <><Plus size={16} /> Add Line Item</>}
@@ -603,6 +802,7 @@ export default function CrnDetailPage() {
                 <th style={{ textAlign: 'right' }}>Quantity</th>
                 <th style={{ textAlign: 'right' }}>MRP</th>
                 <th style={{ textAlign: 'right' }}>Discount %</th>
+                <th>Reason</th>
                 <th style={{ textAlign: 'right' }}>Credit Amount</th>
                 {isDraft && canRemoveLine && <th style={{ width: 80 }}></th>}
               </tr>
@@ -610,24 +810,29 @@ export default function CrnDetailPage() {
             <tbody>
               {(crn.lines || []).length === 0 ? (
                 <tr>
-                  <td colSpan={isDraft && canRemoveLine ? 7 : 6} style={{ textAlign: 'center', padding: 24, color: 'var(--color-text-dim)' }}>
+                  <td colSpan={isDraft && canRemoveLine ? 8 : 7} style={{ textAlign: 'center', padding: 24, color: 'var(--color-text-dim)' }}>
                     No items added to this return note. Add lines to compute credit.
                   </td>
                 </tr>
               ) : (
                 (crn.lines || []).map((line) => {
-                  const lineCredit = line.mrp * line.quantity * (1 - (line.discountPercent || 0) / 100)
+                  const lineCredit = lineCreditAmount(line)
+                  const product = productById[line.productId]
+                  const productSku = line.productSku || product?.sku || line.productId
                   return (
                     <tr key={line.id}>
                       <td>
                         <span className="mono" style={{ color: 'var(--color-amber)', fontWeight: 600 }}>
-                          {line.productSku}
+                          {productSku}
                         </span>
                       </td>
                       <td>{line.productName || line.productId}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{line.quantity}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{money(line.mrp)}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{line.discountPercent}%</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{Math.min(Number(line.discountPercent || 0), 10)}%</td>
+                      <td>
+                        <StatusBadge status={reasonLabel(line.reason)} />
+                      </td>
                       <td className="mono" style={{ textAlign: 'right', color: 'var(--color-teal)', fontWeight: 700 }}>
                         {money(lineCredit)}
                       </td>

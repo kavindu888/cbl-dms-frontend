@@ -12,6 +12,18 @@ export const flagStockForReturn = (data) => inventoryAxios.post('/return-stock/f
 export const cancelReturnFlag = (id) => inventoryAxios.post(`/return-stock/${id}/cancel`)
 export const listReturnStock = (params) => inventoryAxios.get('/return-stock', { params })
 export const getReturnStockByProduct = (productId) => inventoryAxios.get(`/return-stock/by-product/${productId}`)
+export const getAvailableReturnStockByProduct = (productId) => inventoryAxios.get(`/return-stock/available/${productId}`)
+
+// In-Store Returns
+export const createInStoreReturn = (data) => inventoryAxios.post('/in-store-returns', data)
+export const addInStoreReturnLine = (id, data) => inventoryAxios.post(`/in-store-returns/${id}/lines`, data)
+export const removeInStoreReturnLine = (id, lineId) => inventoryAxios.delete(`/in-store-returns/${id}/lines/${lineId}`)
+export const submitInStoreReturn = (id) => inventoryAxios.post(`/in-store-returns/${id}/submit`)
+export const approveInStoreReturn = (id) => inventoryAxios.post(`/in-store-returns/${id}/approve`)
+export const applyInStoreReturn = (id) => inventoryAxios.post(`/in-store-returns/${id}/apply`)
+export const cancelInStoreReturn = (id, data) => inventoryAxios.post(`/in-store-returns/${id}/cancel`, data)
+export const getInStoreReturn = (id) => inventoryAxios.get(`/in-store-returns/${id}`)
+export const listInStoreReturns = (params) => inventoryAxios.get('/in-store-returns', { params })
 
 // Stock
 export const getStockLevels = (params) => inventoryAxios.get('/stock/levels', { params })

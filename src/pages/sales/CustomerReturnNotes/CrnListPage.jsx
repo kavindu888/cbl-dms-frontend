@@ -112,7 +112,6 @@ export default function CrnListPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [newCustomerId, setNewCustomerId] = useState('')
   const [newInvoiceId, setNewInvoiceId] = useState('')
-  const [newReason, setNewReason] = useState('1')
   const [newReturnDate] = useState(dayjs().format('YYYY-MM-DD'))
   const [newNotes, setNewNotes] = useState('')
   const [customerInvoices, setCustomerInvoices] = useState([])
@@ -252,7 +251,6 @@ export default function CrnListPage() {
     createCrnMutation.mutate({
       customerId: newCustomerId,
       invoiceId: newInvoiceId || null,
-      reason: Number(newReason),
       notes: newNotes.trim() || null,
     }, {
       onSuccess: (data) => {
@@ -260,7 +258,6 @@ export default function CrnListPage() {
         // Reset form
         setNewCustomerId('')
         setNewInvoiceId('')
-        setNewReason('1')
         setNewNotes('')
         
         // Navigate to detail page
@@ -277,7 +274,6 @@ export default function CrnListPage() {
     setIsModalOpen(false)
     setNewCustomerId('')
     setNewInvoiceId('')
-    setNewReason('1')
     setNewNotes('')
   }
 
@@ -634,16 +630,6 @@ export default function CrnListPage() {
                   options={customerOptions}
                   placeholder="Search customer..."
                 />
-              </label>
-
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span className="form-label">Return Reason <span style={{ color: 'var(--color-danger)' }}>*</span></span>
-                <select className="form-input" required value={newReason} onChange={(event) => setNewReason(event.target.value)}>
-                  <option value="1">Damage</option>
-                  <option value="2">Expire</option>
-                  <option value="3">Short Expire</option>
-                  <option value="4">Others</option>
-                </select>
               </label>
 
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
