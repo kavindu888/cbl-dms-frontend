@@ -1,4 +1,4 @@
-﻿import * as Tooltip from '@radix-ui/react-tooltip'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   Banknote,
   // BarChart2,
@@ -10,8 +10,10 @@ import {
   LogOut,
   BadgeCheck,
   ListChecks,
+  CheckSquare,
   Package,
   PackageCheck,
+  PackageX,
   ArrowLeftRight,
   Warehouse,
   Ruler,
@@ -28,13 +30,15 @@ import {
   Users,
   Undo2,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuthStore } from '@stores/authStore'
 import { useUIStore } from '@stores/uiStore'
 import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { cn } from '@/utils'
 import { PERMISSIONS, userMeetsPermissionRequirement } from '@/utils/permissions'
+import { purchasingService } from '@/services/api/purchasingService'
+import { ReturnNoteStatus } from '@/types/purchasing.types'
 import styles from './Sidebar.module.css'
 const navGroups = [
   {
@@ -85,6 +89,18 @@ const navGroups = [
         to: '/sales/invoice-payment-record',
         icon: Banknote,
         permissions: { all: [PERMISSIONS.sales.invoiceRead, PERMISSIONS.sales.invoiceAddPayment] },
+      },
+      {
+        label: 'Return Notes',
+        to: '/sales/return-notes',
+        icon: Undo2,
+        permissions: PERMISSIONS.sales.crnView,
+      },
+      {
+        label: 'Customer Credit',
+        to: '/sales/customer-credit',
+        icon: Banknote,
+        permissions: PERMISSIONS.sales.customerCreditView,
       },
     ],
   },
@@ -154,7 +170,7 @@ const navGroups = [
       },
       {
         label: 'Purchase Returns',
-        to: '/purchasing/returns',
+        to: '/purchasing/return-notes',
         icon: Undo2,
         end: true,
         permissions: [
@@ -162,6 +178,14 @@ const navGroups = [
           PERMISSIONS.purchasing.returnNoteApprove,
           PERMISSIONS.purchasing.returnNoteComplete,
         ],
+      },
+      {
+        label: 'RN Approve & Reject',
+        to: '/purchasing/return-notes/approvals',
+        icon: CheckSquare,
+        end: true,
+        badgeKey: 'pendingReturnApprovals',
+        permissions: PERMISSIONS.purchasing.returnNoteApprove,
       },
       {
         isSubHeader: true,
@@ -220,10 +244,31 @@ const navGroups = [
     label: 'INVENTORY',
     items: [
       {
-        label: 'Stock Levels',
+        label: 'Stock Overview',
         to: '/inventory/stock',
         icon: Package,
         end: true,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'Staged Returns',
+        to: '/inventory/return-stock',
+        icon: PackageX,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'In-Store Returns',
+        to: '/inventory/in-store-returns',
+        icon: PackageX,
+        permissions: [
+          PERMISSIONS.inventory.inStoreReturnCreate,
+          PERMISSIONS.inventory.inStoreReturnApprove,
+        ],
+      },
+      {
+        label: 'Stock Audit',
+        to: '/inventory/stock-audit',
+        icon: Search,
         permissions: PERMISSIONS.inventory.stockRead,
       },
       {
@@ -317,7 +362,33 @@ function SidebarLink({ collapsed, item }) {
               )}
             />
           </div>
-          {!collapsed ? <span className="truncate">{item.label}</span> : null}
+          {!collapsed ? (
+            <>
+              <span className="truncate">{item.label}</span>
+              {item.badge ? (
+                <span
+                  className="mono"
+                  style={{
+                    marginLeft: 'auto',
+                    minWidth: 20,
+                    height: 18,
+                    padding: '0 6px',
+                    borderRadius: 999,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--color-amber)',
+                    background: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.22)',
+                    fontSize: 10,
+                    fontWeight: 800,
+                  }}
+                >
+                  {item.badge}
+                </span>
+              ) : null}
+            </>
+          ) : null}
         </>
       )}
     </NavLink>
@@ -340,16 +411,41 @@ export default function Sidebar() {
   const { sidebarCollapsed, sidebarMobileOpen } = useUIStore()
   const { user, logout } = useAuthStore()
   const [searchQuery, setSearchQuery] = useState('')
+  const [pendingReturnApprovals, setPendingReturnApprovals] = useState(0)
   const displayName = user ? `${user.username}` : 'admin'
   const displayRole = user?.roles[0] ?? 'Administrator'
 
   const normalizedQuery = normalizeSearch(searchQuery)
+  useEffect(() => {
+    if (!userMeetsPermissionRequirement(user, PERMISSIONS.purchasing.returnNoteApprove)) {
+      setPendingReturnApprovals(0)
+      return
+    }
+
+    let isCurrent = true
+    purchasingService
+      .listReturnNotes({ page: 1, pageSize: 100, status: ReturnNoteStatus.Submitted })
+      .then((result) => {
+        if (isCurrent) setPendingReturnApprovals((result?.items || []).length)
+      })
+      .catch(() => {
+        if (isCurrent) setPendingReturnApprovals(0)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [user])
+
+  const badgeValues = { pendingReturnApprovals }
   const accessibleNavGroups = navGroups
     .map((group) => {
       const items = group.items.filter((item) => {
         if (item.isSubHeader) return true
         return userMeetsPermissionRequirement(user, item.permissions)
-      })
+      }).map((item) => (
+        item.badgeKey ? { ...item, badge: badgeValues[item.badgeKey] } : item
+      ))
 
       const cleanedItems = []
       for (let i = 0; i < items.length; i++) {

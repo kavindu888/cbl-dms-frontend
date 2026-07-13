@@ -8,6 +8,7 @@ import { salesService } from '@/services/api/salesService'
 import { masterService } from '@/services/api/masterService'
 import { usersService } from '@/services/api/usersService'
 import { useAuthStore } from '@/stores/authStore'
+import { formatDate as formatSriLankaDate } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
 const paymentMethods = [
@@ -33,7 +34,7 @@ function money(value) {
 }
 
 function showDate(value) {
-  return value ? dayjs(value).format('DD MMM YYYY') : '-'
+  return formatSriLankaDate(value)
 }
 
 function invoiceStatusLabel(status) {
@@ -444,11 +445,12 @@ export default function InvoiceDetailPage() {
                 <thead>
                   <tr>
                     <th style={{ whiteSpace: 'nowrap' }}>Item</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Batch</th>
                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
                       Qty
                     </th>
                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
-                      Unit Price
+                      Selling Price
                     </th>
                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
                       MRP
@@ -496,6 +498,12 @@ export default function InvoiceDetailPage() {
                           </div>
                         </td>
                         <td
+                          className="font-mono text-xs text-cyan-600"
+                          style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}
+                        >
+                          {line.batchNo}
+                        </td>
+                        <td
                           className="text-right mono"
                           style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
                         >
@@ -507,7 +515,7 @@ export default function InvoiceDetailPage() {
                               fontWeight: 500,
                             }}
                           >
-                            {line.unitId}
+                            {line.smallestUnitCode || line.unitId}
                           </span>
                         </td>
                         <td

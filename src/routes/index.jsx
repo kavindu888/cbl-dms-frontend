@@ -1,4 +1,4 @@
-﻿import { Navigate, createBrowserRouter } from 'react-router-dom'
+import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { AppShell } from '@components/layout'
 import { Role } from '@/types/auth.types'
 import LoginPage from '@pages/auth/LoginPage'
@@ -24,6 +24,10 @@ import GrnApproveRejectPage from '@pages/purchasing/grn/GrnApproveRejectPage'
 import PurchaseOrderApprovalPage from '@pages/purchasing/purchase-orders/PurchaseOrderApprovalPage'
 import PlacePurchaseOrderPage from '@pages/purchasing/purchase-orders/PlacePurchaseOrderPage'
 import PurchaseReturnsPage from '@pages/purchasing/returns/PurchaseReturnsPage'
+import ReturnNoteApprovalsPage from '@pages/purchasing/ReturnNotes/ReturnNoteApprovalsPage'
+import ReturnNoteDetailPage from '@pages/purchasing/ReturnNotes/ReturnNoteDetailPage'
+import ReturnNoteListPage from '@pages/purchasing/ReturnNotes/ReturnNoteListPage'
+import NewReturnNotePage from '@pages/purchasing/ReturnNotes/NewReturnNotePage'
 import SupplierSettlementPage from '@pages/purchasing/settlement/SupplierSettlementPage'
 import SupplierListPage from '@pages/master/SupplierListPage'
 import ReportHubPage from '@pages/reports/ReportHubPage'
@@ -39,6 +43,16 @@ import SettingsPage from '@pages/settings/SettingsPage'
 import RolesPermissionsPage from '@pages/users/RolesPermissionsPage'
 import UserListPage from '@pages/users/UserListPage'
 import UserProfilePage from '@pages/users/UserProfilePage'
+import CrnListPage from '@pages/sales/CustomerReturnNotes/CrnListPage'
+import CrnDetailPage from '@pages/sales/CustomerReturnNotes/CrnDetailPage'
+import CustomerCreditPage from '@pages/sales/CustomerCredit/CustomerCreditPage'
+import ReturnStockPage from '@pages/inventory/ReturnStock/ReturnStockPage'
+import InStoreReturnCreatePage from '@pages/inventory/InStoreReturns/InStoreReturnCreatePage'
+import InStoreReturnDetailPage from '@pages/inventory/InStoreReturns/InStoreReturnDetailPage'
+import InStoreReturnListPage from '@pages/inventory/InStoreReturns/InStoreReturnListPage'
+import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
+import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
+import StockAuditPage from '@pages/inventory/StockAudit/StockAuditPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { PERMISSIONS } from '@/utils/permissions'
 
@@ -133,6 +147,33 @@ export const router = createBrowserRouter([
         ]),
       },
       {
+        path: 'purchasing/return-notes',
+        element: requirePermission(<ReturnNoteListPage />, [
+          PERMISSIONS.purchasing.returnNoteCreate,
+          PERMISSIONS.purchasing.returnNoteApprove,
+          PERMISSIONS.purchasing.returnNoteComplete,
+        ]),
+      },
+      {
+        path: 'purchasing/return-notes/new',
+        element: requirePermission(<NewReturnNotePage />, PERMISSIONS.purchasing.returnNoteCreate),
+      },
+      {
+        path: 'purchasing/return-notes/approvals',
+        element: requirePermission(<ReturnNoteApprovalsPage />, [
+          PERMISSIONS.purchasing.returnNoteApprove,
+          PERMISSIONS.purchasing.returnNoteComplete,
+        ]),
+      },
+      {
+        path: 'purchasing/return-notes/:id',
+        element: requirePermission(<ReturnNoteDetailPage />, [
+          PERMISSIONS.purchasing.returnNoteCreate,
+          PERMISSIONS.purchasing.returnNoteApprove,
+          PERMISSIONS.purchasing.returnNoteComplete,
+        ]),
+      },
+      {
         path: 'purchasing/settlement',
         element: requirePermission(
           <SupplierSettlementPage />,
@@ -147,7 +188,49 @@ export const router = createBrowserRouter([
       {
         path: 'inventory/stock',
         element: requirePermission(
-          <StockModulePage initialTab="levels" />,
+          <StockOverviewPage />,
+          PERMISSIONS.inventory.stockRead
+        ),
+      },
+      {
+        path: 'inventory/return-stock',
+        element: requirePermission(
+          <ReturnStockPage />,
+          PERMISSIONS.inventory.stockRead
+        ),
+      },
+      {
+        path: 'inventory/in-store-returns',
+        element: requirePermission(<InStoreReturnListPage />, [
+          PERMISSIONS.inventory.inStoreReturnCreate,
+          PERMISSIONS.inventory.inStoreReturnApprove,
+        ]),
+      },
+      {
+        path: 'inventory/in-store-returns/new',
+        element: requirePermission(
+          <InStoreReturnCreatePage />,
+          PERMISSIONS.inventory.inStoreReturnCreate
+        ),
+      },
+      {
+        path: 'inventory/in-store-returns/:id',
+        element: requirePermission(<InStoreReturnDetailPage />, [
+          PERMISSIONS.inventory.inStoreReturnCreate,
+          PERMISSIONS.inventory.inStoreReturnApprove,
+        ]),
+      },
+      {
+        path: 'inventory/stock-audit',
+        element: requirePermission(
+          <StockAuditPage />,
+          PERMISSIONS.inventory.stockRead
+        ),
+      },
+      {
+        path: 'inventory/stock/batches/:productId',
+        element: requirePermission(
+          <StockBatchesDetailPage />,
           PERMISSIONS.inventory.stockRead
         ),
       },
@@ -229,6 +312,18 @@ export const router = createBrowserRouter([
       {
         path: 'inventory/adjustments',
         element: <Navigate to="/inventory/stocktakes" replace />,
+      },
+      {
+        path: 'sales/return-notes',
+        element: requirePermission(<CrnListPage />, PERMISSIONS.sales.crnView),
+      },
+      {
+        path: 'sales/return-notes/:id',
+        element: requirePermission(<CrnDetailPage />, PERMISSIONS.sales.crnView),
+      },
+      {
+        path: 'sales/customer-credit',
+        element: requirePermission(<CustomerCreditPage />, PERMISSIONS.sales.customerCreditView),
       },
       {
         path: 'sales/customer-groups',

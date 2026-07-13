@@ -53,6 +53,22 @@ const batchStatusLabels = {
   4: 'Quarantined',
 }
 
+const inStoreReturnStatusLabels = {
+  1: 'Draft',
+  2: 'Submitted',
+  3: 'Approved',
+  4: 'Applied',
+  5: 'Cancelled',
+}
+
+const inStoreReturnReasonLabels = {
+  1: 'Damaged',
+  2: 'Expired',
+  3: 'ShortExpiry',
+  4: 'QualityIssue',
+  5: 'Other',
+}
+
 function enumLabel(value, labels) {
   if (value === null || value === undefined || value === '') return 'Unknown'
   return labels[value] || String(value)
@@ -83,6 +99,28 @@ function formatStocktake(item) {
   return {
     ...item,
     status: enumLabel(item.status, stocktakeStatusLabels),
+  }
+}
+
+function formatInStoreReturnLine(line) {
+  return {
+    ...line,
+    lineReason:
+      line.lineReason === null || line.lineReason === undefined
+        ? null
+        : enumLabel(line.lineReason, inStoreReturnReasonLabels),
+  }
+}
+
+function formatInStoreReturn(item) {
+  if (!item) return item
+  const lines = Array.isArray(item.lines) ? item.lines.map(formatInStoreReturnLine) : []
+  return {
+    ...item,
+    status: enumLabel(item.status, inStoreReturnStatusLabels),
+    reason: enumLabel(item.reason, inStoreReturnReasonLabels),
+    lines,
+    lineCount: item.lineCount ?? lines.length,
   }
 }
 
@@ -252,5 +290,152 @@ export const inventoryService = {
   async cancelStocktake(id) {
     const response = await api.post(`/api/v1/inventory/stocktakes/${id}/cancel`)
     return getValue(response, 'Unable to cancel stocktake.')
+  },
+
+  // Return Stock (Supplier Returns Staging)
+  async flagStockForReturn(payload) {
+    const response = await api.post('/api/v1/inventory/return-stock/flag', payload)
+    return getValue(response, 'Unable to flag stock for supplier return.')
+  },
+
+  async cancelReturnFlag(id) {
+    const response = await api.post(`/api/v1/inventory/return-stock/${id}/cancel`)
+    return getValue(response, 'Unable to cancel return stock flag.')
+  },
+
+  async listReturnStock(params = {}) {
+    const response = await getOnce('/api/v1/inventory/return-stock', { params })
+    const data = getValue(response, 'Unable to load return stock staging.')
+    
+    const returnStockStatusLabels = {
+      1: 'Available',
+      2: 'Claimed',
+      3: 'Returned',
+      4: 'Cancelled',
+    }
+
+    const returnStockReasonLabels = {
+      1: 'Expired',
+      2: 'ShortExpiry',
+      3: 'Damaged',
+      4: 'Other',
+    }
+
+    const items = asList(data).map(item => ({
+      ...item,
+      status: returnStockStatusLabels[item.status] || String(item.status),
+      reason: returnStockReasonLabels[item.reason] || String(item.reason),
+    }))
+    
+    return {
+      items,
+      totalItems: data.totalItems ?? items.length,
+      totalPages: data.totalPages ?? 1,
+      page: data.page ?? 1,
+      pageSize: data.pageSize ?? items.length,
+    }
+  },
+
+  async getReturnStockByProduct(productId) {
+    const response = await getOnce(`/api/v1/inventory/return-stock/by-product/${productId}`)
+    const data = getValue(response, 'Unable to load return stock by product.')
+    
+    const returnStockStatusLabels = {
+      1: 'Available',
+      2: 'Claimed',
+      3: 'Returned',
+      4: 'Cancelled',
+    }
+
+    const returnStockReasonLabels = {
+      1: 'Expired',
+      2: 'ShortExpiry',
+      3: 'Damaged',
+      4: 'Other',
+    }
+
+    return asList(data).map(item => ({
+      ...item,
+      status: returnStockStatusLabels[item.status] || String(item.status),
+      reason: returnStockReasonLabels[item.reason] || String(item.reason),
+    }))
+  },
+
+  async getAvailableReturnStockByProduct(productId) {
+    const response = await getOnce(`/api/v1/inventory/return-stock/available/${productId}`)
+    const data = getValue(response, 'Unable to load available return stock.')
+
+    const returnStockReasonLabels = {
+      1: 'Expired',
+      2: 'ShortExpiry',
+      3: 'Damaged',
+      4: 'Other',
+      5: 'QualityIssue',
+    }
+
+    return asList(data).map((item) => ({
+      ...item,
+      availableQty: item.availableQty ?? item.qtyAvailable ?? item.qty ?? 0,
+      unitCostSmallest: item.unitCostSmallest ?? item.unitCost ?? 0,
+      mrp: item.mrp ?? item.MRP ?? 0,
+      reason: returnStockReasonLabels[item.reason] || String(item.reason || ''),
+      sourceLabel: item.sourceLabel || item.returnSourceLabel || item.returnSource || item.source || '',
+    }))
+  },
+
+  // In-Store Returns
+  async listInStoreReturns(params = {}) {
+    const response = await getOnce('/api/v1/inventory/in-store-returns', { params })
+    return asList(getValue(response, 'Unable to load in-store returns.')).map(formatInStoreReturn)
+  },
+
+  async getInStoreReturn(id) {
+    const response = await getOnce(`/api/v1/inventory/in-store-returns/${id}`)
+    return formatInStoreReturn(getValue(response, 'Unable to load in-store return.'))
+  },
+
+  async createInStoreReturn(payload) {
+    const response = await api.post('/api/v1/inventory/in-store-returns', payload)
+    return getValue(response, 'Unable to create in-store return.')
+  },
+
+  async addInStoreReturnLine(id, payload) {
+    const response = await api.post(`/api/v1/inventory/in-store-returns/${id}/lines`, payload)
+    return getValue(response, 'Unable to add in-store return line.')
+  },
+
+  async removeInStoreReturnLine(id, lineId) {
+    const response = await api.delete(`/api/v1/inventory/in-store-returns/${id}/lines/${lineId}`)
+    return getValue(response, 'Unable to remove in-store return line.')
+  },
+
+  async submitInStoreReturn(id) {
+    const response = await api.post(`/api/v1/inventory/in-store-returns/${id}/submit`)
+    return getValue(response, 'Unable to submit in-store return.')
+  },
+
+  async approveInStoreReturn(id) {
+    const response = await api.post(`/api/v1/inventory/in-store-returns/${id}/approve`)
+    return getValue(response, 'Unable to approve in-store return.')
+  },
+
+  async applyInStoreReturn(id) {
+    const response = await api.post(`/api/v1/inventory/in-store-returns/${id}/apply`)
+    return getValue(response, 'Unable to apply in-store return.')
+  },
+
+  async cancelInStoreReturn(id, payload) {
+    const response = await api.post(`/api/v1/inventory/in-store-returns/${id}/cancel`, payload)
+    return getValue(response, 'Unable to cancel in-store return.')
+  },
+
+  async getLastBatchCost(productId) {
+    const response = await api.get(`/api/v1/inventory/stock/last-cost/${productId}`)
+    return getValue(response, 'Unable to load last batch cost.')
+  },
+
+  async getLastPrices(productId) {
+    const response = await api.get(`/api/v1/inventory/stock/last-prices/${productId}`)
+    return getValue(response, 'Unable to load last prices.')
   },
 }

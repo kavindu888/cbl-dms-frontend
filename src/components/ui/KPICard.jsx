@@ -27,7 +27,14 @@ export default function KPICard({
             color: iconColor,
           }}
         >
-          {icon}
+          {icon && (typeof icon === 'function' || (typeof icon === 'object' && icon.render)) ? (
+            (() => {
+              const IconComp = icon
+              return <IconComp size={20} />
+            })()
+          ) : (
+            icon
+          )}
         </div>
       </div>
 

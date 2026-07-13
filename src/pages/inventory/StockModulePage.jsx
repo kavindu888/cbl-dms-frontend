@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import SimplePagination from '@components/ui/SimplePagination'
 import { useAuthStore } from '@stores/authStore'
+import { formatDateTime as formatSriLankaDateTime } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import {
   firstValidationMessage,
@@ -57,8 +58,7 @@ function getErrorMessage(error, fallback) {
 }
 
 function formatDate(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return formatSriLankaDateTime(value)
 }
 
 function formatNumber(value) {
@@ -1895,7 +1895,6 @@ export default function StockModulePage({ initialTab = 'levels' }) {
                 <th>Batch No</th>
                 <th>Qty</th>
                 <th>Unit Cost Smallest</th>
-                <th>Selling Price</th>
                 <th>MRP</th>
                 <th>Expiry</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
@@ -1903,7 +1902,7 @@ export default function StockModulePage({ initialTab = 'levels' }) {
             </thead>
             <tbody>
               {(selectedTransfer.lines || []).length === 0 ? (
-                <EmptyRow colSpan={11} message="No transfer lines added." />
+                <EmptyRow colSpan={10} message="No transfer lines added." />
               ) : null}
               {(selectedTransfer.lines || []).map((line) => (
                 <tr key={line.id}>
@@ -1923,7 +1922,6 @@ export default function StockModulePage({ initialTab = 'levels' }) {
                     </span>
                   </td>
                   <td className="amount">{formatCurrency(line.unitCostSmallest)}</td>
-                  <td className="amount">{formatCurrency(line.sellingPrice)}</td>
                   <td className="amount">{formatCurrency(line.mrp)}</td>
                   <td>{formatDate(line.expiryDate)}</td>
                   <td style={{ textAlign: 'right' }}>

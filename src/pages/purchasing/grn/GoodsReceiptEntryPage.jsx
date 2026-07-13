@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
+import { inventoryService } from '@services/api/inventoryService'
 import { GrnStatus, PurchaseOrderStatus } from '@/types/purchasing.types'
+import { formatDate } from '@/utils'
 import { useLocation } from 'react-router-dom'
 
 const orderPageSize = 3
@@ -67,8 +69,18 @@ function toNumber(value) {
   return Number.isFinite(number) ? number : 0
 }
 
-function toIsoDate(value) {
-  return value ? dayjs(value).toISOString() : null
+function toIsoDate(value, includeTime = false) {
+  if (!value) return null
+  let d = dayjs(value)
+  if (includeTime) {
+    const now = dayjs()
+    d = d
+      .hour(now.hour())
+      .minute(now.minute())
+      .second(now.second())
+      .millisecond(now.millisecond())
+  }
+  return d.toISOString()
 }
 
 function normalizeText(value) {
@@ -103,7 +115,6 @@ function createReceiptLine(line, grnLine = null) {
     grnLineId: grnLine?.id || '',
     qtyBaseUnit: grnLine?.qtyBaseUnit ?? line.remainingQty ?? '',
     unitCostSmallest: getDefaultPrice(grnLine?.unitCostSmallest, line.unitCostSmallest),
-    sellingPrice: getDefaultPrice(grnLine?.sellingPrice, line.sellingPrice, line.unitCostSmallest),
     mrp: getDefaultPrice(grnLine?.mrp, line.mrp, line.unitCostSmallest),
     rejectedQtyBase: grnLine?.rejectedQtyBase ?? 0,
     rejectionReason: grnLine?.rejectionReason || '',
@@ -151,7 +162,6 @@ function getReceiptLinePayload(line) {
     productName: line.productName,
     qtyBaseUnit: toNumber(line.qtyBaseUnit),
     unitCostSmallest: toNumber(line.unitCostSmallest),
-    sellingPrice: toNumber(line.sellingPrice),
     mrp: toNumber(line.mrp),
     rejectedQtyBase: toNumber(line.rejectedQtyBase),
     rejectionReason: normalizeText(line.rejectionReason),
@@ -163,7 +173,7 @@ function getReceiptLinePayload(line) {
 function getReceiptHeaderPayload(selectedOrder, receiptHeader) {
   return {
     purchaseOrderId: selectedOrder.id,
-    receiptDate: toIsoDate(receiptHeader.receiptDate),
+    receiptDate: toIsoDate(receiptHeader.receiptDate, true),
     discount: toNumber(receiptHeader.discount),
     supplierInvoiceNo: normalizeText(receiptHeader.supplierInvoiceNo),
     notes: normalizeText(receiptHeader.notes),
@@ -278,37 +288,6 @@ export default function GoodsReceiptEntryPage() {
 
         missingDraftOrders.filter(Boolean).forEach((order) => ordersById.set(order.id, order))
 
-        const openReceiptsByPoId = new Map()
-        await Promise.all(
-          [...ordersById.keys()].map(async (purchaseOrderId) => {
-            try {
-              const result = await purchasingService.listGoodsReceipts({
-                page: 1,
-                pageSize: 100,
-                poId: purchaseOrderId,
-              })
-              const openReceipt = (result?.items || []).find((receipt) =>
-                [GrnStatus.Draft, GrnStatus.Received].includes(Number(receipt.status))
-              )
-              if (openReceipt) openReceiptsByPoId.set(purchaseOrderId, openReceipt)
-            } catch (requestError) {
-              console.error('Unable to load purchase order GRNs:', requestError)
-            }
-          })
-        )
-
-        openReceiptsByPoId.forEach((receipt, purchaseOrderId) => {
-          if (Number(receipt.status) === Number(GrnStatus.Draft)) {
-            draftReceiptsByPoId.set(purchaseOrderId, receipt)
-            draftGrnPoIds.add(purchaseOrderId)
-            return
-          }
-
-          if (Number(receipt.status) === Number(GrnStatus.Received)) {
-            pendingGrnPoIds.add(purchaseOrderId)
-          }
-        })
-
         setOrders(
           [...ordersById.values()]
             .filter((order) => !pendingGrnPoIds.has(order.id))
@@ -419,9 +398,32 @@ export default function GoodsReceiptEntryPage() {
         const grnLinesByPoLine = new Map(
           (draft?.lines || []).map((line) => [line.purchaseOrderLineId, line])
         )
-        setReceiptLines(
-          (detail.lines || []).map((line) => createReceiptLine(line, grnLinesByPoLine.get(line.id)))
-        )
+        const initialLines = (detail.lines || []).map((line) => createReceiptLine(line, grnLinesByPoLine.get(line.id)))
+        setReceiptLines(initialLines)
+
+        initialLines.forEach((line, index) => {
+          const cost = Number(line.unitCostSmallest || 0)
+          const mrp = Number(line.mrp || 0)
+          if (cost <= 0 || mrp <= 0) {
+            inventoryService.getLastPrices(line.productId)
+              .then((prices) => {
+                if (prices) {
+                  setReceiptLines((prev) =>
+                    prev.map((l, idx) =>
+                      idx === index
+                        ? {
+                            ...l,
+                            unitCostSmallest: l.unitCostSmallest && Number(l.unitCostSmallest) > 0 ? l.unitCostSmallest : (prices.lastCost ? String(prices.lastCost) : l.unitCostSmallest),
+                            mrp: l.mrp && Number(l.mrp) > 0 ? l.mrp : (prices.lastMrp ? String(prices.lastMrp) : l.mrp),
+                          }
+                        : l
+                    )
+                  )
+                }
+              })
+              .catch((err) => console.error('Error fetching last prices:', err))
+          }
+        })
       } catch (requestError) {
         toast.error(`Unable to load purchase order details: ${requestError.message}`)
         setSelectedOrder(null)
@@ -963,7 +965,7 @@ export default function GoodsReceiptEntryPage() {
                           }}
                         >
                           <CalendarDays style={{ width: 13, height: 13 }} />
-                          {dayjs(order.grnQueueDate || order.orderDate).format('DD MMM YYYY')}
+                          {formatDate(order.grnQueueDate || order.orderDate)}
                         </span>
                         <span
                           className="mono"
@@ -1107,7 +1109,7 @@ export default function GoodsReceiptEntryPage() {
                         }}
                       >
                         {selectedOrder.expectedDeliveryDate
-                          ? dayjs(selectedOrder.expectedDeliveryDate).format('DD MMM YYYY')
+                          ? formatDate(selectedOrder.expectedDeliveryDate)
                           : 'Not specified'}
                       </div>
                     </div>
@@ -1212,7 +1214,6 @@ export default function GoodsReceiptEntryPage() {
                           <th style={{ textAlign: 'right' }}>Remaining</th>
                           <th style={{ width: 110 }}>Receive Qty</th>
                           <th style={{ width: 120 }}>Unit Cost</th>
-                          <th style={{ width: 120 }}>Selling Price</th>
                           <th style={{ width: 110 }}>MRP</th>
                           <th style={{ width: 110 }}>Rejected Qty</th>
                           <th style={{ width: 170 }}>Reject Reason</th>
@@ -1253,18 +1254,25 @@ export default function GoodsReceiptEntryPage() {
                                   updateReceiptLine(lineIndex, 'unitCostSmallest', value)
                                 }
                               />
-                              <EditableCell
-                                disabled={Boolean(pendingReceipt)}
-                                value={line.sellingPrice}
-                                onChange={(value) =>
-                                  updateReceiptLine(lineIndex, 'sellingPrice', value)
-                                }
-                              />
-                              <EditableCell
-                                disabled={Boolean(pendingReceipt)}
-                                value={line.mrp}
-                                onChange={(value) => updateReceiptLine(lineIndex, 'mrp', value)}
-                              />
+                              <td>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="form-input"
+                                  disabled={Boolean(pendingReceipt)}
+                                  value={line.mrp}
+                                  onChange={(event) => updateReceiptLine(lineIndex, 'mrp', event.target.value)}
+                                  style={{ height: 34, textAlign: 'right' }}
+                                />
+                                {(() => {
+                                  const poLine = selectedOrder?.lines?.find(l => l.id === line.purchaseOrderLineId);
+                                  return poLine && Number(poLine.mrp) > 0 ? (
+                                    <div className="product-info-sub" style={{ textAlign: 'right', marginTop: 2, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                                      Last: Rs. {Number(poLine.mrp).toFixed(2)}
+                                    </div>
+                                  ) : null;
+                                })()}
+                              </td>
                               <EditableCell
                                 disabled={Boolean(pendingReceipt)}
                                 value={line.rejectedQtyBase}

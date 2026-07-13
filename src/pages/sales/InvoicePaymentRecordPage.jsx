@@ -1,11 +1,13 @@
 import dayjs from 'dayjs'
-import { CreditCard, RefreshCw, Search } from 'lucide-react'
+import { CreditCard, RefreshCw, Search, ArrowLeft, FileText } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
+import { usersService } from '@/services/api/usersService'
+import { formatDate as formatSriLankaDate } from '@/utils'
 
 const paymentMethods = [
   { value: 1, label: 'Cash' },
@@ -32,7 +34,7 @@ function formatMoney(value) {
 }
 
 function formatDate(value) {
-  return value ? dayjs(value).format('DD MMM YYYY') : '-'
+  return formatSriLankaDate(value)
 }
 
 function invoiceStatusLabel(status) {
@@ -96,6 +98,11 @@ export default function InvoicePaymentRecordPage() {
   const [isLoadingInvoiceDetail, setIsLoadingInvoiceDetail] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
+  
+  // Custom states for view layout and detail metadata
+  const [viewDetail, setViewDetail] = useState(false)
+  const [salesRouteName, setSalesRouteName] = useState('')
+  const [salesPersonName, setSalesPersonName] = useState('')
 
   const selectedInvoiceSummary = invoices.find((invoice) => invoice.id === selectedInvoiceId) || null
   const selectedInvoice =
@@ -144,6 +151,8 @@ export default function InvoicePaymentRecordPage() {
   async function loadInvoiceDetail(invoiceId) {
     if (!invoiceId) {
       setSelectedInvoiceDetail(null)
+      setSalesRouteName('')
+      setSalesPersonName('')
       return null
     }
 
@@ -151,6 +160,24 @@ export default function InvoicePaymentRecordPage() {
     try {
       const invoiceDetail = await salesService.getInvoice(invoiceId)
       setSelectedInvoiceDetail(invoiceDetail)
+
+      // Resolve sales route name
+      if (invoiceDetail.salesRouteId) {
+        masterService.getSalesRoute(invoiceDetail.salesRouteId)
+          .then(r => setSalesRouteName(r?.name || ''))
+          .catch(() => setSalesRouteName(''))
+      } else {
+        setSalesRouteName('')
+      }
+
+      // Resolve sales person name
+      if (invoiceDetail.salesPersonId) {
+        usersService.getUser(invoiceDetail.salesPersonId)
+          .then(u => setSalesPersonName(u?.username || u?.email || ''))
+          .catch(() => setSalesPersonName(''))
+      } else {
+        setSalesPersonName('')
+      }
 
       const productIds = Array.from(
         new Set((invoiceDetail.lines || []).map((line) => line.productId).filter(Boolean))
@@ -167,6 +194,8 @@ export default function InvoicePaymentRecordPage() {
       return invoiceDetail
     } catch (requestError) {
       setSelectedInvoiceDetail(null)
+      setSalesRouteName('')
+      setSalesPersonName('')
       setProducts([])
       toast.error(requestError.message || 'Unable to load invoice lines.')
       return null
@@ -275,6 +304,8 @@ export default function InvoicePaymentRecordPage() {
       await salesService.addInvoicePayment(selectedInvoice.id, payload)
       toast.success('Payment recorded successfully.')
       setPayment(emptyPayment)
+      // Auto return back to list view on payment success if no longer outstanding
+      setViewDetail(false)
       await loadInvoices()
       await loadInvoiceDetail(selectedInvoice.id)
     } catch (requestError) {
@@ -316,280 +347,319 @@ export default function InvoicePaymentRecordPage() {
         }}
       >
         <main style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
-          <section className="panel" style={{ padding: 14 }}>
-            <div
-              className="grn-filter-search"
-              style={{ position: 'relative', maxWidth: 420, minWidth: 0 }}
-            >
-              <Search
-                style={{
-                  position: 'absolute',
-                  left: 12,
-                  top: '50%',
-                  width: 16,
-                  height: 16,
-                  transform: 'translateY(-50%)',
-                  color: 'var(--color-text-dim)',
-                }}
-              />
-              <input
-                className="form-input"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search invoice or customer"
-                style={{ paddingLeft: 38 }}
-              />
-            </div>
-          </section>
-
-          <section
-            className="panel"
-            style={{
-              minHeight: 180,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <div
-              style={{
-                padding: '12px 14px',
-                borderBottom: '1px solid var(--color-border)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 12,
-              }}
-            >
-              <h2 style={{ fontSize: 15, fontWeight: 800 }}>Outstanding Invoices</h2>
-              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                {filteredInvoices.length} invoice{filteredInvoices.length === 1 ? '' : 's'}
-              </span>
-            </div>
-
-            <div className="responsive-table-shell" style={{ overflow: 'auto', minHeight: 0 }}>
-              {isLoading ? (
-                <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>
-                  Loading invoices...
-                </div>
-              ) : error ? (
-                <div style={{ padding: 16, color: 'var(--color-danger)' }}>{error}</div>
-              ) : filteredInvoices.length ? (
-                <table className="data-table product-table-compact" style={{ minWidth: 760 }}>
-                  <thead>
-                    <tr>
-                      <th>Invoice</th>
-                      <th>Customer</th>
-                      <th>Date</th>
-                      <th>Status</th>
-                      <th style={{ textAlign: 'right' }}>Net</th>
-                      <th style={{ textAlign: 'right' }}>Outstanding</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pagedInvoices.map((invoice) => {
-                      const isSelected = invoice.id === selectedInvoiceId
-
-                      return (
-                        <tr
-                          key={invoice.id}
-                          onClick={() => setSelectedInvoiceId(invoice.id)}
-                          style={{
-                            cursor: 'pointer',
-                            background: isSelected
-                              ? 'color-mix(in srgb, var(--color-amber) 10%, transparent)'
-                              : undefined,
-                          }}
-                        >
-                          <td>
-                            <span className="mono" style={{ fontWeight: 700 }}>
-                              {invoice.invoiceNumber}
-                            </span>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                              <span style={{ fontWeight: 700 }}>
-                                {customerNameById[invoice.customerId] || invoice.customerId || '-'}
-                              </span>
-                              {customerNameById[invoice.customerId] ? (
-                                <span
-                                  className="mono"
-                                  style={{ fontSize: 11, color: 'var(--color-text-dim)' }}
-                                >
-                                  {invoice.customerId}
-                                </span>
-                              ) : null}
-                            </div>
-                          </td>
-                          <td>{formatDate(invoice.invoiceDate)}</td>
-                          <td>
-                            <StatusBadge status={invoiceStatusLabel(invoice.status)} />
-                          </td>
-                          <td className="mono" style={{ textAlign: 'right' }}>
-                            {formatMoney(invoice.netAmount)}
-                          </td>
-                          <td
-                            className="mono"
-                            style={{ textAlign: 'right', color: 'var(--color-amber)' }}
-                          >
-                            {formatMoney(invoice.outstandingAmount)}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              ) : (
-                <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>
-                  No outstanding invoices found.
-                </div>
-              )}
-            </div>
-              {filteredInvoices.length ? (
-                <div style={{ padding: '0 12px 10px' }}>
-                  <SimplePagination
-                    page={invoicePage}
-                    pageSize={invoicePageSize}
-                    totalItems={filteredInvoices.length}
-                    onPageChange={setInvoicePage}
-                    itemLabel="invoices"
-                  />
-                </div>
-              ) : null}
-          </section>
-
-          <section className="panel" style={{ padding: 14 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>Invoice Details</h2>
-
-            {selectedInvoice ? (
-              <>
+          {!viewDetail ? (
+            <>
+              <section className="panel" style={{ padding: 14 }}>
                 <div
-                  className="responsive-field-grid"
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                    gap: 10,
-                  }}
+                  className="grn-filter-search"
+                  style={{ position: 'relative', maxWidth: 420, minWidth: 0 }}
                 >
-                  <DetailItem label="Invoice No" value={selectedInvoice.invoiceNumber} />
-                  <DetailItem
-                    label="Customer"
-                    value={customerNameById[selectedInvoice.customerId] || selectedInvoice.customerId}
-                  />
-                  <DetailItem label="Invoice Date" value={formatDate(selectedInvoice.invoiceDate)} />
-                  <DetailItem label="Due Date" value={formatDate(selectedInvoice.dueDate)} />
-                  <DetailItem label="Sales Route" value={selectedInvoice.salesRouteId} />
-                  <DetailItem label="Vehicle" value={selectedInvoice.vehicleId} />
-                  <DetailItem label="Sales Person" value={selectedInvoice.salesPersonId} />
-                  <DetailItem label="Tax Invoice No" value={selectedInvoice.taxInvoiceNumber} />
-                </div>
-
-                <div
-                  style={{
-                    marginTop: 14,
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 8,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
+                  <Search
                     style={{
-                      padding: '10px 12px',
-                      borderBottom: '1px solid var(--color-border)',
-                      background: 'var(--color-bg-surface)',
+                      position: 'absolute',
+                      left: 12,
+                      top: '50%',
+                      width: 16,
+                      height: 16,
+                      transform: 'translateY(-50%)',
+                      color: 'var(--color-text-dim)',
                     }}
-                  >
-                    <h3 style={{ fontSize: 17, fontWeight: 800 }}>Invoice Lines</h3>
-                  </div>
-                  <div className="responsive-table-shell" style={{ overflow: 'auto' }}>
-                    <table className="data-table" style={{ minWidth: 800 }}>
+                  />
+                  <input
+                    className="form-input"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search invoice or customer"
+                    style={{ paddingLeft: 38 }}
+                  />
+                </div>
+              </section>
+
+              <section
+                className="panel"
+                style={{
+                  flex: 1,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minHeight: 0,
+                }}
+              >
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderBottom: '1px solid var(--color-border)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
+                  <h2 style={{ fontSize: 15, fontWeight: 800 }}>Outstanding Invoices</h2>
+                  <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    {filteredInvoices.length} invoice{filteredInvoices.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+
+                <div className="responsive-table-shell" style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
+                  {isLoading ? (
+                    <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>
+                      Loading invoices...
+                    </div>
+                  ) : error ? (
+                    <div style={{ padding: 16, color: 'var(--color-danger)' }}>{error}</div>
+                  ) : filteredInvoices.length ? (
+                    <table className="data-table product-table-compact" style={{ minWidth: 760 }}>
                       <thead>
                         <tr>
-                          <th>Item</th>
-                          <th style={{ textAlign: 'right' }}>Qty</th>
-                          <th style={{ textAlign: 'right' }}>Unit Price</th>
-                          <th style={{ textAlign: 'right' }}>MRP</th>
-                          <th style={{ textAlign: 'right' }}>Disc %</th>
-                          <th style={{ textAlign: 'right' }}>VAT</th>
-                          <th style={{ textAlign: 'right' }}>Total</th>
+                          <th>Invoice</th>
+                          <th>Customer</th>
+                          <th>Date</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Net</th>
+                          <th style={{ textAlign: 'right' }}>Outstanding</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {isLoadingInvoiceDetail ? (
-                          <tr>
-                            <td colSpan={7} style={{ color: 'var(--color-text-muted)' }}>
-                              Loading invoice lines...
-                            </td>
-                          </tr>
-                        ) : (selectedInvoice.lines || []).length ? (
-                          (selectedInvoice.lines || []).map((line) => {
-                            const product = productById[line.productId]
-                            const productSku = product?.sku || line.productId
-                            const productName = product?.name || 'Unknown Product'
+                        {pagedInvoices.map((invoice) => {
+                          const isSelected = invoice.id === selectedInvoiceId
 
-                            return (
-                              <tr key={line.id}>
-                                <td>
-                                  <div
-                                    style={{
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      gap: 3,
-                                      alignItems: 'flex-start',
-                                    }}
-                                  >
-                                    <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
-                                      {productSku}
-                                    </span>
-                                    <span style={{ fontSize: 13, fontWeight: 700 }}>
-                                      {productName}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                  {line.quantity}{' '}
-                                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                                    {line.unitId}
+                          return (
+                            <tr
+                              key={invoice.id}
+                              onClick={() => {
+                                setSelectedInvoiceId(invoice.id)
+                                setViewDetail(true)
+                              }}
+                              style={{
+                                cursor: 'pointer',
+                                background: isSelected
+                                  ? 'color-mix(in srgb, var(--color-amber) 10%, transparent)'
+                                  : undefined,
+                              }}
+                            >
+                              <td>
+                                <span className="mono" style={{ fontWeight: 700 }}>
+                                  {invoice.invoiceNumber}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <span style={{ fontWeight: 700 }}>
+                                    {customerNameById[invoice.customerId] || invoice.customerId || '-'}
                                   </span>
-                                </td>
-                                <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                  {formatMoney(line.unitPrice)}
-                                </td>
-                                <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                  {formatMoney(line.mrp)}
-                                </td>
-                                <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                  {line.discountPercent}%
-                                </td>
-                                <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                  {formatMoney(line.vatAmount)}
-                                </td>
-                                <td
-                                  className="mono"
-                                  style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 800 }}
-                                >
-                                  {formatMoney(line.lineTotal)}
-                                </td>
-                              </tr>
-                            )
-                          })
-                        ) : (
-                          <tr>
-                            <td colSpan={7} style={{ color: 'var(--color-text-muted)' }}>
-                              No invoice lines found for this invoice.
-                            </td>
-                          </tr>
-                        )}
+                                  {customerNameById[invoice.customerId] ? (
+                                    <span
+                                      className="mono"
+                                      style={{ fontSize: 11, color: 'var(--color-text-dim)' }}
+                                    >
+                                      {invoice.customerId}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td>{formatDate(invoice.invoiceDate)}</td>
+                              <td>
+                                <StatusBadge status={invoiceStatusLabel(invoice.status)} />
+                              </td>
+                              <td className="mono" style={{ textAlign: 'right' }}>
+                                {formatMoney(invoice.netAmount)}
+                              </td>
+                              <td
+                                className="mono"
+                                style={{ textAlign: 'right', color: 'var(--color-amber)' }}
+                              >
+                                {formatMoney(invoice.outstandingAmount)}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
-                  </div>
+                  ) : (
+                    <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>
+                      No outstanding invoices found.
+                    </div>
+                  )}
                 </div>
-              </>
-            ) : (
-              <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
-                Select an invoice to view its details.
-              </p>
-            )}
-          </section>
+                {filteredInvoices.length ? (
+                  <div style={{ padding: '0 12px 10px', flexShrink: 0 }}>
+                    <SimplePagination
+                      page={invoicePage}
+                      pageSize={invoicePageSize}
+                      totalItems={filteredInvoices.length}
+                      onPageChange={setInvoicePage}
+                      itemLabel="invoices"
+                    />
+                  </div>
+                ) : null}
+              </section>
+            </>
+          ) : (
+            <>
+              {selectedInvoice ? (
+                <>
+                  <section className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button
+                          onClick={() => setViewDetail(false)}
+                          className="button-secondary"
+                          style={{ height: 34, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                        >
+                          <ArrowLeft size={15} /> Back
+                        </button>
+                        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>
+                          Invoice Details: <span className="mono" style={{ color: 'var(--color-amber)' }}>{selectedInvoice.invoiceNumber}</span>
+                        </h2>
+                      </div>
+                      <StatusBadge status={invoiceStatusLabel(selectedInvoice.status)} />
+                    </div>
+
+                    <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)', margin: 0 }} />
+
+                    <div
+                      className="responsive-field-grid"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                        gap: 10,
+                      }}
+                    >
+                      <DetailItem label="Invoice No" value={selectedInvoice.invoiceNumber} />
+                      <DetailItem
+                        label="Customer"
+                        value={customerNameById[selectedInvoice.customerId] || selectedInvoice.customerId}
+                      />
+                      <DetailItem label="Invoice Date" value={formatDate(selectedInvoice.invoiceDate)} />
+                      <DetailItem label="Due Date" value={formatDate(selectedInvoice.dueDate)} />
+                      <DetailItem label="Sales Route" value={salesRouteName || selectedInvoice.salesRouteId} />
+                      <DetailItem label="Vehicle" value={selectedInvoice.vehicleId} />
+                      <DetailItem label="Sales Person" value={salesPersonName || selectedInvoice.salesPersonId} />
+                      <DetailItem label="Tax Invoice No" value={selectedInvoice.taxInvoiceNumber} />
+                    </div>
+                  </section>
+
+                  <section
+                    className="panel"
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      minHeight: 0,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderBottom: '1px solid var(--color-border)',
+                        background: 'var(--color-bg-surface)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        flexShrink: 0
+                      }}
+                    >
+                      <FileText size={16} color="var(--color-teal)" />
+                      <h3 style={{ fontSize: 15, fontWeight: 800 }}>Invoice Lines</h3>
+                    </div>
+                    <div className="responsive-table-shell" style={{ overflow: 'auto', flex: 1 }}>
+                      <table className="data-table" style={{ minWidth: 800 }}>
+                        <thead>
+                          <tr>
+                            <th>Item</th>
+                            <th>Batch</th>
+                            <th style={{ textAlign: 'right' }}>Qty</th>
+                            <th style={{ textAlign: 'right' }}>Unit Price</th>
+                            <th style={{ textAlign: 'right' }}>MRP</th>
+                            <th style={{ textAlign: 'right' }}>Disc %</th>
+                            <th style={{ textAlign: 'right' }}>VAT</th>
+                            <th style={{ textAlign: 'right' }}>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {isLoadingInvoiceDetail ? (
+                            <tr>
+                              <td colSpan={8} style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24 }}>
+                                Loading invoice lines...
+                              </td>
+                            </tr>
+                          ) : (selectedInvoice.lines || []).length ? (
+                            (selectedInvoice.lines || []).map((line) => {
+                              const product = productById[line.productId]
+                              const productSku = product?.sku || line.productId
+                              const productName = product?.name || 'Unknown Product'
+
+                              return (
+                                <tr key={line.id}>
+                                  <td>
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 3,
+                                        alignItems: 'flex-start',
+                                      }}
+                                    >
+                                      <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                        {productSku}
+                                      </span>
+                                      <span style={{ fontSize: 13, fontWeight: 700 }}>
+                                        {productName}
+                                      </span>
+                                    </div>
+                                  </td>
+                                   <td className="mono text-xs text-cyan-600" style={{ textAlign: 'left', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                                     {line.batchNo}
+                                   </td>
+                                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    {line.quantity}{' '}
+                                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                                      {line.smallestUnitCode || line.unitId}
+                                    </span>
+                                  </td>
+                                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    {formatMoney(line.unitPrice)}
+                                  </td>
+                                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    {formatMoney(line.mrp)}
+                                  </td>
+                                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    {line.discountPercent}%
+                                  </td>
+                                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    {formatMoney(line.vatAmount)}
+                                  </td>
+                                  <td
+                                    className="mono"
+                                    style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 800 }}
+                                  >
+                                    {formatMoney(line.lineTotal)}
+                                  </td>
+                                </tr>
+                              )
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan={7} style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24 }}>
+                                No invoice lines found for this invoice.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </>
+              ) : (
+                <div className="panel" style={{ padding: 20 }}>
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
+                    No invoice selected. Click Back to select an invoice.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
         </main>
 
         <aside

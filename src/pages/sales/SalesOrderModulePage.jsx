@@ -1,14 +1,16 @@
 import dayjs from 'dayjs'
-import { CheckCircle2, FileText, PackagePlus, RefreshCw, Search, Trash2, XCircle } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { ArrowLeft, CheckCircle2, FileText, PackagePlus, RefreshCw, Search, Trash2, XCircle } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
+import { usersService } from '@/services/api/usersService'
+import { formatDate as formatSriLankaDate } from '@/utils'
 
-const orderPageSize = 5
+const orderPageSize = 10
 
 const emptyHeader = {
   customerId: '',
@@ -36,7 +38,7 @@ function formatMoney(value) {
 }
 
 function formatDate(value) {
-  return value ? dayjs(value).format('DD MMM YYYY') : '-'
+  return formatSriLankaDate(value)
 }
 
 function toIsoDate(value) {
@@ -98,6 +100,7 @@ export default function SalesOrderModulePage() {
   const [products, setProducts] = useState([])
   const [selectedOrderId, setSelectedOrderId] = useState('')
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [viewDetail, setViewDetail] = useState(false)
   const [header, setHeader] = useState(emptyHeader)
   const [line, setLine] = useState(emptyLine)
   const [lineDrafts, setLineDrafts] = useState({})
@@ -108,6 +111,8 @@ export default function SalesOrderModulePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [salesRouteName, setSalesRouteName] = useState('')
+  const [salesPersonName, setSalesPersonName] = useState('')
 
   const customerById = useMemo(() => {
     return customers.reduce((map, customer) => {
@@ -147,6 +152,52 @@ export default function SalesOrderModulePage() {
   const isDraft = selectedOrder?.status === 'Draft'
   const isConfirmed = selectedOrder?.status === 'Confirmed'
 
+  const computedGross = useMemo(() => {
+    return selectedOrder?.lines?.reduce((sum, l) => sum + (toNumber(l.quantity) * toNumber(l.unitPrice)), 0) ?? 0
+  }, [selectedOrder])
+
+  const computedSupplierDiscount = useMemo(() => {
+    return selectedOrder?.lines?.reduce((sum, l) => {
+      const price = toNumber(l.unitPrice)
+      const qty = toNumber(l.quantity)
+      const disc = toNumber(l.discountPercent)
+      const supplierDisc = Math.min(disc, 8)
+      return sum + (price * qty * supplierDisc / 100)
+    }, 0) ?? 0
+  }, [selectedOrder])
+
+  const computedDistributorDiscount = useMemo(() => {
+    return selectedOrder?.lines?.reduce((sum, l) => {
+      const price = toNumber(l.unitPrice)
+      const qty = toNumber(l.quantity)
+      const disc = toNumber(l.discountPercent)
+      const distributorDisc = Math.max(0, disc - 8)
+      return sum + (price * qty * distributorDisc / 100)
+    }, 0) ?? 0
+  }, [selectedOrder])
+
+  const computedDiscount = computedSupplierDiscount + computedDistributorDiscount
+
+  const computedVat = useMemo(() => {
+    return selectedOrder?.lines?.reduce((sum, l) => {
+      if (!l.isVatApplicable) return sum
+      const price = toNumber(l.unitPrice)
+      const qty = toNumber(l.quantity)
+      const disc = toNumber(l.discountPercent)
+      const afterDiscount = (price * qty) - (price * qty * disc / 100)
+      return sum + Math.round(afterDiscount * 0.18 * 100) / 100
+    }, 0) ?? 0
+  }, [selectedOrder])
+
+  const computedNet = computedGross - computedDiscount + computedVat
+
+  const gross = selectedOrder?.grossAmount > 0 ? selectedOrder.grossAmount : computedGross
+  const discount = selectedOrder?.totalDiscountAmount > 0 ? selectedOrder.totalDiscountAmount : computedDiscount
+  const supplierDiscount = selectedOrder?.totalSupplierDiscountAmount > 0 ? selectedOrder.totalSupplierDiscountAmount : computedSupplierDiscount
+  const distributorDiscount = selectedOrder?.totalDistributorDiscountAmount > 0 ? selectedOrder.totalDistributorDiscountAmount : computedDistributorDiscount
+  const vat = selectedOrder?.vatAmount > 0 ? selectedOrder.vatAmount : computedVat
+  const net = selectedOrder?.netAmount > 0 ? selectedOrder.netAmount : computedNet
+
   async function loadReferenceData() {
     const [customerResult, productResult] = await Promise.all([
       salesService.listCustomers({ page: 1, pageSize: 100, isActive: true }),
@@ -179,6 +230,8 @@ export default function SalesOrderModulePage() {
     if (!orderId) {
       setSelectedOrder(null)
       setLineDrafts({})
+      setSalesRouteName('')
+      setSalesPersonName('')
       return
     }
 
@@ -195,10 +248,30 @@ export default function SalesOrderModulePage() {
           return map
         }, {})
       )
+
+      // Fetch sales route name
+      if (order.salesRouteId) {
+        masterService.getSalesRoute(order.salesRouteId)
+          .then(r => setSalesRouteName(r?.name || ''))
+          .catch(() => setSalesRouteName(''))
+      } else {
+        setSalesRouteName('')
+      }
+
+      // Fetch sales person name
+      if (order.salesPersonId) {
+        usersService.getUser(order.salesPersonId)
+          .then(u => setSalesPersonName(u?.username || u?.email || ''))
+          .catch(() => setSalesPersonName(''))
+      } else {
+        setSalesPersonName('')
+      }
     } catch (error) {
       toast.error(error.message || 'Unable to load order detail.')
       setSelectedOrder(null)
       setLineDrafts({})
+      setSalesRouteName('')
+      setSalesPersonName('')
     } finally {
       setIsLoadingDetail(false)
     }
@@ -266,6 +339,7 @@ export default function SalesOrderModulePage() {
       toast.success('Sales order created.')
       setHeader(emptyHeader)
       setSelectedOrderId(created.id)
+      setViewDetail(true)
       await loadOrders()
     } catch (error) {
       toast.error(error.message || 'Unable to create sales order.')
@@ -378,15 +452,10 @@ export default function SalesOrderModulePage() {
   async function convertToInvoice(event) {
     event.preventDefault()
 
-    if (!conversion.vehicleId.trim()) {
-      toast.error('Vehicle ID is required to convert the order.')
-      return
-    }
-
     setIsSaving(true)
     try {
       const result = await salesService.convertSalesOrderToInvoice(selectedOrder.id, {
-        vehicleId: conversion.vehicleId.trim(),
+        vehicleId: conversion.vehicleId.trim() || null,
         dueDate: toIsoDate(conversion.dueDate),
         notes: conversion.notes.trim() || null,
       })
@@ -407,474 +476,625 @@ export default function SalesOrderModulePage() {
       style={{
         height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
         minHeight: 0,
-        display: 'grid',
-        gridTemplateColumns: 'minmax(360px, 430px) minmax(0, 1fr)',
+        display: 'flex',
+        flexDirection: 'column',
         gap: 14,
+        paddingBottom: 16,
       }}
     >
-      <section className="panel" style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: 14, borderBottom: '1px solid var(--color-border)' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800 }}>Sales Orders</h1>
-          <p style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 13 }}>
-            Create draft orders, manage lines, and convert confirmed orders to invoices.
-          </p>
-        </div>
-
-        <form
-          onSubmit={createOrder}
-          style={{
-            padding: 14,
-            display: 'grid',
-            gap: 10,
-            borderBottom: '1px solid var(--color-border)',
-          }}
-        >
-          <h2 style={{ fontSize: 15, fontWeight: 800 }}>New Order</h2>
-          <label>
-            <span className="form-label">Customer</span>
-            <select
-              className="form-input"
-              value={header.customerId}
-              onChange={(event) => updateHeader('customerId', event.target.value)}
-            >
-              <option value="">Select customer</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="form-label">Delivery Date</span>
-            <input
-              className="form-input"
-              type="date"
-              value={header.deliveryDate}
-              onChange={(event) => updateHeader('deliveryDate', event.target.value)}
-            />
-          </label>
-          <label>
-            <span className="form-label">Notes</span>
-            <input
-              className="form-input"
-              value={header.notes}
-              onChange={(event) => updateHeader('notes', event.target.value)}
-              placeholder="Optional order notes"
-            />
-          </label>
-          <button className="button-primary" type="submit" disabled={isSaving}>
-            <PackagePlus style={{ width: 15, height: 15 }} />
-            Create Draft Order
-          </button>
-        </form>
-
-        <div style={{ padding: 14, borderBottom: '1px solid var(--color-border)' }}>
-          <div style={{ position: 'relative' }}>
-            <Search
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                width: 16,
-                height: 16,
-                transform: 'translateY(-50%)',
-                color: 'var(--color-text-dim)',
-              }}
-            />
-            <input
-              className="form-input"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search orders"
-              style={{ paddingLeft: 38 }}
-            />
-          </div>
-        </div>
-
-        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-          {isLoading ? (
-            <div style={{ padding: 14, color: 'var(--color-text-muted)' }}>Loading orders...</div>
-          ) : filteredOrders.length ? (
-            <table className="data-table product-table-compact" style={{ minWidth: 520 }}>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Net</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedOrders.map((order) => (
-                  <tr
-                    key={order.id}
-                    onClick={() => setSelectedOrderId(order.id)}
-                    style={{
-                      cursor: 'pointer',
-                      background:
-                        order.id === selectedOrderId
-                          ? 'color-mix(in srgb, var(--color-amber) 10%, transparent)'
-                          : undefined,
-                    }}
-                  >
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span className="mono" style={{ fontWeight: 800 }}>
-                          {order.orderNumber}
-                        </span>
-                        <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-                          {formatDate(order.orderDate)}
-                        </span>
-                      </div>
-                    </td>
-                    <td>{order.customerName || customerById[order.customerId]?.name || '-'}</td>
-                    <td>
-                      <StatusBadge status={statusLabel(order.status)} />
-                    </td>
-                    <td className="mono" style={{ textAlign: 'right' }}>
-                      {formatMoney(order.netAmount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div style={{ padding: 14, color: 'var(--color-text-muted)' }}>No sales orders found.</div>
-          )}
-        </div>
-
-        <div style={{ padding: '0 14px 12px' }}>
-          <SimplePagination
-            page={page}
-            pageSize={orderPageSize}
-            totalItems={filteredOrders.length}
-            onPageChange={setPage}
-            itemLabel="orders"
-          />
-        </div>
-      </section>
-
-      <section
-        className="panel"
+      <div
+        className="responsive-master-detail"
         style={{
-          minHeight: 0,
-          overflow: 'auto',
-          padding: 14,
-          display: 'flex',
-          flexDirection: 'column',
+          display: 'grid',
+          gridTemplateColumns: viewDetail ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 380px',
           gap: 14,
+          flex: 1,
+          minHeight: 0,
         }}
       >
-        {isLoadingDetail ? (
-          <div style={{ color: 'var(--color-text-muted)' }}>Loading order detail...</div>
-        ) : selectedOrder ? (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div>
-                <h2 style={{ fontSize: 22, fontWeight: 800 }}>
-                  Sales Order: {selectedOrder.orderNumber}
-                </h2>
-                <p style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 13 }}>
-                  Created on {formatDate(selectedOrder.orderDate)}
-                </p>
-              </div>
-              <StatusBadge status={statusLabel(selectedOrder.status)} />
-            </div>
-
-            <div
-              className="responsive-field-grid"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                gap: 10,
-              }}
-            >
-              <DetailItem label="Customer" value={selectedOrder.customerName || selectedOrder.customerId} />
-              <DetailItem label="Sales Route" value={selectedOrder.salesRouteId} />
-              <DetailItem label="Sales Person" value={selectedOrder.salesPersonId} />
-              <DetailItem label="Delivery Date" value={formatDate(selectedOrder.deliveryDate)} />
-            </div>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) 280px',
-                gap: 12,
-                alignItems: 'start',
-              }}
-            >
-              <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
-                <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border)' }}>
-                  <h3 style={{ fontSize: 17, fontWeight: 800 }}>Order Lines</h3>
+        <main style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
+          {!viewDetail ? (
+            <>
+              <section className="panel" style={{ padding: 14 }}>
+                <div style={{ position: 'relative', maxWidth: 420, minWidth: 0 }}>
+                  <Search
+                    style={{
+                      position: 'absolute',
+                      left: 12,
+                      top: '50%',
+                      width: 16,
+                      height: 16,
+                      transform: 'translateY(-50%)',
+                      color: 'var(--color-text-dim)',
+                    }}
+                  />
+                  <input
+                    className="form-input"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search orders"
+                    style={{ paddingLeft: 38 }}
+                  />
                 </div>
-                <div className="responsive-table-shell" style={{ overflow: 'auto' }}>
-                  <table className="data-table" style={{ minWidth: 820 }}>
-                    <thead>
-                      <tr>
-                        <th>Item</th>
-                        <th style={{ textAlign: 'right' }}>Qty</th>
-                        <th style={{ textAlign: 'right' }}>Unit Price</th>
-                        <th style={{ textAlign: 'right' }}>Disc %</th>
-                        <th style={{ textAlign: 'right' }}>VAT</th>
-                        <th style={{ textAlign: 'right' }}>Total</th>
-                        {isDraft ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(selectedOrder.lines || []).length ? (
-                        selectedOrder.lines.map((orderLine) => {
-                          const product = productById[orderLine.productId]
-                          const draft = lineDrafts[orderLine.id] || {}
+              </section>
 
-                          return (
-                            <tr key={orderLine.id}>
-                              <td>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                  <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
-                                    {product?.sku || orderLine.productId}
-                                  </span>
-                                  <span style={{ fontWeight: 700 }}>
-                                    {product?.name || 'Unknown Product'}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="mono" style={{ textAlign: 'right' }}>
-                                {isDraft ? (
-                                  <input
-                                    className="form-input"
-                                    type="number"
-                                    min="0"
-                                    value={draft.quantity || ''}
-                                    onChange={(event) =>
-                                      updateLineDraft(orderLine.id, 'quantity', event.target.value)
-                                    }
-                                    style={{ width: 90, height: 32, textAlign: 'right' }}
-                                  />
-                                ) : (
-                                  `${orderLine.quantity} ${orderLine.unitId}`
-                                )}
-                              </td>
-                              <td className="mono" style={{ textAlign: 'right' }}>
-                                {formatMoney(orderLine.unitPrice)}
-                              </td>
-                              <td className="mono" style={{ textAlign: 'right' }}>
-                                {isDraft ? (
-                                  <input
-                                    className="form-input"
-                                    type="number"
-                                    min="0"
-                                    max="10"
-                                    value={draft.discountPercent || ''}
-                                    onChange={(event) =>
-                                      updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
-                                    }
-                                    style={{ width: 78, height: 32, textAlign: 'right' }}
-                                  />
-                                ) : (
-                                  `${orderLine.discountPercent}%`
-                                )}
-                              </td>
-                              <td className="mono" style={{ textAlign: 'right' }}>
-                                {formatMoney(orderLine.vatAmount)}
-                              </td>
-                              <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
-                                {formatMoney(orderLine.lineTotal)}
-                              </td>
-                              {isDraft ? (
-                                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                  <button
-                                    className="button-secondary"
-                                    type="button"
-                                    disabled={isSaving}
-                                    onClick={() => updateOrderLine(orderLine.id)}
-                                    style={{ height: 30, paddingInline: 10, marginRight: 6 }}
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    className="button-secondary"
-                                    type="button"
-                                    disabled={isSaving}
-                                    onClick={() => removeOrderLine(orderLine.id)}
-                                    style={{ height: 30, paddingInline: 10 }}
-                                  >
-                                    <Trash2 style={{ width: 13, height: 13 }} />
-                                  </button>
-                                </td>
-                              ) : null}
-                            </tr>
-                          )
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan={isDraft ? 7 : 6} style={{ color: 'var(--color-text-muted)' }}>
-                            No order lines added yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <aside
+              <section
+                className="panel"
                 style={{
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 8,
-                  padding: 12,
+                  flex: 1,
+                  overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 8,
+                  minHeight: 0,
                 }}
               >
-                <h3 style={{ fontSize: 16, fontWeight: 800 }}>Totals</h3>
-                <AmountLine label="Gross" value={selectedOrder.grossAmount} />
-                <AmountLine label="Discount" value={selectedOrder.totalDiscountAmount} />
-                <AmountLine label="Supplier Discount" value={selectedOrder.totalSupplierDiscountAmount} />
-                <AmountLine
-                  label="Distributor Discount"
-                  value={selectedOrder.totalDistributorDiscountAmount}
-                />
-                <AmountLine label="VAT" value={selectedOrder.vatAmount} />
-                <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
-                <AmountLine label="Net" value={selectedOrder.netAmount} strong />
-              </aside>
-            </div>
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderBottom: '1px solid var(--color-border)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
+                  <h2 style={{ fontSize: 15, fontWeight: 800 }}>Sales Orders List</h2>
+                  <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    {filteredOrders.length} order{filteredOrders.length === 1 ? '' : 's'}
+                  </span>
+                </div>
 
-            {isDraft ? (
+                <div className="responsive-table-shell" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                  {isLoading ? (
+                    <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>Loading orders...</div>
+                  ) : filteredOrders.length ? (
+                    <table className="data-table product-table-compact" style={{ minWidth: 760 }}>
+                      <thead>
+                        <tr>
+                          <th>Order</th>
+                          <th>Customer</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Net</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedOrders.map((order) => (
+                          <tr
+                            key={order.id}
+                            onClick={() => {
+                              setSelectedOrderId(order.id)
+                              setViewDetail(true)
+                            }}
+                            style={{
+                              cursor: 'pointer',
+                              background:
+                                order.id === selectedOrderId
+                                  ? 'color-mix(in srgb, var(--color-amber) 10%, transparent)'
+                                  : undefined,
+                            }}
+                          >
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span className="mono" style={{ fontWeight: 800 }}>
+                                  {order.orderNumber}
+                                </span>
+                                <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                                  {formatDate(order.orderDate)}
+                                </span>
+                              </div>
+                            </td>
+                            <td>{order.customerName || customerById[order.customerId]?.name || '-'}</td>
+                            <td>
+                              <StatusBadge status={statusLabel(order.status)} />
+                            </td>
+                            <td className="mono" style={{ textAlign: 'right' }}>
+                              {formatMoney(order.netAmount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>No sales orders found.</div>
+                  )}
+                </div>
+
+                {filteredOrders.length ? (
+                  <div style={{ padding: '0 12px 10px', flexShrink: 0 }}>
+                    <SimplePagination
+                      page={page}
+                      pageSize={orderPageSize}
+                      totalItems={filteredOrders.length}
+                      onPageChange={setPage}
+                      itemLabel="orders"
+                    />
+                  </div>
+                ) : null}
+              </section>
+            </>
+          ) : (
+            <>
+              {isLoadingDetail ? (
+                <div className="panel" style={{ padding: 24, color: 'var(--color-text-muted)' }}>
+                  Loading order detail...
+                </div>
+              ) : selectedOrder ? (
+                <>
+                  <section className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button
+                          onClick={() => {
+                            setViewDetail(false)
+                            setSelectedOrderId('')
+                          }}
+                          className="button-secondary"
+                          style={{ height: 34, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                        >
+                          <ArrowLeft size={15} /> Back
+                        </button>
+                        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>
+                          Sales Order: <span className="mono" style={{ color: 'var(--color-amber)' }}>{selectedOrder.orderNumber}</span>
+                        </h2>
+                      </div>
+                      <StatusBadge status={statusLabel(selectedOrder.status)} />
+                    </div>
+
+                    <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)', margin: 0 }} />
+
+                    <div
+                      className="responsive-field-grid"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                        gap: 10,
+                      }}
+                    >
+                      <DetailItem label="Customer" value={selectedOrder.customerName || selectedOrder.customerId} />
+                      <DetailItem label="Sales Route" value={salesRouteName || selectedOrder.salesRouteId} />
+                      <DetailItem label="Sales Person" value={salesPersonName || selectedOrder.salesPersonId} />
+                      <DetailItem label="Delivery Date" value={formatDate(selectedOrder.deliveryDate)} />
+                    </div>
+                  </section>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) 280px',
+                      gap: 14,
+                      alignItems: 'start',
+                      flex: 1,
+                      minHeight: 0,
+                    }}
+                  >
+                    <section
+                      className="panel"
+                      style={{
+                        height: '100%',
+                        minHeight: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <FileText size={16} color="var(--color-teal)" />
+                        <h3 style={{ fontSize: 15, fontWeight: 800 }}>Order Lines</h3>
+                      </div>
+                      <div className="responsive-table-shell" style={{ overflow: 'auto', flex: 1 }}>
+                        <table className="data-table" style={{ minWidth: 820 }}>
+                          <thead>
+                            <tr>
+                              <th>Item / Batch</th>
+                              <th style={{ textAlign: 'right' }}>Qty</th>
+                              <th style={{ textAlign: 'right' }}>Selling Price</th>
+                              <th style={{ textAlign: 'right' }}>Disc %</th>
+                              <th style={{ textAlign: 'right' }}>VAT</th>
+                              <th style={{ textAlign: 'right' }}>Total</th>
+                              {isDraft ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(selectedOrder.lines || []).length ? (
+                              selectedOrder.lines.map((orderLine) => {
+                                const product = productById[orderLine.productId]
+                                const draft = lineDrafts[orderLine.id] || {}
+
+                                if (!isDraft && orderLine.isPicked && orderLine.batchPicks?.length > 0) {
+                                  return (
+                                    <React.Fragment key={orderLine.id}>
+                                      {/* Header row for product name */}
+                                      <tr style={{ background: 'rgba(255, 255, 255, 0.03)' }}>
+                                        <td colSpan={6} style={{ padding: '8px 12px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                              {product?.sku || orderLine.productId}
+                                            </span>
+                                            <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                                              {product?.name || 'Unknown Product'}
+                                            </span>
+                                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
+                                              ({orderLine.quantitySmallest} {orderLine.smallestUnitCode || 'PCS'} total)
+                                            </span>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                      {orderLine.batchPicks
+                                        .slice()
+                                        .sort((a, b) => a.pickOrder - b.pickOrder)
+                                        .map((pick) => {
+                                          const pickSellingPrice = pick.sellingPrice ?? Math.round(pick.mrp * (1 - orderLine.discountPercent / 100) * 100) / 100;
+                                          const pickSubtotal = pickSellingPrice * pick.qtyPicked;
+                                          const pickVat = orderLine.isVatApplicable
+                                            ? Math.round(pickSubtotal * 0.18 * 100) / 100
+                                            : 0;
+                                          const pickTotal = pickSubtotal + pickVat;
+
+                                          return (
+                                            <tr key={pick.batchId} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.1)' }}>
+                                              <td style={{ paddingLeft: 24 }}>
+                                                <span className="mono text-cyan-600" style={{ fontSize: 11 }}>
+                                                  {pick.batchNo || 'No Batch'}
+                                                </span>
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right' }}>
+                                                {pick.qtyPicked} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right' }}>
+                                                <div>{formatMoney(pickSellingPrice)}</div>
+                                                <div className="text-xs text-gray-500 font-mono">
+                                                  MRP: {formatMoney(pick.mrp)}
+                                                </div>
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right' }}>
+                                                {orderLine.discountPercent}%
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right' }}>
+                                                {orderLine.isVatApplicable ? formatMoney(pickVat) : '—'}
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                                                {formatMoney(pickTotal)}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                    </React.Fragment>
+                                  );
+                                }
+
+                                return (
+                                  <tr key={orderLine.id}>
+                                    <td>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                        <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                          {product?.sku || orderLine.productId}
+                                        </span>
+                                        <span style={{ fontWeight: 700 }}>
+                                          {product?.name || 'Unknown Product'}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="mono" style={{ textAlign: 'right' }}>
+                                      {isDraft ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                                          <input
+                                            className="form-input"
+                                            type="number"
+                                            min="0"
+                                            value={draft.quantity || ''}
+                                            onChange={(event) =>
+                                              updateLineDraft(orderLine.id, 'quantity', event.target.value)
+                                            }
+                                            style={{ width: 90, height: 32, textAlign: 'right' }}
+                                          />
+                                          <span className="font-mono text-xs text-gray-300">
+                                            {orderLine.smallestUnitCode || 'PCS'}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <div>
+                                          {orderLine.quantity} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="mono" style={{ textAlign: 'right' }}>
+                                      {orderLine.unitPrice > 0 ? (
+                                        <>
+                                          <div className="font-mono text-white">{formatMoney(orderLine.unitPrice)}</div>
+                                          {isDraft ? (
+                                            <div className="text-xs text-gray-500 font-mono">
+                                              Draft — final price after confirmation
+                                            </div>
+                                          ) : (
+                                            orderLine.mrp > 0 && (
+                                              <div className="text-xs text-gray-500 font-mono">
+                                                MRP: {formatMoney(orderLine.mrp)}
+                                              </div>
+                                            )
+                                          )}
+                                        </>
+                                      ) : (
+                                        <span className="text-gray-500 text-xs">Pending confirm</span>
+                                      )}
+                                    </td>
+                                    <td className="mono" style={{ textAlign: 'right' }}>
+                                      {isDraft ? (
+                                        <input
+                                          className="form-input"
+                                          type="number"
+                                          min="0"
+                                          max="10"
+                                          value={draft.discountPercent || ''}
+                                          onChange={(event) =>
+                                            updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
+                                          }
+                                          style={{ width: 78, height: 32, textAlign: 'right' }}
+                                        />
+                                      ) : (
+                                        `${orderLine.discountPercent}%`
+                                      )}
+                                    </td>
+                                    <td className="mono" style={{ textAlign: 'right' }}>
+                                      {isDraft ? '—' : formatMoney(orderLine.vatAmount)}
+                                    </td>
+                                    <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                                      {orderLine.lineTotal > 0
+                                        ? formatMoney(orderLine.lineTotal)
+                                        : formatMoney(orderLine.quantity * orderLine.unitPrice * (1 - (orderLine.discountPercent || 0) / 100))
+                                      }
+                                    </td>
+                                    {isDraft ? (
+                                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                        <button
+                                          className="button-secondary"
+                                          type="button"
+                                          disabled={isSaving}
+                                          onClick={() => updateOrderLine(orderLine.id)}
+                                          style={{ height: 30, paddingInline: 10, marginRight: 6 }}
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          className="button-secondary"
+                                          type="button"
+                                          disabled={isSaving}
+                                          onClick={() => removeOrderLine(orderLine.id)}
+                                          style={{ height: 30, paddingInline: 10 }}
+                                        >
+                                          <Trash2 style={{ width: 13, height: 13 }} />
+                                        </button>
+                                      </td>
+                                    ) : null}
+                                  </tr>
+                                );
+                              })
+                            ) : (
+                              <tr>
+                                <td colSpan={isDraft ? 7 : 6} style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24 }}>
+                                  No order lines added yet.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {isDraft ? (
+                        <div style={{ padding: 12, borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', flexShrink: 0 }}>
+                          <form
+                            onSubmit={addLine}
+                            className="responsive-field-grid"
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'minmax(220px, 1fr) 120px 120px auto',
+                              gap: 10,
+                              alignItems: 'end',
+                            }}
+                          >
+                            <label>
+                              <span className="form-label">Product</span>
+                              <select
+                                className="form-input"
+                                value={line.productId}
+                                onChange={(event) => updateLine('productId', event.target.value)}
+                              >
+                                <option value="">Select product</option>
+                                {products.map((product) => (
+                                  <option key={product.id} value={product.id}>
+                                    {product.sku ? `${product.sku} - ${product.name}` : product.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              <span className="form-label">Qty</span>
+                              <input
+                                className="form-input"
+                                type="number"
+                                min="0"
+                                value={line.quantity}
+                                onChange={(event) => updateLine('quantity', event.target.value)}
+                              />
+                            </label>
+                            <label>
+                              <span className="form-label">Discount %</span>
+                              <input
+                                className="form-input"
+                                type="number"
+                                min="0"
+                                max="10"
+                                value={line.discountPercent}
+                                onChange={(event) => updateLine('discountPercent', event.target.value)}
+                              />
+                            </label>
+                            <button className="button-primary" type="submit" disabled={isSaving}>
+                              <PackagePlus style={{ width: 15, height: 15 }} />
+                              Add Line
+                            </button>
+                          </form>
+                        </div>
+                      ) : null}
+                    </section>
+
+                    <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <section
+                        className="panel"
+                        style={{
+                          padding: 12,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8,
+                        }}
+                      >
+                        <h3 style={{ fontSize: 15, fontWeight: 800 }}>Totals</h3>
+                        <AmountLine label="Gross" value={gross} />
+                        <AmountLine label="Discount" value={discount} />
+                        <AmountLine label="Supplier Discount" value={supplierDiscount} />
+                        <AmountLine
+                          label="Distributor Discount"
+                          value={distributorDiscount}
+                        />
+                        <AmountLine label="VAT" value={vat} />
+                        <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+                        <AmountLine label="Net" value={net} strong />
+                      </section>
+
+                      <section className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {isDraft ? (
+                            <button
+                              className="button-primary"
+                              type="button"
+                              disabled={isSaving}
+                              onClick={confirmOrder}
+                              style={{ width: '100%' }}
+                            >
+                              <CheckCircle2 style={{ width: 15, height: 15 }} />
+                              Confirm Order
+                            </button>
+                          ) : null}
+
+                          {!['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
+                            <form onSubmit={cancelOrder} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              <input
+                                className="form-input"
+                                value={cancelReason}
+                                onChange={(event) => setCancelReason(event.target.value)}
+                                placeholder="Cancel reason"
+                              />
+                              <button className="button-secondary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
+                                <XCircle style={{ width: 15, height: 15 }} />
+                                Cancel Order
+                              </button>
+                            </form>
+                          ) : null}
+                        </div>
+
+                        {isConfirmed ? (
+                          <form onSubmit={convertToInvoice} style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                            <h3 style={{ fontSize: 14, fontWeight: 800 }}>Convert To Invoice</h3>
+                            <input
+                              className="form-input"
+                              value={conversion.vehicleId}
+                              onChange={(event) =>
+                                setConversion((current) => ({ ...current, vehicleId: event.target.value }))
+                              }
+                              placeholder="Vehicle ID"
+                            />
+                            <input
+                              className="form-input"
+                              type="date"
+                              value={conversion.dueDate}
+                              onChange={(event) =>
+                                setConversion((current) => ({ ...current, dueDate: event.target.value }))
+                              }
+                            />
+                            <input
+                              className="form-input"
+                              value={conversion.notes}
+                              onChange={(event) =>
+                                setConversion((current) => ({ ...current, notes: event.target.value }))
+                              }
+                              placeholder="Invoice notes"
+                            />
+                            <button className="button-primary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
+                              <FileText style={{ width: 15, height: 15 }} />
+                              Convert
+                            </button>
+                          </form>
+                        ) : null}
+                      </section>
+                    </aside>
+                  </div>
+                </>
+              ) : (
+                <div className="panel" style={{ padding: 24, color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                  Select or create a sales order to view details.
+                </div>
+              )}
+            </>
+          )}
+        </main>
+
+        {!viewDetail && (
+          <aside style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+            <section className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)' }}>Sales Orders</h1>
+                <p style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 13, lineHeight: 1.4 }}>
+                  Create draft orders, manage lines, and convert confirmed orders to invoices.
+                </p>
+              </div>
+
               <form
-                onSubmit={addLine}
-                className="responsive-field-grid"
+                onSubmit={createOrder}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'minmax(220px, 1fr) 120px 120px auto',
                   gap: 10,
-                  alignItems: 'end',
-                  paddingTop: 12,
-                  borderTop: '1px solid var(--color-border)',
                 }}
               >
+                <h2 style={{ fontSize: 15, fontWeight: 800 }}>New Order</h2>
                 <label>
-                  <span className="form-label">Product</span>
+                  <span className="form-label">Customer</span>
                   <select
                     className="form-input"
-                    value={line.productId}
-                    onChange={(event) => updateLine('productId', event.target.value)}
+                    value={header.customerId}
+                    onChange={(event) => updateHeader('customerId', event.target.value)}
                   >
-                    <option value="">Select product</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.sku ? `${product.sku} - ${product.name}` : product.name}
+                    <option value="">Select customer</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  <span className="form-label">Qty</span>
-                  <input
-                    className="form-input"
-                    type="number"
-                    min="0"
-                    value={line.quantity}
-                    onChange={(event) => updateLine('quantity', event.target.value)}
-                  />
-                </label>
-                <label>
-                  <span className="form-label">Discount %</span>
-                  <input
-                    className="form-input"
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={line.discountPercent}
-                    onChange={(event) => updateLine('discountPercent', event.target.value)}
-                  />
-                </label>
-                <button className="button-primary" type="submit" disabled={isSaving}>
-                  <PackagePlus style={{ width: 15, height: 15 }} />
-                  Add Line
-                </button>
-              </form>
-            ) : null}
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-                gap: 12,
-                paddingTop: 12,
-                borderTop: '1px solid var(--color-border)',
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {isDraft ? (
-                  <button
-                    className="button-primary"
-                    type="button"
-                    disabled={isSaving}
-                    onClick={confirmOrder}
-                  >
-                    <CheckCircle2 style={{ width: 15, height: 15 }} />
-                    Confirm Order
-                  </button>
-                ) : null}
-
-                {!['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
-                  <form onSubmit={cancelOrder} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                    <input
-                      className="form-input"
-                      value={cancelReason}
-                      onChange={(event) => setCancelReason(event.target.value)}
-                      placeholder="Cancel reason"
-                    />
-                    <button className="button-secondary" type="submit" disabled={isSaving}>
-                      <XCircle style={{ width: 15, height: 15 }} />
-                      Cancel
-                    </button>
-                  </form>
-                ) : null}
-              </div>
-
-              {isConfirmed ? (
-                <form onSubmit={convertToInvoice} style={{ display: 'grid', gap: 8 }}>
-                  <h3 style={{ fontSize: 15, fontWeight: 800 }}>Convert To Invoice</h3>
-                  <input
-                    className="form-input"
-                    value={conversion.vehicleId}
-                    onChange={(event) =>
-                      setConversion((current) => ({ ...current, vehicleId: event.target.value }))
-                    }
-                    placeholder="Vehicle ID"
-                  />
+                  <span className="form-label">Delivery Date</span>
                   <input
                     className="form-input"
                     type="date"
-                    value={conversion.dueDate}
-                    onChange={(event) =>
-                      setConversion((current) => ({ ...current, dueDate: event.target.value }))
-                    }
+                    value={header.deliveryDate}
+                    onChange={(event) => updateHeader('deliveryDate', event.target.value)}
                   />
+                </label>
+                <label>
+                  <span className="form-label">Notes</span>
                   <input
                     className="form-input"
-                    value={conversion.notes}
-                    onChange={(event) =>
-                      setConversion((current) => ({ ...current, notes: event.target.value }))
-                    }
-                    placeholder="Invoice notes"
+                    value={header.notes}
+                    onChange={(event) => updateHeader('notes', event.target.value)}
+                    placeholder="Optional order notes"
                   />
-                  <button className="button-primary" type="submit" disabled={isSaving}>
-                    <FileText style={{ width: 15, height: 15 }} />
-                    Convert
-                  </button>
-                </form>
-              ) : null}
-            </div>
-          </>
-        ) : (
-          <div style={{ color: 'var(--color-text-muted)' }}>Select or create a sales order.</div>
+                </label>
+                <button className="button-primary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
+                  <PackagePlus style={{ width: 15, height: 15 }} />
+                  Create Draft Order
+                </button>
+              </form>
+            </section>
+          </aside>
         )}
-      </section>
+      </div>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@services/api/masterService'
 import { purchasingService } from '@services/api/purchasingService'
+import { inventoryService } from '@services/api/inventoryService'
 
 const linePageSize = 5
 
@@ -28,6 +29,9 @@ function createEmptyLine() {
     bigBoxQty: '1',
     unitCostSmallest: '0',
     notes: '',
+    baseUomCode: '',
+    smallestUomCode: '',
+    baseToSmallest: 1,
   }
 }
 
@@ -39,19 +43,31 @@ function formatMoney(value) {
 }
 
 function getUomDerivation(product) {
-  if (!product) return { unitsPerBase: 0, smallestUom: '' }
+  if (!product) return { unitsPerBase: 0, smallestUom: '', purchaseUom: '' }
 
-  let currentUom = product.uomBase?.trim().toUpperCase()
+  const baseUom = product.uomBase?.trim().toUpperCase() || ''
+  let startingUom = baseUom
+  const conversions = product.uomConversions || []
+
+  if (conversions.length > 0) {
+    const toUoms = new Set(conversions.map((c) => c.toUom?.trim().toUpperCase()))
+    const rootConversion = conversions.find((c) => !toUoms.has(c.fromUom?.trim().toUpperCase()))
+    if (rootConversion) {
+      startingUom = rootConversion.fromUom?.trim().toUpperCase()
+    }
+  }
+
+  let currentUom = startingUom
   let unitsPerBase = 1
   const visited = new Set([currentUom])
 
   for (let index = 0; index < 5; index += 1) {
-    const conversions = product.uomConversions?.filter(
+    const nextConversions = conversions.filter(
       (item) => item.fromUom?.trim().toUpperCase() === currentUom
     )
-    if (conversions?.length !== 1) break
+    if (nextConversions.length !== 1) break
 
-    const conversion = conversions[0]
+    const conversion = nextConversions[0]
     const nextUom = conversion?.toUom?.trim().toUpperCase()
     if (!conversion || conversion.factor <= 0 || visited.has(nextUom)) break
 
@@ -62,7 +78,8 @@ function getUomDerivation(product) {
 
   return {
     unitsPerBase,
-    smallestUom: currentUom || product.uomBase || '',
+    smallestUom: currentUom || baseUom || '',
+    purchaseUom: startingUom || baseUom || '',
   }
 }
 
@@ -85,6 +102,20 @@ export default function PlacePurchaseOrderPage() {
   const [error, setError] = useState('')
   const [lookupError, setLookupError] = useState('')
   const [linePage, setLinePage] = useState(1)
+
+  const fetchProductDetailIfNeeded = useCallback(async (productId) => {
+    if (!productId) return
+    const product = products.find((item) => item.id === productId)
+    if (!product || product.uomConversions) return // already detailed
+    try {
+      const detailed = await masterService.getProduct(productId)
+      setProducts((current) =>
+        current.map((item) => (item.id === productId ? detailed : item))
+      )
+    } catch (err) {
+      console.error('Error fetching product detail:', err)
+    }
+  }, [products])
 
   const loadFormData = useCallback(async () => {
     setIsLoading(true)
@@ -123,16 +154,7 @@ export default function PlacePurchaseOrderPage() {
 
     if (productResult.status === 'fulfilled') {
       const productItems = productResult.value?.items || []
-      const detailedProducts = await Promise.all(
-        productItems.map(async (product) => {
-          try {
-            return await masterService.getProduct(product.id)
-          } catch {
-            return product
-          }
-        })
-      )
-      setProducts(detailedProducts)
+      setProducts(productItems)
     } else {
       setProducts([])
       messages.push(`Products: ${productResult.reason.message}`)
@@ -183,9 +205,25 @@ export default function PlacePurchaseOrderPage() {
           bigBoxQty: String(line.qtyBaseUnit ?? '1'),
           unitCostSmallest: String(line.unitCostSmallest ?? '0'),
           notes: line.notes || '',
+          baseUomCode: line.baseUomCode || '',
+          smallestUomCode: line.smallestUomCode || '',
+          baseToSmallest: line.qtyBaseUnit > 0 ? (line.qtySmallestUnit / line.qtyBaseUnit) : 1,
         })) || []
 
       setLines(loadedLines.length ? loadedLines : [createEmptyLine()])
+
+      // Fetch details for any initial lines in edit mode
+      loadedLines.forEach((line) => {
+        if (line.productId) {
+          masterService.getProduct(line.productId)
+            .then((detailed) => {
+              setProducts((current) =>
+                current.map((item) => (item.id === line.productId ? detailed : item))
+              )
+            })
+            .catch((err) => console.error('Error fetching initial product detail:', err))
+        }
+      })
     } else {
       setHeader({
         ...emptyHeader,
@@ -211,8 +249,7 @@ export default function PlacePurchaseOrderPage() {
     const vatRate = selectedTax?.rate || 0
 
     const subtotal = lines.reduce((sum, line) => {
-      const product = products.find((item) => item.id === line.productId)
-      const { unitsPerBase } = getUomDerivation(product)
+      const unitsPerBase = Number(line.baseToSmallest || 1)
       const lineSubtotal =
         Number(line.bigBoxQty || 0) * unitsPerBase * Number(line.unitCostSmallest || 0)
 
@@ -259,9 +296,53 @@ export default function PlacePurchaseOrderPage() {
         if (line.key !== key) return line
 
         if (field === 'productId') {
+          if (value) {
+            void fetchProductDetailIfNeeded(value)
+
+            inventoryService.getLastBatchCost(value)
+              .then((cost) => {
+                if (cost !== null && cost !== undefined) {
+                  setLines((prev) =>
+                    prev.map((l) =>
+                      l.key === key
+                        ? {
+                            ...l,
+                            unitCostSmallest: String(cost),
+                            lastCostReference: cost,
+                          }
+                        : l
+                    )
+                  )
+                }
+              })
+              .catch((err) => console.error('Error fetching last batch cost:', err))
+
+            masterService.getProductUomChain(value)
+              .then((chain) => {
+                setLines((prev) =>
+                  prev.map((l) =>
+                    l.key === key
+                      ? {
+                          ...l,
+                          baseUomCode: chain.baseUomCode,
+                          smallestUomCode: chain.smallestUomCode,
+                          baseToSmallest: chain.baseToSmallest,
+                        }
+                      : l
+                  )
+                )
+              })
+              .catch((err) => console.error('Error fetching UOM chain:', err))
+          }
+
           return {
             ...line,
             productId: value,
+            unitCostSmallest: '',
+            lastCostReference: undefined,
+            baseUomCode: '',
+            smallestUomCode: '',
+            baseToSmallest: 1,
           }
         }
 
@@ -490,9 +571,10 @@ export default function PlacePurchaseOrderPage() {
                 </tr>
               </thead>
               <tbody>
-                {pagedLines.map((line) => {
-                  const product = products.find((item) => item.id === line.productId)
-                  const { unitsPerBase, smallestUom } = getUomDerivation(product)
+                 {pagedLines.map((line) => {
+                  const purchaseUom = line.baseUomCode || '-'
+                  const smallestUom = line.smallestUomCode || ''
+                  const unitsPerBase = Number(line.baseToSmallest || 1)
                   const smallestQty = Number(line.bigBoxQty || 0) * unitsPerBase
                   const subtotal = smallestQty * Number(line.unitCostSmallest || 0)
 
@@ -526,7 +608,7 @@ export default function PlacePurchaseOrderPage() {
                         </select>
                       </td>
                       <td className="mono" style={{ color: 'var(--color-text-muted)' }}>
-                        {product?.uomBase || '-'}
+                        {purchaseUom || '-'}
                       </td>
                       <td>
                         <input
@@ -573,6 +655,11 @@ export default function PlacePurchaseOrderPage() {
                         {smallestUom ? (
                           <div className="product-info-sub" style={{ marginTop: 4 }}>
                             per {smallestUom}
+                          </div>
+                        ) : null}
+                        {line.lastCostReference !== undefined ? (
+                          <div className="product-info-sub" style={{ color: 'var(--color-emerald)', marginTop: 2, fontSize: 11 }}>
+                            Last: Rs. {Number(line.lastCostReference).toFixed(2)}
                           </div>
                         ) : null}
                       </td>

@@ -10,6 +10,18 @@ function getValue(response, fallbackMessage = 'Request failed') {
   return result?.value ?? result
 }
 
+function getResponseData(response, fallbackMessage = 'Request failed') {
+  if (typeof response.data?.success === 'boolean') {
+    return getValue(response, fallbackMessage)
+  }
+
+  return response.data
+}
+
+function formatSalesOrder(order) {
+  return order || null
+}
+
 function formatCustomerGroup(group) {
   if (!group) return null
   return {
@@ -113,6 +125,9 @@ function formatInvoice(invoice) {
       discountAmount: Number(line.discountAmount ?? 0),
       vatAmount: Number(line.vatAmount ?? 0),
       lineTotal: Number(line.lineTotal ?? 0),
+      batchId: line.batchId ?? null,
+      batchNo: line.batchNo ?? '',
+      smallestUnitCode: line.smallestUnitCode ?? '',
     })),
   }
 }
@@ -309,10 +324,27 @@ export const salesService = {
     return formatInvoice(response.data)
   },
 
+  // List invoices with generic parameters (customer, status, etc)
+  async listInvoices(params = {}) {
+    const response = await getOnce('/api/v1/sales/invoices', { params })
+    const data = getResponseData(response, 'Unable to load invoices.')
+    return (data || []).map(formatInvoice)
+  },
+
+  // Get invoices by customer including paid ones (used for CRN linking)
+  async getInvoicesByCustomer(customerId) {
+    const response = await getOnce('/api/v1/sales/invoices', {
+      params: { customerId, pageSize: 100 }
+    })
+    const data = getResponseData(response, 'Unable to load customer invoices.')
+    return (data || []).map(formatInvoice)
+  },
+
   // List all invoices
   async listAllInvoices() {
     const response = await getOnce('/api/v1/sales/invoices')
-    return (response.data || []).map(formatInvoice)
+    const data = getResponseData(response, 'Unable to load invoices.')
+    return (data || []).map(formatInvoice)
   },
 
   // List invoices with optional filters
@@ -344,5 +376,75 @@ export const salesService = {
   // Assign or update the tax invoice number for an invoice
   async assignTaxInvoiceNumber(id, taxInvoiceNumber) {
     await api.put(`/api/v1/sales/invoices/${id}/tax-invoice-number`, { taxInvoiceNumber })
+  },
+
+  // Customer Return Notes (CRN)
+  async createCrn(payload) {
+    const response = await api.post('/api/sales/return-notes', payload)
+    const result = getResponseData(response, 'Unable to create return note.')
+    return { id: result?.id ?? result?.value ?? result }
+  },
+
+  async getCrn(id) {
+    const response = await getOnce(`/api/sales/return-notes/${id}`)
+    return getResponseData(response, 'Unable to load return note.')
+  },
+
+  async listCrnsByCustomer(customerId) {
+    const response = await getOnce('/api/sales/return-notes/by-customer', { params: { customerId } })
+    return getResponseData(response, 'Unable to load return notes.') || []
+  },
+
+  async listMyReturnNotes() {
+    const response = await getOnce('/api/sales/return-notes/my-returns')
+    return getResponseData(response, 'Unable to load your return notes.') || []
+  },
+
+  async getProductsSoldToCustomer(customerId) {
+    const response = await getOnce(`/api/sales/customers/${customerId}/products-sold`)
+    return getResponseData(response, 'Unable to load customer product history.') || []
+  },
+
+  async addCrnLine(id, payload) {
+    const response = await api.post(`/api/sales/return-notes/${id}/lines`, payload)
+    return getResponseData(response, 'Unable to add return note line.')
+  },
+
+  async removeCrnLine(id, lineId) {
+    await api.delete(`/api/sales/return-notes/${id}/lines/${lineId}`)
+  },
+
+  async submitCrn(id) {
+    await api.put(`/api/sales/return-notes/${id}/submit`)
+  },
+
+  async verifyCrn(id) {
+    await api.put(`/api/sales/return-notes/${id}/verify`)
+  },
+
+  async rejectCrn(id, payload) {
+    await api.put(`/api/sales/return-notes/${id}/reject`, payload)
+  },
+
+  async cancelCrn(id, payload) {
+    await api.put(`/api/sales/return-notes/${id}/cancel`, payload)
+  },
+
+  // Customer Credit
+  async getCustomerCreditBalance(customerId) {
+    const response = await getOnce(`/api/sales/customer-credit/${customerId}/balance`)
+    return getResponseData(response, 'Unable to load credit balance.')
+  },
+
+  async getCustomerCreditTransactions(customerId) {
+    const response = await getOnce(`/api/sales/customer-credit/${customerId}/transactions`)
+    return getResponseData(response, 'Unable to load credit history.') || []
+  },
+
+  async applyCredit(payload) {
+    const response = await api.post('/api/sales/customer-credit/apply', {
+      invoiceId: payload.invoiceId,
+    })
+    return getResponseData(response, 'Unable to apply credit.')
   },
 }

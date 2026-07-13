@@ -7,6 +7,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import SimplePagination from '@components/ui/SimplePagination'
+import { formatDate } from '@/utils'
 
 function money(value) {
   return Number(value || 0).toLocaleString('en-LK', {
@@ -145,16 +146,18 @@ export default function InvoiceListPage() {
             date: invoiceDate,
           })
         } else {
-          const invoiceResults = await Promise.all(
-            customers.map(async (customer) => {
-              try {
-                return await salesService.listOutstandingInvoicesByCustomer(customer.id)
-              } catch (e) {
-                return []
-              }
-            })
-          )
-          fetchedInvoices = invoiceResults.flat()
+          const statusMap = {
+            Draft: 1,
+            Unpaid: 2,
+            PartiallyPaid: 3,
+            Paid: 4,
+            Cancelled: 5,
+          }
+          const statusInt = statusFilter ? statusMap[statusFilter] : null
+          fetchedInvoices = await salesService.listInvoices({
+            status: statusInt,
+            pageSize: 1000,
+          })
         }
 
         if (!isCurrent) return
@@ -178,7 +181,7 @@ export default function InvoiceListPage() {
     return () => {
       isCurrent = false
     }
-  }, [customers, salesRouteId, invoiceDate])
+  }, [customers, salesRouteId, invoiceDate, statusFilter])
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / pageSize))
@@ -419,6 +422,38 @@ export default function InvoiceListPage() {
           </span>
         </div>
 
+        <div style={{ display: 'flex', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--color-border)', background: 'rgba(0,0,0,0.05)' }}>
+          {[
+            { label: 'All',            value: '' },
+            { label: 'Unpaid',         value: 'Unpaid' },
+            { label: 'Partially Paid', value: 'PartiallyPaid' },
+            { label: 'Paid',           value: 'Paid' },
+            { label: 'Cancelled',      value: 'Cancelled' },
+          ].map(tab => {
+            const isActive = statusFilter === tab.value;
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={() => setStatusFilter(tab.value)}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: 20,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  border: '1px solid ' + (isActive ? 'var(--color-teal)' : 'rgba(255,255,255,0.1)'),
+                  background: isActive ? 'rgba(32,212,191,0.15)' : 'rgba(0,0,0,0.2)',
+                  color: isActive ? 'var(--color-teal)' : 'var(--color-text-dim)',
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
         {error ? (
           <EmptyMessage>{error}</EmptyMessage>
         ) : isLoading ? (
@@ -448,7 +483,7 @@ export default function InvoiceListPage() {
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <CalendarDays size={13} color="var(--color-text-dim)" />
-                        {dayjs(invoice.invoiceDate).format('DD MMM YYYY')}
+                        {formatDate(invoice.invoiceDate)}
                       </span>
                     </td>
                     <td>

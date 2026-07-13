@@ -11,7 +11,7 @@ import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { authService } from '@services/api/authService'
 import { usersService } from '@services/api/usersService'
 import { useAuthStore } from '@stores/authStore'
-import { clearAuthStorage } from '@/utils'
+import { clearAuthStorage, formatDateTime as formatSriLankaDateTime } from '@/utils'
 
 const passwordSchema = z
   .object({
@@ -25,15 +25,7 @@ const passwordSchema = z
   })
 
 function formatDate(value) {
-  if (!value) return '-'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-
-  return new Intl.DateTimeFormat('en-LK', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
+  return formatSriLankaDateTime(value)
 }
 
 function mergeUserDetails(sessionUser, fetchedUser) {

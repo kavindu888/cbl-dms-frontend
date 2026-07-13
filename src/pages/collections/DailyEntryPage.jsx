@@ -2,6 +2,7 @@ import dayjs from 'dayjs'
 import { CheckCircle, Plus, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import StatusBadge from '@components/ui/StatusBadge'
+import { formatDate } from '@/utils'
 const mockCollections = [
   {
     id: 'COL-001',
@@ -219,7 +220,7 @@ export default function DailyEntryPage() {
                     {c.collector}
                   </td>
                   <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                    {dayjs(c.date).format('DD MMM YYYY')}
+                    {formatDate(c.date)}
                   </td>
                   <td>
                     <div className="flex items-center gap-1.5">

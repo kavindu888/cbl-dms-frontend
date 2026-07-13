@@ -22,6 +22,10 @@ import ApprovedPurchaseOrdersPage from './pages/purchasing/purchase-orders/Appro
 import PlacePurchaseOrderPage from './pages/purchasing/purchase-orders/PlacePurchaseOrderPage'
 import PurchaseOrderApprovalPage from './pages/purchasing/purchase-orders/PurchaseOrderApprovalPage'
 import PurchaseReturnsPage from './pages/purchasing/returns/PurchaseReturnsPage'
+import ReturnNoteApprovalsPage from './pages/purchasing/ReturnNotes/ReturnNoteApprovalsPage'
+import ReturnNoteDetailPage from './pages/purchasing/ReturnNotes/ReturnNoteDetailPage'
+import ReturnNoteListPage from './pages/purchasing/ReturnNotes/ReturnNoteListPage'
+import NewReturnNotePage from './pages/purchasing/ReturnNotes/NewReturnNotePage'
 import SupplierListPage from './pages/master/SupplierListPage'
 import ReportHubPage from './pages/reports/ReportHubPage'
 import ReportPreviewPage from './pages/reports/ReportPreviewPage'
@@ -113,6 +117,22 @@ export const router = createBrowserRouter([
       {
         path: 'purchasing/returns',
         element: <PurchaseReturnsPage />,
+      },
+      {
+        path: 'purchasing/return-notes',
+        element: <ReturnNoteListPage />,
+      },
+      {
+        path: 'purchasing/return-notes/new',
+        element: <NewReturnNotePage />,
+      },
+      {
+        path: 'purchasing/return-notes/approvals',
+        element: <ReturnNoteApprovalsPage />,
+      },
+      {
+        path: 'purchasing/return-notes/:id',
+        element: <ReturnNoteDetailPage />,
       },
 
       {
