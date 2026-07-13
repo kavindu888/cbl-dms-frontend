@@ -726,14 +726,17 @@ export default function GrnApproveRejectPage() {
                   className="responsive-table-shell"
                   style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
                 >
-                  <table className="data-table product-table-compact" style={{ minWidth: 920 }}>
+                  <table className="data-table product-table-compact" style={{ minWidth: 1160 }}>
                     <thead>
                       <tr>
                         <th>Item</th>
                         <th style={{ textAlign: 'right' }}>Received Qty</th>
+                        <th style={{ textAlign: 'right' }}>Smallest Qty</th>
                         <th style={{ textAlign: 'right' }}>Unit Cost</th>
+                        <th style={{ textAlign: 'right' }}>MRP</th>
                         <th style={{ textAlign: 'right' }}>Rejected Qty</th>
                         <th>Reject Reason</th>
+                        <th>Batch</th>
                         <th>Expiry</th>
                         <th style={{ textAlign: 'right' }}>Line Total</th>
                       </tr>
@@ -763,8 +766,20 @@ export default function GrnApproveRejectPage() {
                             </span>{' '}
                             <span className="uom-badge">{line.baseUomCode}</span>
                           </td>
+                          <td className="text-right">
+                            <span className="mono text-sm">
+                              {Number(line.qtySmallestUnit).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 4,
+                              })}
+                            </span>{' '}
+                            <span className="uom-badge">{line.smallestUomCode}</span>
+                          </td>
                           <td className="mono text-right font-semibold text-sm">
                             {formatMoney(line.unitCostSmallest)}
+                          </td>
+                          <td className="mono text-right font-semibold text-sm">
+                            {formatMoney(line.mrp)}
                           </td>
                           <td className="text-right">
                             <span className="mono text-sm">
@@ -781,8 +796,11 @@ export default function GrnApproveRejectPage() {
                             </span>
                           </td>
                           <td>
+                            <span className="text-sm text-text-muted">{line.batchNo || '-'}</span>
+                          </td>
+                          <td>
                             <span className="text-sm text-text-muted">
-                              {formatDate(line.expiryDate)}
+                              {line.expiryDate ? formatDate(line.expiryDate) : '-'}
                             </span>
                           </td>
                           <td className="mono text-right font-semibold text-sm">
@@ -860,7 +878,7 @@ export default function GrnApproveRejectPage() {
                     <span className="mono">{formatMoney(selectedGrnDetail.discount)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-muted">VAT</span>
+                    <span className="text-text-muted">VAT(18%)</span>
                     <span className="mono">{formatMoney(selectedGrnDetail.vatAmount)}</span>
                   </div>
                   <div

@@ -18,6 +18,7 @@ import SalesRouteListPage from '@pages/master/SalesRouteListPage'
 import UnitOfMeasureListPage from '@pages/master/UnitOfMeasureListPage'
 import AllPurchaseOrdersPage from '@pages/purchasing/purchase-orders/AllPurchaseOrdersPage'
 import ApprovedPurchaseOrdersPage from '@pages/purchasing/purchase-orders/ApprovedPurchaseOrdersPage'
+import GRNEntryPage from '@pages/purchasing/grn/GRNEntryPage'
 import GoodsReceiptEntryPage from '@pages/purchasing/grn/GoodsReceiptEntryPage'
 import GoodsReceiptListPage from '@pages/purchasing/grn/GoodsReceiptListPage'
 import GrnApproveRejectPage from '@pages/purchasing/grn/GrnApproveRejectPage'
@@ -121,6 +122,14 @@ export const router = createBrowserRouter([
       {
         path: 'purchasing/grn-entry',
         element: <Navigate to="/purchasing/goods-receipt-entry" replace />,
+      },
+      {
+        path: 'purchasing/grn/new',
+        element: requirePermission(<GoodsReceiptEntryPage />, PERMISSIONS.purchasing.grnCreate),
+      },
+      {
+        path: 'purchasing/grn/entry/:poId',
+        element: requirePermission(<GRNEntryPage />, PERMISSIONS.purchasing.grnCreate),
       },
       {
         path: 'purchasing/goods-receipt-entry',

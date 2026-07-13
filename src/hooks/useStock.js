@@ -24,6 +24,7 @@ export function useStockAvailability(productId) {
       return inventoryService.getStockAvailability(productId)
     },
     enabled: Boolean(productId),
+    staleTime: 30_000,
   })
 }
 

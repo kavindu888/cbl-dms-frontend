@@ -259,8 +259,74 @@ select {
   border-color: var(--color-danger);
   box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.15);
 }
+.form-input.warning {
+  border-color: var(--color-amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-amber) 14%, transparent);
+}
 .form-input.validated {
   border-color: var(--color-teal);
+}
+
+.sellable-qty-message {
+  min-height: 18px;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.sellable-qty-muted,
+.sellable-qty-available,
+.sellable-qty-danger,
+.sellable-qty-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.sellable-qty-muted {
+  color: var(--color-text-dim);
+}
+
+.sellable-qty-available {
+  color: var(--color-text-muted);
+}
+
+.sellable-qty-available strong {
+  color: var(--color-text-primary);
+}
+
+.sellable-qty-danger {
+  color: var(--color-danger);
+}
+
+.sellable-qty-warning {
+  color: var(--color-amber);
+}
+
+.sellable-qty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.sellable-qty-dot--available {
+  background: var(--color-teal);
+}
+
+.sellable-qty-dot--danger {
+  background: var(--color-danger);
+}
+
+.sellable-qty-spinner {
+  animation: sellable-qty-spin 800ms linear infinite;
+}
+
+@keyframes sellable-qty-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 select.form-input {
@@ -344,6 +410,17 @@ select.form-input option {
 .product-table-compact td {
   padding-top: 7px;
   padding-bottom: 7px;
+}
+
+.grn-order-items-table-head th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+  background: var(--color-bg-elevated);
 }
 
 /* ── Skeleton ─────────────────────────────────────────────────── */

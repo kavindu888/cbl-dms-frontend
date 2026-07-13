@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
-import { CalendarDays, CheckCircle2, Package, Search, Send, X } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { ArrowLeft, CalendarDays, CheckCircle2, Package, Search, Send, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
@@ -7,10 +8,11 @@ import { purchasingService } from '@services/api/purchasingService'
 import { inventoryService } from '@services/api/inventoryService'
 import { GrnStatus, PurchaseOrderStatus } from '@/types/purchasing.types'
 import { formatDate } from '@/utils'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 const orderPageSize = 3
 const itemPageSize = 5
+const defaultGrnVatRate = 18
 
 function formatMoney(value) {
   return `Rs. ${Number(value || 0).toLocaleString('en-LK', {
@@ -65,7 +67,7 @@ function today() {
 }
 
 function toNumber(value) {
-  const number = Number(value)
+  const number = parseFloat(value)
   return Number.isFinite(number) ? number : 0
 }
 
@@ -90,6 +92,21 @@ function normalizeText(value) {
 
 function getReceiptPurchaseOrderId(receipt) {
   return receipt?.purchaseOrderId || receipt?.poId || receipt?.purchaseOrder?.id || ''
+}
+
+async function ensureReceiptPurchaseOrderIds(receipts) {
+  return Promise.all(
+    (receipts || []).map(async (receipt) => {
+      if (getReceiptPurchaseOrderId(receipt)) return receipt
+
+      try {
+        return await purchasingService.getGoodsReceipt(receipt.id)
+      } catch (requestError) {
+        console.error('Unable to load GRN detail for PO filtering:', requestError)
+        return receipt
+      }
+    })
+  )
 }
 
 function getDefaultPrice(...values) {
@@ -180,8 +197,10 @@ function getReceiptHeaderPayload(selectedOrder, receiptHeader) {
   }
 }
 
-export default function GoodsReceiptEntryPage() {
+export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = '' }) {
   const grnMode = true
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [orders, setOrders] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -207,8 +226,23 @@ export default function GoodsReceiptEntryPage() {
   const [itemPage, setItemPage] = useState(1)
 
   const location = useLocation()
-  const preselectedPoId = location.state?.preselectedPoId
+  const preselectedPoId = entryPoId || location.state?.preselectedPoId
   const preselectedGrnId = location.state?.preselectedGrnId
+
+  function resetReceiptWorkspace() {
+    setSelectedId(null)
+    setSelectedOrder(null)
+    setReceiptHeader({
+      receiptDate: today(),
+      supplierInvoiceNo: '',
+      discount: 0,
+      notes: '',
+    })
+    setReceiptLines([])
+    setDraftReceipt(null)
+    setPendingReceipt(null)
+    setItemPage(1)
+  }
 
   useEffect(() => {
     if (preselectedPoId) {
@@ -259,14 +293,19 @@ export default function GoodsReceiptEntryPage() {
           ]
         )
 
+        const [draftReceipts, pendingReceipts] = await Promise.all([
+          ensureReceiptPurchaseOrderIds(draftGrnResult?.items || []),
+          ensureReceiptPurchaseOrderIds(pendingGrnResult?.items || []),
+        ])
+
         const draftReceiptsByPoId = new Map(
-          (draftGrnResult?.items || [])
+          draftReceipts
             .map((receipt) => [getReceiptPurchaseOrderId(receipt), receipt])
             .filter(([purchaseOrderId]) => Boolean(purchaseOrderId))
         )
         const draftGrnPoIds = new Set(draftReceiptsByPoId.keys())
         const pendingGrnPoIds = new Set(
-          (pendingGrnResult?.items || []).map(getReceiptPurchaseOrderId).filter(Boolean)
+          pendingReceipts.map(getReceiptPurchaseOrderId).filter(Boolean)
         )
         const ordersById = new Map(
           [...(approvedResult?.items || []), ...(partialResult?.items || [])].map((order) => [
@@ -482,7 +521,8 @@ export default function GoodsReceiptEntryPage() {
     const billTotal = receiptLines.reduce((sum, line) => sum + estimateReceiptLineSubtotal(line), 0)
     const discount = toNumber(receiptHeader.discount)
     const valueOfSupply = Math.max(billTotal - discount, 0)
-    const vatAmount = valueOfSupply * (toNumber(selectedOrder?.vatRate) / 100)
+    const vatRate = selectedOrder?.vatRate == null ? defaultGrnVatRate : toNumber(selectedOrder.vatRate)
+    const vatAmount = Math.round(valueOfSupply * (vatRate / 100) * 100) / 100
 
     return {
       billTotal,
@@ -612,11 +652,14 @@ export default function GoodsReceiptEntryPage() {
 
       const submitted = await purchasingService.submitGoodsReceipt(receipt.id)
       toast.success(`${submitted.grNumber} submitted for verification.`)
-      setSelectedId(null)
-      setSelectedOrder(null)
-      setDraftReceipt(null)
-      setPendingReceipt(null)
+      resetReceiptWorkspace()
       await loadPurchaseOrders()
+      if (detailOnly) {
+        queryClient.invalidateQueries({ queryKey: ['purchase-orders', 'receivable'] })
+        queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+        queryClient.invalidateQueries({ queryKey: ['grns'] })
+        navigate('/purchasing/grn/new')
+      }
     } catch (requestError) {
       toast.error(requestError.message)
     } finally {
@@ -636,6 +679,17 @@ export default function GoodsReceiptEntryPage() {
       }}
     >
       <div style={{ flexShrink: 0 }}>
+        {detailOnly ? (
+          <button
+            type="button"
+            className="btn-back-modern"
+            onClick={() => navigate('/purchasing/grn/new')}
+            style={{ marginLeft: -8, marginBottom: 8 }}
+          >
+            <ArrowLeft style={{ width: 14, height: 14 }} />
+            Back
+          </button>
+        ) : null}
         <h1
           style={{
             fontSize: 26,
@@ -644,62 +698,104 @@ export default function GoodsReceiptEntryPage() {
             lineHeight: 1.2,
           }}
         >
-          New Goods Receipt Entry
+          {detailOnly ? 'Goods Receipt Entry' : 'New Goods Receipt Entry'}
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          {grnMode
-            ? 'Select a receivable purchase order, then enter the goods received against it.'
-            : 'Review receivable purchase order details.'}
+          {detailOnly && selectedOrder
+            ? `${selectedOrder.poNumber} - ${selectedOrder.supplierName || 'Supplier not specified'}`
+            : grnMode
+              ? 'Select a receivable purchase order, then enter the goods received against it.'
+              : 'Review receivable purchase order details.'}
         </p>
       </div>
 
-      <div
-        className="panel grn-filter-bar"
-        style={{
-          padding: 16,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          flexShrink: 0,
-        }}
-      >
-        <div className="grn-filter-search" style={{ flex: 1 }}>
-          <Search
-            style={{
-              position: 'absolute',
-              left: 12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: 16,
-              height: 16,
-              color: 'var(--color-text-dim)',
-            }}
-          />
-          <input
-            className="form-input"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by PO number or supplier..."
-            style={{
-              width: '100%',
-              height: 40,
-              paddingLeft: 36,
-              background: 'rgba(0,0,0,0.15)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 6,
-              color: 'var(--color-text-primary)',
-              fontSize: 14,
-            }}
-          />
-        </div>
-
-        {/* Supplier Dropdown */}
-        <div className="grn-filter-field" style={{ width: 220 }}>
-          <div style={{ position: 'relative' }}>
-            <select
+      {!detailOnly ? (
+        <div
+          className="panel grn-filter-bar"
+          style={{
+            padding: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            flexShrink: 0,
+          }}
+        >
+          <div className="grn-filter-search" style={{ flex: 1 }}>
+            <Search
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: 16,
+                height: 16,
+                color: 'var(--color-text-dim)',
+              }}
+            />
+            <input
               className="form-input"
-              value={supplier}
-              onChange={(event) => setSupplier(event.target.value)}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by PO number or supplier..."
+              style={{
+                width: '100%',
+                height: 40,
+                paddingLeft: 36,
+                background: 'rgba(0,0,0,0.15)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 6,
+                color: 'var(--color-text-primary)',
+                fontSize: 14,
+              }}
+            />
+          </div>
+
+          {/* Supplier Dropdown */}
+          <div className="grn-filter-field" style={{ width: 220 }}>
+            <div style={{ position: 'relative' }}>
+              <select
+                className="form-input"
+                value={supplier}
+                onChange={(event) => setSupplier(event.target.value)}
+                style={{
+                  width: '100%',
+                  height: 40,
+                  background: 'rgba(0,0,0,0.15)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 6,
+                  color: 'var(--color-text-primary)',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  appearance: 'none',
+                  paddingLeft: 12,
+                  paddingRight: 36,
+                }}
+              >
+                <option value="" style={{ background: 'var(--color-bg-elevated)' }}>
+                  All suppliers
+                </option>
+                {suppliers.map((item) => (
+                  <option
+                    key={item.id}
+                    value={item.id}
+                    style={{ background: 'var(--color-bg-elevated)' }}
+                  >
+                    {item.code} - {item.name}
+                  </option>
+                ))}
+              </select>
+              <SelectChevron />
+            </div>
+          </div>
+
+          {/* From Date Input */}
+          <div className="grn-filter-field" style={{ width: 150 }}>
+            <input
+              type="date"
+              className="form-input"
+              value={fromDate}
+              max={toDate || undefined}
+              onChange={(event) => setFromDate(event.target.value)}
               style={{
                 width: '100%',
                 height: 40,
@@ -708,85 +804,48 @@ export default function GoodsReceiptEntryPage() {
                 borderRadius: 6,
                 color: 'var(--color-text-primary)',
                 fontSize: 14,
-                cursor: 'pointer',
-                appearance: 'none',
-                paddingLeft: 12,
-                paddingRight: 36,
               }}
-            >
-              <option value="" style={{ background: 'var(--color-bg-elevated)' }}>
-                All suppliers
-              </option>
-              {suppliers.map((item) => (
-                <option
-                  key={item.id}
-                  value={item.id}
-                  style={{ background: 'var(--color-bg-elevated)' }}
-                >
-                  {item.code} - {item.name}
-                </option>
-              ))}
-            </select>
-            <SelectChevron />
+            />
           </div>
-        </div>
 
-        {/* From Date Input */}
-        <div className="grn-filter-field" style={{ width: 150 }}>
-          <input
-            type="date"
-            className="form-input"
-            value={fromDate}
-            max={toDate || undefined}
-            onChange={(event) => setFromDate(event.target.value)}
-            style={{
-              width: '100%',
-              height: 40,
-              background: 'rgba(0,0,0,0.15)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 6,
-              color: 'var(--color-text-primary)',
-              fontSize: 14,
-            }}
-          />
-        </div>
+          {/* To Date Input */}
+          <div className="grn-filter-field" style={{ width: 150 }}>
+            <input
+              type="date"
+              className="form-input"
+              value={toDate}
+              min={fromDate || undefined}
+              onChange={(event) => setToDate(event.target.value)}
+              style={{
+                width: '100%',
+                height: 40,
+                background: 'rgba(0,0,0,0.15)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 6,
+                color: 'var(--color-text-primary)',
+                fontSize: 14,
+              }}
+            />
+          </div>
 
-        {/* To Date Input */}
-        <div className="grn-filter-field" style={{ width: 150 }}>
-          <input
-            type="date"
-            className="form-input"
-            value={toDate}
-            min={fromDate || undefined}
-            onChange={(event) => setToDate(event.target.value)}
-            style={{
-              width: '100%',
-              height: 40,
-              background: 'rgba(0,0,0,0.15)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 6,
-              color: 'var(--color-text-primary)',
-              fontSize: 14,
-            }}
-          />
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={clearFilters}
+            style={{ height: 40, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7 }}
+          >
+            <X style={{ width: 15, height: 15 }} />
+            Clear
+          </button>
         </div>
-
-        <button
-          type="button"
-          className="button-secondary"
-          onClick={clearFilters}
-          style={{ height: 40, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7 }}
-        >
-          <X style={{ width: 15, height: 15 }} />
-          Clear
-        </button>
-      </div>
+      ) : null}
 
       <div
         className="responsive-master-detail"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(320px, 380px) minmax(0, 1fr)',
+          gridTemplateColumns: detailOnly ? 'minmax(0, 1fr)' : 'minmax(320px, 720px)',
+          justifyContent: detailOnly ? 'stretch' : 'start',
           gap: 16,
           alignItems: 'stretch',
           flex: 1,
@@ -794,6 +853,7 @@ export default function GoodsReceiptEntryPage() {
           overflow: 'hidden',
         }}
       >
+        {!detailOnly ? (
         <section
           className="panel responsive-queue-panel"
           style={{
@@ -877,7 +937,7 @@ export default function GoodsReceiptEntryPage() {
                     <button
                       type="button"
                       key={order.id}
-                      onClick={() => setSelectedId(order.id)}
+                      onClick={() => navigate(`/purchasing/grn/entry/${order.id}`)}
                       style={{
                         width: '100%',
                         padding: 13,
@@ -1009,7 +1069,9 @@ export default function GoodsReceiptEntryPage() {
             itemLabel="orders"
           />
         </section>
+        ) : null}
 
+        {detailOnly ? (
         <section
           className="panel responsive-detail-panel"
           style={{ padding: 16, minWidth: 0, minHeight: 0, overflow: 'hidden' }}
@@ -1118,14 +1180,14 @@ export default function GoodsReceiptEntryPage() {
               </div>
 
               {grnMode ? (
-                <section className="panel" style={{ padding: 14 }}>
+                <section className="panel" style={{ padding: 10 }}>
                   <div
                     className="responsive-form-grid"
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 180px',
+                      gridTemplateColumns: 'minmax(190px, 1fr) 150px minmax(190px, 1fr)',
                       gap: 12,
-                      rowGap: 14,
+                      alignItems: 'end',
                     }}
                   >
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1138,6 +1200,7 @@ export default function GoodsReceiptEntryPage() {
                           updateReceiptHeader('supplierInvoiceNo', event.target.value)
                         }
                         placeholder="Optional invoice number"
+                        style={{ height: 36 }}
                       />
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1148,24 +1211,19 @@ export default function GoodsReceiptEntryPage() {
                         disabled={Boolean(pendingReceipt)}
                         value={receiptHeader.receiptDate}
                         onChange={(event) => updateReceiptHeader('receiptDate', event.target.value)}
-                        style={{ colorScheme: 'dark' }}
+                        style={{ height: 36, colorScheme: 'dark' }}
                       />
                     </label>
-                    <label
-                      style={{
-                        gridColumn: '1 / -1',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 6,
-                      }}
-                    >
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <span className="form-label">Notes</span>
                       <input
+                        type="text"
                         className="form-input"
                         disabled={Boolean(pendingReceipt)}
                         value={receiptHeader.notes}
                         onChange={(event) => updateReceiptHeader('notes', event.target.value)}
                         placeholder="Optional receiving notes"
+                        style={{ height: 36 }}
                       />
                     </label>
                   </div>
@@ -1207,17 +1265,20 @@ export default function GoodsReceiptEntryPage() {
                   style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
                 >
                   {grnMode ? (
-                    <table className="data-table product-table-compact" style={{ minWidth: 1180 }}>
-                      <thead>
+                    <table
+                      className="data-table product-table-compact grn-order-items-table"
+                      style={{ minWidth: 1180 }}
+                    >
+                      <thead className="grn-order-items-table-head">
                         <tr>
-                          <th>Item</th>
-                          <th style={{ textAlign: 'right' }}>Remaining</th>
-                          <th style={{ width: 110 }}>Receive Qty</th>
-                          <th style={{ width: 120 }}>Unit Cost</th>
+                          <th>ITEM</th>
+                          <th style={{ textAlign: 'right' }}>REMAINING</th>
+                          <th style={{ width: 110 }}>RECEIVE QTY</th>
+                          <th style={{ width: 120 }}>UNIT COST</th>
                           <th style={{ width: 110 }}>MRP</th>
-                          <th style={{ width: 110 }}>Rejected Qty</th>
-                          <th style={{ width: 170 }}>Reject Reason</th>
-                          <th style={{ width: 140 }}>Expiry</th>
+                          <th style={{ width: 110 }}>REJECTED QTY</th>
+                          <th style={{ width: 170 }}>REJECT REASON</th>
+                          <th style={{ width: 140 }}>EXPIRY</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1258,6 +1319,7 @@ export default function GoodsReceiptEntryPage() {
                                 <input
                                   type="number"
                                   min="0"
+                                  step="0.01"
                                   className="form-input"
                                   disabled={Boolean(pendingReceipt)}
                                   value={line.mrp}
@@ -1456,6 +1518,7 @@ export default function GoodsReceiptEntryPage() {
                     <input
                       type="number"
                       min="0"
+                      step="0.01"
                       className="form-input"
                       disabled={Boolean(pendingReceipt)}
                       value={receiptHeader.discount}
@@ -1471,9 +1534,7 @@ export default function GoodsReceiptEntryPage() {
                     />
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-muted">
-                      VAT ({Number(selectedOrder.vatRate || 0)}%)
-                    </span>
+                    <span className="text-text-muted">VAT (18%)</span>
                     <span className="mono">{formatMoney(receiptTotals.vatAmount)}</span>
                   </div>
                   <div
@@ -1582,6 +1643,7 @@ export default function GoodsReceiptEntryPage() {
             </div>
           )}
         </section>
+        ) : null}
       </div>
     </div>
   )
@@ -1592,6 +1654,7 @@ function EditableCell({ value, onChange, disabled = false }) {
       <input
         type="number"
         min="0"
+        step="0.01"
         className="form-input"
         disabled={disabled}
         value={value}

@@ -150,12 +150,7 @@ export default function PurchaseOrderApprovalPage() {
   }, [filteredOrders.length, orderPage])
 
   useEffect(() => {
-    if (filteredOrders.length > 0) {
-      const exists = filteredOrders.some((po) => po.id === selectedPoId)
-      if (!exists) {
-        setSelectedPoId(filteredOrders[0].id)
-      }
-    } else {
+    if (selectedPoId && !filteredOrders.some((po) => po.id === selectedPoId)) {
       setSelectedPoId(null)
     }
   }, [filteredOrders, selectedPoId])
@@ -209,10 +204,12 @@ export default function PurchaseOrderApprovalPage() {
 
   async function handleApprove() {
     if (!selectedPoDetail) return
+    const approvedPoId = selectedPoDetail.id
     setIsActionProcessing(true)
     try {
-      await purchasingService.approvePurchaseOrder(selectedPoDetail.id)
+      await purchasingService.approvePurchaseOrder(approvedPoId)
       toast.success(`Purchase Order ${selectedPoDetail.poNumber} Approved successfully.`)
+      setRawOrders((current) => current.filter((po) => po.id !== approvedPoId))
       setSelectedPoId(null)
       setSelectedPoDetail(null)
       await loadPurchaseOrders()
@@ -229,10 +226,12 @@ export default function PurchaseOrderApprovalPage() {
       toast.error('Please enter a remark for rejection.')
       return
     }
+    const rejectedPoId = selectedPoDetail.id
     setIsActionProcessing(true)
     try {
-      await purchasingService.rejectPurchaseOrder(selectedPoDetail.id, remarks.trim())
+      await purchasingService.rejectPurchaseOrder(rejectedPoId, remarks.trim())
       toast.success(`Purchase Order ${selectedPoDetail.poNumber} Rejected successfully.`)
+      setRawOrders((current) => current.filter((po) => po.id !== rejectedPoId))
       setSelectedPoId(null)
       setSelectedPoDetail(null)
       setRemarks('')

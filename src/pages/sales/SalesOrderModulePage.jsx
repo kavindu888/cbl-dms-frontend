@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
+import { useStockAvailability } from '@/hooks/useStock'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import { usersService } from '@/services/api/usersService'
@@ -151,6 +152,25 @@ export default function SalesOrderModulePage() {
 
   const isDraft = selectedOrder?.status === 'Draft'
   const isConfirmed = selectedOrder?.status === 'Confirmed'
+  const selectedLineProduct = productById[line.productId] || null
+  const {
+    data: availabilityData,
+    isLoading: loadingAvailability,
+  } = useStockAvailability(line.productId)
+  const sellableQty = Number(availabilityData?.sellable ?? 0)
+  const totalReserved = Number(availabilityData?.totalReserved ?? 0)
+  const totalAvailable = Number(availabilityData?.totalAvailable ?? 0)
+  const unitCode =
+    availabilityData?.smallestUnitCode ||
+    selectedLineProduct?.smallestUnitCode ||
+    selectedLineProduct?.uomBase ||
+    ''
+  const lineQtyNumber = toNumber(line.quantity)
+  const hasAvailabilityData = Boolean(availabilityData)
+  const qtyExceedsSellable =
+    hasAvailabilityData && Boolean(line.quantity) && lineQtyNumber > sellableQty && sellableQty > 0
+  const noSellableStock =
+    hasAvailabilityData && Boolean(line.quantity) && sellableQty <= 0 && Boolean(line.productId)
 
   const computedGross = useMemo(() => {
     return selectedOrder?.lines?.reduce((sum, l) => sum + (toNumber(l.quantity) * toNumber(l.unitPrice)), 0) ?? 0
@@ -309,6 +329,14 @@ export default function SalesOrderModulePage() {
 
   function updateLine(field, value) {
     setLine((current) => ({ ...current, [field]: value }))
+  }
+
+  function handleProductSelect(productId) {
+    setLine((current) => ({
+      ...current,
+      productId,
+      quantity: '',
+    }))
   }
 
   function updateLineDraft(lineId, field, value) {
@@ -895,7 +923,7 @@ export default function SalesOrderModulePage() {
                               <select
                                 className="form-input"
                                 value={line.productId}
-                                onChange={(event) => updateLine('productId', event.target.value)}
+                                onChange={(event) => handleProductSelect(event.target.value)}
                               >
                                 <option value="">Select product</option>
                                 {products.map((product) => (
@@ -904,16 +932,71 @@ export default function SalesOrderModulePage() {
                                   </option>
                                 ))}
                               </select>
+                              <div className="sellable-qty-message" aria-live="polite">
+                                {loadingAvailability && line.productId ? (
+                                  <span className="sellable-qty-muted">
+                                    <RefreshCw className="sellable-qty-spinner" size={12} />
+                                    Checking stock...
+                                  </span>
+                                ) : null}
+                                {!loadingAvailability && line.productId && availabilityData ? (
+                                  <span
+                                    className={
+                                      sellableQty <= 0
+                                        ? 'sellable-qty-danger'
+                                        : 'sellable-qty-available'
+                                    }
+                                    title={`Total available: ${totalAvailable.toLocaleString()}${
+                                      unitCode ? ` ${unitCode}` : ''
+                                    }`}
+                                  >
+                                    <span
+                                      className={
+                                        sellableQty <= 0
+                                          ? 'sellable-qty-dot sellable-qty-dot--danger'
+                                          : 'sellable-qty-dot sellable-qty-dot--available'
+                                      }
+                                    />
+                                    {sellableQty <= 0 ? (
+                                      'Out of stock'
+                                    ) : (
+                                      <>
+                                        <strong>{sellableQty.toLocaleString()}</strong>
+                                        {unitCode ? <span>{unitCode}</span> : null}
+                                        <span>sellable</span>
+                                        {totalReserved > 0 ? (
+                                          <span>
+                                            ({totalReserved.toLocaleString()} reserved)
+                                          </span>
+                                        ) : null}
+                                      </>
+                                    )}
+                                  </span>
+                                ) : null}
+                              </div>
                             </label>
                             <label>
                               <span className="form-label">Qty</span>
                               <input
-                                className="form-input"
+                                className={`form-input ${qtyExceedsSellable || noSellableStock ? 'warning' : ''}`}
                                 type="number"
                                 min="0"
                                 value={line.quantity}
                                 onChange={(event) => updateLine('quantity', event.target.value)}
                               />
+                              <div className="sellable-qty-message" aria-live="polite">
+                                {qtyExceedsSellable ? (
+                                  <span className="sellable-qty-warning">
+                                    Exceeds sellable ({sellableQty.toLocaleString()}
+                                    {unitCode ? ` ${unitCode}` : ''})
+                                  </span>
+                                ) : null}
+                                {noSellableStock ? (
+                                  <span className="sellable-qty-danger">
+                                    No stock available for this product
+                                  </span>
+                                ) : null}
+                              </div>
                             </label>
                             <label>
                               <span className="form-label">Discount %</span>
@@ -926,7 +1009,16 @@ export default function SalesOrderModulePage() {
                                 onChange={(event) => updateLine('discountPercent', event.target.value)}
                               />
                             </label>
-                            <button className="button-primary" type="submit" disabled={isSaving}>
+                            <button
+                              className="button-primary"
+                              type="submit"
+                              disabled={
+                                isSaving ||
+                                !line.productId ||
+                                !line.quantity ||
+                                lineQtyNumber <= 0
+                              }
+                            >
                               <PackagePlus style={{ width: 15, height: 15 }} />
                               Add Line
                             </button>
