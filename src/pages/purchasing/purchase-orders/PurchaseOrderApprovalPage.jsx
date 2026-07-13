@@ -17,6 +17,7 @@ import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
 import { useAuthStore } from '@stores/authStore'
 import { PurchaseOrderStatus } from '@/types/purchasing.types'
+import { formatDate } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
 const orderPageSize = 3
@@ -600,7 +601,7 @@ export default function PurchaseOrderApprovalPage() {
                           }}
                         >
                           <CalendarDays style={{ width: 13, height: 13 }} />
-                          {dayjs(po.orderDate).format('DD MMM YYYY')}
+                          {formatDate(po.orderDate)}
                         </span>
                         <span
                           className="mono"
@@ -769,7 +770,7 @@ export default function PurchaseOrderApprovalPage() {
                           color: 'var(--color-text-primary)',
                         }}
                       >
-                        {dayjs(selectedPoDetail.orderDate).format('DD MMM YYYY')}
+                        {formatDate(selectedPoDetail.orderDate)}
                       </div>
                     </div>
                   </div>

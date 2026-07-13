@@ -400,6 +400,11 @@ export const salesService = {
     return getResponseData(response, 'Unable to load your return notes.') || []
   },
 
+  async getProductsSoldToCustomer(customerId) {
+    const response = await getOnce(`/api/sales/customers/${customerId}/products-sold`)
+    return getResponseData(response, 'Unable to load customer product history.') || []
+  },
+
   async addCrnLine(id, payload) {
     const response = await api.post(`/api/sales/return-notes/${id}/lines`, payload)
     return getResponseData(response, 'Unable to add return note line.')

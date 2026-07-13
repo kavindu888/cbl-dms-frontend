@@ -12,6 +12,7 @@ import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { masterService } from '@services/api/masterService'
 import { usersService } from '@services/api/usersService'
 import { useAuthStore } from '@stores/authStore'
+import { formatDateTime as formatSriLankaDateTime } from '@/utils'
 import { PERMISSIONS, userHasAllPermissions, userHasPermission } from '@/utils/permissions'
 
 const DEFAULT_ORG_ID = '01JXDEFAULTORGID0000000000'
@@ -43,11 +44,7 @@ function getErrorMessage(error, fallback = 'Something went wrong') {
 }
 
 function formatDate(value) {
-  if (!value) return '-'
-  return new Intl.DateTimeFormat('en-LK', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value))
+  return formatSriLankaDateTime(value)
 }
 
 function permissionLabel(permission) {

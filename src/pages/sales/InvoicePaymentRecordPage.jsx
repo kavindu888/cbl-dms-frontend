@@ -7,6 +7,7 @@ import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import { usersService } from '@/services/api/usersService'
+import { formatDate as formatSriLankaDate } from '@/utils'
 
 const paymentMethods = [
   { value: 1, label: 'Cash' },
@@ -33,7 +34,7 @@ function formatMoney(value) {
 }
 
 function formatDate(value) {
-  return value ? dayjs(value).format('DD MMM YYYY') : '-'
+  return formatSriLankaDate(value)
 }
 
 function invoiceStatusLabel(status) {

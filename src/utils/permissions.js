@@ -36,6 +36,8 @@
     warehouseManage: 'inventory:warehouse:manage',
     transferCreate: 'inventory:transfer:create',
     stocktakeManage: 'inventory:stocktake:manage',
+    inStoreReturnCreate: 'inventory:instorereturn:create',
+    inStoreReturnApprove: 'inventory:instorereturn:approve',
   },
   sales: {
     orderCreate: 'sales:order:create',

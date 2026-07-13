@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import SimplePagination from '@components/ui/SimplePagination'
 import { useAuthStore } from '@stores/authStore'
+import { formatDateTime as formatSriLankaDateTime } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import {
   firstValidationMessage,
@@ -57,8 +58,7 @@ function getErrorMessage(error, fallback) {
 }
 
 function formatDate(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return formatSriLankaDateTime(value)
 }
 
 function formatNumber(value) {

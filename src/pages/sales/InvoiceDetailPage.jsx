@@ -8,6 +8,7 @@ import { salesService } from '@/services/api/salesService'
 import { masterService } from '@/services/api/masterService'
 import { usersService } from '@/services/api/usersService'
 import { useAuthStore } from '@/stores/authStore'
+import { formatDate as formatSriLankaDate } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
 const paymentMethods = [
@@ -33,7 +34,7 @@ function money(value) {
 }
 
 function showDate(value) {
-  return value ? dayjs(value).format('DD MMM YYYY') : '-'
+  return formatSriLankaDate(value)
 }
 
 function invoiceStatusLabel(status) {

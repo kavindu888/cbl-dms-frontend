@@ -16,6 +16,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
 import { GrnStatus } from '@/types/purchasing.types'
+import { formatDate } from '@/utils'
 
 const receiptPageSize = 3
 const itemPageSize = 5
@@ -541,7 +542,7 @@ export default function GoodsReceiptListPage() {
                           }}
                         >
                           <CalendarDays style={{ width: 13, height: 13 }} />
-                          {dayjs(receipt.receiptDate).format('DD MMM YYYY')}
+                          {formatDate(receipt.receiptDate)}
                         </span>
                         <span
                           className="mono"
@@ -659,7 +660,7 @@ export default function GoodsReceiptListPage() {
                     label="Received"
                     value={
                       selectedReceipt.receiptDate
-                        ? dayjs(selectedReceipt.receiptDate).format('DD MMM YYYY')
+                        ? formatDate(selectedReceipt.receiptDate)
                         : 'Not specified'
                     }
                   />
@@ -759,7 +760,7 @@ export default function GoodsReceiptListPage() {
                           </td>
                           <td>
                             <span className="text-sm text-text-muted">
-                              {line.expiryDate ? dayjs(line.expiryDate).format('DD MMM YYYY') : '-'}
+                              {formatDate(line.expiryDate)}
                             </span>
                           </td>
                           <td className="mono text-right font-semibold text-sm">

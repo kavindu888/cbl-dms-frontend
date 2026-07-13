@@ -9,6 +9,7 @@ import { inventoryService } from '@/services/api/inventoryService'
 import { useReturnStockList, useFlagStockForReturn, useCancelReturnFlag } from '@/hooks/useReturnStock'
 import Modal from '@components/ui/Modal'
 import ConfirmDialog from '@components/ui/ConfirmDialog'
+import { formatDate, formatShortDateTime } from '@/utils'
 
 function money(value) {
   return Number(value || 0).toLocaleString(undefined, {
@@ -349,7 +350,7 @@ export default function ReturnStockPage() {
                     </td>
                     <td className="mono">{item.batchNo || '-'}</td>
                     <td className="mono" style={getExpiryStyle(item.expiryDate)}>
-                      {item.expiryDate ? dayjs(item.expiryDate).format('DD MMM YYYY') : '-'}
+                      {formatDate(item.expiryDate)}
                     </td>
                     <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>
                       {money(item.qty)}
@@ -361,7 +362,7 @@ export default function ReturnStockPage() {
                       <StatusBadge status={item.status} />
                     </td>
                     <td className="mono">{item.flaggedByUserId || '-'}</td>
-                    <td>{item.flaggedOn ? dayjs(item.flaggedOn).format('DD MMM YYYY HH:mm') : '-'}</td>
+                    <td>{formatShortDateTime(item.flaggedOn)}</td>
                     <td>
                       {item.status === 'Available' && (
                         <ConfirmDialog
@@ -455,7 +456,7 @@ export default function ReturnStockPage() {
                           >
                             <td className="mono" style={{ fontWeight: 600, color: 'var(--color-amber)' }}>{batch.batchNo || '-'}</td>
                             <td className="mono" style={getExpiryStyle(batch.expiryDate)}>
-                              {batch.expiryDate ? dayjs(batch.expiryDate).format('DD MMM YYYY') : '-'}
+                              {formatDate(batch.expiryDate)}
                             </td>
                             <td className="mono" style={{ textAlign: 'right' }}>{batch.qtyAvailable}</td>
                             <td className="mono" style={{ textAlign: 'right', color: 'var(--color-teal)' }}>{batch.sellableQty}</td>
@@ -490,7 +491,7 @@ export default function ReturnStockPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--color-text-dim)' }}>Expiry Date:</span>
                     <span className="mono" style={getExpiryStyle(selectedBatch.expiryDate)}>
-                      {selectedBatch.expiryDate ? dayjs(selectedBatch.expiryDate).format('DD MMM YYYY') : '-'}
+                      {formatDate(selectedBatch.expiryDate)}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>

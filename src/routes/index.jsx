@@ -24,6 +24,10 @@ import GrnApproveRejectPage from '@pages/purchasing/grn/GrnApproveRejectPage'
 import PurchaseOrderApprovalPage from '@pages/purchasing/purchase-orders/PurchaseOrderApprovalPage'
 import PlacePurchaseOrderPage from '@pages/purchasing/purchase-orders/PlacePurchaseOrderPage'
 import PurchaseReturnsPage from '@pages/purchasing/returns/PurchaseReturnsPage'
+import ReturnNoteApprovalsPage from '@pages/purchasing/ReturnNotes/ReturnNoteApprovalsPage'
+import ReturnNoteDetailPage from '@pages/purchasing/ReturnNotes/ReturnNoteDetailPage'
+import ReturnNoteListPage from '@pages/purchasing/ReturnNotes/ReturnNoteListPage'
+import NewReturnNotePage from '@pages/purchasing/ReturnNotes/NewReturnNotePage'
 import SupplierSettlementPage from '@pages/purchasing/settlement/SupplierSettlementPage'
 import SupplierListPage from '@pages/master/SupplierListPage'
 import ReportHubPage from '@pages/reports/ReportHubPage'
@@ -43,6 +47,9 @@ import CrnListPage from '@pages/sales/CustomerReturnNotes/CrnListPage'
 import CrnDetailPage from '@pages/sales/CustomerReturnNotes/CrnDetailPage'
 import CustomerCreditPage from '@pages/sales/CustomerCredit/CustomerCreditPage'
 import ReturnStockPage from '@pages/inventory/ReturnStock/ReturnStockPage'
+import InStoreReturnCreatePage from '@pages/inventory/InStoreReturns/InStoreReturnCreatePage'
+import InStoreReturnDetailPage from '@pages/inventory/InStoreReturns/InStoreReturnDetailPage'
+import InStoreReturnListPage from '@pages/inventory/InStoreReturns/InStoreReturnListPage'
 import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
 import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
 import StockAuditPage from '@pages/inventory/StockAudit/StockAuditPage'
@@ -140,6 +147,33 @@ export const router = createBrowserRouter([
         ]),
       },
       {
+        path: 'purchasing/return-notes',
+        element: requirePermission(<ReturnNoteListPage />, [
+          PERMISSIONS.purchasing.returnNoteCreate,
+          PERMISSIONS.purchasing.returnNoteApprove,
+          PERMISSIONS.purchasing.returnNoteComplete,
+        ]),
+      },
+      {
+        path: 'purchasing/return-notes/new',
+        element: requirePermission(<NewReturnNotePage />, PERMISSIONS.purchasing.returnNoteCreate),
+      },
+      {
+        path: 'purchasing/return-notes/approvals',
+        element: requirePermission(<ReturnNoteApprovalsPage />, [
+          PERMISSIONS.purchasing.returnNoteApprove,
+          PERMISSIONS.purchasing.returnNoteComplete,
+        ]),
+      },
+      {
+        path: 'purchasing/return-notes/:id',
+        element: requirePermission(<ReturnNoteDetailPage />, [
+          PERMISSIONS.purchasing.returnNoteCreate,
+          PERMISSIONS.purchasing.returnNoteApprove,
+          PERMISSIONS.purchasing.returnNoteComplete,
+        ]),
+      },
+      {
         path: 'purchasing/settlement',
         element: requirePermission(
           <SupplierSettlementPage />,
@@ -164,6 +198,27 @@ export const router = createBrowserRouter([
           <ReturnStockPage />,
           PERMISSIONS.inventory.stockRead
         ),
+      },
+      {
+        path: 'inventory/in-store-returns',
+        element: requirePermission(<InStoreReturnListPage />, [
+          PERMISSIONS.inventory.inStoreReturnCreate,
+          PERMISSIONS.inventory.inStoreReturnApprove,
+        ]),
+      },
+      {
+        path: 'inventory/in-store-returns/new',
+        element: requirePermission(
+          <InStoreReturnCreatePage />,
+          PERMISSIONS.inventory.inStoreReturnCreate
+        ),
+      },
+      {
+        path: 'inventory/in-store-returns/:id',
+        element: requirePermission(<InStoreReturnDetailPage />, [
+          PERMISSIONS.inventory.inStoreReturnCreate,
+          PERMISSIONS.inventory.inStoreReturnApprove,
+        ]),
       },
       {
         path: 'inventory/stock-audit',

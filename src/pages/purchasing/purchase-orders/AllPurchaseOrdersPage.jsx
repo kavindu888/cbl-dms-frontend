@@ -15,6 +15,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
 import { PurchaseOrderStatus } from '@/types/purchasing.types'
+import { formatDate } from '@/utils'
 
 const orderPageSize = 3
 const itemPageSize = 5
@@ -607,7 +608,7 @@ export default function AllPurchaseOrdersPage() {
                           }}
                         >
                           <CalendarDays style={{ width: 13, height: 13 }} />
-                          {dayjs(order.orderDate).format('DD MMM YYYY')}
+                          {formatDate(order.orderDate)}
                         </span>
                         <span
                           className="mono"
@@ -719,7 +720,7 @@ export default function AllPurchaseOrdersPage() {
                     label="Expected"
                     value={
                       selectedOrder.expectedDeliveryDate
-                        ? dayjs(selectedOrder.expectedDeliveryDate).format('DD MMM YYYY')
+                        ? formatDate(selectedOrder.expectedDeliveryDate)
                         : 'Not specified'
                     }
                   />

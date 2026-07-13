@@ -18,6 +18,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import { useExpiringBatches, useStockLevels } from '@/hooks/useStock'
 import { masterService } from '@/services/api/masterService'
 import FlagStockForReturnModal from '@/pages/inventory/ReturnStock/FlagStockForReturnModal'
+import { formatDate, formatTime } from '@/utils'
 
 const pageSize = 12
 
@@ -430,11 +431,11 @@ export default function StockOverviewPage() {
                       </td>
                       <td>
                         <div style={{ fontSize: 12 }}>
-                          {row.lastMovementAt ? dayjs(row.lastMovementAt).format('DD MMM YYYY') : '-'}
+                          {formatDate(row.lastMovementAt)}
                         </div>
                         {row.lastMovementAt ? (
                           <div className="mono" style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}>
-                            {dayjs(row.lastMovementAt).format('HH:mm')}
+                            {formatTime(row.lastMovementAt)}
                           </div>
                         ) : null}
                       </td>

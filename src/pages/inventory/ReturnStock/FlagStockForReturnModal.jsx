@@ -1,9 +1,9 @@
-import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import Modal from '@components/ui/Modal'
 import { inventoryService } from '@/services/api/inventoryService'
 import { useFlagStockForReturn } from '@/hooks/useReturnStock'
+import { formatDate } from '@/utils'
 
 const reasonValues = { Expired: 1, ShortExpiry: 2, Damaged: 3, Other: 4 }
 
@@ -91,7 +91,7 @@ export default function FlagStockForReturnModal({ isOpen, onClose, product, onSu
                     }}
                   >
                     <td className="mono" style={{ color: 'var(--color-amber)' }}>{batch.batchNo || '-'}</td>
-                    <td>{batch.expiryDate ? dayjs(batch.expiryDate).format('DD MMM YYYY') : '-'}</td>
+                    <td>{formatDate(batch.expiryDate)}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{batch.qtyAvailable}</td>
                     <td>{batch.status}</td>
                   </tr>
@@ -107,7 +107,7 @@ export default function FlagStockForReturnModal({ isOpen, onClose, product, onSu
           <>
             <div className="responsive-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
               <ReadOnly label="Batch No" value={selectedBatch.batchNo || '-'} />
-              <ReadOnly label="Expiry Date" value={selectedBatch.expiryDate ? dayjs(selectedBatch.expiryDate).format('DD MMM YYYY') : '-'} />
+              <ReadOnly label="Expiry Date" value={formatDate(selectedBatch.expiryDate)} />
               <ReadOnly label="Available Qty" value={selectedBatch.qtyAvailable} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

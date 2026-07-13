@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { inventoryService } from '@services/api/inventoryService'
 import { masterService } from '@services/api/masterService'
+import { formatDateTime as formatSriLankaDateTime } from '@/utils'
 import { firstValidationMessage, positiveInteger, required } from '@/utils/validation'
 
 function getErrorMessage(error, fallback) {
@@ -11,8 +12,7 @@ function getErrorMessage(error, fallback) {
 }
 
 function formatDate(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return formatSriLankaDateTime(value)
 }
 
 function formatNumber(value) {
