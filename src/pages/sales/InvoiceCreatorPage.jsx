@@ -2,21 +2,19 @@ import dayjs from 'dayjs'
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import SimplePagination from '@components/ui/SimplePagination'
 
 const emptyLine = {
   productId: '',
-  categoryId: '',
   unitId: '',
+  unitName: '',
   quantity: 1,
-  unitPrice: 0,
   mrp: 0,
   discountPercent: 0,
-  isVatApplicable: false,
 }
 
 function createDefaultValues() {
@@ -38,8 +36,33 @@ function fieldError(message) {
   return message ? <p className="form-error">{message}</p> : null
 }
 
+function getLineAmounts(line) {
+  const mrp = Number(line?.mrp || 0)
+  const quantity = Number(line?.quantity || 0)
+  const discountPercent = Number(line?.discountPercent || 0)
+  const discountAmount = mrp * quantity * (discountPercent / 100)
+  const unitPrice = mrp * (1 - discountPercent / 100)
+  const lineTotal = unitPrice * quantity
+
+  return {
+    gross: mrp * quantity,
+    discountAmount,
+    unitPrice,
+    lineTotal,
+  }
+}
+
+const readOnlyDisplayStyle = {
+  alignItems: 'center',
+  backgroundColor: 'var(--color-bg-hover)',
+  color: 'var(--color-text-muted)',
+  cursor: 'default',
+  display: 'flex',
+  minHeight: 34,
+  userSelect: 'none',
+}
+
 export default function InvoiceCreatorPage() {
-  const navigate = useNavigate()
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [isLoadingData, setIsLoadingData] = useState(true)
@@ -67,6 +90,7 @@ export default function InvoiceCreatorPage() {
   const selectedCustomer = useMemo(() => {
     return customers.find((item) => item.id === selectedCustomerId) || null
   }, [customers, selectedCustomerId])
+  const isCustomerVatRegistered = Boolean(selectedCustomerDetails?.isVatRegistered)
 
   const [linePage, setLinePage] = useState(1)
   const linePageSize = 5
@@ -89,23 +113,27 @@ export default function InvoiceCreatorPage() {
   }, [products])
 
   const totals = useMemo(() => {
-    return lines.reduce(
+    const subtotal = lines.reduce(
       (sum, line) => {
-        const gross = Number(line.quantity || 0) * Number(line.unitPrice || 0)
-        const discount = gross * (Number(line.discountPercent || 0) / 100)
-        const valueAfterDiscount = gross - discount
-        const vat = line.isVatApplicable ? Math.round(valueAfterDiscount * 18) / 100 : 0
+        const amounts = getLineAmounts(line)
 
         return {
-          gross: sum.gross + gross,
-          discount: sum.discount + discount,
-          vat: sum.vat + vat,
-          net: sum.net + valueAfterDiscount + vat,
+          gross: sum.gross + amounts.gross,
+          discount: sum.discount + amounts.discountAmount,
         }
       },
-      { gross: 0, discount: 0, vat: 0, net: 0 }
+      { gross: 0, discount: 0 }
     )
-  }, [lines])
+
+    const netBeforeVat = subtotal.gross - subtotal.discount
+    const vat = isCustomerVatRegistered ? Math.round(netBeforeVat * 18) / 100 : 0
+
+    return {
+      ...subtotal,
+      vat,
+      net: netBeforeVat + vat,
+    }
+  }, [isCustomerVatRegistered, lines])
 
   useEffect(() => {
     async function loadData() {
@@ -172,6 +200,11 @@ export default function InvoiceCreatorPage() {
       setSalesRouteName('')
 
       try {
+        if (selectedCustomerDetails?.salesRouteName) {
+          if (isCurrent) setSalesRouteName(selectedCustomerDetails.salesRouteName)
+          return
+        }
+
         const route = await masterService.getSalesRoute(selectedSalesRouteId)
         if (isCurrent) setSalesRouteName(route?.name || '')
       } catch {
@@ -184,18 +217,54 @@ export default function InvoiceCreatorPage() {
     return () => {
       isCurrent = false
     }
-  }, [selectedSalesRouteId])
+  }, [selectedSalesRouteId, selectedCustomerDetails])
 
-  function handleProductChange(index, productId) {
-    const product = productById[productId]
-    if (!product) return
+  async function handleProductChange(index, productId) {
+    if (!productId) {
+      setValue(`lines.${index}.unitId`, '', { shouldDirty: true })
+      setValue(`lines.${index}.unitName`, '', { shouldDirty: true })
+      setValue(`lines.${index}.mrp`, 0, { shouldDirty: true })
+      return
+    }
 
-    setValue(`lines.${index}.categoryId`, product.category?.id || '', { shouldDirty: true })
-    setValue(`lines.${index}.unitId`, product.uomBase || product.baseUom || '', {
-      shouldDirty: true,
-    })
-    setValue(`lines.${index}.unitPrice`, Number(product.unitPrice || 0), { shouldDirty: true })
-    setValue(`lines.${index}.mrp`, Number(product.unitPrice || 0), { shouldDirty: true })
+    try {
+      const [product, uomChain, prices] = await Promise.all([
+        masterService.getProduct(productId),
+        masterService.getProductUomChain(productId).catch(() => null),
+        inventoryService.getLastPrices(productId).catch(() => null),
+      ])
+      console.log('Product API response:', product)
+      console.log('Fields:', Object.keys(product || {}))
+      const smallestUnit =
+        uomChain?.smallestUomCode ||
+        product.smallestUnitName ||
+        product.smallestUnitId ||
+        product.uomBase
+
+      setValue(`lines.${index}.unitId`, product.smallestUnitId || smallestUnit || '', {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.unitName`, smallestUnit || '', { shouldDirty: true })
+      setValue(
+        `lines.${index}.mrp`,
+        Number(product.mrp || prices?.lastMrp || product.sellingPrice || 0),
+        {
+          shouldDirty: true,
+        }
+      )
+    } catch (error) {
+      toast.error(error?.message || 'Unable to load product details.')
+      const product = productById[productId]
+      setValue(`lines.${index}.unitId`, product?.smallestUnitId || product?.uomBase || '', {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.unitName`, product?.smallestUnitName || product?.uomBase || '', {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.mrp`, Number(product?.mrp || product?.sellingPrice || 0), {
+        shouldDirty: true,
+      })
+    }
   }
 
   function validate(values) {
@@ -204,17 +273,13 @@ export default function InvoiceCreatorPage() {
     const invalidLine = values.lines.find(
       (line) =>
         !line.productId ||
-        !line.categoryId ||
-        !line.unitId ||
         Number(line.quantity) <= 0 ||
         Number(line.discountPercent) < 0 ||
-        Number(line.discountPercent) > 10 ||
-        Number(line.unitPrice) < 0 ||
-        Number(line.mrp || 0) < 0
+        Number(line.discountPercent) > 10
     )
 
     if (invalidLine) {
-      return 'Each line needs a product, quantity, unit, category, non-negative price, and discount between 0 and 10%.'
+      return 'Each line needs a product, quantity, and discount between 0 and 10%.'
     }
 
     return ''
@@ -229,25 +294,30 @@ export default function InvoiceCreatorPage() {
 
     const payload = {
       customerId: values.customerId,
-      salesRouteId: values.salesRouteId,
+      invoiceDate: new Date().toISOString(),
+      dueDate: null,
+      isTaxInvoice: isCustomerVatRegistered,
+      customerVatTin: selectedCustomerDetails?.taxNumber || null,
+      notes: null,
       lines: values.lines.map((line) => ({
         productId: line.productId,
-        categoryId: line.categoryId,
-        unitId: line.unitId,
         quantity: Number(line.quantity),
-        unitPrice: Number(line.unitPrice),
-        mrp: Number(line.mrp || line.unitPrice),
         discountPercent: Number(line.discountPercent || 0),
-        isVatApplicable: Boolean(line.isVatApplicable),
       })),
     }
 
     setIsSaving(true)
     try {
-      const invoiceId = await salesService.createInvoice(payload)
+      await salesService.createInvoice(payload)
       toast.success('Invoice created successfully.')
-      reset(createDefaultValues())
-      navigate(`/sales/invoices/${invoiceId}`)
+      reset({
+        customerId: '',
+        salesRouteId: '',
+        lines: [],
+      })
+      setSelectedCustomerDetails(null)
+      setSalesRouteName('')
+      setLinePage(1)
     } catch (error) {
       toast.error(error?.message || 'Invoice could not be created.')
     } finally {
@@ -316,7 +386,7 @@ export default function InvoiceCreatorPage() {
                 Invoice Lines
               </h2>
               <p style={{ marginTop: 2, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                Add products, quantities, pricing, discounts, and VAT flags.
+                Add products, quantities, pricing, and discounts.
               </p>
             </div>
             <button
@@ -335,16 +405,25 @@ export default function InvoiceCreatorPage() {
           </div>
 
           <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            <table className="data-table" style={{ minWidth: 980 }}>
+            <table className="data-table" style={{ minWidth: 960, tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '30%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '5%' }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th>Unit</th>
-                  <th className="text-right">Qty</th>
-                  <th className="text-right">Unit Price</th>
+                  <th>Smallest Unit</th>
                   <th className="text-right">MRP</th>
+                  <th className="text-right">Qty</th>
                   <th className="text-right">Disc %</th>
-                  <th>VAT</th>
+                  <th className="text-right">Unit Price</th>
                   <th className="text-right">Total</th>
                   <th></th>
                 </tr>
@@ -352,11 +431,7 @@ export default function InvoiceCreatorPage() {
               <tbody>
                 {pagedFields.map(({ field, index }) => {
                   const line = lines[index] || emptyLine
-                  const gross = Number(line.quantity || 0) * Number(line.unitPrice || 0)
-                  const discount = gross * (Number(line.discountPercent || 0) / 100)
-                  const afterDiscount = gross - discount
-                  const vat = line.isVatApplicable ? Math.round(afterDiscount * 18) / 100 : 0
-                  const lineTotal = afterDiscount + vat
+                  const { unitPrice, lineTotal } = getLineAmounts(line)
 
                   return (
                     <tr key={field.id}>
@@ -376,14 +451,21 @@ export default function InvoiceCreatorPage() {
                             </option>
                           ))}
                         </select>
-                        <input type="hidden" {...register(`lines.${index}.categoryId`)} />
                       </td>
                       <td>
                         <input
                           className="form-input"
-                          {...register(`lines.${index}.unitId`)}
+                          {...register(`lines.${index}.unitName`)}
                           readOnly
+                          tabIndex={-1}
+                          style={readOnlyDisplayStyle}
                         />
+                        <input type="hidden" {...register(`lines.${index}.unitId`)} />
+                      </td>
+                      <td>
+                        <div className="form-input mono text-right" style={readOnlyDisplayStyle}>
+                          {Number(line.mrp || 0).toFixed(2)}
+                        </div>
                       </td>
                       <td>
                         <input
@@ -398,44 +480,12 @@ export default function InvoiceCreatorPage() {
                           className="form-input mono text-right"
                           type="number"
                           step="0.01"
-                          {...register(`lines.${index}.unitPrice`)}
-                          readOnly
-                          tabIndex={-1}
-                          style={{
-                            cursor: 'not-allowed',
-                            backgroundColor: 'var(--color-bg-hover)',
-                            opacity: 0.7,
-                            userSelect: 'none',
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="form-input mono text-right"
-                          type="number"
-                          step="0.01"
-                          {...register(`lines.${index}.mrp`)}
-                          readOnly
-                          tabIndex={-1}
-                          style={{
-                            cursor: 'not-allowed',
-                            backgroundColor: 'var(--color-bg-hover)',
-                            opacity: 0.7,
-                            userSelect: 'none',
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="form-input mono text-right"
-                          type="number"
-                          step="0.01"
                           max="10"
                           {...register(`lines.${index}.discountPercent`)}
                         />
                       </td>
-                      <td>
-                        <input type="checkbox" {...register(`lines.${index}.isVatApplicable`)} />
+                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>
+                        {money(unitPrice)}
                       </td>
                       <td className="mono text-right">{money(lineTotal)}</td>
                       <td>
@@ -521,11 +571,18 @@ export default function InvoiceCreatorPage() {
                 <label className="form-label" style={{ fontSize: 10 }}>
                   Sales Route
                 </label>
-                <input
+                <div
                   className="form-input"
-                  value={salesRouteName || selectedSalesRouteId || ''}
-                  readOnly
-                />
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    minHeight: 38,
+                    color: salesRouteName ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}
+                >
+                  {salesRouteName ||
+                    (selectedSalesRouteId ? 'Loading route...' : 'Select a customer first')}
+                </div>
                 <input type="hidden" {...register('salesRouteId')} />
               </div>
             </div>

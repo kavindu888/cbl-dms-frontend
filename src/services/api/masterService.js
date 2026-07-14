@@ -114,6 +114,14 @@ function formatTax(tax) {
 
 function formatProduct(product) {
   if (!product) return null
+  const uomConversions = (
+    product.uomConversions ||
+    product.conversions ||
+    product.productConversions ||
+    []
+  ).map(formatUomConversion)
+  const smallestUom = getSmallestUom(product.baseUom ?? product.uomBase ?? '', uomConversions)
+
   return {
     id: product.id,
     sku: product.sku ?? '',
@@ -122,8 +130,13 @@ function formatProduct(product) {
     description: product.description ?? '',
     category: product.category ?? { id: '', code: '', name: '' },
     uomBase: product.baseUom ?? product.uomBase ?? '',
+    baseUom: product.baseUom ?? product.uomBase ?? '',
+    smallestUnitId: product.smallestUnitId ?? product.smallestUomCode ?? smallestUom,
+    smallestUnitName: product.smallestUnitName ?? product.smallestUomName ?? smallestUom,
     unitCost: product.costPrice ?? product.unitCost ?? 0,
     unitPrice: product.sellingPrice ?? product.unitPrice ?? 0,
+    sellingPrice: product.sellingPrice ?? product.unitPrice ?? 0,
+    mrp: product.mrp ?? product.lastMrp ?? product.MRP ?? 0,
     minValue:
       product.minValue !== undefined && product.minValue !== null
         ? product.minValue
@@ -135,15 +148,43 @@ function formatProduct(product) {
     imageUrl: product.imageUrl ?? '',
     status: product.status ?? 'Active',
     isActive: product.status === 'Active',
-    uomConversions: (
-      product.uomConversions ||
-      product.conversions ||
-      product.productConversions ||
-      []
-    ).map(formatUomConversion),
+    uomConversions,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   }
+}
+
+function getSmallestUom(baseUom, conversions) {
+  const base = String(baseUom || '')
+    .trim()
+    .toUpperCase()
+  if (!base || !conversions.length) return base
+
+  const factors = new Map([[base, 1]])
+  const queue = [base]
+
+  while (queue.length) {
+    const current = queue.shift()
+    const outgoing = conversions.filter(
+      (conversion) =>
+        String(conversion.fromUom || '')
+          .trim()
+          .toUpperCase() === current
+    )
+
+    outgoing.forEach((conversion) => {
+      const toUom = String(conversion.toUom || '')
+        .trim()
+        .toUpperCase()
+      const factor = Number(conversion.factor || 0)
+      if (!toUom || factor <= 0 || factors.has(toUom)) return
+
+      factors.set(toUom, Number(factors.get(current) || 1) * factor)
+      queue.push(toUom)
+    })
+  }
+
+  return [...factors.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || base
 }
 
 function formatUomConversion(conv) {

@@ -414,8 +414,8 @@ export const inventoryService = {
     return getValue(response, 'Unable to submit in-store return.')
   },
 
-  async approveInStoreReturn(id) {
-    const response = await api.post(`/api/v1/inventory/in-store-returns/${id}/approve`)
+  async approveInStoreReturn(id, payload) {
+    const response = await api.post(`/api/v1/inventory/in-store-returns/${id}/approve`, payload)
     return getValue(response, 'Unable to approve in-store return.')
   },
 

@@ -64,6 +64,7 @@ function formatCustomer(customer) {
     organizationId: customer.organizationId ?? '',
     customerGroupId: customer.customerGroupId ?? '',
     salesRouteId: customer.salesRouteId ?? '',
+    salesRouteName: customer.salesRouteName ?? '',
     code: customer.code ?? '',
     name: customer.name ?? '',
     registrationNumber: customer.registrationNumber ?? '',
@@ -88,6 +89,7 @@ function formatInvoice(invoice) {
     salesOrderId: invoice.salesOrderId ?? '',
     customerId: invoice.customerId ?? '',
     salesRouteId: invoice.salesRouteId ?? '',
+    salesRouteName: invoice.salesRouteName ?? '',
     vehicleId: invoice.vehicleId ?? '',
     salesPersonId: invoice.salesPersonId ?? '',
     invoiceNumber: invoice.invoiceNumber ?? invoice.id,
@@ -314,7 +316,19 @@ export const salesService = {
   // Sales invoice related APIs
   // Create a new invoice
   async createInvoice(payload) {
-    const response = await api.post('/api/v1/sales/invoices', payload)
+    const response = await api.post('/api/v1/sales/invoices', {
+      customerId: payload.customerId,
+      invoiceDate: payload.invoiceDate,
+      dueDate: payload.dueDate ?? null,
+      isTaxInvoice: Boolean(payload.isTaxInvoice),
+      customerVatTin: payload.customerVatTin ?? null,
+      notes: payload.notes ?? null,
+      lines: (payload.lines || []).map((line) => ({
+        productId: line.productId,
+        quantity: Number(line.quantity),
+        discountPercent: Number(line.discountPercent || 0),
+      })),
+    })
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
   },
 
@@ -334,7 +348,7 @@ export const salesService = {
   // Get invoices by customer including paid ones (used for CRN linking)
   async getInvoicesByCustomer(customerId) {
     const response = await getOnce('/api/v1/sales/invoices', {
-      params: { customerId, pageSize: 100 }
+      params: { customerId, pageSize: 100 },
     })
     const data = getResponseData(response, 'Unable to load customer invoices.')
     return (data || []).map(formatInvoice)
@@ -391,7 +405,9 @@ export const salesService = {
   },
 
   async listCrnsByCustomer(customerId) {
-    const response = await getOnce('/api/sales/return-notes/by-customer', { params: { customerId } })
+    const response = await getOnce('/api/sales/return-notes/by-customer', {
+      params: { customerId },
+    })
     return getResponseData(response, 'Unable to load return notes.') || []
   },
 

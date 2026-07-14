@@ -1,29 +1,10 @@
 import dayjs from 'dayjs'
-import { ArrowLeft, Ban, CreditCard, Hash, RefreshCw } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import { salesService } from '@/services/api/salesService'
 import { masterService } from '@/services/api/masterService'
-import { usersService } from '@/services/api/usersService'
-import { useAuthStore } from '@/stores/authStore'
-import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
-
-const paymentMethods = [
-  { value: 1, label: 'Cash' },
-  { value: 2, label: 'Cheque' },
-  { value: 4, label: 'Credit note' },
-]
-
-const emptyPayment = {
-  paymentMethod: 1,
-  amount: '',
-  paidDate: dayjs().format('YYYY-MM-DD'),
-  chequeNumber: '',
-  chequeDate: '',
-  bankName: '',
-}
 
 function money(value) {
   return `Rs. ${Number(value || 0).toLocaleString(undefined, {
@@ -99,7 +80,16 @@ function InfoItem({ label, value, subValue, isCode = false }) {
   )
 }
 
-function AmountRow({ label, value, strong = false }) {
+function AmountRow({ label, value, strong = false, tone }) {
+  const color =
+    tone === 'success'
+      ? 'var(--color-teal)'
+      : tone === 'warning'
+        ? 'var(--color-amber)'
+        : strong
+          ? 'var(--color-text-primary)'
+          : undefined
+
   return (
     <div
       style={{ display: 'flex', justifyContent: 'space-between', fontWeight: strong ? 800 : 500 }}
@@ -107,46 +97,19 @@ function AmountRow({ label, value, strong = false }) {
       <span style={{ color: strong ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
         {label}
       </span>
-      <span className="mono" style={{ color: strong ? 'var(--color-amber)' : undefined }}>
+      <span className="mono" style={{ color }}>
         {money(value)}
       </span>
     </div>
   )
 }
 
-function CompactTitle({ icon: Icon, title }) {
-  return (
-    <h3
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 8,
-        fontSize: 15,
-        fontWeight: 800,
-        color: 'var(--color-text-primary)',
-      }}
-    >
-      <Icon size={15} />
-      {title}
-    </h3>
-  )
-}
-
 export default function InvoiceDetailPage() {
   const { id } = useParams()
-  const currentUser = useAuthStore((state) => state.user)
   const [invoice, setInvoice] = useState(null)
-  const [payment, setPayment] = useState(emptyPayment)
-  const [taxInvoiceNumber, setTaxInvoiceNumber] = useState('')
-  const [cancelReason, setCancelReason] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [isSavingPayment, setIsSavingPayment] = useState(false)
-  const [isSavingTaxNumber, setIsSavingTaxNumber] = useState(false)
-  const [isCancelling, setIsCancelling] = useState(false)
   const [customerName, setCustomerName] = useState('')
   const [salesRouteName, setSalesRouteName] = useState('')
-  const [salesPersonName, setSalesPersonName] = useState('')
   const [products, setProducts] = useState([])
   const [error, setError] = useState('')
 
@@ -157,16 +120,6 @@ export default function InvoiceDetailPage() {
     }, {})
   }, [products])
 
-  const canAddPayment = userHasPermission(currentUser, PERMISSIONS.sales.invoiceAddPayment)
-  const canCancel = userHasPermission(currentUser, PERMISSIONS.sales.invoiceCancel)
-  const canAssignTaxNumber = userHasPermission(
-    currentUser,
-    PERMISSIONS.sales.invoiceAssignTaxNumber
-  )
-  const isCancelled = invoice?.status === 'Cancelled'
-  const isPaid = invoice?.status === 'Paid'
-  const isChequePayment = Number(payment.paymentMethod) === 2
-
   async function loadInvoice() {
     setIsLoading(true)
     setError('')
@@ -174,7 +127,6 @@ export default function InvoiceDetailPage() {
     try {
       const result = await salesService.getInvoice(id)
       setInvoice(result)
-      setTaxInvoiceNumber(result?.taxInvoiceNumber || '')
 
       if (result) {
         if (result.customerId) {
@@ -193,15 +145,6 @@ export default function InvoiceDetailPage() {
             .catch(() => setSalesRouteName(''))
         } else {
           setSalesRouteName('')
-        }
-
-        if (result.salesPersonId) {
-          usersService
-            .getUser(result.salesPersonId)
-            .then((u) => setSalesPersonName(u?.username || u?.email || ''))
-            .catch(() => setSalesPersonName(''))
-        } else {
-          setSalesPersonName('')
         }
 
         const productIds = Array.from(
@@ -230,87 +173,6 @@ export default function InvoiceDetailPage() {
     loadInvoice()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
-
-  function updatePayment(field, value) {
-    setPayment((current) => ({ ...current, [field]: value }))
-  }
-
-  async function submitPayment(event) {
-    event.preventDefault()
-
-    const amount = Number(payment.amount)
-    if (!amount || amount <= 0) {
-      toast.error('Payment amount must be greater than zero.')
-      return
-    }
-
-    if (isChequePayment && (!payment.chequeNumber || !payment.chequeDate || !payment.bankName)) {
-      toast.error('Cheque number, cheque date, and bank name are required.')
-      return
-    }
-
-    const payload = {
-      paymentMethod: Number(payment.paymentMethod),
-      amount,
-      paidDate: dayjs(payment.paidDate).toISOString(),
-      chequeNumber: isChequePayment ? payment.chequeNumber.trim() : null,
-      chequeDate: isChequePayment ? dayjs(payment.chequeDate).toISOString() : null,
-      bankName: isChequePayment ? payment.bankName.trim() : null,
-    }
-
-    setIsSavingPayment(true)
-    try {
-      await salesService.addInvoicePayment(id, payload)
-      toast.success('Payment recorded.')
-      setPayment(emptyPayment)
-      await loadInvoice()
-    } catch (saveError) {
-      toast.error(saveError.message || 'Unable to record payment.')
-    } finally {
-      setIsSavingPayment(false)
-    }
-  }
-
-  async function submitTaxNumber(event) {
-    event.preventDefault()
-
-    if (!taxInvoiceNumber.trim()) {
-      toast.error('Tax invoice number is required.')
-      return
-    }
-
-    setIsSavingTaxNumber(true)
-    try {
-      await salesService.assignTaxInvoiceNumber(id, taxInvoiceNumber.trim())
-      toast.success('Tax invoice number saved.')
-      await loadInvoice()
-    } catch (saveError) {
-      toast.error(saveError.message || 'Unable to save tax invoice number.')
-    } finally {
-      setIsSavingTaxNumber(false)
-    }
-  }
-
-  async function submitCancel(event) {
-    event.preventDefault()
-
-    if (!cancelReason.trim()) {
-      toast.error('Cancellation reason is required.')
-      return
-    }
-
-    setIsCancelling(true)
-    try {
-      await salesService.cancelInvoice(id, cancelReason.trim())
-      toast.success('Invoice cancelled.')
-      setCancelReason('')
-      await loadInvoice()
-    } catch (cancelError) {
-      toast.error(cancelError.message || 'Unable to cancel invoice.')
-    } finally {
-      setIsCancelling(false)
-    }
-  }
 
   if (isLoading) {
     return (
@@ -402,22 +264,15 @@ export default function InvoiceDetailPage() {
               <InfoItem
                 label="Customer"
                 value={customerName || invoice.customerId}
-                subValue={customerName ? invoice.customerId : ''}
                 isCode={!customerName}
               />
               <InfoItem
                 label="Sales Route"
                 value={salesRouteName || invoice.salesRouteId}
-                subValue={salesRouteName ? invoice.salesRouteId : ''}
                 isCode={!salesRouteName}
               />
               <InfoItem label="Vehicle" value={invoice.vehicleId} isCode />
-              <InfoItem
-                label="Sales Person"
-                value={salesPersonName || invoice.salesPersonId}
-                subValue={salesPersonName ? invoice.salesPersonId : ''}
-                isCode={!salesPersonName}
-              />
+              <InfoItem label="Sales Person" value={invoice.salesPersonName || 'Not assigned'} />
               <InfoItem label="Due Date" value={showDate(invoice.dueDate)} isCode />
               <InfoItem label="Customer VAT TIN" value={invoice.customerVatTin} isCode />
               <InfoItem label="Tax Invoice No" value={invoice.taxInvoiceNumber} isCode />
@@ -445,20 +300,18 @@ export default function InvoiceDetailPage() {
                   <tr>
                     <th style={{ whiteSpace: 'nowrap' }}>Item</th>
                     <th style={{ whiteSpace: 'nowrap' }}>Batch</th>
-                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
-                      Qty
-                    </th>
-                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
-                      Selling Price
-                    </th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Smallest Unit</th>
                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
                       MRP
+                    </th>
+                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
+                      Qty
                     </th>
                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
                       Disc %
                     </th>
                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
-                      VAT
+                      Selling Price
                     </th>
                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
                       Total
@@ -506,22 +359,7 @@ export default function InvoiceDetailPage() {
                           className="text-right mono"
                           style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
                         >
-                          {line.quantity}{' '}
-                          <span
-                            style={{
-                              fontSize: 11,
-                              color: 'var(--color-text-muted)',
-                              fontWeight: 500,
-                            }}
-                          >
-                            {line.smallestUnitCode || line.unitId}
-                          </span>
-                        </td>
-                        <td
-                          className="text-right mono"
-                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
-                        >
-                          {money(line.unitPrice)}
+                          {line.smallestUnitCode || line.unitId || '-'}
                         </td>
                         <td
                           className="text-right mono"
@@ -533,13 +371,19 @@ export default function InvoiceDetailPage() {
                           className="text-right mono"
                           style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
                         >
+                          {line.quantity}
+                        </td>
+                        <td
+                          className="text-right mono"
+                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+                        >
                           {line.discountPercent}%
                         </td>
                         <td
                           className="text-right mono"
                           style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
                         >
-                          {money(line.vatAmount)}
+                          {money(line.unitPrice)}
                         </td>
                         <td
                           className="text-right mono"
@@ -581,164 +425,33 @@ export default function InvoiceDetailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
               <AmountRow label="Gross" value={invoice.grossAmount} />
               <AmountRow label="Discount" value={invoice.totalDiscountAmount} />
-              <AmountRow label="Supplier Discount" value={invoice.totalSupplierDiscountAmount} />
-              <AmountRow
-                label="Distributor Discount"
-                value={invoice.totalDistributorDiscountAmount}
-              />
-              <AmountRow label="Returns" value={invoice.totalReturnAmount} />
-              <AmountRow label="VAT" value={invoice.vatAmount} />
+              {Number(invoice.totalSupplierDiscountAmount || 0) > 0 && (
+                <AmountRow label="Supplier Discount" value={invoice.totalSupplierDiscountAmount} />
+              )}
+              {Number(invoice.totalDistributorDiscountAmount || 0) > 0 && (
+                <AmountRow
+                  label="Distributor Discount"
+                  value={invoice.totalDistributorDiscountAmount}
+                />
+              )}
+              {Number(invoice.totalReturnAmount || 0) > 0 && (
+                <AmountRow label="Returns" value={invoice.totalReturnAmount} />
+              )}
+              {Number(invoice.vatAmount || 0) > 0 && (
+                <AmountRow label="VAT" value={invoice.vatAmount} />
+              )}
               <div style={{ borderTop: '1px solid var(--color-border)', margin: '3px 0' }} />
               <AmountRow label="Net" value={invoice.netAmount} strong />
+              <div style={{ borderTop: '1px solid var(--color-border)', margin: '3px 0' }} />
               <AmountRow label="Paid" value={invoice.paidAmount} />
-              <AmountRow label="Outstanding" value={invoice.outstandingAmount} strong />
+              <AmountRow
+                label="Outstanding"
+                value={invoice.outstandingAmount}
+                strong
+                tone={Number(invoice.outstandingAmount || 0) > 0 ? 'warning' : 'success'}
+              />
             </div>
           </section>
-
-          {canAddPayment && !isCancelled && !isPaid && (
-            <form
-              onSubmit={submitPayment}
-              style={{
-                marginTop: 18,
-                paddingTop: 14,
-                borderTop: '1px solid var(--color-border)',
-              }}
-            >
-              <CompactTitle icon={CreditCard} title="Add Payment" />
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 10,
-                }}
-              >
-                <select
-                  className="form-input"
-                  value={payment.paymentMethod}
-                  onChange={(event) => updatePayment('paymentMethod', event.target.value)}
-                  style={{ height: 40 }}
-                >
-                  {paymentMethods.map((method) => (
-                    <option key={method.value} value={method.value}>
-                      {method.label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="form-input"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="Amount"
-                  value={payment.amount}
-                  onChange={(event) => updatePayment('amount', event.target.value)}
-                  style={{ height: 40 }}
-                />
-                <input
-                  className="form-input"
-                  type="date"
-                  value={payment.paidDate}
-                  onChange={(event) => updatePayment('paidDate', event.target.value)}
-                  style={{ height: 40 }}
-                />
-                {isChequePayment ? (
-                  <>
-                    <input
-                      className="form-input"
-                      placeholder="Cheque number"
-                      value={payment.chequeNumber}
-                      onChange={(event) => updatePayment('chequeNumber', event.target.value)}
-                      style={{ height: 40 }}
-                    />
-                    <input
-                      className="form-input"
-                      type="date"
-                      value={payment.chequeDate}
-                      onChange={(event) => updatePayment('chequeDate', event.target.value)}
-                      style={{ height: 40 }}
-                    />
-                    <input
-                      className="form-input"
-                      placeholder="Bank name"
-                      value={payment.bankName}
-                      onChange={(event) => updatePayment('bankName', event.target.value)}
-                      style={{ height: 40 }}
-                    />
-                  </>
-                ) : null}
-                <button
-                  className="button-primary"
-                  type="submit"
-                  disabled={isSavingPayment}
-                  style={{ gridColumn: '1 / -1', height: 42 }}
-                >
-                  <RefreshCw style={{ width: 15, height: 15 }} />
-                  {isSavingPayment ? 'Saving...' : 'Record Payment'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {canAssignTaxNumber && invoice.isTaxInvoice && !isCancelled && (
-            <form
-              onSubmit={submitTaxNumber}
-              style={{
-                marginTop: 18,
-                paddingTop: 14,
-                borderTop: '1px solid var(--color-border)',
-              }}
-            >
-              <CompactTitle icon={Hash} title="Tax Invoice Number" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                <input
-                  className="form-input"
-                  value={taxInvoiceNumber}
-                  onChange={(event) => setTaxInvoiceNumber(event.target.value)}
-                  placeholder="Tax invoice number"
-                  style={{ height: 40 }}
-                />
-                <button
-                  className="button-secondary"
-                  type="submit"
-                  disabled={isSavingTaxNumber}
-                  style={{ height: 40, paddingInline: 12 }}
-                >
-                  {isSavingTaxNumber ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {canCancel && !isCancelled && (
-            <form
-              onSubmit={submitCancel}
-              style={{
-                marginTop: 18,
-                paddingTop: 14,
-                borderTop: '1px solid var(--color-border)',
-              }}
-            >
-              <CompactTitle icon={Ban} title="Cancel Invoice" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                <textarea
-                  className="form-input"
-                  rows={2}
-                  value={cancelReason}
-                  onChange={(event) => setCancelReason(event.target.value)}
-                  placeholder="Reason"
-                  style={{ minHeight: 50, resize: 'none', paddingTop: 10 }}
-                />
-                <button
-                  className="button-secondary"
-                  type="submit"
-                  disabled={isCancelling}
-                  style={{ height: 40, alignSelf: 'end', paddingInline: 12 }}
-                >
-                  {isCancelling ? 'Cancelling...' : 'Cancel'}
-                </button>
-              </div>
-            </form>
-          )}
         </aside>
       </div>
     </div>
