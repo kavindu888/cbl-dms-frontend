@@ -19,7 +19,7 @@ export const createInStoreReturn = (data) => inventoryAxios.post('/in-store-retu
 export const addInStoreReturnLine = (id, data) => inventoryAxios.post(`/in-store-returns/${id}/lines`, data)
 export const removeInStoreReturnLine = (id, lineId) => inventoryAxios.delete(`/in-store-returns/${id}/lines/${lineId}`)
 export const submitInStoreReturn = (id) => inventoryAxios.post(`/in-store-returns/${id}/submit`)
-export const approveInStoreReturn = (id) => inventoryAxios.post(`/in-store-returns/${id}/approve`)
+export const approveInStoreReturn = (id, data) => inventoryAxios.post(`/in-store-returns/${id}/approve`, data)
 export const applyInStoreReturn = (id) => inventoryAxios.post(`/in-store-returns/${id}/apply`)
 export const cancelInStoreReturn = (id, data) => inventoryAxios.post(`/in-store-returns/${id}/cancel`, data)
 export const getInStoreReturn = (id) => inventoryAxios.get(`/in-store-returns/${id}`)

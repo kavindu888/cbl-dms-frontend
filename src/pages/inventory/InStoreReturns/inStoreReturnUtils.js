@@ -3,8 +3,6 @@ import { formatDate as formatSriLankaDate } from '@/utils'
 export const IN_STORE_RETURN_STATUSES = [
   { label: 'All', value: '' },
   { label: 'Draft', value: 1 },
-  { label: 'Submitted', value: 2 },
-  { label: 'Approved', value: 3 },
   { label: 'Applied', value: 4 },
   { label: 'Cancelled', value: 5 },
 ]

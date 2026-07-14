@@ -98,6 +98,30 @@ export function useApplyInStoreReturn() {
   })
 }
 
+export function useSubmitAndApplyInStoreReturn() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ isrId, userId }) => {
+      await inventoryService.submitInStoreReturn(isrId)
+      await inventoryService.approveInStoreReturn(isrId, { approvedByUserId: userId })
+      await inventoryService.applyInStoreReturn(isrId)
+    },
+    onSuccess: (_, variables) => {
+      invalidateInStoreReturns(queryClient, variables?.isrId)
+      queryClient.invalidateQueries({ queryKey: ['in-store-returns'] })
+      toast.success('In-store return applied - stock moved to return stock')
+    },
+    onError: (error) => {
+      toast.error(
+        error?.response?.data?.message ??
+          error?.response?.data?.errorMessage ??
+          error.message ??
+          'Failed to apply in-store return'
+      )
+    },
+  })
+}
+
 export function useCancelInStoreReturn() {
   const queryClient = useQueryClient()
   return useMutation({
