@@ -78,6 +78,114 @@ function DetailItem({ label, value }) {
   )
 }
 
+function SearchableSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  emptyLabel = 'No matches found',
+  getLabel,
+  getMeta = () => '',
+}) {
+  const selected = options.find((option) => option.id === value) || null
+  const selectedLabel = selected ? getLabel(selected) : ''
+  const [query, setQuery] = useState(selectedLabel)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (selectedLabel) {
+      setQuery(selectedLabel)
+    } else if (!open) {
+      setQuery('')
+    }
+  }, [selectedLabel, open])
+
+  const filteredOptions = useMemo(() => {
+    const text = query.trim().toLowerCase()
+    const filtered = text
+      ? options.filter((option) =>
+          `${getLabel(option)} ${getMeta(option)}`.toLowerCase().includes(text)
+        )
+      : options
+
+    return filtered.slice(0, 60)
+  }, [getLabel, getMeta, options, query])
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        className="form-input"
+        value={query}
+        placeholder={placeholder}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onChange={(event) => {
+          const nextQuery = event.target.value
+          setQuery(nextQuery)
+          setOpen(true)
+          if (value) onChange('')
+        }}
+      />
+      {open ? (
+        <div
+          style={{
+            position: 'absolute',
+            zIndex: 40,
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            maxHeight: 260,
+            overflowY: 'auto',
+            border: '1px solid var(--color-border)',
+            borderRadius: 8,
+            background: 'var(--color-bg-surface)',
+            boxShadow: '0 16px 34px rgba(0, 0, 0, 0.4)',
+          }}
+        >
+          {filteredOptions.length ? (
+            filteredOptions.map((option) => {
+              const label = getLabel(option)
+              const meta = getMeta(option)
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    onChange(option.id)
+                    setQuery(label)
+                    setOpen(false)
+                  }}
+                  style={{
+                    display: 'grid',
+                    gap: 3,
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: 0,
+                    borderBottom: '1px solid var(--color-border)',
+                    background: 'transparent',
+                    color: 'var(--color-text-primary)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 800 }}>{label}</span>
+                  {meta ? (
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{meta}</span>
+                  ) : null}
+                </button>
+              )
+            })
+          ) : (
+            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 12 }}>{emptyLabel}</div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function AmountLine({ label, value, strong = false }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
@@ -220,18 +328,18 @@ export default function SalesOrderModulePage() {
 
   async function loadReferenceData() {
     const [customerResult, productResult] = await Promise.all([
-      salesService.listCustomers({ page: 1, pageSize: 100, isActive: true }),
-      masterService.listProducts({ page: 1, pageSize: 100, status: 'Active' }),
+      salesService.listAllCustomers({ pageSize: 100, isActive: true }),
+      masterService.listAllProducts({ pageSize: 100, status: 'Active' }),
     ])
 
-    setCustomers(customerResult.items || [])
-    setProducts(productResult.items || [])
+    setCustomers(customerResult || [])
+    setProducts(productResult || [])
   }
 
   async function loadOrders() {
     setIsLoading(true)
     try {
-      const result = await salesService.listMySalesOrders()
+      const result = await salesService.listSalesOrders({ page: 1, pageSize: 100 })
       setOrders(result)
       setSelectedOrderId((currentId) => {
         if (result.some((order) => order.id === currentId)) return currentId
@@ -920,18 +1028,19 @@ export default function SalesOrderModulePage() {
                           >
                             <label>
                               <span className="form-label">Product</span>
-                              <select
-                                className="form-input"
+                              <SearchableSelect
                                 value={line.productId}
-                                onChange={(event) => handleProductSelect(event.target.value)}
-                              >
-                                <option value="">Select product</option>
-                                {products.map((product) => (
-                                  <option key={product.id} value={product.id}>
-                                    {product.sku ? `${product.sku} - ${product.name}` : product.name}
-                                  </option>
-                                ))}
-                              </select>
+                                onChange={handleProductSelect}
+                                options={products}
+                                placeholder="Search product"
+                                emptyLabel="No products found"
+                                getLabel={(product) => (product.sku ? `${product.sku} - ${product.name}` : product.name)}
+                                getMeta={(product) =>
+                                  [product.barcode, product.unitCode, product.uomBase, product.brandName]
+                                    .filter(Boolean)
+                                    .join(' ')
+                                }
+                              />
                               <div className="sellable-qty-message" aria-live="polite">
                                 {loadingAvailability && line.productId ? (
                                   <span className="sellable-qty-muted">
@@ -1147,18 +1256,19 @@ export default function SalesOrderModulePage() {
                 <h2 style={{ fontSize: 15, fontWeight: 800 }}>New Order</h2>
                 <label>
                   <span className="form-label">Customer</span>
-                  <select
-                    className="form-input"
+                  <SearchableSelect
                     value={header.customerId}
-                    onChange={(event) => updateHeader('customerId', event.target.value)}
-                  >
-                    <option value="">Select customer</option>
-                    {customers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(customerId) => updateHeader('customerId', customerId)}
+                    options={customers}
+                    placeholder="Search customer"
+                    emptyLabel="No customers found"
+                    getLabel={(customer) => (customer.code ? `${customer.code} - ${customer.name}` : customer.name)}
+                    getMeta={(customer) =>
+                      [customer.primaryContactPhone, customer.phone, customer.routeName, customer.salesRouteName]
+                        .filter(Boolean)
+                        .join(' ')
+                    }
+                  />
                 </label>
                 <label>
                   <span className="form-label">Delivery Date</span>

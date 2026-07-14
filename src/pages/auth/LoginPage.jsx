@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -37,6 +37,11 @@ export default function LoginPage() {
   })
   const usernameField = register('username')
   const passwordField = register('password')
+
+  useEffect(() => {
+    toast.dismiss()
+  }, [])
+
   async function onSubmit(values) {
     try {
       const username = values.username.trim()

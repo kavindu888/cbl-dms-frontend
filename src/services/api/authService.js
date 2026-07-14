@@ -51,6 +51,7 @@ function persistSession(session) {
 
 async function authenticate(endpoint, credentials, fallbackMessage) {
   const response = await api.post(endpoint, credentials, {
+    skipAuthHeader: true,
     skipAuthRefresh: endpoint === AUTH_API.login || endpoint === AUTH_API.refresh,
     withCredentials: false,
   })
@@ -88,6 +89,7 @@ export const authService = {
   async logout() {
     try {
       await api.post(AUTH_API.logout, undefined, {
+        skipAuthHeader: false,
         skipAuthRefresh: true,
         withCredentials: true,
       })

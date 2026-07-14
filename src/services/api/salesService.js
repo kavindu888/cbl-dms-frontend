@@ -181,6 +181,29 @@ export const salesService = {
     }
   },
 
+  async listAllCustomers(params = {}) {
+    const pageSize = Math.min(Number(params.pageSize || 100), 100)
+    const firstPage = await this.listCustomers({ ...params, page: 1, pageSize })
+    const items = [...(firstPage.items || [])]
+    const fallbackTotalPages = Math.ceil(Number(firstPage.totalItems || items.length) / pageSize) || 1
+    const totalPages = Number(firstPage.totalPages ?? fallbackTotalPages)
+
+    if (totalPages <= 1) {
+      return items
+    }
+
+    const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2)
+    const remainingResults = await Promise.all(
+      remainingPages.map((page) => this.listCustomers({ ...params, page, pageSize }))
+    )
+
+    remainingResults.forEach((page) => {
+      items.push(...(page.items || []))
+    })
+
+    return items
+  },
+
   //
   // Get single customer by ID
   async getCustomer(id) {
@@ -255,6 +278,11 @@ export const salesService = {
 
   async listMySalesOrders() {
     const response = await getOnce('/api/sales/orders/my-orders')
+    return (response.data || []).map(formatSalesOrder)
+  },
+
+  async listSalesOrders(params = { page: 1, pageSize: 100 }) {
+    const response = await getOnce('/api/sales/orders', { params })
     return (response.data || []).map(formatSalesOrder)
   },
 

@@ -146,8 +146,8 @@ export default function CrnListPage() {
   useEffect(() => {
     async function loadCustomers() {
       try {
-        const result = await salesService.listCustomers({ page: 1, pageSize: 100, isActive: true })
-        setCustomers(result.items || [])
+        const result = await salesService.listAllCustomers({ pageSize: 100, isActive: true })
+        setCustomers(result || [])
       } catch (err) {
         console.error('Failed to load customers:', err)
       }

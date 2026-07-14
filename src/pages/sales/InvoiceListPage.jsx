@@ -116,9 +116,9 @@ export default function InvoiceListPage() {
     let isCurrent = true
     async function loadCustomers() {
       try {
-        const result = await salesService.listCustomers({ page: 1, pageSize: 100, isActive: true })
+        const result = await salesService.listAllCustomers({ pageSize: 100, isActive: true })
         if (!isCurrent) return
-        setCustomers(result.items || [])
+        setCustomers(result || [])
       } catch (loadError) {
         if (!isCurrent) return
         setError(loadError.message)

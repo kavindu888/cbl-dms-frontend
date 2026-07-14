@@ -77,8 +77,15 @@ api.interceptors.request.use((config) => {
     }
   }
 
-  if (token) {
+  if (token && !config.skipAuthHeader) {
     config.headers.Authorization = `Bearer ${token}`
+  } else if (config.skipAuthHeader && config.headers) {
+    if (typeof config.headers.delete === 'function') {
+      config.headers.delete('Authorization')
+    } else {
+      delete config.headers.Authorization
+      delete config.headers.authorization
+    }
   }
 
   return config

@@ -42,7 +42,15 @@ export const useAuthStore = create()(
       },
 
       login: async (username, password) => {
-        set({ isLoading: true, error: null })
+        clearAuthStorage()
+        set({
+          user: null,
+          accessToken: null,
+          refreshTokenValue: null,
+          isAuthenticated: false,
+          isLoading: true,
+          error: null,
+        })
         try {
           const session = await authService.login({ username, password })
           set({

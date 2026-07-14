@@ -114,11 +114,11 @@ export default function InvoiceCreatorPage() {
 
       try {
         const [customerPage, productPage] = await Promise.all([
-          salesService.listCustomers({ page: 1, pageSize: 100, isActive: true }),
+          salesService.listAllCustomers({ pageSize: 100, isActive: true }),
           masterService.listProducts({ page: 1, pageSize: 100, status: 'Active' }),
         ])
 
-        setCustomers(customerPage.items || [])
+        setCustomers(customerPage || [])
         setProducts(productPage.items || [])
       } catch (error) {
         setLoadError(error.message)

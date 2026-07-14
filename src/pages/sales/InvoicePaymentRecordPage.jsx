@@ -208,12 +208,10 @@ export default function InvoicePaymentRecordPage() {
     setError('')
 
     try {
-      const customerResult = await salesService.listCustomers({
-        page: 1,
+      const activeCustomers = await salesService.listAllCustomers({
         pageSize: 100,
         isActive: true,
       })
-      const activeCustomers = customerResult.items || []
 
       const invoiceResults = await Promise.all(
         activeCustomers.map(async (customer) => {
