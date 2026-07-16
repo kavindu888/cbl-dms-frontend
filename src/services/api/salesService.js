@@ -183,27 +183,13 @@ export const salesService = {
     }
   },
 
-  async listAllCustomers(params = {}) {
-    const pageSize = Math.min(Number(params.pageSize || 100), 100)
-    const firstPage = await this.listCustomers({ ...params, page: 1, pageSize })
-    const items = [...(firstPage.items || [])]
-    const fallbackTotalPages = Math.ceil(Number(firstPage.totalItems || items.length) / pageSize) || 1
-    const totalPages = Number(firstPage.totalPages ?? fallbackTotalPages)
-
-    if (totalPages <= 1) {
-      return items
-    }
-
-    const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2)
-    const remainingResults = await Promise.all(
-      remainingPages.map((page) => this.listCustomers({ ...params, page, pageSize }))
-    )
-
-    remainingResults.forEach((page) => {
-      items.push(...(page.items || []))
+  async checkCustomerCode(code) {
+    const response = await api.get('/api/v1/sales/customers/check-code', {
+      params: { code },
+      timeout: 3000,
     })
 
-    return items
+    return response.data?.data ?? response.data ?? {}
   },
 
   //

@@ -267,63 +267,48 @@ select {
   border-color: var(--color-teal);
 }
 
-.sellable-qty-message {
+.customer-code-status-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-dim);
+  pointer-events: none;
+}
+
+.form-input.validated + .customer-code-status-icon {
+  color: var(--color-teal);
+}
+
+.form-input.error + .customer-code-status-icon {
+  color: var(--color-danger);
+}
+
+.customer-code-status-icon--checking {
+  animation: customer-code-spin 800ms linear infinite;
+}
+
+.customer-code-status-message {
   min-height: 18px;
-  margin-top: 4px;
+  margin-top: 3px;
   font-size: 11px;
   line-height: 18px;
 }
 
-.sellable-qty-muted,
-.sellable-qty-available,
-.sellable-qty-danger,
-.sellable-qty-warning {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
+.customer-code-status-message--available {
+  color: var(--color-teal);
 }
 
-.sellable-qty-muted {
-  color: var(--color-text-dim);
-}
-
-.sellable-qty-available {
-  color: var(--color-text-muted);
-}
-
-.sellable-qty-available strong {
-  color: var(--color-text-primary);
-}
-
-.sellable-qty-danger {
+.customer-code-status-message--taken {
   color: var(--color-danger);
 }
 
-.sellable-qty-warning {
-  color: var(--color-amber);
-}
-
-.sellable-qty-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  flex: 0 0 auto;
-}
-
-.sellable-qty-dot--available {
-  background: var(--color-teal);
-}
-
-.sellable-qty-dot--danger {
-  background: var(--color-danger);
-}
-
-.sellable-qty-spinner {
-  animation: sellable-qty-spin 800ms linear infinite;
-}
-
-@keyframes sellable-qty-spin {
+@keyframes customer-code-spin {
   to {
     transform: rotate(360deg);
   }
