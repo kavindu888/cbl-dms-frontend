@@ -106,6 +106,7 @@ function formatInvoice(invoice) {
     totalSupplierDiscountAmount: Number(invoice.totalSupplierDiscountAmount ?? 0),
     totalDistributorDiscountAmount: Number(invoice.totalDistributorDiscountAmount ?? 0),
     totalReturnAmount: Number(invoice.totalReturnAmount ?? 0),
+    returnCreditAmount: Number(invoice.returnCreditAmount ?? 0),
     vatAmount: Number(invoice.vatAmount ?? 0),
     netAmount: Number(invoice.netAmount ?? 0),
     paidAmount: Number(invoice.paidAmount ?? 0),
@@ -130,6 +131,8 @@ function formatInvoice(invoice) {
       batchId: line.batchId ?? null,
       batchNo: line.batchNo ?? '',
       smallestUnitCode: line.smallestUnitCode ?? '',
+      isReturnLine: Boolean(line.isReturnLine),
+      returnReason: line.returnReason ?? null,
     })),
   }
 }

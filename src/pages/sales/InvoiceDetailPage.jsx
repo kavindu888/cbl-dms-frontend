@@ -21,6 +21,11 @@ function invoiceStatusLabel(status) {
   return String(status || '').replace(/([a-z])([A-Z])/g, '$1 $2')
 }
 
+function isReturnReason(value, name, number) {
+  const normalized = String(value ?? '').toLowerCase()
+  return normalized === String(number) || normalized === name.toLowerCase()
+}
+
 function InfoItem({ label, value, subValue, isCode = false }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
@@ -80,7 +85,7 @@ function InfoItem({ label, value, subValue, isCode = false }) {
   )
 }
 
-function AmountRow({ label, value, strong = false, tone }) {
+function AmountRow({ label, value, strong = false, tone, negative = false }) {
   const color =
     tone === 'success'
       ? 'var(--color-teal)'
@@ -98,7 +103,7 @@ function AmountRow({ label, value, strong = false, tone }) {
         {label}
       </span>
       <span className="mono" style={{ color }}>
-        {money(value)}
+        {negative ? `− ${money(value)}` : money(value)}
       </span>
     </div>
   )
@@ -323,9 +328,22 @@ export default function InvoiceDetailPage() {
                     const product = productById[line.productId]
                     const productSku = product?.sku || line.productId
                     const productName = product?.name || 'Unknown Product'
+                    const isReturnLine = Boolean(line.isReturnLine)
+                    const reasonIsDamaged = isReturnReason(line.returnReason, 'Damaged', 1)
+                    const reasonIsExpired = isReturnReason(line.returnReason, 'Expired', 2)
 
                     return (
-                      <tr key={line.id}>
+                      <tr
+                        key={line.id}
+                        style={
+                          isReturnLine
+                            ? {
+                                borderTop: '1px solid rgba(245, 158, 11, 0.16)',
+                                background: 'rgba(245, 158, 11, 0.06)',
+                              }
+                            : undefined
+                        }
+                      >
                         <td style={{ verticalAlign: 'middle' }}>
                           <div
                             style={{
@@ -346,6 +364,39 @@ export default function InvoiceDetailPage() {
                               }}
                             >
                               {productName}
+                              {isReturnLine ? (
+                                <span
+                                  className="mono"
+                                  style={{
+                                    marginLeft: 7,
+                                    padding: '1px 6px',
+                                    borderRadius: 999,
+                                    border: '1px solid rgba(245, 158, 11, 0.48)',
+                                    background: 'rgba(245, 158, 11, 0.14)',
+                                    color: 'var(--color-amber)',
+                                    fontSize: 10,
+                                    fontWeight: 900,
+                                  }}
+                                >
+                                  RT
+                                </span>
+                              ) : null}
+                              {isReturnLine ? (
+                                <span
+                                  style={{
+                                    marginLeft: 7,
+                                    color: reasonIsDamaged
+                                      ? '#fdba74'
+                                      : reasonIsExpired
+                                        ? '#fca5a5'
+                                        : 'var(--color-amber)',
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  (RT)
+                                </span>
+                              ) : null}
                             </span>
                           </div>
                         </td>
@@ -389,7 +440,13 @@ export default function InvoiceDetailPage() {
                           className="text-right mono"
                           style={{ whiteSpace: 'nowrap', verticalAlign: 'middle', fontWeight: 700 }}
                         >
-                          {money(line.lineTotal)}
+                          {isReturnLine ? (
+                            <span style={{ color: 'var(--color-amber)', fontWeight: 900 }}>
+                              −{money(line.lineTotal)}
+                            </span>
+                          ) : (
+                            money(line.lineTotal)
+                          )}
                         </td>
                       </tr>
                     )
@@ -436,6 +493,14 @@ export default function InvoiceDetailPage() {
               )}
               {Number(invoice.totalReturnAmount || 0) > 0 && (
                 <AmountRow label="Returns" value={invoice.totalReturnAmount} />
+              )}
+              {Number(invoice.returnCreditAmount || 0) > 0 && (
+                <AmountRow
+                  label="Returns Credit"
+                  value={invoice.returnCreditAmount}
+                  tone="warning"
+                  negative
+                />
               )}
               {Number(invoice.vatAmount || 0) > 0 && (
                 <AmountRow label="VAT" value={invoice.vatAmount} />
