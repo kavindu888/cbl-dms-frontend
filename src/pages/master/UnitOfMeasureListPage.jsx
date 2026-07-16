@@ -11,7 +11,7 @@ const emptyForm = {
   description: '',
 }
 
-const pageSize = 10
+const pageSize = 8
 
 function getErrorMessage(error, fallback = 'Something went wrong') {
   return error?.message || fallback
@@ -168,7 +168,7 @@ export default function UnitOfMeasureListPage() {
 
   async function handleDeactivate(unit) {
     if (!unit.isActive) return
-    if (!window.confirm(`Deactivate ${unit.name}?`)) return
+    if (!(await window.confirm(`Deactivate ${unit.name}?`))) return
 
     try {
       await masterService.deactivateUnitOfMeasure(unit.id)
@@ -341,7 +341,7 @@ export default function UnitOfMeasureListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'hidden' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>

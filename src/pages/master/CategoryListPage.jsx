@@ -13,6 +13,7 @@ const emptyForm = {
 }
 
 const pageSize = 8
+const maxCategoryLevel = 2
 
 function getErrorMessage(error, fallback = 'Something went wrong') {
   return error?.message || fallback
@@ -29,6 +30,16 @@ function getDescendantIds(category) {
   if (!category) return []
 
   return (category.children || []).flatMap((child) => [child.id, ...getDescendantIds(child)])
+}
+
+function getMaxDescendantDepth(category) {
+  if (!category?.children?.length) return 0
+
+  return Math.max(...category.children.map((child) => 1 + getMaxDescendantDepth(child)))
+}
+
+function normalizeCategoryName(name) {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
 function toApiPayload(values) {
@@ -108,7 +119,10 @@ export default function CategoryListPage() {
 
   const parentOptions = useMemo(() => {
     const blockedIds = new Set([editingCategory?.id, ...getDescendantIds(editingCategory)])
-    return flatCategories.filter((category) => !blockedIds.has(category.id))
+    const subtreeDepth = getMaxDescendantDepth(editingCategory)
+    return flatCategories.filter(
+      (category) => !blockedIds.has(category.id) && category.level + 1 + subtreeDepth <= maxCategoryLevel
+    )
   }, [editingCategory, flatCategories])
 
   function updateField(field, value) {
@@ -136,6 +150,29 @@ export default function CategoryListPage() {
 
     if (!form.code.trim() || !form.name.trim()) {
       toast.error('Code and Name are required.')
+      return
+    }
+
+    const normalizedName = normalizeCategoryName(form.name)
+    const duplicateName = flatCategories.some(
+      (category) =>
+        category.id !== editingCategory?.id && normalizeCategoryName(category.name || '') === normalizedName
+    )
+
+    if (duplicateName) {
+      toast.error('Category name already exists.')
+      return
+    }
+
+    const selectedParent = form.parentCategoryId
+      ? flatCategories.find((category) => category.id === form.parentCategoryId)
+      : null
+    const nextDeepestLevel = selectedParent
+      ? selectedParent.level + 1 + getMaxDescendantDepth(editingCategory)
+      : getMaxDescendantDepth(editingCategory)
+
+    if (nextDeepestLevel > maxCategoryLevel) {
+      toast.error('Category tree can only have 3 levels.')
       return
     }
 
@@ -182,7 +219,7 @@ export default function CategoryListPage() {
   }
 
   async function handleDeactivate(category) {
-    if (!window.confirm(`Deactivate ${category.name}?`)) return
+    if (!(await window.confirm(`Deactivate ${category.name}?`))) return
 
     try {
       await masterService.deleteCategory(category.id)
@@ -310,7 +347,7 @@ export default function CategoryListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'hidden' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>

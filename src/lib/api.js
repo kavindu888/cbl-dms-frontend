@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { getAccessToken } from '@/utils'
 
-const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://staging.ceyservice.store'
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
 const parsedBaseUrl = new URL(configuredBaseUrl)
 const useDevProxy = import.meta.env.DEV && import.meta.env.VITE_USE_API_PROXY !== 'false'
 
@@ -10,7 +10,7 @@ export const apiPrefix = parsedBaseUrl.pathname.replace(/\/$/, '')
 const api = axios.create({
   baseURL: useDevProxy ? undefined : parsedBaseUrl.origin,
   timeout: 20000,
-  withCredentials: true,
+  withCredentials: false,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -34,6 +34,21 @@ function isRefreshAuthFailure(error) {
 
 function isNetworkFailure(error) {
   return !error.response
+}
+
+function getFirstValidationMessage(errors) {
+  if (Array.isArray(errors)) {
+    const firstError = errors[0]
+    return typeof firstError === 'string' ? firstError : firstError?.message
+  }
+
+  if (errors && typeof errors === 'object') {
+    const firstValue = Object.values(errors)[0]
+    if (Array.isArray(firstValue)) return firstValue[0]
+    if (typeof firstValue === 'string') return firstValue
+  }
+
+  return null
 }
 
 async function refreshAccessToken() {
@@ -62,8 +77,15 @@ api.interceptors.request.use((config) => {
     }
   }
 
-  if (token) {
+  if (token && !config.skipAuthHeader) {
     config.headers.Authorization = `Bearer ${token}`
+  } else if (config.skipAuthHeader && config.headers) {
+    if (typeof config.headers.delete === 'function') {
+      config.headers.delete('Authorization')
+    } else {
+      delete config.headers.Authorization
+      delete config.headers.authorization
+    }
   }
 
   return config
@@ -111,11 +133,12 @@ api.interceptors.response.use(
     const responseData = error.response?.data
     const result = responseData?.data
     const validationErrors = result?.validationErrors || responseData?.errors || []
+    const validationMessage = getFirstValidationMessage(validationErrors)
     const permissionMessage =
       error.response?.status === 403 ? 'You do not have permission to perform this action.' : null
     const message =
       permissionMessage ||
-      validationErrors[0]?.message ||
+      validationMessage ||
       result?.errorMessage ||
       responseData?.errorMessage ||
       responseData?.message ||

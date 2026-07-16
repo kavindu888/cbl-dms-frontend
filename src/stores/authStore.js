@@ -1,8 +1,12 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { authService } from '@services/api/authService'
 import { Role } from '@/types'
-import { userHasPermission } from '@/utils/permissions'
+import {
+  userHasAllPermissions,
+  userHasAnyPermission,
+  userMeetsPermissionRequirement,
+} from '@/utils/permissions'
 import { clearAuthStorage } from '@/utils'
 export const useAuthStore = create()(
   persist(
@@ -38,7 +42,15 @@ export const useAuthStore = create()(
       },
 
       login: async (username, password) => {
-        set({ isLoading: true, error: null })
+        clearAuthStorage()
+        set({
+          user: null,
+          accessToken: null,
+          refreshTokenValue: null,
+          isAuthenticated: false,
+          isLoading: true,
+          error: null,
+        })
         try {
           const session = await authService.login({ username, password })
           set({
@@ -87,15 +99,24 @@ export const useAuthStore = create()(
 
       hasRole: (role) => {
         const userRoles = get().user?.roles ?? []
-        return userRoles.includes(role) || userRoles.includes(Role.Admin)
+        const normalizedRole = String(role || '').toLowerCase()
+        return userRoles.some((userRole) => {
+          const roleName = typeof userRole === 'string' ? userRole : userRole?.name ?? userRole?.Name
+          const normalizedUserRole = String(roleName || '').toLowerCase()
+          return normalizedUserRole === normalizedRole || normalizedUserRole === Role.Admin.toLowerCase()
+        })
       },
 
       hasPermission: (permission) => {
-        return userHasPermission(get().user, permission)
+        return userMeetsPermissionRequirement(get().user, permission)
       },
 
       hasAnyPermission: (permissions) => {
-        return userHasPermission(get().user, permissions)
+        return userHasAnyPermission(get().user, permissions)
+      },
+
+      hasAllPermissions: (permissions) => {
+        return userHasAllPermissions(get().user, permissions)
       },
 
       clearError: () => set({ error: null }),
@@ -117,3 +138,4 @@ export const useAuthStore = create()(
     }
   )
 )
+

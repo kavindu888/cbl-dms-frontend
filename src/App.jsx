@@ -17,10 +17,15 @@ import MasterCustomerListPage from './pages/master/CustomerListPage'
 import Product from './pages/master/Product'
 import SalesRouteListPage from './pages/master/SalesRouteListPage'
 import UnitOfMeasureListPage from './pages/master/UnitOfMeasureListPage'
-import PurchaseOrderDetailPage from './pages/purchasing/PurchaseOrderDetailPage'
-import PurchaseOrderListPage from './pages/purchasing/PurchaseOrderListPage'
-import PurchaseReturnsPage from './pages/purchasing/PurchaseReturnsPage'
-import ReceiptEntryPage from './pages/purchasing/ReceiptEntryPage'
+import AllPurchaseOrdersPage from './pages/purchasing/purchase-orders/AllPurchaseOrdersPage'
+import ApprovedPurchaseOrdersPage from './pages/purchasing/purchase-orders/ApprovedPurchaseOrdersPage'
+import PlacePurchaseOrderPage from './pages/purchasing/purchase-orders/PlacePurchaseOrderPage'
+import PurchaseOrderApprovalPage from './pages/purchasing/purchase-orders/PurchaseOrderApprovalPage'
+import PurchaseReturnsPage from './pages/purchasing/returns/PurchaseReturnsPage'
+import ReturnNoteApprovalsPage from './pages/purchasing/ReturnNotes/ReturnNoteApprovalsPage'
+import ReturnNoteDetailPage from './pages/purchasing/ReturnNotes/ReturnNoteDetailPage'
+import ReturnNoteListPage from './pages/purchasing/ReturnNotes/ReturnNoteListPage'
+import NewReturnNotePage from './pages/purchasing/ReturnNotes/NewReturnNotePage'
 import SupplierListPage from './pages/master/SupplierListPage'
 import ReportHubPage from './pages/reports/ReportHubPage'
 import ReportPreviewPage from './pages/reports/ReportPreviewPage'
@@ -37,12 +42,10 @@ function ProtectedRoute({ children, requiredRole, requiredPermission }) {
   const { isAuthenticated, isLoading, hasPermission, hasRole } = useAuthStore()
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-base)] px-4">
+      <div className="flex min-h-screen items-center justify-center bg-bg-base px-4">
         <div className="panel w-full max-w-md p-8 text-center">
           <p className="eyebrow">Authorizing</p>
-          <p className="mt-3 text-lg text-[var(--color-text-primary)]">
-            Preparing the ERP shell...
-          </p>
+          <p className="mt-3 text-lg text-text-primary">Preparing the ERP shell...</p>
         </div>
       </div>
     )
@@ -85,7 +88,27 @@ export const router = createBrowserRouter([
       },
       {
         path: 'purchasing',
-        element: <PurchaseOrderListPage />,
+        element: <Navigate to="/purchasing/place-order" replace />,
+      },
+      {
+        path: 'purchasing/place-order',
+        element: <PlacePurchaseOrderPage />,
+      },
+      {
+        path: 'purchasing/approvals',
+        element: <PurchaseOrderApprovalPage />,
+      },
+      {
+        path: 'purchasing/approved',
+        element: <ApprovedPurchaseOrdersPage />,
+      },
+      {
+        path: 'purchasing/all-orders',
+        element: <AllPurchaseOrdersPage />,
+      },
+      {
+        path: 'purchasing/orders',
+        element: <Navigate to="/purchasing/all-orders" replace />,
       },
       {
         path: 'purchasing/suppliers',
@@ -96,13 +119,22 @@ export const router = createBrowserRouter([
         element: <PurchaseReturnsPage />,
       },
       {
-        path: 'purchasing/:id',
-        element: <PurchaseOrderDetailPage />,
+        path: 'purchasing/return-notes',
+        element: <ReturnNoteListPage />,
       },
       {
-        path: 'purchasing/:id/receive',
-        element: <ReceiptEntryPage />,
+        path: 'purchasing/return-notes/new',
+        element: <NewReturnNotePage />,
       },
+      {
+        path: 'purchasing/return-notes/approvals',
+        element: <ReturnNoteApprovalsPage />,
+      },
+      {
+        path: 'purchasing/return-notes/:id',
+        element: <ReturnNoteDetailPage />,
+      },
+
       {
         path: 'inventory',
         element: <Product />,

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import OrganisationsTab from './OrganisationsTab'
 import TerritoriesTab from './TerritoriesTab'
-import BusinessUnitsTab from './BusinessUnitsTab'
+import TaxesTab from './TaxesTab'
 const DEFAULTS = {
   mode: 'dark',
   accentColor: '#8EE8F0',
@@ -611,6 +611,13 @@ function AppearanceTab() {
 /* outerTabBase removed — outer tabs now use underline style */
 /* ── Page ─────────────────────────────────────────────────────── */
 export default function SettingsPage() {
+  const settingsTabs = [
+    ['organisations', 'Organisations'],
+    ['territories', 'Territories'],
+    ['taxes', 'Tax'],
+    ['application', 'Application'],
+  ]
+
   return (
     <div
       style={{
@@ -634,8 +641,7 @@ export default function SettingsPage() {
           Settings
         </h1>
         <p style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>
-          Manage organisations, territories, business units, application configuration, and
-          appearance
+          Manage organisations, territories, taxes, application configuration, and appearance
         </p>
       </div>
 
@@ -653,12 +659,7 @@ export default function SettingsPage() {
           }}
         >
           <Tabs.List style={{ display: 'flex', gap: 0 }} aria-label="Settings category">
-            {[
-              ['organisations', 'Organisations'],
-              ['territories', 'Territories'],
-              ['businessUnits', 'Business Units'],
-              ['application', 'Application'],
-            ].map(([value, label]) => (
+            {settingsTabs.map(([value, label]) => (
               <Tabs.Trigger
                 key={value}
                 value={value}
@@ -693,9 +694,8 @@ export default function SettingsPage() {
           <TerritoriesTab />
         </Tabs.Content>
 
-        {/* Business Units content */}
-        <Tabs.Content value="businessUnits" style={{ minHeight: 0, flex: 1, overflowY: 'auto' }}>
-          <BusinessUnitsTab />
+        <Tabs.Content value="taxes" style={{ minHeight: 0, flex: 1, overflow: 'hidden' }}>
+          <TaxesTab />
         </Tabs.Content>
 
         {/* Application content → inner tabs */}

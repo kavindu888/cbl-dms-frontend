@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Package, Pencil, Plus, Search, Trash2, Copy } from 'lucide-react'
+import { Package, Pencil, Search, Trash2, Copy } from 'lucide-react'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -24,10 +24,11 @@ const productSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
-const productPageSize = 10
+const productPageSize = 8
 
-// Helper to robustly extract only leaf categories (subcategories only, which have a parent and no children)
-function getLeafCategories(categoriesList) {
+// Helper to extract product-selectable categories.
+// A category can be selected for products only when it has no child categories.
+function getProductCategoryOptions(categoriesList) {
   // 1. Flatten all categories in case it's a tree structure
   const allCategories = []
   function flatten(category) {
@@ -70,22 +71,20 @@ function getLeafCategories(categoriesList) {
     return parts.join(' > ')
   }
 
-  // 5. Filter for categories that:
-  // - have a parent category (is a subcategory)
-  // - do not have any child categories (is a leaf)
-  const leafList = []
+  // 5. Filter for categories that do not have child categories.
+  // This includes root categories when they do not have subcategories yet.
+  const categoryOptions = []
   uniqueCategories.forEach((c) => {
     const isParent = parentIds.has(c.id) || (c.children && c.children.length > 0)
-    const hasParent = !!c.parentCategoryId || !!c.parentCategory
-    if (!isParent && hasParent) {
-      leafList.push({
+    if (!isParent) {
+      categoryOptions.push({
         ...c,
         displayName: getCategoryPath(c),
       })
     }
   })
 
-  return leafList
+  return categoryOptions
 }
 
 function UomConversionsManager({
@@ -900,15 +899,15 @@ function ProductForm({
   const [newUomConversions, setNewUomConversions] = useState([])
   const defaultUom = unitsOfMeasure[0]?.code || ''
 
-  const leafCategories = useMemo(() => {
-    const leaves = getLeafCategories(categories)
-    if (product?.category && !leaves.some((c) => c.id === product.category.id)) {
-      leaves.push({
+  const productCategoryOptions = useMemo(() => {
+    const options = getProductCategoryOptions(categories)
+    if (product?.category && !options.some((c) => c.id === product.category.id)) {
+      options.push({
         ...product.category,
         displayName: product.category.name,
       })
     }
-    return leaves
+    return options
   }, [categories, product])
 
   const {
@@ -960,7 +959,7 @@ function ProductForm({
         sku: '',
         barcode: '',
         name: '',
-        categoryId: leafCategories[0]?.id || '',
+        categoryId: productCategoryOptions[0]?.id || '',
         uomBase: defaultUom,
         unitCost: 0,
         unitPrice: 0,
@@ -972,7 +971,7 @@ function ProductForm({
     }
 
     window.setTimeout(() => setFocus('sku'), 0)
-  }, [product, leafCategories, defaultUom, reset, setFocus])
+  }, [product, productCategoryOptions, defaultUom, reset, setFocus])
 
   async function handleCreateCategory() {
     const code = newCategory.code.trim().toUpperCase()
@@ -1090,7 +1089,7 @@ function ProductForm({
           sku: '',
           barcode: '',
           name: '',
-          categoryId: values.categoryId || leafCategories[0]?.id || '',
+          categoryId: values.categoryId || productCategoryOptions[0]?.id || '',
           uomBase: values.uomBase || defaultUom,
           unitCost: 0,
           unitPrice: 0,
@@ -1281,7 +1280,7 @@ function ProductForm({
             <option value="" disabled style={{ background: 'var(--color-bg-elevated)' }}>
               Select Category
             </option>
-            {leafCategories.map((c) => (
+            {productCategoryOptions.map((c) => (
               <option
                 key={c.id}
                 value={c.id}
@@ -1517,7 +1516,7 @@ function ProductForm({
 
         <div>
           <label className="form-label" style={{ fontSize: 10 }}>
-            MIN VALUE
+            MIN QTY
           </label>
           <input
             type="number"
@@ -1538,7 +1537,7 @@ function ProductForm({
 
         <div>
           <label className="form-label" style={{ fontSize: 10 }}>
-            MAX VALUE
+            MAX QTY
           </label>
           <input
             type="number"
@@ -1691,7 +1690,7 @@ export default function Product() {
         })
       )
       setProducts(detailedItems)
-      setTotalPages(result.totalPages || 1)
+      setTotalPages(Math.max(1, result.totalPages || 1))
       setTotalItems(result.totalItems || 0)
     } catch (err) {
       setError(err.message || 'Unable to load products.')
@@ -1713,6 +1712,12 @@ export default function Product() {
   useEffect(() => {
     setPage(1)
   }, [search, category, activeFilter])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
 
   function handleAdd() {
     if (!canManageProducts) return
@@ -1972,7 +1977,16 @@ export default function Product() {
           }}
         >
           {/* ── Table ── */}
-          <div style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div
+            style={{
+              minHeight: 0,
+              overflow: 'hidden',
+              width: '100%',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
             {isLoading ? (
               <div
                 style={{
@@ -2010,7 +2024,7 @@ export default function Product() {
                 <p style={{ color: 'var(--color-text-muted)' }}>No products match your filters.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" style={{ width: '100%', minWidth: 0 }}>
                 <table className="data-table product-table-compact">
                   <thead>
                     <tr>
@@ -2019,8 +2033,8 @@ export default function Product() {
                       <th>Category</th>
                       <th>Base UOM</th>
                       <th>Conversions</th>
-                      <th>MIN VALUE</th>
-                      <th>MAX VALUE</th>
+                      <th>MIN QTY</th>
+                      <th>MAX QTY</th>
                       <th>Status</th>
                       {canManageProducts ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
                     </tr>
@@ -2177,7 +2191,7 @@ export default function Product() {
                   type="button"
                   className="button-secondary"
                   disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
+                  onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
                   style={{ height: 32, padding: '0 12px', fontSize: 12 }}
                 >
                   Previous
@@ -2189,7 +2203,7 @@ export default function Product() {
                   type="button"
                   className="button-secondary"
                   disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
+                  onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
                   style={{ height: 32, padding: '0 12px', fontSize: 12 }}
                 >
                   Next

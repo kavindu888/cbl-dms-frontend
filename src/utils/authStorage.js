@@ -1,10 +1,40 @@
-const storageKey = 'cbl-auth-store'
+﻿const storageKey = 'cbl-auth-store'
 const accessTokenKey = import.meta.env.VITE_TOKEN_KEY || 'cbl_access_token'
 const refreshTokenKey = import.meta.env.VITE_REFRESH_KEY || 'cbl_refresh_token'
 const userKey = 'cbl_user'
+
 function isBrowser() {
   return typeof window !== 'undefined'
 }
+
+function roleName(role) {
+  if (!role) return ''
+  if (typeof role === 'string') return role
+  return role.name ?? role.Name ?? role.roleName ?? role.RoleName ?? ''
+}
+
+function permissionKey(permission) {
+  if (!permission) return ''
+  if (typeof permission === 'string') return permission
+
+  const module = permission.module ?? permission.Module
+  const resource = permission.resource ?? permission.Resource
+  const action = permission.action ?? permission.Action
+
+  return (
+    permission.permissionKey ??
+    permission.PermissionKey ??
+    permission.key ??
+    permission.Key ??
+    (module && resource && action ? `${module}:${resource}:${action}` : '')
+  )
+}
+
+function normalizeList(value, mapper) {
+  if (!Array.isArray(value)) return []
+  return value.map(mapper).filter(Boolean)
+}
+
 function getPersistedState() {
   if (!isBrowser()) return null
   const raw = window.localStorage.getItem(storageKey)
@@ -16,6 +46,7 @@ function getPersistedState() {
     return null
   }
 }
+
 function setPersistedStateField(field, value) {
   if (!isBrowser()) return
   const raw = window.localStorage.getItem(storageKey)
@@ -31,10 +62,12 @@ function setPersistedStateField(field, value) {
   state[field] = value
   window.localStorage.setItem(storageKey, JSON.stringify({ state, version }))
 }
+
 export function getAccessToken() {
   if (!isBrowser()) return null
   return window.localStorage.getItem(accessTokenKey) || getPersistedState()?.accessToken || null
 }
+
 export function setAccessToken(token) {
   if (isBrowser()) {
     if (token) {
@@ -46,12 +79,14 @@ export function setAccessToken(token) {
   setPersistedStateField('accessToken', token)
   setPersistedStateField('isAuthenticated', true)
 }
+
 export function getRefreshToken() {
   if (!isBrowser()) return null
   return (
     window.localStorage.getItem(refreshTokenKey) || getPersistedState()?.refreshTokenValue || null
   )
 }
+
 export function setRefreshToken(token) {
   if (isBrowser()) {
     if (token) {
@@ -62,6 +97,7 @@ export function setRefreshToken(token) {
   }
   setPersistedStateField('refreshTokenValue', token)
 }
+
 export function setStoredUser(user) {
   if (isBrowser()) {
     if (user) {
@@ -72,6 +108,7 @@ export function setStoredUser(user) {
   }
   setPersistedStateField('user', user)
 }
+
 export function getStoredUser() {
   if (isBrowser()) {
     const rawUser = window.localStorage.getItem(userKey)
@@ -84,6 +121,7 @@ export function getStoredUser() {
   const state = getPersistedState()
   return state?.user || null
 }
+
 export function clearAuthStorage() {
   if (!isBrowser()) {
     return
@@ -92,22 +130,23 @@ export function clearAuthStorage() {
   window.localStorage.removeItem(accessTokenKey)
   window.localStorage.removeItem(refreshTokenKey)
   window.localStorage.removeItem(userKey)
-  // Manually expires and clears the custom client-side cookie to ensure local session cleanup
   document.cookie = 'refreshToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict'
 }
+
 export function mapBackendUserToFrontendUser(backendUser) {
   if (!backendUser) return null
   return {
-    id: backendUser.id,
-    username: backendUser.username ?? backendUser.userName ?? '',
-    email: backendUser.email ?? '',
-    employeeCode: backendUser.employeeId ?? backendUser.employeeCode ?? '',
-    phone: backendUser.phone ?? backendUser.phoneNumber ?? '',
-    roles: backendUser.roles || [],
-    permissions: backendUser.permissions || [],
-    orgId: backendUser.organizationId || backendUser.orgId || '',
+    id: backendUser.id ?? backendUser.Id,
+    username: backendUser.username ?? backendUser.userName ?? backendUser.Username ?? '',
+    email: backendUser.email ?? backendUser.Email ?? '',
+    employeeCode: backendUser.employeeId ?? backendUser.employeeCode ?? backendUser.EmployeeId ?? '',
+    phone: backendUser.phone ?? backendUser.phoneNumber ?? backendUser.Phone ?? '',
+    roles: normalizeList(backendUser.roles ?? backendUser.Roles, roleName),
+    permissions: normalizeList(backendUser.permissions ?? backendUser.Permissions, permissionKey),
+    orgId: backendUser.organizationId ?? backendUser.orgId ?? backendUser.OrganizationId ?? '',
   }
 }
+
 export function mapBackendResponseToLoginResponse(responseValue) {
   if (!responseValue?.accessToken) {
     throw new Error('Login response did not include an access token.')

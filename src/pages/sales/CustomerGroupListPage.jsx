@@ -11,7 +11,7 @@ const emptyForm = {
   defaultCreditLimit: '0',
 }
 
-const pageSize = 10
+const pageSize = 8
 
 function getErrorMessage(error, fallback = 'Something went wrong') {
   return error?.message || fallback
@@ -166,7 +166,7 @@ export default function CustomerGroupListPage() {
 
   async function handleDeactivate(group) {
     if (!group.isActive) return
-    if (!window.confirm(`Deactivate ${group.name}?`)) return
+    if (!(await window.confirm(`Deactivate ${group.name}?`))) return
 
     try {
       await salesService.deactivateCustomerGroup(group.id)
@@ -272,7 +272,7 @@ export default function CustomerGroupListPage() {
             minHeight: 0,
           }}
         >
-          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'auto' }}>
+          <div className="overflow-x-auto" style={{ minHeight: 0, overflowY: 'hidden' }}>
             <table className="data-table master-table-compact">
               <thead>
                 <tr>

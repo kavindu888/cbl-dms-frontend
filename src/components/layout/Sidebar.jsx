@@ -1,43 +1,205 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import {
-  // Banknote,
+  Banknote,
   // BarChart2,
   // Bookmark,
-  // ClipboardList,
+  ClipboardList,
+  ClipboardCheck,
+  FileText,
   LayoutDashboard,
   LogOut,
+  BadgeCheck,
+  ListChecks,
+  CheckSquare,
   Package,
+  PackageCheck,
+  PackageX,
+  // ArrowLeftRight,
+  Warehouse,
   Ruler,
-  Store,
   Search,
   Settings,
   // Shield,
-  // ShoppingCart,
+  ShoppingCart,
+  // Store,
   Tags,
   // Truck,
   Route,
+  User,
+  UserCog,
   Users,
+  Undo2,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuthStore } from '@stores/authStore'
 import { useUIStore } from '@stores/uiStore'
 import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { cn } from '@/utils'
-import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
+import { PERMISSIONS, userMeetsPermissionRequirement } from '@/utils/permissions'
+import { purchasingService } from '@/services/api/purchasingService'
+import { ReturnNoteStatus } from '@/types/purchasing.types'
 import styles from './Sidebar.module.css'
 const navGroups = [
   {
     label: 'OPERATIONS',
     items: [{ label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true }],
   },
-  // {
-  //   label: 'PURCHASING',
-  //   items: [
-  //     { label: 'Purchase Order', to: '/purchasing', icon: ShoppingCart, end: true },
-  //     { label: 'Purchase Returns', to: '/purchasing/returns', icon: Bookmark },
-  //   ],
-  // },
+  {
+    label: 'SALES',
+    items: [
+      {
+        label: 'Customer',
+        to: '/sales/customers',
+        icon: User,
+        permissions: [PERMISSIONS.sales.customerRead, PERMISSIONS.sales.customerManage],
+      },
+      {
+        label: 'Customer Groups',
+        to: '/sales/customer-groups',
+        icon: Users,
+        permissions: PERMISSIONS.sales.customerManage,
+      },
+      {
+        label: 'Sales Orders',
+        to: '/sales/orders',
+        icon: ClipboardList,
+        permissions: [
+          PERMISSIONS.salesOrders.view,
+          PERMISSIONS.salesOrders.create,
+          PERMISSIONS.sales.orderRead,
+          PERMISSIONS.sales.orderCreate,
+        ],
+      },
+      {
+        label: 'Invoices',
+        to: '/sales/invoices',
+        icon: FileText,
+        end: true,
+        permissions: PERMISSIONS.sales.invoiceRead,
+      },
+      {
+        label: 'New Invoice',
+        to: '/sales/invoices/new',
+        icon: ClipboardList,
+        permissions: PERMISSIONS.sales.invoiceCreate,
+      },
+      {
+        label: 'Invoice Payment Record',
+        to: '/sales/invoice-payment-record',
+        icon: Banknote,
+        permissions: { all: [PERMISSIONS.sales.invoiceRead, PERMISSIONS.sales.invoiceAddPayment] },
+      },
+      {
+        label: 'Return Notes',
+        to: '/sales/return-notes',
+        icon: Undo2,
+        permissions: PERMISSIONS.sales.crnView,
+      },
+      {
+        label: 'Customer Credit',
+        to: '/sales/customer-credit',
+        icon: Banknote,
+        permissions: PERMISSIONS.sales.customerCreditView,
+      },
+    ],
+  },
+  {
+    label: 'PURCHASING',
+    items: [
+      {
+        isSubHeader: true,
+        label: 'Purchasing Order',
+      },
+      {
+        label: 'New Purchase Order',
+        to: '/purchasing/place-order',
+        icon: ShoppingCart,
+        end: true,
+        permissions: PERMISSIONS.purchasing.poCreate,
+      },
+      {
+        label: 'PO Approve & Reject',
+        to: '/purchasing/approvals',
+        icon: ListChecks,
+        end: true,
+        permissions: { all: [PERMISSIONS.purchasing.poRead, PERMISSIONS.purchasing.poApprove] },
+      },
+      {
+        label: 'Approved Purchase Orders',
+        to: '/purchasing/approved',
+        icon: BadgeCheck,
+        end: true,
+        permissions: PERMISSIONS.purchasing.poRead,
+      },
+      {
+        label: 'Purchase Orders List',
+        to: '/purchasing/all-orders',
+        icon: ClipboardList,
+        end: true,
+        permissions: PERMISSIONS.purchasing.poRead,
+      },
+      {
+        isSubHeader: true,
+        label: 'GRN',
+      },
+      {
+        label: 'New Goods Receipt',
+        to: '/purchasing/goods-receipt-entry',
+        icon: PackageCheck,
+        end: true,
+        permissions: PERMISSIONS.purchasing.grnCreate,
+      },
+      {
+        label: 'GRN Approve & Reject',
+        to: '/purchasing/grn-approve-reject',
+        icon: ListChecks,
+        end: true,
+        permissions: PERMISSIONS.purchasing.grnVerify,
+      },
+      {
+        label: 'Goods Receipt List',
+        to: '/purchasing/goods-receipts',
+        icon: ClipboardCheck,
+        end: true,
+        permissions: [PERMISSIONS.purchasing.grnCreate, PERMISSIONS.purchasing.grnVerify],
+      },
+      {
+        isSubHeader: true,
+        label: 'Return Note',
+      },
+      {
+        label: 'Purchase Returns',
+        to: '/purchasing/return-notes',
+        icon: Undo2,
+        end: true,
+        permissions: [
+          PERMISSIONS.purchasing.returnNoteCreate,
+          PERMISSIONS.purchasing.returnNoteApprove,
+          PERMISSIONS.purchasing.returnNoteComplete,
+        ],
+      },
+      {
+        label: 'RN Approve & Reject',
+        to: '/purchasing/return-notes/approvals',
+        icon: CheckSquare,
+        end: true,
+        badgeKey: 'pendingReturnApprovals',
+        permissions: PERMISSIONS.purchasing.returnNoteApprove,
+      },
+      {
+        isSubHeader: true,
+        label: 'Settlement',
+      },
+      {
+        label: 'Supplier Settlement',
+        to: '/purchasing/settlement',
+        icon: Banknote,
+        end: true,
+        permissions: PERMISSIONS.purchasing.settlementCreate,
+      },
+    ],
+  },
   // {
   //   label: 'FINANCE',
   //   items: [{ label: 'Collections', to: '/collections/daily', icon: Banknote }],
@@ -45,7 +207,12 @@ const navGroups = [
   {
     label: 'MASTER',
     items: [
-      // { label: 'Supplier', to: '/master/suppliers', icon: Store, permissions: PERMISSIONS.purchasing.supplierManage },
+      // {
+      //   label: 'Supplier',
+      //   to: '/master/suppliers',
+      //   icon: Store,
+      //   permissions: PERMISSIONS.purchasing.supplierManage,
+      // },
       {
         label: 'Product',
         to: '/master/products',
@@ -74,20 +241,66 @@ const navGroups = [
     ],
   },
   {
-    label: 'SALES',
+    label: 'INVENTORY',
     items: [
       {
-        label: 'Customer',
-        to: '/sales/customers',
-        icon: Users,
-        permissions: [PERMISSIONS.sales.customerRead, PERMISSIONS.sales.customerManage],
+        label: 'Stock Overview',
+        to: '/inventory/stock',
+        icon: Package,
+        end: true,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+      // {
+      //   label: 'Staged Returns',
+      //   to: '/inventory/return-stock',
+      //   icon: PackageX,
+      //   permissions: PERMISSIONS.inventory.stockRead,
+      // },
+      {
+        label: 'In-Store Returns',
+        to: '/inventory/in-store-returns',
+        icon: PackageX,
+        permissions: [
+          PERMISSIONS.inventory.inStoreReturnCreate,
+          PERMISSIONS.inventory.inStoreReturnApprove,
+        ],
+      },
+      // {
+      //   label: 'Stock Audit',
+      //   to: '/inventory/stock-audit',
+      //   icon: Search,
+      //   permissions: PERMISSIONS.inventory.stockRead,
+      // },
+      {
+        label: 'Stock Batches',
+        to: '/inventory/batches',
+        icon: PackageCheck,
+        permissions: PERMISSIONS.inventory.stockRead,
       },
       {
-        label: 'Customer Groups',
-        to: '/sales/customer-groups',
-        icon: Users,
-        permissions: PERMISSIONS.sales.customerManage,
+        label: 'Stock Locations',
+        to: '/inventory/locations',
+        icon: Warehouse,
+        permissions: PERMISSIONS.inventory.stockRead,
       },
+      // {
+      //   label: 'Stock Transfers',
+      //   to: '/inventory/transfers',
+      //   icon: ArrowLeftRight,
+      //   permissions: PERMISSIONS.inventory.stockRead,
+      // },
+      // {
+      //   label: 'Stocktakes',
+      //   to: '/inventory/stocktakes',
+      //   icon: ClipboardCheck,
+      //   permissions: PERMISSIONS.inventory.stocktakeManage,
+      // },
+      // {
+      //   label: 'Movements',
+      //   to: '/inventory/movements',
+      //   icon: ListChecks,
+      //   permissions: PERMISSIONS.inventory.stockRead,
+      // },
     ],
   },
   {
@@ -96,9 +309,9 @@ const navGroups = [
       {
         label: 'Users',
         to: '/users',
-        icon: Users,
+        icon: UserCog,
         end: true,
-        permissions: PERMISSIONS.identity.userManage,
+        permissions: { all: [PERMISSIONS.identity.userManage, PERMISSIONS.identity.roleManage] },
       },
       // { label: 'Roles & Permissions', to: '/users/roles', icon: Shield },
       {
@@ -108,7 +321,8 @@ const navGroups = [
         permissions: [
           PERMISSIONS.masterData.orgManage,
           PERMISSIONS.masterData.territoryManage,
-          PERMISSIONS.masterData.businessUnitManage,
+          PERMISSIONS.masterData.taxRead,
+          PERMISSIONS.masterData.taxManage,
         ],
       },
     ],
@@ -147,7 +361,33 @@ function SidebarLink({ collapsed, item }) {
               )}
             />
           </div>
-          {!collapsed ? <span className="truncate">{item.label}</span> : null}
+          {!collapsed ? (
+            <>
+              <span className="truncate">{item.label}</span>
+              {item.badge ? (
+                <span
+                  className="mono"
+                  style={{
+                    marginLeft: 'auto',
+                    minWidth: 20,
+                    height: 18,
+                    padding: '0 6px',
+                    borderRadius: 999,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--color-amber)',
+                    background: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.22)',
+                    fontSize: 10,
+                    fontWeight: 800,
+                  }}
+                >
+                  {item.badge}
+                </span>
+              ) : null}
+            </>
+          ) : null}
         </>
       )}
     </NavLink>
@@ -170,20 +410,68 @@ export default function Sidebar() {
   const { sidebarCollapsed, sidebarMobileOpen } = useUIStore()
   const { user, logout } = useAuthStore()
   const [searchQuery, setSearchQuery] = useState('')
+  const [pendingReturnApprovals, setPendingReturnApprovals] = useState(0)
   const displayName = user ? `${user.username}` : 'admin'
   const displayRole = user?.roles[0] ?? 'Administrator'
 
   const normalizedQuery = normalizeSearch(searchQuery)
+  useEffect(() => {
+    if (!userMeetsPermissionRequirement(user, PERMISSIONS.purchasing.returnNoteApprove)) {
+      setPendingReturnApprovals(0)
+      return
+    }
+
+    let isCurrent = true
+    purchasingService
+      .listReturnNotes({ page: 1, pageSize: 100, status: ReturnNoteStatus.Submitted })
+      .then((result) => {
+        if (isCurrent) setPendingReturnApprovals((result?.items || []).length)
+      })
+      .catch(() => {
+        if (isCurrent) setPendingReturnApprovals(0)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [user])
+
+  const badgeValues = { pendingReturnApprovals }
   const accessibleNavGroups = navGroups
     .map((group) => {
-      const items = group.items.filter((item) => userHasPermission(user, item.permissions))
-      return items.length ? { ...group, items } : null
+      const items = group.items.filter((item) => {
+        if (item.isSubHeader) return true
+        return userMeetsPermissionRequirement(user, item.permissions)
+      }).map((item) => (
+        item.badgeKey ? { ...item, badge: badgeValues[item.badgeKey] } : item
+      ))
+
+      const cleanedItems = []
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.isSubHeader) {
+          let hasFollowers = false
+          for (let j = i + 1; j < items.length; j++) {
+            if (items[j].isSubHeader) break
+            hasFollowers = true
+            break
+          }
+          if (hasFollowers) {
+            cleanedItems.push(item)
+          }
+        } else {
+          cleanedItems.push(item)
+        }
+      }
+
+      return cleanedItems.length ? { ...group, items: cleanedItems } : null
     })
     .filter((group) => Boolean(group))
   const filteredNavGroups = normalizedQuery
     ? accessibleNavGroups
         .map((group) => {
           const items = group.items.filter((item) => {
+            if (item.isSubHeader) return false
             const haystack = `${group.label} ${item.label}`.toLowerCase()
             return haystack.includes(normalizedQuery)
           })
@@ -290,9 +578,17 @@ export default function Sidebar() {
               <div key={group.label} className={styles.navGroup}>
                 {!sidebarCollapsed ? <p className={styles.navGroupLabel}>{group.label}</p> : null}
                 <div className={styles.navList}>
-                  {group.items.map((item) => (
-                    <SidebarLink key={item.to} collapsed={sidebarCollapsed} item={item} />
-                  ))}
+                  {group.items.map((item, idx) =>
+                    item.isSubHeader ? (
+                      !sidebarCollapsed ? (
+                        <div key={`sub-${idx}`} className={styles.subHeader}>
+                          {item.label}
+                        </div>
+                      ) : null
+                    ) : (
+                      <SidebarLink key={item.to} collapsed={sidebarCollapsed} item={item} />
+                    )
+                  )}
                 </div>
               </div>
             ))
@@ -329,3 +625,4 @@ export default function Sidebar() {
     </Tooltip.Provider>
   )
 }
+

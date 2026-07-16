@@ -96,9 +96,32 @@ function formatPaymentTerm(term) {
   }
 }
 
+function formatTax(tax) {
+  if (!tax) return null
+
+  return {
+    id: tax.id,
+    code: tax.code ?? '',
+    name: tax.name ?? '',
+    rate: Number(tax.rate ?? 0),
+    isActive: Boolean(tax.isActive),
+    isDefault: Boolean(tax.isDefault),
+    status: tax.isActive ? 'Active' : 'Inactive',
+    createdAt: tax.createdAt,
+    updatedAt: tax.updatedAt,
+  }
+}
+
 function formatProduct(product) {
   if (!product) return null
-  console.log('RAW PRODUCT:', product)
+  const uomConversions = (
+    product.uomConversions ||
+    product.conversions ||
+    product.productConversions ||
+    []
+  ).map(formatUomConversion)
+  const smallestUom = getSmallestUom(product.baseUom ?? product.uomBase ?? '', uomConversions)
+
   return {
     id: product.id,
     sku: product.sku ?? '',
@@ -107,8 +130,13 @@ function formatProduct(product) {
     description: product.description ?? '',
     category: product.category ?? { id: '', code: '', name: '' },
     uomBase: product.baseUom ?? product.uomBase ?? '',
+    baseUom: product.baseUom ?? product.uomBase ?? '',
+    smallestUnitId: product.smallestUnitId ?? product.smallestUomCode ?? smallestUom,
+    smallestUnitName: product.smallestUnitName ?? product.smallestUomName ?? smallestUom,
     unitCost: product.costPrice ?? product.unitCost ?? 0,
     unitPrice: product.sellingPrice ?? product.unitPrice ?? 0,
+    sellingPrice: product.sellingPrice ?? product.unitPrice ?? 0,
+    mrp: product.mrp ?? product.lastMrp ?? product.MRP ?? 0,
     minValue:
       product.minValue !== undefined && product.minValue !== null
         ? product.minValue
@@ -120,15 +148,43 @@ function formatProduct(product) {
     imageUrl: product.imageUrl ?? '',
     status: product.status ?? 'Active',
     isActive: product.status === 'Active',
-    uomConversions: (
-      product.uomConversions ||
-      product.conversions ||
-      product.productConversions ||
-      []
-    ).map(formatUomConversion),
+    uomConversions,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   }
+}
+
+function getSmallestUom(baseUom, conversions) {
+  const base = String(baseUom || '')
+    .trim()
+    .toUpperCase()
+  if (!base || !conversions.length) return base
+
+  const factors = new Map([[base, 1]])
+  const queue = [base]
+
+  while (queue.length) {
+    const current = queue.shift()
+    const outgoing = conversions.filter(
+      (conversion) =>
+        String(conversion.fromUom || '')
+          .trim()
+          .toUpperCase() === current
+    )
+
+    outgoing.forEach((conversion) => {
+      const toUom = String(conversion.toUom || '')
+        .trim()
+        .toUpperCase()
+      const factor = Number(conversion.factor || 0)
+      if (!toUom || factor <= 0 || factors.has(toUom)) return
+
+      factors.set(toUom, Number(factors.get(current) || 1) * factor)
+      queue.push(toUom)
+    })
+  }
+
+  return [...factors.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || base
 }
 
 function formatUomConversion(conv) {
@@ -307,6 +363,7 @@ export const masterService = {
     return getValue(response, 'Unable to deactivate sales route.')
   },
 
+  // Payment Terms List, Get, Create, Update, Deactivate
   // Payment Terms List
   async listPaymentTerms() {
     const response = await getOnce('/api/v1/master-data/payment-terms')
@@ -317,6 +374,31 @@ export const masterService = {
   async getPaymentTerm(id) {
     const response = await getOnce(`/api/v1/master-data/payment-terms/${id}`)
     return formatPaymentTerm(getValue(response, 'Unable to load payment term.'))
+  },
+
+  // Taxes List, Create, Update, Deactivate
+  // Taxes List
+  async listTaxes() {
+    const response = await getOnce('/api/v1/taxes')
+    return (getValue(response, 'Unable to load taxes.') || []).map(formatTax)
+  },
+
+  // Taxes Get By Id
+  async createTax(payload) {
+    const response = await api.post('/api/v1/taxes', payload)
+    return formatTax(getValue(response, 'Unable to create tax.'))
+  },
+
+  // Taxes Update
+  async updateTax(id, payload) {
+    const response = await api.put(`/api/v1/taxes/${id}`, payload)
+    return formatTax(getValue(response, 'Unable to update tax.'))
+  },
+
+  // Taxes Deactivate
+  async deactivateTax(id) {
+    const response = await api.delete(`/api/v1/taxes/${id}`)
+    return formatTax(getValue(response, 'Unable to deactivate tax.'))
   },
 
   //Product List, Get, Create, Update, Activate/Deactivate
@@ -330,10 +412,38 @@ export const masterService = {
     }
   },
 
+  async listAllProducts(params = {}) {
+    const pageSize = Math.min(Number(params.pageSize || 100), 100)
+    const firstPage = await this.listProducts({ ...params, page: 1, pageSize })
+    const items = [...(firstPage.items || [])]
+    const fallbackTotalPages = Math.ceil(Number(firstPage.totalItems || items.length) / pageSize) || 1
+    const totalPages = Number(firstPage.totalPages ?? fallbackTotalPages)
+
+    if (totalPages <= 1) {
+      return items
+    }
+
+    const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2)
+    const remainingResults = await Promise.all(
+      remainingPages.map((page) => this.listProducts({ ...params, page, pageSize }))
+    )
+
+    remainingResults.forEach((page) => {
+      items.push(...(page.items || []))
+    })
+
+    return items
+  },
+
   //Product Get By Id
   async getProduct(id) {
     const response = await getOnce(`/api/v1/master-data/products/${id}`)
     return formatProduct(getValue(response, 'Unable to load product.'))
+  },
+
+  async getProductUomChain(id) {
+    const response = await getOnce(`/api/v1/master-data/products/${id}/uom-chain`)
+    return getValue(response, 'Unable to load product UOM chain.')
   },
 
   //Product Create
@@ -355,6 +465,7 @@ export const masterService = {
   },
 
   //UOM Conversion Add, Update, Remove
+  //UOM Conversion Add
   async addUomConversion(productId, payload) {
     const response = await api.post(
       `/api/v1/master-data/products/${productId}/uom-conversions`,
@@ -409,36 +520,6 @@ export const masterService = {
   async deactivateUnitOfMeasure(id) {
     const response = await api.delete(`/api/v1/master-data/units-of-measure/${id}`)
     return formatUnitOfMeasure(getValue(response, 'Unable to deactivate unit of measure.'))
-  },
-
-  //Suppliers List, Get, Create, Update, Deactivate
-  //Suppliers List
-  async listSuppliers(params = {}) {
-    const response = await getOnce('/api/v1/master/suppliers', { params })
-    return response.data
-  },
-
-  //Suppliers Get By Id
-  async getSupplier(id) {
-    const response = await getOnce(`/api/v1/master/suppliers/${id}`)
-    return response.data.data
-  },
-
-  //Suppliers Create
-  async createSupplier(payload) {
-    const response = await api.post('/api/v1/master/suppliers', payload)
-    return response.data.data
-  },
-
-  //Suppliers Update
-  async updateSupplier(id, payload) {
-    const response = await api.put(`/api/v1/master/suppliers/${id}`, payload)
-    return response.data.data
-  },
-
-  //Suppliers Deactivate
-  async deleteSupplier(id) {
-    await api.delete(`/api/v1/master/suppliers/${id}`)
   },
 
   // Product Categories List, Get, Create, Update, Deactivate
