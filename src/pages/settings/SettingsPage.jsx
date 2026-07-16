@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import OrganisationsTab from './OrganisationsTab'
 import TerritoriesTab from './TerritoriesTab'
-import BusinessUnitsTab from './BusinessUnitsTab'
 import TaxesTab from './TaxesTab'
 const DEFAULTS = {
   mode: 'dark',
@@ -615,7 +614,6 @@ export default function SettingsPage() {
   const settingsTabs = [
     ['organisations', 'Organisations'],
     ['territories', 'Territories'],
-    ['businessUnits', 'Business Units'],
     ['taxes', 'Tax'],
     ['application', 'Application'],
   ]
@@ -643,8 +641,7 @@ export default function SettingsPage() {
           Settings
         </h1>
         <p style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>
-          Manage organisations, territories, business units, taxes, application configuration, and
-          appearance
+          Manage organisations, territories, taxes, application configuration, and appearance
         </p>
       </div>
 
@@ -695,11 +692,6 @@ export default function SettingsPage() {
         {/* Territories content */}
         <Tabs.Content value="territories" style={{ minHeight: 0, flex: 1, overflowY: 'auto' }}>
           <TerritoriesTab />
-        </Tabs.Content>
-
-        {/* Business Units content */}
-        <Tabs.Content value="businessUnits" style={{ minHeight: 0, flex: 1, overflowY: 'auto' }}>
-          <BusinessUnitsTab />
         </Tabs.Content>
 
         <Tabs.Content value="taxes" style={{ minHeight: 0, flex: 1, overflow: 'hidden' }}>

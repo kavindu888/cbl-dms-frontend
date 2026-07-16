@@ -728,11 +728,11 @@ export default function CustomerListPage() {
     }
     if (payload.isVatRegistered) {
       if (!payload.taxNumber || !payload.taxNumber.trim()) {
-        toast.error('TIN is required when VAT registered.')
+        toast.error('VAT Register Number is required when VAT registered.')
         return false
       }
-      if (!/^\d{9}$/.test(payload.taxNumber)) {
-        toast.error('TIN must be exactly 9 digits when VAT registered.')
+      if (!/^[A-Za-z0-9-]+$/.test(payload.taxNumber.trim())) {
+        toast.error('VAT Register Number can only contain letters, numbers, and hyphens.')
         return false
       }
     }
@@ -1124,7 +1124,7 @@ export default function CustomerListPage() {
                             {customer.isVatRegistered ? (
                               <div className="reorder-badge">
                                 <div className="reorder-badge-item">
-                                  <span className="reorder-badge-label">TIN:</span>
+                                  <span className="reorder-badge-label">VRN:</span>
                                   <span className="mono">{customer.taxNumber || '—'}</span>
                                 </div>
                               </div>
@@ -1814,15 +1814,15 @@ export default function CustomerListPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ gridColumn: 'span 2' }}>
                   <label className="form-label" style={{ fontSize: 10 }}>
-                    TIN *
+                    VAT Register Number (VRN) *
                   </label>
                   <input
                     className="form-input"
-                    placeholder="9 digits"
+                    placeholder="e.g. VAT123456"
                     value={form.taxNumber}
-                    maxLength={9}
+                    maxLength={30}
                     onChange={(event) =>
-                      updateField('taxNumber', event.target.value.replace(/\D/g, ''))
+                      updateField('taxNumber', event.target.value.replace(/[^A-Za-z0-9-]/g, ''))
                     }
                     style={{ height: 38 }}
                   />

@@ -109,8 +109,8 @@ function createReceiptLine(line, grnLine = null) {
     qtyBaseUnit: grnLine?.qtyBaseUnit ?? '',
     unitCostSmallest: getDefaultPrice(grnLine?.unitCostSmallest, line.unitCostSmallest),
     mrp: getDefaultPrice(grnLine?.mrp, line.mrp, line.unitCostSmallest),
-    rejectedQtyBase: grnLine?.rejectedQtyBase ?? 0,
-    rejectionReason: grnLine?.rejectionReason || '',
+    rejectedQtyBase: 0,
+    rejectionReason: '',
     expiryDate: grnLine?.expiryDate ? dayjs(grnLine.expiryDate).format('YYYY-MM-DD') : '',
     notes: grnLine?.notes || line.notes || '',
   }
@@ -125,23 +125,15 @@ function estimateReceiptLineSubtotal(line) {
 }
 
 function getAcceptedQty(line) {
-  return toNumber(line.qtyBaseUnit) - toNumber(line.rejectedQtyBase)
+  return toNumber(line.qtyBaseUnit)
 }
 
 function getReceiptLineError(line) {
   const qtyBaseUnit = toNumber(line.qtyBaseUnit)
-  const rejectedQtyBase = toNumber(line.rejectedQtyBase)
 
   if (qtyBaseUnit < 0) return `${line.productSku}: received quantity cannot be negative.`
-  if (rejectedQtyBase < 0) return `${line.productSku}: rejected quantity cannot be negative.`
-  if (rejectedQtyBase > qtyBaseUnit) {
-    return `${line.productSku}: rejected quantity cannot exceed received quantity.`
-  }
-  if (rejectedQtyBase > 0 && !normalizeText(line.rejectionReason)) {
-    return `${line.productSku}: enter a rejection reason.`
-  }
   if (getAcceptedQty(line) > toNumber(line.remainingQty)) {
-    return `${line.productSku}: accepted quantity cannot exceed remaining quantity.`
+    return `${line.productSku}: received quantity cannot exceed remaining quantity.`
   }
 
   return ''
@@ -156,8 +148,8 @@ function getReceiptLinePayload(line) {
     qtyBaseUnit: toNumber(line.qtyBaseUnit),
     unitCostSmallest: toNumber(line.unitCostSmallest),
     mrp: toNumber(line.mrp),
-    rejectedQtyBase: toNumber(line.rejectedQtyBase),
-    rejectionReason: normalizeText(line.rejectionReason),
+    rejectedQtyBase: 0,
+    rejectionReason: null,
     expiryDate: toIsoDate(line.expiryDate),
     notes: normalizeText(line.notes),
   }
@@ -487,7 +479,7 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
       vatAmount,
       netAmount: valueOfSupply + vatAmount,
     }
-  }, [receiptHeader.discount, receiptLines, selectedOrder?.vatRate])
+  }, [receiptHeader.discount, receiptLines, selectedOrder])
 
   useEffect(() => {
     setOrderPage(1)
@@ -536,6 +528,11 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
 
     if (toNumber(receiptHeader.discount) < 0) {
       toast.error('Discount cannot be negative.')
+      return
+    }
+
+    if (!normalizeText(receiptHeader.supplierInvoiceNo)) {
+      toast.error('Supplier invoice number is required.')
       return
     }
 
@@ -1185,15 +1182,16 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
                     }}
                   >
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <span className="form-label">Supplier Invoice No</span>
+                      <span className="form-label">Supplier Invoice No *</span>
                       <input
                         className="form-input"
+                        required
                         disabled={Boolean(pendingReceipt)}
                         value={receiptHeader.supplierInvoiceNo}
                         onChange={(event) =>
                           updateReceiptHeader('supplierInvoiceNo', event.target.value)
                         }
-                        placeholder="Optional invoice number"
+                        placeholder="Required invoice number"
                       />
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1274,7 +1272,7 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
                   style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
                 >
                   {grnMode ? (
-                    <table className="data-table product-table-compact" style={{ minWidth: 1180 }}>
+                    <table className="data-table product-table-compact" style={{ minWidth: 920 }}>
                       <thead>
                         <tr>
                           <th>Item</th>
@@ -1282,8 +1280,6 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
                           <th style={{ width: 110 }}>Receive Qty</th>
                           <th style={{ width: 120 }}>Unit Cost</th>
                           <th style={{ width: 110 }}>MRP</th>
-                          <th style={{ width: 110 }}>Rejected Qty</th>
-                          <th style={{ width: 170 }}>Reject Reason</th>
                           <th style={{ width: 140 }}>Expiry</th>
                         </tr>
                       </thead>
@@ -1339,31 +1335,6 @@ export default function ApprovedPurchaseOrdersPage({ grnMode = false }) {
                                     </div>
                                   ) : null;
                                 })()}
-                              </td>
-                              <EditableCell
-                                disabled={Boolean(pendingReceipt)}
-                                value={line.rejectedQtyBase}
-                                onChange={(value) =>
-                                  updateReceiptLine(lineIndex, 'rejectedQtyBase', value)
-                                }
-                              />
-                              <td>
-                                <input
-                                  className="form-input"
-                                  disabled={Boolean(pendingReceipt)}
-                                  value={line.rejectionReason}
-                                  onChange={(event) =>
-                                    updateReceiptLine(
-                                      lineIndex,
-                                      'rejectionReason',
-                                      event.target.value
-                                    )
-                                  }
-                                  placeholder={
-                                    toNumber(line.rejectedQtyBase) > 0 ? 'Required reason' : ''
-                                  }
-                                  style={{ height: 34 }}
-                                />
                               </td>
                               <td>
                                 <input

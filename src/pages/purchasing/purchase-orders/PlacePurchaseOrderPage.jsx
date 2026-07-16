@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -42,45 +42,199 @@ function formatMoney(value) {
   })}`
 }
 
-function getUomDerivation(product) {
-  if (!product) return { unitsPerBase: 0, smallestUom: '', purchaseUom: '' }
+function productLabel(product) {
+  if (!product) return ''
+  return [product.sku, product.name].filter(Boolean).join(' - ') || product.id || ''
+}
 
-  const baseUom = product.uomBase?.trim().toUpperCase() || ''
-  let startingUom = baseUom
-  const conversions = product.uomConversions || []
+function ProductSearchSelect({
+  value,
+  onChange,
+  products,
+  disabled = false,
+  placeholder = 'Type SKU or product name...',
+  emptyLabel = 'No matching active products',
+}) {
+  const containerRef = useRef(null)
+  const selectedProduct = products.find((product) => product.id === value) || null
+  const selectedLabel = productLabel(selectedProduct)
+  const [query, setQuery] = useState(selectedLabel)
+  const [isOpen, setIsOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
 
-  if (conversions.length > 0) {
-    const toUoms = new Set(conversions.map((c) => c.toUom?.trim().toUpperCase()))
-    const rootConversion = conversions.find((c) => !toUoms.has(c.fromUom?.trim().toUpperCase()))
-    if (rootConversion) {
-      startingUom = rootConversion.fromUom?.trim().toUpperCase()
+  useEffect(() => {
+    if (!isOpen) {
+      setQuery(selectedLabel)
     }
+  }, [isOpen, selectedLabel])
+
+  useEffect(() => {
+    if (!isOpen) return undefined
+
+    function handlePointerDown(event) {
+      if (!containerRef.current?.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [isOpen])
+
+  const filteredProducts = useMemo(() => {
+    const text = query.trim().toLowerCase()
+    const matchedProducts = text
+      ? products.filter((product) =>
+          [
+            product.sku,
+            product.name,
+            product.barcode,
+            product.category?.name,
+            product.id,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(text)
+        )
+      : products
+
+    return matchedProducts.slice(0, 50)
+  }, [products, query])
+
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [query])
+
+  function selectProduct(product) {
+    const nextLabel = productLabel(product)
+    onChange(product.id)
+    setQuery(nextLabel)
+    setIsOpen(false)
   }
 
-  let currentUom = startingUom
-  let unitsPerBase = 1
-  const visited = new Set([currentUom])
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      <Search
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          left: 11,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 14,
+          height: 14,
+          color: 'var(--color-text-muted)',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
+      <input
+        className="form-input w-full"
+        type="text"
+        role="combobox"
+        aria-expanded={isOpen}
+        aria-autocomplete="list"
+        value={query}
+        placeholder={placeholder}
+        disabled={disabled}
+        autoComplete="off"
+        onFocus={(event) => {
+          setIsOpen(true)
+          event.target.select()
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setIsOpen(true)
+          if (value) onChange('')
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            if (isOpen && filteredProducts[highlightedIndex]) {
+              selectProduct(filteredProducts[highlightedIndex])
+            }
+          } else if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setIsOpen(true)
+            setHighlightedIndex((current) =>
+              Math.min(current + 1, Math.max(filteredProducts.length - 1, 0))
+            )
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            setHighlightedIndex((current) => Math.max(current - 1, 0))
+          } else if (event.key === 'Escape') {
+            setIsOpen(false)
+            setQuery(selectedLabel)
+          }
+        }}
+        style={{ height: 38, fontSize: 13, paddingLeft: 32 }}
+      />
 
-  for (let index = 0; index < 5; index += 1) {
-    const nextConversions = conversions.filter(
-      (item) => item.fromUom?.trim().toUpperCase() === currentUom
-    )
-    if (nextConversions.length !== 1) break
+      {isOpen && !disabled ? (
+        <div
+          role="listbox"
+          style={{
+            position: 'absolute',
+            zIndex: 80,
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            maxHeight: 280,
+            overflowY: 'auto',
+            border: '1px solid var(--color-border)',
+            borderRadius: 8,
+            background: 'var(--color-bg-surface)',
+            boxShadow: '0 16px 34px rgba(0, 0, 0, 0.45)',
+          }}
+        >
+          {filteredProducts.length ? (
+            filteredProducts.map((product, index) => {
+              const isHighlighted = index === highlightedIndex
+              const label = productLabel(product)
 
-    const conversion = nextConversions[0]
-    const nextUom = conversion?.toUom?.trim().toUpperCase()
-    if (!conversion || conversion.factor <= 0 || visited.has(nextUom)) break
-
-    unitsPerBase *= Number(conversion.factor)
-    currentUom = nextUom
-    visited.add(nextUom)
-  }
-
-  return {
-    unitsPerBase,
-    smallestUom: currentUom || baseUom || '',
-    purchaseUom: startingUom || baseUom || '',
-  }
+              return (
+                <button
+                  key={product.id}
+                  type="button"
+                  role="option"
+                  aria-selected={product.id === value}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    selectProduct(product)
+                  }}
+                  style={{
+                    display: 'grid',
+                    gap: 3,
+                    width: '100%',
+                    padding: '9px 12px',
+                    border: 0,
+                    borderBottom: '1px solid var(--color-border)',
+                    background: isHighlighted ? 'rgba(125, 224, 232, 0.12)' : 'transparent',
+                    color: 'var(--color-text-primary)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 800 }}>{label}</span>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                    {[product.baseUom || product.uomBase, product.category?.name]
+                      .filter(Boolean)
+                      .join(' • ') || 'Active product'}
+                  </span>
+                </button>
+              )
+            })
+          ) : (
+            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 12 }}>
+              {emptyLabel}
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 export default function PlacePurchaseOrderPage() {
@@ -110,7 +264,9 @@ export default function PlacePurchaseOrderPage() {
     try {
       const detailed = await masterService.getProduct(productId)
       setProducts((current) =>
-        current.map((item) => (item.id === productId ? detailed : item))
+        current.some((item) => item.id === productId)
+          ? current.map((item) => (item.id === productId ? detailed : item))
+          : [...current, detailed]
       )
     } catch (err) {
       console.error('Error fetching product detail:', err)
@@ -124,8 +280,7 @@ export default function PlacePurchaseOrderPage() {
     const [supplierResult, productResult, businessUnitResult, , taxResult] =
       await Promise.allSettled([
         purchasingService.listSuppliers({ page: 1, pageSize: 100, status: 1 }),
-        masterService.listProducts({
-          page: 1,
+        masterService.listAllProducts({
           pageSize: 100,
           status: 'Active',
           sortBy: 'name',
@@ -153,7 +308,9 @@ export default function PlacePurchaseOrderPage() {
     }
 
     if (productResult.status === 'fulfilled') {
-      const productItems = productResult.value?.items || []
+      const productItems = Array.isArray(productResult.value)
+        ? productResult.value
+        : productResult.value?.items || []
       setProducts(productItems)
     } else {
       setProducts([])
@@ -218,7 +375,9 @@ export default function PlacePurchaseOrderPage() {
           masterService.getProduct(line.productId)
             .then((detailed) => {
               setProducts((current) =>
-                current.map((item) => (item.id === line.productId ? detailed : item))
+                current.some((item) => item.id === line.productId)
+                  ? current.map((item) => (item.id === line.productId ? detailed : item))
+                  : [...current, detailed]
               )
             })
             .catch((err) => console.error('Error fetching initial product detail:', err))
@@ -262,7 +421,7 @@ export default function PlacePurchaseOrderPage() {
       vat,
       total: subtotal + vat,
     }
-  }, [header.taxId, lines, products, taxes])
+  }, [header.taxId, lines, taxes])
 
   const pagedLines = useMemo(() => {
     const start = (linePage - 1) * linePageSize
@@ -557,7 +716,7 @@ export default function PlacePurchaseOrderPage() {
             </button>
           </div>
 
-          <div style={{ minHeight: 0, overflowX: 'auto', overflowY: 'hidden' }}>
+          <div style={{ minHeight: 0, overflowX: 'auto', overflowY: 'visible' }}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -580,32 +739,20 @@ export default function PlacePurchaseOrderPage() {
 
                   return (
                     <tr key={line.key}>
-                      <td style={{ minWidth: 260 }}>
-                        <select
-                          className="form-input w-full"
+                      <td style={{ minWidth: 340 }}>
+                        <ProductSearchSelect
                           value={line.productId}
-                          onChange={(event) =>
-                            updateLine(line.key, 'productId', event.target.value)
-                          }
+                          onChange={(productId) => updateLine(line.key, 'productId', productId)}
+                          products={products}
                           disabled={isLoading || isSaving}
-                          style={{ height: 38, fontSize: 13 }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') e.preventDefault()
-                          }}
-                        >
-                          <option value="">
-                            {isLoading
+                          placeholder={
+                            isLoading
                               ? 'Loading products...'
                               : products.length
-                                ? 'Select a product'
-                                : 'No active products available'}
-                          </option>
-                          {products.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.sku} - {item.name}
-                            </option>
-                          ))}
-                        </select>
+                                ? 'Type SKU or product name...'
+                                : 'No active products available'
+                          }
+                        />
                       </td>
                       <td className="mono" style={{ color: 'var(--color-text-muted)' }}>
                         {purchaseUom || '-'}

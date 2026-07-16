@@ -421,7 +421,6 @@ export const router = createBrowserRouter([
         element: requirePermission(<SettingsPage />, [
           PERMISSIONS.masterData.orgManage,
           PERMISSIONS.masterData.territoryManage,
-          PERMISSIONS.masterData.businessUnitManage,
           PERMISSIONS.masterData.taxRead,
           PERMISSIONS.masterData.taxManage,
         ]),

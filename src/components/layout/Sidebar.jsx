@@ -14,7 +14,7 @@ import {
   Package,
   PackageCheck,
   PackageX,
-  ArrowLeftRight,
+  // ArrowLeftRight,
   Warehouse,
   Ruler,
   Search,
@@ -250,12 +250,12 @@ const navGroups = [
         end: true,
         permissions: PERMISSIONS.inventory.stockRead,
       },
-      {
-        label: 'Staged Returns',
-        to: '/inventory/return-stock',
-        icon: PackageX,
-        permissions: PERMISSIONS.inventory.stockRead,
-      },
+      // {
+      //   label: 'Staged Returns',
+      //   to: '/inventory/return-stock',
+      //   icon: PackageX,
+      //   permissions: PERMISSIONS.inventory.stockRead,
+      // },
       {
         label: 'In-Store Returns',
         to: '/inventory/in-store-returns',
@@ -265,12 +265,12 @@ const navGroups = [
           PERMISSIONS.inventory.inStoreReturnApprove,
         ],
       },
-      {
-        label: 'Stock Audit',
-        to: '/inventory/stock-audit',
-        icon: Search,
-        permissions: PERMISSIONS.inventory.stockRead,
-      },
+      // {
+      //   label: 'Stock Audit',
+      //   to: '/inventory/stock-audit',
+      //   icon: Search,
+      //   permissions: PERMISSIONS.inventory.stockRead,
+      // },
       {
         label: 'Stock Batches',
         to: '/inventory/batches',
@@ -283,24 +283,24 @@ const navGroups = [
         icon: Warehouse,
         permissions: PERMISSIONS.inventory.stockRead,
       },
-      {
-        label: 'Stock Transfers',
-        to: '/inventory/transfers',
-        icon: ArrowLeftRight,
-        permissions: PERMISSIONS.inventory.stockRead,
-      },
-      {
-        label: 'Stocktakes',
-        to: '/inventory/stocktakes',
-        icon: ClipboardCheck,
-        permissions: PERMISSIONS.inventory.stocktakeManage,
-      },
-      {
-        label: 'Movements',
-        to: '/inventory/movements',
-        icon: ListChecks,
-        permissions: PERMISSIONS.inventory.stockRead,
-      },
+      // {
+      //   label: 'Stock Transfers',
+      //   to: '/inventory/transfers',
+      //   icon: ArrowLeftRight,
+      //   permissions: PERMISSIONS.inventory.stockRead,
+      // },
+      // {
+      //   label: 'Stocktakes',
+      //   to: '/inventory/stocktakes',
+      //   icon: ClipboardCheck,
+      //   permissions: PERMISSIONS.inventory.stocktakeManage,
+      // },
+      // {
+      //   label: 'Movements',
+      //   to: '/inventory/movements',
+      //   icon: ListChecks,
+      //   permissions: PERMISSIONS.inventory.stockRead,
+      // },
     ],
   },
   {
@@ -321,7 +321,6 @@ const navGroups = [
         permissions: [
           PERMISSIONS.masterData.orgManage,
           PERMISSIONS.masterData.territoryManage,
-          PERMISSIONS.masterData.businessUnitManage,
           PERMISSIONS.masterData.taxRead,
           PERMISSIONS.masterData.taxManage,
         ],

@@ -1,4 +1,3 @@
-import dayjs from 'dayjs'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -275,7 +274,7 @@ export default function InvoiceDetailPage() {
               <InfoItem label="Vehicle" value={invoice.vehicleId} isCode />
               <InfoItem label="Sales Person" value={invoice.salesPersonName || 'Not assigned'} />
               <InfoItem label="Due Date" value={showDate(invoice.dueDate)} isCode />
-              <InfoItem label="Customer VAT TIN" value={invoice.customerVatTin} isCode />
+              <InfoItem label="Customer VRN" value={invoice.customerVatTin} isCode />
               <InfoItem label="Tax Invoice No" value={invoice.taxInvoiceNumber} isCode />
               <InfoItem label="Cancelled Reason" value={invoice.cancelledReason} />
             </div>

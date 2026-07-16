@@ -1,11 +1,11 @@
 import dayjs from 'dayjs'
 import { ArrowLeft, CheckCircle2, FileText, PackagePlus, RefreshCw, Search, Trash2, XCircle } from 'lucide-react'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
-import { useStockAvailability } from '@/hooks/useStock'
+import { useStockAvailability, useStockBatches } from '@/hooks/useStock'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import { usersService } from '@/services/api/usersService'
@@ -86,11 +86,14 @@ function SearchableSelect({
   emptyLabel = 'No matches found',
   getLabel,
   getMeta = () => '',
+  menuPlacement = 'bottom',
 }) {
+  const containerRef = useRef(null)
   const selected = options.find((option) => option.id === value) || null
   const selectedLabel = selected ? getLabel(selected) : ''
   const [query, setQuery] = useState(selectedLabel)
   const [open, setOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
 
   useEffect(() => {
     if (selectedLabel) {
@@ -99,6 +102,19 @@ function SearchableSelect({
       setQuery('')
     }
   }, [selectedLabel, open])
+
+  useEffect(() => {
+    if (!open) return undefined
+
+    function handleOutsideClick(event) {
+      if (!containerRef.current?.contains(event.target)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [open])
 
   const filteredOptions = useMemo(() => {
     const text = query.trim().toLowerCase()
@@ -111,27 +127,80 @@ function SearchableSelect({
     return filtered.slice(0, 60)
   }, [getLabel, getMeta, options, query])
 
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [query])
+
+  function selectOption(option) {
+    const label = getLabel(option)
+    onChange(option.id)
+    setQuery(label)
+    setOpen(false)
+  }
+
+  const opensUp = menuPlacement === 'top'
+
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      <Search
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          left: 11,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 14,
+          height: 14,
+          color: 'var(--color-text-muted)',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
       <input
         className="form-input"
         value={query}
         placeholder={placeholder}
+        autoComplete="off"
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
         onFocus={() => setOpen(true)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
         onChange={(event) => {
           const nextQuery = event.target.value
           setQuery(nextQuery)
           setOpen(true)
           if (value) onChange('')
         }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            if (open && filteredOptions[highlightedIndex]) {
+              selectOption(filteredOptions[highlightedIndex])
+            }
+          } else if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setOpen(true)
+            setHighlightedIndex((current) =>
+              Math.min(current + 1, Math.max(filteredOptions.length - 1, 0))
+            )
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            setHighlightedIndex((current) => Math.max(current - 1, 0))
+          } else if (event.key === 'Escape') {
+            setOpen(false)
+            setQuery(selectedLabel)
+          }
+        }}
+        style={{ width: '100%', height: 38, paddingLeft: 32 }}
       />
       {open ? (
         <div
+          role="listbox"
           style={{
             position: 'absolute',
-            zIndex: 40,
-            top: 'calc(100% + 4px)',
+            zIndex: 120,
+            top: opensUp ? 'auto' : 'calc(100% + 4px)',
+            bottom: opensUp ? 'calc(100% + 4px)' : 'auto',
             left: 0,
             right: 0,
             maxHeight: 260,
@@ -143,19 +212,21 @@ function SearchableSelect({
           }}
         >
           {filteredOptions.length ? (
-            filteredOptions.map((option) => {
+            filteredOptions.map((option, index) => {
               const label = getLabel(option)
               const meta = getMeta(option)
+              const isHighlighted = index === highlightedIndex
 
               return (
                 <button
                   key={option.id}
                   type="button"
+                  role="option"
+                  aria-selected={option.id === value}
+                  onMouseEnter={() => setHighlightedIndex(index)}
                   onMouseDown={(event) => {
                     event.preventDefault()
-                    onChange(option.id)
-                    setQuery(label)
-                    setOpen(false)
+                    selectOption(option)
                   }}
                   style={{
                     display: 'grid',
@@ -164,7 +235,7 @@ function SearchableSelect({
                     padding: '10px 12px',
                     border: 0,
                     borderBottom: '1px solid var(--color-border)',
-                    background: 'transparent',
+                    background: isHighlighted ? 'rgba(125, 224, 232, 0.12)' : 'transparent',
                     color: 'var(--color-text-primary)',
                     textAlign: 'left',
                     cursor: 'pointer',
@@ -265,12 +336,21 @@ export default function SalesOrderModulePage() {
     data: availabilityData,
     isLoading: loadingAvailability,
   } = useStockAvailability(line.productId)
+  const { data: selectedProductBatches = [] } = useStockBatches(line.productId)
+  const inventoryUnitCode =
+    availabilityData?.smallestUnitCode ||
+    availabilityData?.unitCode ||
+    availabilityData?.uomCode ||
+    availabilityData?.baseUomCode ||
+    selectedProductBatches.find((batch) => batch.smallestUnitCode)?.smallestUnitCode ||
+    ''
   const sellableQty = Number(availabilityData?.sellable ?? 0)
   const totalReserved = Number(availabilityData?.totalReserved ?? 0)
   const totalAvailable = Number(availabilityData?.totalAvailable ?? 0)
   const unitCode =
-    availabilityData?.smallestUnitCode ||
+    inventoryUnitCode ||
     selectedLineProduct?.smallestUnitCode ||
+    selectedLineProduct?.smallestUnitId ||
     selectedLineProduct?.uomBase ||
     ''
   const lineQtyNumber = toNumber(line.quantity)
@@ -1021,12 +1101,14 @@ export default function SalesOrderModulePage() {
                             className="responsive-field-grid"
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: 'minmax(220px, 1fr) 120px 120px auto',
-                              gap: 10,
-                              alignItems: 'end',
+                              gridTemplateColumns:
+                                'minmax(280px, 1.6fr) minmax(110px, 140px) minmax(110px, 140px) 130px',
+                              gap: 12,
+                              alignItems: 'start',
+                              overflow: 'visible',
                             }}
                           >
-                            <label>
+                            <label style={{ minWidth: 0 }}>
                               <span className="form-label">Product</span>
                               <SearchableSelect
                                 value={line.productId}
@@ -1034,11 +1116,22 @@ export default function SalesOrderModulePage() {
                                 options={products}
                                 placeholder="Search product"
                                 emptyLabel="No products found"
-                                getLabel={(product) => (product.sku ? `${product.sku} - ${product.name}` : product.name)}
+                                menuPlacement="top"
+                                getLabel={(product) => {
+                                  const sku = product.sku || product.productSku || ''
+                                  const name = product.name || product.productName || ''
+                                  return [sku, name].filter(Boolean).join(' - ') || product.id || ''
+                                }}
                                 getMeta={(product) =>
-                                  [product.barcode, product.unitCode, product.uomBase, product.brandName]
+                                  [
+                                    product.barcode,
+                                    product.unitCode,
+                                    product.uomBase || product.baseUom,
+                                    product.brandName,
+                                    product.category?.name,
+                                  ]
                                     .filter(Boolean)
-                                    .join(' ')
+                                    .join(' • ')
                                 }
                               />
                               <div className="sellable-qty-message" aria-live="polite">
@@ -1085,7 +1178,9 @@ export default function SalesOrderModulePage() {
                               </div>
                             </label>
                             <label>
-                              <span className="form-label">Qty</span>
+                              <span className="form-label">
+                                Qty{unitCode ? ` (${unitCode})` : ''}
+                              </span>
                               <input
                                 className={`form-input ${qtyExceedsSellable || noSellableStock ? 'warning' : ''}`}
                                 type="number"
@@ -1127,6 +1222,7 @@ export default function SalesOrderModulePage() {
                                 !line.quantity ||
                                 lineQtyNumber <= 0
                               }
+                              style={{ height: 38, justifyContent: 'center', marginTop: 22 }}
                             >
                               <PackagePlus style={{ width: 15, height: 15 }} />
                               Add Line
@@ -1262,7 +1358,13 @@ export default function SalesOrderModulePage() {
                     options={customers}
                     placeholder="Search customer"
                     emptyLabel="No customers found"
-                    getLabel={(customer) => (customer.code ? `${customer.code} - ${customer.name}` : customer.name)}
+                    getLabel={(customer) =>
+                      [customer.code, customer.name || customer.customerName]
+                        .filter(Boolean)
+                        .join(' - ') ||
+                      customer.id ||
+                      ''
+                    }
                     getMeta={(customer) =>
                       [customer.primaryContactPhone, customer.phone, customer.routeName, customer.salesRouteName]
                         .filter(Boolean)

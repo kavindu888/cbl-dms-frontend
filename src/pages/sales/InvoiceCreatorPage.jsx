@@ -1,5 +1,5 @@
-import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Plus, RotateCcw, Save, Search, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { inventoryService } from '@/services/api/inventoryService'
@@ -60,6 +60,188 @@ const readOnlyDisplayStyle = {
   display: 'flex',
   minHeight: 34,
   userSelect: 'none',
+}
+
+function SearchablePicker({
+  value,
+  onChange,
+  options,
+  getLabel,
+  getMeta = () => '',
+  getSearchText,
+  placeholder,
+  emptyLabel = 'No matches found',
+  disabled = false,
+}) {
+  const containerRef = useRef(null)
+  const selectedOption = options.find((option) => option.id === value) || null
+  const selectedLabel = selectedOption ? getLabel(selectedOption) : ''
+  const [query, setQuery] = useState(selectedLabel)
+  const [isOpen, setIsOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+
+  useEffect(() => {
+    if (!isOpen) setQuery(selectedLabel)
+  }, [isOpen, selectedLabel])
+
+  useEffect(() => {
+    if (!isOpen) return undefined
+
+    function handleOutsideClick(event) {
+      if (!containerRef.current?.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [isOpen])
+
+  const filteredOptions = useMemo(() => {
+    const search = query.trim().toLowerCase()
+    const matchedOptions = search
+      ? options.filter((option) => {
+          const searchText = getSearchText
+            ? getSearchText(option)
+            : `${getLabel(option)} ${getMeta(option)}`
+
+          return searchText.toLowerCase().includes(search)
+        })
+      : options
+
+    return matchedOptions.slice(0, 50)
+  }, [getLabel, getMeta, getSearchText, options, query])
+
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [query])
+
+  function selectOption(option) {
+    onChange(option.id)
+    setQuery(getLabel(option))
+    setIsOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      <Search
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          left: 11,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 14,
+          height: 14,
+          color: 'var(--color-text-muted)',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
+      <input
+        className="form-input"
+        type="text"
+        role="combobox"
+        aria-expanded={isOpen}
+        aria-autocomplete="list"
+        autoComplete="off"
+        value={query}
+        placeholder={placeholder}
+        disabled={disabled}
+        onFocus={(event) => {
+          setIsOpen(true)
+          event.target.select()
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setIsOpen(true)
+          if (value) onChange('')
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            if (isOpen && filteredOptions[highlightedIndex]) {
+              selectOption(filteredOptions[highlightedIndex])
+            }
+          } else if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setIsOpen(true)
+            setHighlightedIndex((current) =>
+              Math.min(current + 1, Math.max(filteredOptions.length - 1, 0))
+            )
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            setHighlightedIndex((current) => Math.max(current - 1, 0))
+          } else if (event.key === 'Escape') {
+            setIsOpen(false)
+            setQuery(selectedLabel)
+          }
+        }}
+        style={{ width: '100%', height: 38, fontSize: 13, paddingLeft: 32 }}
+      />
+
+      {isOpen && !disabled ? (
+        <div
+          role="listbox"
+          style={{
+            position: 'absolute',
+            zIndex: 80,
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            maxHeight: 280,
+            overflowY: 'auto',
+            border: '1px solid var(--color-border)',
+            borderRadius: 8,
+            background: 'var(--color-bg-surface)',
+            boxShadow: '0 16px 34px rgba(0, 0, 0, 0.45)',
+          }}
+        >
+          {filteredOptions.length ? (
+            filteredOptions.map((option, index) => {
+              const isHighlighted = index === highlightedIndex
+              const meta = getMeta(option)
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="option"
+                  aria-selected={option.id === value}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    selectOption(option)
+                  }}
+                  style={{
+                    display: 'grid',
+                    gap: 3,
+                    width: '100%',
+                    padding: '9px 12px',
+                    border: 0,
+                    borderBottom: '1px solid var(--color-border)',
+                    background: isHighlighted ? 'rgba(125, 224, 232, 0.12)' : 'transparent',
+                    color: 'var(--color-text-primary)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 800 }}>{getLabel(option)}</span>
+                  {meta ? (
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{meta}</span>
+                  ) : null}
+                </button>
+              )
+            })
+          ) : (
+            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 12 }}>
+              {emptyLabel}
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 export default function InvoiceCreatorPage() {
@@ -143,11 +325,11 @@ export default function InvoiceCreatorPage() {
       try {
         const [customerPage, productPage] = await Promise.all([
           salesService.listAllCustomers({ pageSize: 100, isActive: true }),
-          masterService.listProducts({ page: 1, pageSize: 100, status: 'Active' }),
+          masterService.listAllProducts({ pageSize: 100, status: 'Active' }),
         ])
 
         setCustomers(customerPage || [])
-        setProducts(productPage.items || [])
+        setProducts(productPage || [])
       } catch (error) {
         setLoadError(error.message)
       } finally {
@@ -404,7 +586,7 @@ export default function InvoiceCreatorPage() {
             </button>
           </div>
 
-          <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'visible', minHeight: 0 }}>
             <table className="data-table" style={{ minWidth: 960, tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '30%' }} />
@@ -436,21 +618,48 @@ export default function InvoiceCreatorPage() {
                   return (
                     <tr key={field.id}>
                       <td>
-                        <select
-                          className="form-input"
-                          {...register(`lines.${index}.productId`)}
-                          onChange={(event) => {
-                            register(`lines.${index}.productId`).onChange(event)
-                            handleProductChange(index, event.target.value)
+                        <input type="hidden" {...register(`lines.${index}.productId`)} />
+                        <SearchablePicker
+                          value={line.productId}
+                          onChange={(productId) => {
+                            setValue(`lines.${index}.productId`, productId, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                            handleProductChange(index, productId)
                           }}
-                        >
-                          <option value="">Select product...</option>
-                          {products.map((product) => (
-                            <option key={product.id} value={product.id}>
-                              {product.name}
-                            </option>
-                          ))}
-                        </select>
+                          options={products}
+                          getLabel={(product) =>
+                            [product.sku, product.name].filter(Boolean).join(' - ') ||
+                            product.id ||
+                            ''
+                          }
+                          getMeta={(product) =>
+                            [product.baseUom || product.uomBase, product.category?.name]
+                              .filter(Boolean)
+                              .join(' • ')
+                          }
+                          getSearchText={(product) =>
+                            [
+                              product.sku,
+                              product.name,
+                              product.barcode,
+                              product.category?.name,
+                              product.id,
+                            ]
+                              .filter(Boolean)
+                              .join(' ')
+                          }
+                          placeholder={
+                            isLoadingData
+                              ? 'Loading products...'
+                              : products.length
+                                ? 'Type SKU or product name...'
+                                : 'No active products available'
+                          }
+                          emptyLabel="No matching active products"
+                          disabled={isLoadingData || isSaving}
+                        />
                       </td>
                       <td>
                         <input
@@ -548,17 +757,56 @@ export default function InvoiceCreatorPage() {
                 <label className="form-label" style={{ fontSize: 10 }}>
                   Customer *
                 </label>
-                <select className="form-input" {...register('customerId')}>
-                  <option value="">Select customer...</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name}
-                    </option>
-                  ))}
-                </select>
+                <input type="hidden" {...register('customerId')} />
+                <SearchablePicker
+                  value={selectedCustomerId}
+                  onChange={(customerId) => {
+                    setValue('customerId', customerId, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }}
+                  options={customers}
+                  getLabel={(customer) =>
+                    [customer.code, customer.name].filter(Boolean).join(' - ') ||
+                    customer.id ||
+                    ''
+                  }
+                  getMeta={(customer) =>
+                    [
+                      customer.salesRouteName,
+                      customer.contacts?.find((contact) => contact.isPrimary)?.phone,
+                      customer.taxNumber ? `VRN: ${customer.taxNumber}` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' • ')
+                  }
+                  getSearchText={(customer) =>
+                    [
+                      customer.code,
+                      customer.name,
+                      customer.registrationNumber,
+                      customer.taxNumber,
+                      customer.salesRouteName,
+                      customer.contacts?.map((contact) => contact.phone).join(' '),
+                      customer.id,
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
+                  }
+                  placeholder={
+                    isLoadingData
+                      ? 'Loading customers...'
+                      : customers.length
+                        ? 'Type customer name or code...'
+                        : 'No active customers available'
+                  }
+                  emptyLabel="No matching active customers"
+                  disabled={isLoadingData || isSaving}
+                />
                 {selectedCustomer && (
                   <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                    TIN:{' '}
+                    VRN:{' '}
                     {selectedCustomerDetails?.taxNumber ||
                       selectedCustomer.taxNumber ||
                       'Not assigned'}
