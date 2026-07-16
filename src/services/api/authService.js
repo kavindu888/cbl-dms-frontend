@@ -53,7 +53,7 @@ async function authenticate(endpoint, credentials, fallbackMessage) {
   const response = await api.post(endpoint, credentials, {
     skipAuthHeader: true,
     skipAuthRefresh: endpoint === AUTH_API.login || endpoint === AUTH_API.refresh,
-    withCredentials: false,
+    withCredentials: true,
   })
   const authResult = getResultValue(response, fallbackMessage)
   const session = createSession(authResult)

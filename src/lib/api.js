@@ -44,10 +44,30 @@ function getFirstValidationMessage(errors) {
 
   if (errors && typeof errors === 'object') {
     const firstValue = Object.values(errors)[0]
-    if (Array.isArray(firstValue)) return firstValue[0]
+    if (Array.isArray(firstValue)) {
+      const firstError = firstValue[0]
+      return typeof firstError === 'string' ? firstError : firstError?.message
+    }
     if (typeof firstValue === 'string') return firstValue
+    if (firstValue && typeof firstValue === 'object') return firstValue.message
   }
 
+  return null
+}
+
+function getErrorText(value) {
+  if (!value) return null
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return getFirstValidationMessage(value)
+  if (typeof value === 'object') {
+    return (
+      value.message ||
+      value.errorMessage ||
+      value.title ||
+      value.detail ||
+      getFirstValidationMessage(value.errors || value.validationErrors)
+    )
+  }
   return null
 }
 
@@ -132,16 +152,25 @@ api.interceptors.response.use(
 
     const responseData = error.response?.data
     const result = responseData?.data
-    const validationErrors = result?.validationErrors || responseData?.errors || []
+    const validationErrors =
+      result?.validationErrors ||
+      result?.errors ||
+      responseData?.validationErrors ||
+      responseData?.errors ||
+      []
     const validationMessage = getFirstValidationMessage(validationErrors)
     const permissionMessage =
       error.response?.status === 403 ? 'You do not have permission to perform this action.' : null
     const message =
       permissionMessage ||
       validationMessage ||
+      getErrorText(result) ||
+      getErrorText(responseData?.error) ||
       result?.errorMessage ||
       responseData?.errorMessage ||
       responseData?.message ||
+      responseData?.detail ||
+      responseData?.title ||
       (isNetworkFailure(error)
         ? 'Network error. Please check your connection and try again.'
         : null) ||

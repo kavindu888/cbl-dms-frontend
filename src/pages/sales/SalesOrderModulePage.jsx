@@ -78,6 +78,120 @@ function DetailItem({ label, value }) {
   )
 }
 
+function StockAvailabilityHint({
+  isLoading,
+  productId,
+  availabilityData,
+  sellableQty,
+  totalAvailable,
+  totalReserved,
+  unitCode,
+}) {
+  if (!productId) return null
+
+  const isOutOfStock = availabilityData && sellableQty <= 0
+  const dotColor = isOutOfStock ? 'var(--color-danger)' : 'var(--color-accent)'
+  const dotGlow = isOutOfStock ? 'rgba(255, 100, 116, 0.16)' : 'rgba(142, 232, 240, 0.16)'
+  const textColor = isOutOfStock ? 'var(--color-danger)' : 'var(--color-text-primary)'
+
+  return (
+    <div
+      aria-live="polite"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        minHeight: 24,
+        marginTop: 8,
+        paddingLeft: 2,
+        color: 'var(--color-text-muted)',
+        fontSize: 12,
+        lineHeight: 1.2,
+      }}
+    >
+      {isLoading ? (
+        <>
+          <RefreshCw
+            size={12}
+            style={{
+              color: 'var(--color-accent)',
+              animation: 'spin 1s linear infinite',
+              flexShrink: 0,
+            }}
+          />
+          <span>Checking stock...</span>
+        </>
+      ) : null}
+
+      {!isLoading && availabilityData ? (
+        <span
+          title={`Total available: ${totalAvailable.toLocaleString()}${
+            unitCode ? ` ${unitCode}` : ''
+          }`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 6,
+            color: textColor,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 999,
+              background: dotColor,
+              boxShadow: `0 0 0 3px ${dotGlow}`,
+              flexShrink: 0,
+            }}
+          />
+          {isOutOfStock ? (
+            <span style={{ fontWeight: 800 }}>Out of stock</span>
+          ) : (
+            <>
+              <strong
+                className="mono"
+                style={{
+                  color: 'var(--color-text-primary)',
+                  fontSize: 13,
+                  fontWeight: 900,
+                }}
+              >
+                {sellableQty.toLocaleString()}
+              </strong>
+              {unitCode ? (
+                <span
+                  className="mono"
+                  style={{
+                    padding: '2px 6px',
+                    borderRadius: 6,
+                    border: '1px solid var(--color-border)',
+                    background: 'rgba(142, 232, 240, 0.08)',
+                    color: 'var(--color-accent)',
+                    fontSize: 10,
+                    fontWeight: 900,
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {unitCode}
+                </span>
+              ) : null}
+              <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>sellable</span>
+              {totalReserved > 0 ? (
+                <span style={{ color: 'var(--color-text-dim)' }}>
+                  ({totalReserved.toLocaleString()} reserved)
+                </span>
+              ) : null}
+            </>
+          )}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
 function SearchableSelect({
   value,
   onChange,
@@ -1134,48 +1248,15 @@ export default function SalesOrderModulePage() {
                                     .join(' • ')
                                 }
                               />
-                              <div className="sellable-qty-message" aria-live="polite">
-                                {loadingAvailability && line.productId ? (
-                                  <span className="sellable-qty-muted">
-                                    <RefreshCw className="sellable-qty-spinner" size={12} />
-                                    Checking stock...
-                                  </span>
-                                ) : null}
-                                {!loadingAvailability && line.productId && availabilityData ? (
-                                  <span
-                                    className={
-                                      sellableQty <= 0
-                                        ? 'sellable-qty-danger'
-                                        : 'sellable-qty-available'
-                                    }
-                                    title={`Total available: ${totalAvailable.toLocaleString()}${
-                                      unitCode ? ` ${unitCode}` : ''
-                                    }`}
-                                  >
-                                    <span
-                                      className={
-                                        sellableQty <= 0
-                                          ? 'sellable-qty-dot sellable-qty-dot--danger'
-                                          : 'sellable-qty-dot sellable-qty-dot--available'
-                                      }
-                                    />
-                                    {sellableQty <= 0 ? (
-                                      'Out of stock'
-                                    ) : (
-                                      <>
-                                        <strong>{sellableQty.toLocaleString()}</strong>
-                                        {unitCode ? <span>{unitCode}</span> : null}
-                                        <span>sellable</span>
-                                        {totalReserved > 0 ? (
-                                          <span>
-                                            ({totalReserved.toLocaleString()} reserved)
-                                          </span>
-                                        ) : null}
-                                      </>
-                                    )}
-                                  </span>
-                                ) : null}
-                              </div>
+                              <StockAvailabilityHint
+                                isLoading={loadingAvailability}
+                                productId={line.productId}
+                                availabilityData={availabilityData}
+                                sellableQty={sellableQty}
+                                totalAvailable={totalAvailable}
+                                totalReserved={totalReserved}
+                                unitCode={unitCode}
+                              />
                             </label>
                             <label>
                               <span className="form-label">
