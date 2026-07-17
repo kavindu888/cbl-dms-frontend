@@ -11,6 +11,25 @@ function amountTone(value) {
   return Number(value || 0) > 0 ? 'var(--color-amber)' : 'var(--color-teal)'
 }
 
+function returnReasonLabel(reason) {
+  const normalized = String(reason ?? '').toLowerCase()
+  if (normalized === '1' || normalized === 'damaged') return 'Damaged'
+  if (normalized === '2' || normalized === 'expired') return 'Expired'
+  if (normalized === '3' || normalized === 'shortexpiry' || normalized === 'short expire') {
+    return 'Short Expiry'
+  }
+  if (normalized === '4' || normalized === 'unwanted') return 'Unwanted'
+  return reason ? String(reason) : 'Return'
+}
+
+function returnReasonColor(reason) {
+  const label = returnReasonLabel(reason)
+  if (label === 'Damaged') return '#fdba74'
+  if (label === 'Expired') return '#fca5a5'
+  if (label === 'Short Expiry') return 'var(--color-amber)'
+  return 'var(--color-text-muted)'
+}
+
 export default function InvoiceDetailPanel({ invoice, productById }) {
   return (
     <div
@@ -69,8 +88,20 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
             <tbody>
               {(invoice.lines || []).map((line) => {
                 const product = productById[line.productId]
+                const isReturnLine = Boolean(line.isReturnLine)
+
                 return (
-                  <tr key={line.id}>
+                  <tr
+                    key={line.id}
+                    style={
+                      isReturnLine
+                        ? {
+                            borderTop: '1px solid rgba(245, 158, 11, 0.18)',
+                            background: 'rgba(245, 158, 11, 0.07)',
+                          }
+                        : undefined
+                    }
+                  >
                     <td>
                       <div
                         style={{
@@ -85,7 +116,47 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
                         </span>
                         <span className="product-info-sub">
                           {product?.name || 'Unknown Product'}
+                          {isReturnLine ? (
+                            <span
+                              className="mono"
+                              style={{
+                                marginLeft: 7,
+                                padding: '1px 6px',
+                                borderRadius: 999,
+                                border: '1px solid rgba(245, 158, 11, 0.48)',
+                                background: 'rgba(245, 158, 11, 0.14)',
+                                color: 'var(--color-amber)',
+                                fontSize: 10,
+                                fontWeight: 900,
+                              }}
+                            >
+                              RT
+                            </span>
+                          ) : null}
+                          {isReturnLine ? (
+                            <span
+                              style={{
+                                marginLeft: 7,
+                                color: 'var(--color-amber)',
+                                fontSize: 11,
+                                fontWeight: 800,
+                              }}
+                            >
+                              (RT)
+                            </span>
+                          ) : null}
                         </span>
+                        {isReturnLine ? (
+                          <span
+                            style={{
+                              color: returnReasonColor(line.returnReason),
+                              fontSize: 11,
+                              fontWeight: 800,
+                            }}
+                          >
+                            {returnReasonLabel(line.returnReason)}
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="mono">{line.smallestUnitCode || line.unitId || '-'}</td>
@@ -93,7 +164,12 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
                     <td className="mono text-right">{line.quantity}</td>
                     <td className="mono text-right">{line.discountPercent}%</td>
                     <td className="mono text-right">{formatMoney(line.unitPrice)}</td>
-                    <td className="mono text-right font-semibold">{formatMoney(line.lineTotal)}</td>
+                    <td
+                      className="mono text-right font-semibold"
+                      style={isReturnLine ? { color: 'var(--color-amber)', fontWeight: 900 } : undefined}
+                    >
+                      {isReturnLine ? `− ${formatMoney(line.lineTotal)}` : formatMoney(line.lineTotal)}
+                    </td>
                   </tr>
                 )
               })}
@@ -134,6 +210,13 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
         )}
         {Number(invoice.totalReturnAmount || 0) > 0 && (
           <SummaryRow label="Returns" value={formatMoney(invoice.totalReturnAmount)} />
+        )}
+        {Number(invoice.returnCreditAmount || 0) > 0 && (
+          <SummaryRow
+            label="Returns Credit"
+            value={`− ${formatMoney(invoice.returnCreditAmount)}`}
+            valueColor="var(--color-amber)"
+          />
         )}
         <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 3, paddingTop: 10 }}>
           <SummaryRow label="Net" value={formatMoney(invoice.netAmount)} strong />
