@@ -33,3 +33,6 @@ export const getExpiringBatches = (withinDays = 30) => inventoryAxios.get('/stoc
 export const getStockMovements = (params) => inventoryAxios.get('/stock/movements', { params })
 export const getLastBatchCost = (productId) => inventoryAxios.get(`/stock/last-cost/${productId}`)
 export const getLastPrices = (productId) => inventoryAxios.get(`/stock/last-prices/${productId}`)
+
+// Opening Stock
+export const recordOpeningStock = (data) => inventoryAxios.post('/stock/opening-stock', data)

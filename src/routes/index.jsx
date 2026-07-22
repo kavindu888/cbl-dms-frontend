@@ -51,6 +51,7 @@ import ReturnStockPage from '@pages/inventory/ReturnStock/ReturnStockPage'
 import InStoreReturnCreatePage from '@pages/inventory/InStoreReturns/InStoreReturnCreatePage'
 import InStoreReturnDetailPage from '@pages/inventory/InStoreReturns/InStoreReturnDetailPage'
 import InStoreReturnListPage from '@pages/inventory/InStoreReturns/InStoreReturnListPage'
+import OpeningStockPage from '@pages/inventory/OpeningStock/OpeningStockPage'
 import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
 import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
 import StockAuditPage from '@pages/inventory/StockAudit/StockAuditPage'
@@ -200,6 +201,10 @@ export const router = createBrowserRouter([
           <StockOverviewPage />,
           PERMISSIONS.inventory.stockRead
         ),
+      },
+      {
+        path: 'inventory/opening-stock',
+        element: requirePermission(<OpeningStockPage />, PERMISSIONS.inventory.openingStock),
       },
       {
         path: 'inventory/return-stock',
@@ -436,5 +441,4 @@ export const router = createBrowserRouter([
     element: <Navigate to="/" replace />,
   },
 ])
-
 

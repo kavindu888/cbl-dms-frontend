@@ -33,6 +33,7 @@
   inventory: {
     stockRead: 'inventory:stock:read',
     stockAdjust: 'inventory:stock:adjust',
+    openingStock: 'inventory:opening-stock:create',
     warehouseManage: 'inventory:warehouse:manage',
     transferCreate: 'inventory:transfer:create',
     stocktakeManage: 'inventory:stocktake:manage',

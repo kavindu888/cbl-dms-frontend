@@ -13,6 +13,7 @@ import {
   CheckSquare,
   Package,
   PackageCheck,
+  PackagePlus,
   PackageX,
   // ArrowLeftRight,
   Warehouse,
@@ -249,6 +250,12 @@ const navGroups = [
         icon: Package,
         end: true,
         permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'Opening Stock',
+        to: '/inventory/opening-stock',
+        icon: PackagePlus,
+        permissions: PERMISSIONS.inventory.openingStock,
       },
       // {
       //   label: 'Staged Returns',
@@ -625,4 +632,3 @@ export default function Sidebar() {
     </Tooltip.Provider>
   )
 }
-
