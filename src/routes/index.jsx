@@ -54,6 +54,7 @@ import InStoreReturnListPage from '@pages/inventory/InStoreReturns/InStoreReturn
 import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
 import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
 import StockAuditPage from '@pages/inventory/StockAudit/StockAuditPage'
+import SalesListPage from '@pages/sales/SalesListPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { PERMISSIONS } from '@/utils/permissions'
 
@@ -343,6 +344,15 @@ export const router = createBrowserRouter([
         element: requirePermission(<CustomerDetailPage />, [
           PERMISSIONS.sales.customerRead,
           PERMISSIONS.sales.customerManage,
+        ]),
+      },
+      {
+        path: 'sales/list',
+        element: requirePermission(<SalesListPage />, [
+          PERMISSIONS.salesOrders.view,
+          PERMISSIONS.salesOrders.create,
+          PERMISSIONS.sales.orderRead,
+          PERMISSIONS.sales.orderCreate,
         ]),
       },
       {

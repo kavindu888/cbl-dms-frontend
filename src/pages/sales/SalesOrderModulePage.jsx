@@ -168,9 +168,8 @@ function StockAvailabilityHint({
 
       {!isLoading && availabilityData ? (
         <span
-          title={`Total available: ${totalAvailable.toLocaleString()}${
-            unitCode ? ` ${unitCode}` : ''
-          }`}
+          title={`Total available: ${totalAvailable.toLocaleString()}${unitCode ? ` ${unitCode}` : ''
+            }`}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -277,8 +276,8 @@ function SearchableSelect({
     const text = query.trim().toLowerCase()
     const filtered = text
       ? options.filter((option) =>
-          `${getLabel(option)} ${getMeta(option)}`.toLowerCase().includes(text)
-        )
+        `${getLabel(option)} ${getMeta(option)}`.toLowerCase().includes(text)
+      )
       : options
 
     return filtered.slice(0, 60)
@@ -871,292 +870,427 @@ export default function SalesOrderModulePage() {
   }
 
   return (
-    <div
-      className="responsive-page"
-      style={{
-        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
-        minHeight: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-        paddingBottom: 16,
-      }}
-    >
-      <div
-        className="responsive-master-detail"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: viewDetail ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 380px',
-          gap: 14,
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
-        <main style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
-          {!viewDetail ? (
-            <>
-              <section className="panel" style={{ padding: 14 }}>
-                <div style={{ position: 'relative', maxWidth: 420, minWidth: 0 }}>
-                  <Search
-                    style={{
-                      position: 'absolute',
-                      left: 12,
-                      top: '50%',
-                      width: 16,
-                      height: 16,
-                      transform: 'translateY(-50%)',
-                      color: 'var(--color-text-dim)',
-                    }}
-                  />
-                  <input
-                    className="form-input"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search orders"
-                    style={{ paddingLeft: 38 }}
-                  />
-                </div>
-              </section>
-
-              <section
-                className="panel"
-                style={{
-                  flex: 1,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  minHeight: 0,
-                }}
-              >
-                <div
-                  style={{
-                    padding: '12px 14px',
-                    borderBottom: '1px solid var(--color-border)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                  }}
-                >
-                  <h2 style={{ fontSize: 15, fontWeight: 800 }}>Sales Orders List</h2>
-                  <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                    {filteredOrders.length} order{filteredOrders.length === 1 ? '' : 's'}
-                  </span>
-                </div>
-
-                <div className="responsive-table-shell" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                  {isLoading ? (
-                    <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>Loading orders...</div>
-                  ) : filteredOrders.length ? (
-                    <table className="data-table product-table-compact" style={{ minWidth: 760 }}>
-                      <thead>
-                        <tr>
-                          <th>Order</th>
-                          <th>Customer</th>
-                          <th>Status</th>
-                          <th style={{ textAlign: 'right' }}>Net</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pagedOrders.map((order) => (
-                          <tr
-                            key={order.id}
-                            onClick={() => {
-                              setSelectedOrderId(order.id)
-                              setViewDetail(true)
-                            }}
-                            style={{
-                              cursor: 'pointer',
-                              background:
-                                order.id === selectedOrderId
-                                  ? 'color-mix(in srgb, var(--color-amber) 10%, transparent)'
-                                  : undefined,
-                            }}
-                          >
-                            <td>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                <span className="mono" style={{ fontWeight: 800 }}>
-                                  {order.orderNumber}
-                                </span>
-                                <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-                                  {formatDate(order.orderDate)}
-                                </span>
-                              </div>
-                            </td>
-                            <td>{order.customerName || customerById[order.customerId]?.name || '-'}</td>
-                            <td>
-                              <StatusBadge status={statusLabel(order.status)} />
-                            </td>
-                            <td className="mono" style={{ textAlign: 'right' }}>
-                              {formatMoney(order.netAmount)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>No sales orders found.</div>
-                  )}
-                </div>
-
-                {filteredOrders.length ? (
-                  <div style={{ padding: '0 12px 10px', flexShrink: 0 }}>
-                    <SimplePagination
-                      page={page}
-                      pageSize={orderPageSize}
-                      totalItems={filteredOrders.length}
-                      onPageChange={setPage}
-                      itemLabel="orders"
-                    />
-                  </div>
-                ) : null}
-              </section>
-            </>
-          ) : (
-            <>
-              {isLoadingDetail ? (
-                <div className="panel" style={{ padding: 24, color: 'var(--color-text-muted)' }}>
-                  Loading order detail...
-                </div>
-              ) : selectedOrder ? (
-                <>
-                  <section className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, flexShrink: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <button
-                          onClick={() => {
-                            setViewDetail(false)
-                            setSelectedOrderId('')
-                          }}
-                          className="button-secondary"
-                          style={{ height: 34, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
-                        >
-                          <ArrowLeft size={15} /> Back
-                        </button>
-                        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>
-                          Sales Order: <span className="mono" style={{ color: 'var(--color-amber)' }}>{selectedOrder.orderNumber}</span>
-                        </h2>
-                      </div>
-                      <StatusBadge status={statusLabel(selectedOrder.status)} />
-                    </div>
-
-                    <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)', margin: 0 }} />
-
-                    <div
-                      className="responsive-field-grid"
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                        gap: 10,
-                      }}
-                    >
-                      <DetailItem label="Customer" value={selectedOrder.customerName || selectedOrder.customerId} />
-                      <DetailItem label="Sales Route" value={salesRouteName || selectedOrder.salesRouteId} />
-                      <DetailItem label="Sales Person" value={salesPersonName || selectedOrder.salesPersonId} />
-                      <DetailItem label="Delivery Date" value={formatDate(selectedOrder.deliveryDate)} />
-                    </div>
-                  </section>
-
+    <div className="responsive-page flex !h-[calc(100dvh-var(--spacing-layout-topbar)-32px)] min-h-0 w-full flex-col gap-3 overflow-x-hidden !overflow-hidden pb-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+        <div
+          className={`responsive-master-detail flex-1 min-h-0 gap-3 ${viewDetail ? 'grid grid-cols-1' : 'grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]'
+            }`}
+        >
+          <main className="order-2 flex min-h-0 min-w-0 flex-col gap-3 xl:order-1">
+            {!viewDetail ? (
+              <>
+                <section className="panel flex min-h-0 flex-col overflow-hidden xl:flex-1">
                   <div
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(0, 1fr) 280px',
-                      gap: 14,
-                      alignItems: 'start',
-                      flex: 1,
-                      minHeight: 0,
+                      padding: '12px 14px',
+                      borderBottom: '1px solid var(--color-border)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                      justifyContent: 'space-between',
+                      gap: 10,
                     }}
                   >
-                    <section
-                      className="panel"
-                      style={{
-                        height: '100%',
-                        minHeight: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        <FileText size={16} color="var(--color-teal)" />
-                        <h3 style={{ fontSize: 15, fontWeight: 800 }}>Order Lines</h3>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <h2 style={{ fontSize: 15, fontWeight: 800 }}>Sales Orders List</h2>
+                        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                          {filteredOrders.length} order{filteredOrders.length === 1 ? '' : 's'}
+                        </span>
                       </div>
-                      <div className="responsive-table-shell" style={{ overflow: 'auto', flex: 1 }}>
-                        <table className="data-table" style={{ minWidth: 820 }}>
-                          <thead>
-                            <tr>
-                              <th>Item / Batch</th>
-                              <th style={{ textAlign: 'right' }}>Qty</th>
-                              <th style={{ textAlign: 'right' }}>Selling Price</th>
-                              <th style={{ textAlign: 'right' }}>Disc %</th>
-                              <th style={{ textAlign: 'right' }}>VAT</th>
-                              <th style={{ textAlign: 'right' }}>Total</th>
-                              {isDraft ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
+                      <div className="relative w-full min-w-0 sm:max-w-[320px]">
+                        <Search
+                          style={{
+                            position: 'absolute',
+                            left: 12,
+                            top: '50%',
+                            width: 16,
+                            height: 16,
+                            transform: 'translateY(-50%)',
+                            color: 'var(--color-text-dim)',
+                          }}
+                        />
+                        <input
+                          className="form-input w-full"
+                          value={search}
+                          onChange={(event) => setSearch(event.target.value)}
+                          placeholder="Search orders"
+                          style={{ paddingLeft: 38 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="responsive-table-shell overflow-x-auto overflow-y-visible xl:flex-1 xl:overflow-auto" style={{ minHeight: 0 }}>
+                    {isLoading ? (
+                      <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>Loading orders...</div>
+                    ) : filteredOrders.length ? (
+                      <table className="data-table product-table-compact" style={{ minWidth: 760 }}>
+                        <thead>
+                          <tr>
+                            <th>Order</th>
+                            <th>Customer</th>
+                            <th>Status</th>
+                            <th style={{ textAlign: 'right' }}>Net</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pagedOrders.map((order) => (
+                            <tr
+                              key={order.id}
+                              onClick={() => {
+                                setSelectedOrderId(order.id)
+                                setViewDetail(true)
+                              }}
+                              style={{
+                                cursor: 'pointer',
+                                background:
+                                  order.id === selectedOrderId
+                                    ? 'color-mix(in srgb, var(--color-amber) 10%, transparent)'
+                                    : undefined,
+                              }}
+                            >
+                              <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <span className="mono" style={{ fontWeight: 800 }}>
+                                    {order.orderNumber}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                                    {formatDate(order.orderDate)}
+                                  </span>
+                                </div>
+                              </td>
+                              <td>{order.customerName || customerById[order.customerId]?.name || '-'}</td>
+                              <td>
+                                <StatusBadge status={statusLabel(order.status)} />
+                              </td>
+                              <td className="mono" style={{ textAlign: 'right' }}>
+                                {formatMoney(order.netAmount)}
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {(selectedOrder.lines || []).length ? (
-                              selectedOrder.lines.map((orderLine) => {
-                                const product = productById[orderLine.productId]
-                                const draft = lineDrafts[orderLine.id] || {}
-                                const lineTotal =
-                                  orderLine.lineTotal > 0
-                                    ? orderLine.lineTotal
-                                    : orderLine.quantity * orderLine.unitPrice * (1 - (orderLine.discountPercent || 0) / 100)
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>No sales orders found.</div>
+                    )}
+                  </div>
 
-                                if (orderLine.isReturnLine) {
-                                  const reasonStyle = returnReasonStyle(orderLine.returnReason)
+                  {filteredOrders.length ? (
+                    <div style={{ padding: '0 12px 10px', flexShrink: 0 }}>
+                      <SimplePagination
+                        page={page}
+                        pageSize={orderPageSize}
+                        totalItems={filteredOrders.length}
+                        onPageChange={setPage}
+                        itemLabel="orders"
+                      />
+                    </div>
+                  ) : null}
+                </section>
+              </>
+            ) : (
+              <>
+                {isLoadingDetail ? (
+                  <div className="panel" style={{ padding: 24, color: 'var(--color-text-muted)' }}>
+                    Loading order detail...
+                  </div>
+                ) : selectedOrder ? (
+                  <>
+              <section className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, flexShrink: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                          <button
+                            onClick={() => {
+                              setViewDetail(false)
+                              setSelectedOrderId('')
+                            }}
+                            className="button-secondary"
+                            style={{ height: 34, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, width: 'fit-content' }}
+                          >
+                            <ArrowLeft size={15} /> Back
+                          </button>
+                          <h2 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>
+                            Sales Order: <span className="mono" style={{ color: 'var(--color-amber)' }}>{selectedOrder.orderNumber}</span>
+                          </h2>
+                        </div>
+                        <StatusBadge status={statusLabel(selectedOrder.status)} />
+                      </div>
 
-                                  return (
-                                    <tr
-                                      key={orderLine.id}
-                                      style={{
-                                        borderTop: '1px solid rgba(245, 158, 11, 0.18)',
-                                        background: 'rgba(245, 158, 11, 0.08)',
-                                      }}
-                                    >
-                                      <td>
-                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                                          <span
-                                            className="mono"
-                                            style={{
-                                              display: 'inline-flex',
-                                              alignItems: 'center',
-                                              height: 22,
-                                              padding: '0 7px',
-                                              borderRadius: 7,
-                                              border: '1px solid rgba(245, 158, 11, 0.45)',
-                                              background: 'rgba(245, 158, 11, 0.14)',
-                                              color: 'var(--color-amber)',
-                                              fontSize: 10,
-                                              fontWeight: 900,
-                                              flexShrink: 0,
-                                            }}
-                                          >
-                                            RT
-                                          </span>
-                                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                            <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
-                                              {product?.sku || orderLine.productId}
-                                            </span>
-                                            <span style={{ fontWeight: 800, color: 'var(--color-text-primary)' }}>
-                                              {product?.name || 'Unknown Product'}
-                                            </span>
+                      <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)', margin: 0 }} />
+
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
+                        <DetailItem label="Customer" value={selectedOrder.customerName || selectedOrder.customerId} />
+                        <DetailItem label="Sales Route" value={salesRouteName || selectedOrder.salesRouteId} />
+                        <DetailItem label="Sales Person" value={salesPersonName || selectedOrder.salesPersonId} />
+                        <DetailItem label="Delivery Date" value={formatDate(selectedOrder.deliveryDate)} />
+                      </div>
+                    </section>
+
+                    <div className="grid flex-1 min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
+                      <section
+                        className="panel min-w-0"
+                        style={{
+                          height: '100%',
+                          minHeight: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          <FileText size={16} color="var(--color-teal)" />
+                          <h3 style={{ fontSize: 15, fontWeight: 800 }}>Order Lines</h3>
+                        </div>
+                        <div className="responsive-table-shell" style={{ overflow: 'auto', flex: 1 }}>
+                          <table className="data-table" style={{ minWidth: 820 }}>
+                            <thead>
+                              <tr>
+                                <th>Item / Batch</th>
+                                <th style={{ textAlign: 'right' }}>Qty</th>
+                                <th style={{ textAlign: 'right' }}>Selling Price</th>
+                                <th style={{ textAlign: 'right' }}>Disc %</th>
+                                <th style={{ textAlign: 'right' }}>VAT</th>
+                                <th style={{ textAlign: 'right' }}>Total</th>
+                                {isDraft ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(selectedOrder.lines || []).length ? (
+                                selectedOrder.lines.map((orderLine) => {
+                                  const product = productById[orderLine.productId]
+                                  const draft = lineDrafts[orderLine.id] || {}
+                                  const lineTotal =
+                                    orderLine.lineTotal > 0
+                                      ? orderLine.lineTotal
+                                      : orderLine.quantity * orderLine.unitPrice * (1 - (orderLine.discountPercent || 0) / 100)
+
+                                  if (orderLine.isReturnLine) {
+                                    const reasonStyle = returnReasonStyle(orderLine.returnReason)
+
+                                    return (
+                                      <tr
+                                        key={orderLine.id}
+                                        style={{
+                                          borderTop: '1px solid rgba(245, 158, 11, 0.18)',
+                                          background: 'rgba(245, 158, 11, 0.08)',
+                                        }}
+                                      >
+                                        <td>
+                                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                                             <span
+                                              className="mono"
                                               style={{
                                                 display: 'inline-flex',
-                                                width: 'fit-content',
-                                                padding: '2px 8px',
-                                                borderRadius: 999,
-                                                border: `1px solid ${reasonStyle.borderColor}`,
-                                                background: reasonStyle.background,
-                                                color: reasonStyle.color,
-                                                fontSize: 11,
-                                                fontWeight: 800,
+                                                alignItems: 'center',
+                                                height: 22,
+                                                padding: '0 7px',
+                                                borderRadius: 7,
+                                                border: '1px solid rgba(245, 158, 11, 0.45)',
+                                                background: 'rgba(245, 158, 11, 0.14)',
+                                                color: 'var(--color-amber)',
+                                                fontSize: 10,
+                                                fontWeight: 900,
+                                                flexShrink: 0,
                                               }}
                                             >
-                                              {returnReasonLabel(orderLine.returnReason)}
+                                              RT
                                             </span>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                              <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                                {product?.sku || orderLine.productId}
+                                              </span>
+                                              <span style={{ fontWeight: 800, color: 'var(--color-text-primary)' }}>
+                                                {product?.name || 'Unknown Product'}
+                                              </span>
+                                              <span
+                                                style={{
+                                                  display: 'inline-flex',
+                                                  width: 'fit-content',
+                                                  padding: '2px 8px',
+                                                  borderRadius: 999,
+                                                  border: `1px solid ${reasonStyle.borderColor}`,
+                                                  background: reasonStyle.background,
+                                                  color: reasonStyle.color,
+                                                  fontSize: 11,
+                                                  fontWeight: 800,
+                                                }}
+                                              >
+                                                {returnReasonLabel(orderLine.returnReason)}
+                                              </span>
+                                            </div>
                                           </div>
+                                        </td>
+                                        <td className="mono" style={{ textAlign: 'right' }}>
+                                          {isDraft ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                                              <input
+                                                className="form-input"
+                                                type="number"
+                                                min="0"
+                                                value={draft.quantity || ''}
+                                                onChange={(event) =>
+                                                  updateLineDraft(orderLine.id, 'quantity', event.target.value)
+                                                }
+                                                style={{ width: 90, height: 32, textAlign: 'right' }}
+                                              />
+                                              <span className="font-mono text-xs text-gray-300">
+                                                {orderLine.smallestUnitCode || 'PCS'}
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <div>
+                                              {orderLine.quantity}{' '}
+                                              <span className="font-mono text-xs text-gray-300">
+                                                {orderLine.smallestUnitCode || 'PCS'}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className="mono" style={{ textAlign: 'right' }}>
+                                          {orderLine.unitPrice > 0 ? (
+                                            <>
+                                              <div className="font-mono" style={{ color: 'var(--color-amber)' }}>
+                                                {formatMoney(orderLine.unitPrice)}
+                                              </div>
+                                              {orderLine.mrp > 0 ? (
+                                                <div className="text-xs text-gray-500 font-mono">
+                                                  MRP: {formatMoney(orderLine.mrp)}
+                                                </div>
+                                              ) : null}
+                                            </>
+                                          ) : (
+                                            <span className="text-gray-500 text-xs">Pending confirm</span>
+                                          )}
+                                        </td>
+                                        <td className="mono" style={{ textAlign: 'right' }}>
+                                          {isDraft ? (
+                                            <input
+                                              className="form-input"
+                                              type="number"
+                                              min="0"
+                                              max="10"
+                                              value={draft.discountPercent || ''}
+                                              onChange={(event) =>
+                                                updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
+                                              }
+                                              style={{ width: 78, height: 32, textAlign: 'right' }}
+                                            />
+                                          ) : (
+                                            `${orderLine.discountPercent}%`
+                                          )}
+                                        </td>
+                                        <td className="mono" style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                                          —
+                                        </td>
+                                        <td
+                                          className="mono"
+                                          style={{
+                                            textAlign: 'right',
+                                            fontWeight: 900,
+                                            color: 'var(--color-amber)',
+                                          }}
+                                        >
+                                          − {formatMoney(lineTotal)}
+                                        </td>
+                                        {isDraft ? (
+                                          <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                            <button
+                                              className="button-secondary"
+                                              type="button"
+                                              disabled={isSaving}
+                                              onClick={() => updateOrderLine(orderLine.id)}
+                                              style={{ height: 30, paddingInline: 10, marginRight: 6 }}
+                                            >
+                                              Save
+                                            </button>
+                                            <button
+                                              className="button-secondary"
+                                              type="button"
+                                              disabled={isSaving}
+                                              onClick={() => removeOrderLine(orderLine.id)}
+                                              style={{ height: 30, paddingInline: 10 }}
+                                            >
+                                              <Trash2 style={{ width: 13, height: 13 }} />
+                                            </button>
+                                          </td>
+                                        ) : null}
+                                      </tr>
+                                    )
+                                  }
+
+                                  if (!isDraft && orderLine.isPicked && orderLine.batchPicks?.length > 0) {
+                                    return (
+                                      <React.Fragment key={orderLine.id}>
+                                        {/* Header row for product name */}
+                                        <tr style={{ background: 'rgba(255, 255, 255, 0.03)' }}>
+                                          <td colSpan={6} style={{ padding: '8px 12px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                              <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                                {product?.sku || orderLine.productId}
+                                              </span>
+                                              <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                                                {product?.name || 'Unknown Product'}
+                                              </span>
+                                              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
+                                                ({orderLine.quantitySmallest} {orderLine.smallestUnitCode || 'PCS'} total)
+                                              </span>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                        {orderLine.batchPicks
+                                          .slice()
+                                          .sort((a, b) => a.pickOrder - b.pickOrder)
+                                          .map((pick) => {
+                                            const pickSellingPrice = pick.sellingPrice ?? Math.round(pick.mrp * (1 - orderLine.discountPercent / 100) * 100) / 100;
+                                            const pickSubtotal = pickSellingPrice * pick.qtyPicked;
+                                            const pickVat = orderLine.isVatApplicable
+                                              ? Math.round(pickSubtotal * 0.18 * 100) / 100
+                                              : 0;
+                                            const pickTotal = pickSubtotal + pickVat;
+
+                                            return (
+                                              <tr key={pick.batchId} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.1)' }}>
+                                                <td style={{ paddingLeft: 24 }}>
+                                                  <span className="mono text-cyan-600" style={{ fontSize: 11 }}>
+                                                    {pick.batchNo || 'No Batch'}
+                                                  </span>
+                                                </td>
+                                                <td className="mono" style={{ textAlign: 'right' }}>
+                                                  {pick.qtyPicked} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
+                                                </td>
+                                                <td className="mono" style={{ textAlign: 'right' }}>
+                                                  <div>{formatMoney(pickSellingPrice)}</div>
+                                                  <div className="text-xs text-gray-500 font-mono">
+                                                    MRP: {formatMoney(pick.mrp)}
+                                                  </div>
+                                                </td>
+                                                <td className="mono" style={{ textAlign: 'right' }}>
+                                                  {orderLine.discountPercent}%
+                                                </td>
+                                                <td className="mono" style={{ textAlign: 'right' }}>
+                                                  {orderLine.isVatApplicable ? formatMoney(pickVat) : '—'}
+                                                </td>
+                                                <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                                                  {formatMoney(pickTotal)}
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                      </React.Fragment>
+                                    );
+                                  }
+
+                                  return (
+                                    <tr key={orderLine.id}>
+                                      <td>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                          <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                            {product?.sku || orderLine.productId}
+                                          </span>
+                                          <span style={{ fontWeight: 700 }}>
+                                            {product?.name || 'Unknown Product'}
+                                          </span>
                                         </div>
                                       </td>
                                       <td className="mono" style={{ textAlign: 'right' }}>
@@ -1178,24 +1312,25 @@ export default function SalesOrderModulePage() {
                                           </div>
                                         ) : (
                                           <div>
-                                            {orderLine.quantity}{' '}
-                                            <span className="font-mono text-xs text-gray-300">
-                                              {orderLine.smallestUnitCode || 'PCS'}
-                                            </span>
+                                            {orderLine.quantity} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
                                           </div>
                                         )}
                                       </td>
                                       <td className="mono" style={{ textAlign: 'right' }}>
                                         {orderLine.unitPrice > 0 ? (
                                           <>
-                                            <div className="font-mono" style={{ color: 'var(--color-amber)' }}>
-                                              {formatMoney(orderLine.unitPrice)}
-                                            </div>
-                                            {orderLine.mrp > 0 ? (
+                                            <div className="font-mono text-white">{formatMoney(orderLine.unitPrice)}</div>
+                                            {isDraft ? (
                                               <div className="text-xs text-gray-500 font-mono">
-                                                MRP: {formatMoney(orderLine.mrp)}
+                                                Draft — final price after confirmation
                                               </div>
-                                            ) : null}
+                                            ) : (
+                                              orderLine.mrp > 0 && (
+                                                <div className="text-xs text-gray-500 font-mono">
+                                                  MRP: {formatMoney(orderLine.mrp)}
+                                                </div>
+                                              )
+                                            )}
                                           </>
                                         ) : (
                                           <span className="text-gray-500 text-xs">Pending confirm</span>
@@ -1218,18 +1353,14 @@ export default function SalesOrderModulePage() {
                                           `${orderLine.discountPercent}%`
                                         )}
                                       </td>
-                                      <td className="mono" style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
-                                        —
+                                      <td className="mono" style={{ textAlign: 'right' }}>
+                                        {isDraft ? '—' : formatMoney(orderLine.vatAmount)}
                                       </td>
-                                      <td
-                                        className="mono"
-                                        style={{
-                                          textAlign: 'right',
-                                          fontWeight: 900,
-                                          color: 'var(--color-amber)',
-                                        }}
-                                      >
-                                        − {formatMoney(lineTotal)}
+                                      <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                                        {orderLine.lineTotal > 0
+                                          ? formatMoney(orderLine.lineTotal)
+                                          : formatMoney(orderLine.quantity * orderLine.unitPrice * (1 - (orderLine.discountPercent || 0) / 100))
+                                        }
                                       </td>
                                       {isDraft ? (
                                         <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -1254,554 +1385,406 @@ export default function SalesOrderModulePage() {
                                         </td>
                                       ) : null}
                                     </tr>
-                                  )
-                                }
-
-                                if (!isDraft && orderLine.isPicked && orderLine.batchPicks?.length > 0) {
-                                  return (
-                                    <React.Fragment key={orderLine.id}>
-                                      {/* Header row for product name */}
-                                      <tr style={{ background: 'rgba(255, 255, 255, 0.03)' }}>
-                                        <td colSpan={6} style={{ padding: '8px 12px' }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
-                                              {product?.sku || orderLine.productId}
-                                            </span>
-                                            <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                                              {product?.name || 'Unknown Product'}
-                                            </span>
-                                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
-                                              ({orderLine.quantitySmallest} {orderLine.smallestUnitCode || 'PCS'} total)
-                                            </span>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                      {orderLine.batchPicks
-                                        .slice()
-                                        .sort((a, b) => a.pickOrder - b.pickOrder)
-                                        .map((pick) => {
-                                          const pickSellingPrice = pick.sellingPrice ?? Math.round(pick.mrp * (1 - orderLine.discountPercent / 100) * 100) / 100;
-                                          const pickSubtotal = pickSellingPrice * pick.qtyPicked;
-                                          const pickVat = orderLine.isVatApplicable
-                                            ? Math.round(pickSubtotal * 0.18 * 100) / 100
-                                            : 0;
-                                          const pickTotal = pickSubtotal + pickVat;
-
-                                          return (
-                                            <tr key={pick.batchId} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.1)' }}>
-                                              <td style={{ paddingLeft: 24 }}>
-                                                <span className="mono text-cyan-600" style={{ fontSize: 11 }}>
-                                                  {pick.batchNo || 'No Batch'}
-                                                </span>
-                                              </td>
-                                              <td className="mono" style={{ textAlign: 'right' }}>
-                                                {pick.qtyPicked} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
-                                              </td>
-                                              <td className="mono" style={{ textAlign: 'right' }}>
-                                                <div>{formatMoney(pickSellingPrice)}</div>
-                                                <div className="text-xs text-gray-500 font-mono">
-                                                  MRP: {formatMoney(pick.mrp)}
-                                                </div>
-                                              </td>
-                                              <td className="mono" style={{ textAlign: 'right' }}>
-                                                {orderLine.discountPercent}%
-                                              </td>
-                                              <td className="mono" style={{ textAlign: 'right' }}>
-                                                {orderLine.isVatApplicable ? formatMoney(pickVat) : '—'}
-                                              </td>
-                                              <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-                                                {formatMoney(pickTotal)}
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                    </React.Fragment>
                                   );
-                                }
+                                })
+                              ) : (
+                                <tr>
+                                  <td colSpan={isDraft ? 7 : 6} style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24 }}>
+                                    No order lines added yet.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
 
-                                return (
-                                  <tr key={orderLine.id}>
-                                    <td>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                        <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
-                                          {product?.sku || orderLine.productId}
-                                        </span>
-                                        <span style={{ fontWeight: 700 }}>
-                                          {product?.name || 'Unknown Product'}
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="mono" style={{ textAlign: 'right' }}>
-                                      {isDraft ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                                          <input
-                                            className="form-input"
-                                            type="number"
-                                            min="0"
-                                            value={draft.quantity || ''}
-                                            onChange={(event) =>
-                                              updateLineDraft(orderLine.id, 'quantity', event.target.value)
-                                            }
-                                            style={{ width: 90, height: 32, textAlign: 'right' }}
-                                          />
-                                          <span className="font-mono text-xs text-gray-300">
-                                            {orderLine.smallestUnitCode || 'PCS'}
-                                          </span>
-                                        </div>
-                                      ) : (
-                                        <div>
-                                          {orderLine.quantity} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
-                                        </div>
-                                      )}
-                                    </td>
-                                    <td className="mono" style={{ textAlign: 'right' }}>
-                                      {orderLine.unitPrice > 0 ? (
-                                        <>
-                                          <div className="font-mono text-white">{formatMoney(orderLine.unitPrice)}</div>
-                                          {isDraft ? (
-                                            <div className="text-xs text-gray-500 font-mono">
-                                              Draft — final price after confirmation
-                                            </div>
-                                          ) : (
-                                            orderLine.mrp > 0 && (
-                                              <div className="text-xs text-gray-500 font-mono">
-                                                MRP: {formatMoney(orderLine.mrp)}
-                                              </div>
-                                            )
-                                          )}
-                                        </>
-                                      ) : (
-                                        <span className="text-gray-500 text-xs">Pending confirm</span>
-                                      )}
-                                    </td>
-                                    <td className="mono" style={{ textAlign: 'right' }}>
-                                      {isDraft ? (
-                                        <input
-                                          className="form-input"
-                                          type="number"
-                                          min="0"
-                                          max="10"
-                                          value={draft.discountPercent || ''}
-                                          onChange={(event) =>
-                                            updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
-                                          }
-                                          style={{ width: 78, height: 32, textAlign: 'right' }}
-                                        />
-                                      ) : (
-                                        `${orderLine.discountPercent}%`
-                                      )}
-                                    </td>
-                                    <td className="mono" style={{ textAlign: 'right' }}>
-                                      {isDraft ? '—' : formatMoney(orderLine.vatAmount)}
-                                    </td>
-                                    <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
-                                      {orderLine.lineTotal > 0
-                                        ? formatMoney(orderLine.lineTotal)
-                                        : formatMoney(orderLine.quantity * orderLine.unitPrice * (1 - (orderLine.discountPercent || 0) / 100))
-                                      }
-                                    </td>
-                                    {isDraft ? (
-                                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                        <button
-                                          className="button-secondary"
-                                          type="button"
-                                          disabled={isSaving}
-                                          onClick={() => updateOrderLine(orderLine.id)}
-                                          style={{ height: 30, paddingInline: 10, marginRight: 6 }}
-                                        >
-                                          Save
-                                        </button>
-                                        <button
-                                          className="button-secondary"
-                                          type="button"
-                                          disabled={isSaving}
-                                          onClick={() => removeOrderLine(orderLine.id)}
-                                          style={{ height: 30, paddingInline: 10 }}
-                                        >
-                                          <Trash2 style={{ width: 13, height: 13 }} />
-                                        </button>
-                                      </td>
-                                    ) : null}
-                                  </tr>
-                                );
-                              })
-                            ) : (
-                              <tr>
-                                <td colSpan={isDraft ? 7 : 6} style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24 }}>
-                                  No order lines added yet.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {isDraft ? (
-                        <div style={{ padding: 12, borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', flexShrink: 0 }}>
-                          <form
-                            onSubmit={addLine}
-                            className="responsive-field-grid"
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns:
-                                'minmax(280px, 1.6fr) minmax(110px, 140px) minmax(110px, 140px) 130px',
-                              gap: 12,
-                              alignItems: 'start',
-                              overflow: 'visible',
-                              border: line.isReturnLine ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent',
-                              borderRadius: 12,
-                              background: line.isReturnLine ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
-                              padding: line.isReturnLine ? 10 : 0,
-                              transition: 'background 160ms ease, border-color 160ms ease, padding 160ms ease',
-                            }}
-                          >
-                            <label style={{ minWidth: 0 }}>
-                              <span
-                                className="form-label"
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  gap: 10,
-                                }}
-                              >
-                                <span>Product</span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setLine((current) => ({
-                                      ...current,
-                                      isReturnLine: !current.isReturnLine,
-                                      returnReason: '',
-                                    }))
-                                  }
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    height: 28,
-                                    padding: '0 10px',
-                                    borderRadius: 9,
-                                    border: line.isReturnLine
-                                      ? '1px solid rgba(245, 158, 11, 0.62)'
-                                      : '1px solid var(--color-border)',
-                                    background: line.isReturnLine
-                                      ? 'rgba(245, 158, 11, 0.18)'
-                                      : 'var(--color-bg-base)',
-                                    color: line.isReturnLine ? 'var(--color-amber)' : 'var(--color-text-muted)',
-                                    fontSize: 11,
-                                    fontWeight: 900,
-                                    letterSpacing: '0.04em',
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  <span aria-hidden="true">{line.isReturnLine ? '↩' : '+'}</span>
-                                  {line.isReturnLine ? 'RETURN' : 'SALE'}
-                                </button>
-                              </span>
-                              {line.isReturnLine ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                    margin: '-2px 0 8px',
-                                    color: 'var(--color-text-muted)',
-                                    fontSize: 11,
-                                  }}
-                                >
-                                  <span style={{ color: 'var(--color-amber)', fontWeight: 900 }}>
-                                    ↩ Return Line
-                                  </span>
-                                  <span>stock adds back to inventory on invoice</span>
-                                </div>
-                              ) : null}
-                              <SearchableSelect
-                                value={line.productId}
-                                onChange={handleProductSelect}
-                                options={products}
-                                placeholder="Search product"
-                                emptyLabel="No products found"
-                                menuPlacement="top"
-                                getLabel={(product) => {
-                                  const sku = product.sku || product.productSku || ''
-                                  const name = product.name || product.productName || ''
-                                  return [sku, name].filter(Boolean).join(' - ') || product.id || ''
-                                }}
-                                getMeta={(product) =>
-                                  [
-                                    product.barcode,
-                                    product.unitCode,
-                                    product.uomBase || product.baseUom,
-                                    product.brandName,
-                                    product.category?.name,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(' • ')
-                                }
-                              />
-                              <StockAvailabilityHint
-                                isLoading={loadingAvailability}
-                                productId={line.productId}
-                                availabilityData={availabilityData}
-                                sellableQty={sellableQty}
-                                totalAvailable={totalAvailable}
-                                totalReserved={totalReserved}
-                                unitCode={unitCode}
-                              />
-                              {line.isReturnLine ? (
-                                <div style={{ marginTop: 10 }}>
-                                  <span className="form-label">Return Reason *</span>
-                                  <select
-                                    className="form-input"
-                                    value={line.returnReason}
-                                    onChange={(event) => updateLine('returnReason', event.target.value)}
+                        {isDraft ? (
+                          <div style={{ padding: 12, borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', flexShrink: 0 }}>
+                            <form
+                              onSubmit={addLine}
+                              className={`responsive-field-grid grid grid-cols-1 gap-3 overflow-visible rounded-xl border transition-[background,border-color,padding] duration-150 lg:grid-cols-[minmax(280px,1.6fr)_minmax(110px,140px)_minmax(110px,140px)_130px] ${line.isReturnLine
+                                  ? 'border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] p-3'
+                                  : 'border-transparent p-0'
+                                }`}
+                            >
+                              <label style={{ minWidth: 0 }}>
+                                <span className="form-label flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                  <span>Product</span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setLine((current) => ({
+                                        ...current,
+                                        isReturnLine: !current.isReturnLine,
+                                        returnReason: '',
+                                      }))
+                                    }
                                     style={{
-                                      height: 38,
-                                      borderColor: 'rgba(245, 158, 11, 0.45)',
-                                      background: 'rgba(10, 10, 16, 0.72)',
-                                      color: 'var(--color-text-primary)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      height: 28,
+                                      padding: '0 10px',
+                                      borderRadius: 9,
+                                      border: line.isReturnLine
+                                        ? '1px solid rgba(245, 158, 11, 0.62)'
+                                        : '1px solid var(--color-border)',
+                                      background: line.isReturnLine
+                                        ? 'rgba(245, 158, 11, 0.18)'
+                                        : 'var(--color-bg-base)',
+                                      color: line.isReturnLine ? 'var(--color-amber)' : 'var(--color-text-muted)',
+                                      fontSize: 11,
+                                      fontWeight: 900,
+                                      letterSpacing: '0.04em',
+                                      cursor: 'pointer',
                                     }}
                                   >
-                                    <option value="">Select reason...</option>
-                                    <option value="1">Damaged → return stock</option>
-                                    <option value="2">Expired → return stock</option>
-                                    <option value="3">Short Expiry → main stock</option>
-                                    <option value="4">Unwanted → main stock</option>
-                                  </select>
+                                    <span aria-hidden="true">{line.isReturnLine ? '↩' : '+'}</span>
+                                    {line.isReturnLine ? 'RETURN' : 'SALE'}
+                                  </button>
+                                </span>
+                                {line.isReturnLine ? (
+                                  <div className="mb-2 mt-0 flex items-center gap-2 text-[11px] text-[var(--color-text-muted)]">
+                                    <span style={{ color: 'var(--color-amber)', fontWeight: 900 }}>
+                                      ↩ Return Line
+                                    </span>
+                                    <span>stock adds back to inventory on invoice</span>
+                                  </div>
+                                ) : null}
+                                <SearchableSelect
+                                  value={line.productId}
+                                  onChange={handleProductSelect}
+                                  options={products}
+                                  placeholder="Search product"
+                                  emptyLabel="No products found"
+                                  menuPlacement="top"
+                                  getLabel={(product) => {
+                                    const sku = product.sku || product.productSku || ''
+                                    const name = product.name || product.productName || ''
+                                    return [sku, name].filter(Boolean).join(' - ') || product.id || ''
+                                  }}
+                                  getMeta={(product) =>
+                                    [
+                                      product.barcode,
+                                      product.unitCode,
+                                      product.uomBase || product.baseUom,
+                                      product.brandName,
+                                      product.category?.name,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' • ')
+                                  }
+                                />
+                                <StockAvailabilityHint
+                                  isLoading={loadingAvailability}
+                                  productId={line.productId}
+                                  availabilityData={availabilityData}
+                                  sellableQty={sellableQty}
+                                  totalAvailable={totalAvailable}
+                                  totalReserved={totalReserved}
+                                  unitCode={unitCode}
+                                />
+                                {line.isReturnLine ? (
+                                  <div style={{ marginTop: 10 }}>
+                                    <span className="form-label">Return Reason *</span>
+                                    <select
+                                      className="form-input"
+                                      value={line.returnReason}
+                                      onChange={(event) => updateLine('returnReason', event.target.value)}
+                                      style={{
+                                        height: 38,
+                                        borderColor: 'rgba(245, 158, 11, 0.45)',
+                                        background: 'rgba(10, 10, 16, 0.72)',
+                                        color: 'var(--color-text-primary)',
+                                      }}
+                                    >
+                                      <option value="">Select reason...</option>
+                                      <option value="1">Damaged → return stock</option>
+                                      <option value="2">Expired → return stock</option>
+                                      <option value="3">Short Expiry → main stock</option>
+                                      <option value="4">Unwanted → main stock</option>
+                                    </select>
+                                  </div>
+                                ) : null}
+                              </label>
+                              <label>
+                                <span className="form-label">
+                                  Qty{unitCode ? ` (${unitCode})` : ''}
+                                </span>
+                                <input
+                                  className={`form-input ${qtyExceedsSellable || noSellableStock ? 'warning' : ''}`}
+                                  type="number"
+                                  min="0"
+                                  value={line.quantity}
+                                  onChange={(event) => updateLine('quantity', event.target.value)}
+                                />
+                                <div className="sellable-qty-message" aria-live="polite">
+                                  {qtyExceedsSellable ? (
+                                    <span className="sellable-qty-warning">
+                                      Exceeds sellable ({sellableQty.toLocaleString()}
+                                      {unitCode ? ` ${unitCode}` : ''})
+                                    </span>
+                                  ) : null}
+                                  {noSellableStock ? (
+                                    <span className="sellable-qty-danger">
+                                      No stock available for this product
+                                    </span>
+                                  ) : null}
                                 </div>
-                              ) : null}
-                            </label>
-                            <label>
-                              <span className="form-label">
-                                Qty{unitCode ? ` (${unitCode})` : ''}
-                              </span>
-                              <input
-                                className={`form-input ${qtyExceedsSellable || noSellableStock ? 'warning' : ''}`}
-                                type="number"
-                                min="0"
-                                value={line.quantity}
-                                onChange={(event) => updateLine('quantity', event.target.value)}
-                              />
-                              <div className="sellable-qty-message" aria-live="polite">
-                                {qtyExceedsSellable ? (
-                                  <span className="sellable-qty-warning">
-                                    Exceeds sellable ({sellableQty.toLocaleString()}
-                                    {unitCode ? ` ${unitCode}` : ''})
-                                  </span>
-                                ) : null}
-                                {noSellableStock ? (
-                                  <span className="sellable-qty-danger">
-                                    No stock available for this product
-                                  </span>
-                                ) : null}
-                              </div>
-                            </label>
-                            <label>
-                              <span className="form-label">Discount %</span>
-                              <input
-                                className="form-input"
-                                type="number"
-                                min="0"
-                                max="10"
-                                value={line.discountPercent}
-                                onChange={(event) => updateLine('discountPercent', event.target.value)}
-                              />
-                            </label>
-                            <button
-                              className="button-primary"
-                              type="submit"
-                              disabled={
-                                isSaving ||
-                                !line.productId ||
-                                !line.quantity ||
-                                lineQtyNumber <= 0 ||
-                                (line.isReturnLine && !line.returnReason)
-                              }
-                              style={{ height: 38, justifyContent: 'center', marginTop: 22 }}
-                            >
-                              <PackagePlus style={{ width: 15, height: 15 }} />
-                              {line.isReturnLine ? 'Add Return' : 'Add Line'}
-                            </button>
-                          </form>
-                        </div>
-                      ) : null}
-                    </section>
-
-                    <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      <section
-                        className="panel"
-                        style={{
-                          padding: 12,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 8,
-                        }}
-                      >
-                        <h3 style={{ fontSize: 15, fontWeight: 800 }}>Totals</h3>
-                        <AmountLine label="Gross" value={gross} />
-                        <AmountLine label="Discount" value={discount} />
-                        <AmountLine label="Supplier Discount" value={supplierDiscount} />
-                        <AmountLine
-                          label="Distributor Discount"
-                          value={distributorDiscount}
-                        />
-                        <AmountLine label="VAT" value={vat} />
-                        {returnCredit > 0 ? (
-                          <AmountLine
-                            label="Returns Credit"
-                            value={returnCredit}
-                            tone="warning"
-                            negative
-                          />
+                              </label>
+                              <label>
+                                <span className="form-label">Discount %</span>
+                                <input
+                                  className="form-input"
+                                  type="number"
+                                  min="0"
+                                  max="10"
+                                  value={line.discountPercent}
+                                  onChange={(event) => updateLine('discountPercent', event.target.value)}
+                                />
+                              </label>
+                              <button
+                                className="button-primary mt-0 lg:mt-6"
+                                type="submit"
+                                disabled={
+                                  isSaving ||
+                                  !line.productId ||
+                                  !line.quantity ||
+                                  lineQtyNumber <= 0 ||
+                                  (line.isReturnLine && !line.returnReason)
+                                }
+                                style={{ height: 38, justifyContent: 'center' }}
+                              >
+                                <PackagePlus style={{ width: 15, height: 15 }} />
+                                {line.isReturnLine ? 'Add Return' : 'Add Line'}
+                              </button>
+                            </form>
+                          </div>
                         ) : null}
-                        <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
-                        <AmountLine label="Net" value={net} strong />
                       </section>
 
-                      <section className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {isDraft ? (
-                            <button
-                              className="button-primary"
-                              type="button"
-                              disabled={isSaving}
-                              onClick={confirmOrder}
-                              style={{ width: '100%' }}
-                            >
-                              <CheckCircle2 style={{ width: 15, height: 15 }} />
-                              Confirm Order
-                            </button>
+                      <aside className="flex min-w-0 flex-col gap-3">
+                        <section
+                          className="panel"
+                          style={{
+                            padding: 12,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                          }}
+                        >
+                          <h3 style={{ fontSize: 15, fontWeight: 800 }}>Totals</h3>
+                          <AmountLine label="Gross" value={gross} />
+                          <AmountLine label="Discount" value={discount} />
+                          <AmountLine label="Supplier Discount" value={supplierDiscount} />
+                          <AmountLine
+                            label="Distributor Discount"
+                            value={distributorDiscount}
+                          />
+                          <AmountLine label="VAT" value={vat} />
+                          {returnCredit > 0 ? (
+                            <AmountLine
+                              label="Returns Credit"
+                              value={returnCredit}
+                              tone="warning"
+                              negative
+                            />
                           ) : null}
+                          <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+                          <AmountLine label="Net" value={net} strong />
+                        </section>
 
-                          {!['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
-                            <form onSubmit={cancelOrder} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <section className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div className="hidden lg:flex lg:flex-col" style={{ gap: 10 }}>
+                            {isDraft ? (
+                              <button
+                                className="button-primary"
+                                type="button"
+                                disabled={isSaving}
+                                onClick={confirmOrder}
+                                style={{ width: '100%' }}
+                              >
+                                <CheckCircle2 style={{ width: 15, height: 15 }} />
+                                Confirm Order
+                              </button>
+                            ) : null}
+
+                            {!['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
+                              <form onSubmit={cancelOrder} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <input
+                                  className="form-input"
+                                  value={cancelReason}
+                                  onChange={(event) => setCancelReason(event.target.value)}
+                                  placeholder="Cancel reason"
+                                />
+                                <button className="button-secondary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
+                                  <XCircle style={{ width: 15, height: 15 }} />
+                                  Cancel Order
+                                </button>
+                              </form>
+                            ) : null}
+                          </div>
+
+                          <div className="grid gap-2 lg:hidden">
+                            {!['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
+                              <form id="sales-order-cancel-form" onSubmit={cancelOrder}>
+                                <input
+                                  className="form-input"
+                                  value={cancelReason}
+                                  onChange={(event) => setCancelReason(event.target.value)}
+                                  placeholder="Cancel reason"
+                                />
+                              </form>
+                            ) : null}
+                            <div className="grid grid-cols-2 gap-2">
+                              {isDraft ? (
+                                <button
+                                  className="button-primary"
+                                  type="button"
+                                  disabled={isSaving}
+                                  onClick={confirmOrder}
+                                  style={{ width: '100%' }}
+                                >
+                                  <CheckCircle2 style={{ width: 15, height: 15 }} />
+                                  Confirm Order
+                                </button>
+                              ) : (
+                                <div />
+                              )}
+
+                              {!['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
+                                <button
+                                  className="button-secondary"
+                                  type="submit"
+                                  form="sales-order-cancel-form"
+                                  disabled={isSaving}
+                                  style={{ width: '100%' }}
+                                >
+                                  <XCircle style={{ width: 15, height: 15 }} />
+                                  Cancel Order
+                                </button>
+                              ) : (
+                                <div />
+                              )}
+                            </div>
+                          </div>
+
+                          {isConfirmed ? (
+                            <form onSubmit={convertToInvoice} style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                              <h3 style={{ fontSize: 14, fontWeight: 800 }}>Convert To Invoice</h3>
                               <input
                                 className="form-input"
-                                value={cancelReason}
-                                onChange={(event) => setCancelReason(event.target.value)}
-                                placeholder="Cancel reason"
+                                value={conversion.vehicleId}
+                                onChange={(event) =>
+                                  setConversion((current) => ({ ...current, vehicleId: event.target.value }))
+                                }
+                                placeholder="Vehicle ID"
                               />
-                              <button className="button-secondary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
-                                <XCircle style={{ width: 15, height: 15 }} />
-                                Cancel Order
+                              <input
+                                className="form-input"
+                                type="date"
+                                value={conversion.dueDate}
+                                onChange={(event) =>
+                                  setConversion((current) => ({ ...current, dueDate: event.target.value }))
+                                }
+                              />
+                              <input
+                                className="form-input"
+                                value={conversion.notes}
+                                onChange={(event) =>
+                                  setConversion((current) => ({ ...current, notes: event.target.value }))
+                                }
+                                placeholder="Invoice notes"
+                              />
+                              <button className="button-primary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
+                                <FileText style={{ width: 15, height: 15 }} />
+                                Convert
                               </button>
                             </form>
                           ) : null}
-                        </div>
-
-                        {isConfirmed ? (
-                          <form onSubmit={convertToInvoice} style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
-                            <h3 style={{ fontSize: 14, fontWeight: 800 }}>Convert To Invoice</h3>
-                            <input
-                              className="form-input"
-                              value={conversion.vehicleId}
-                              onChange={(event) =>
-                                setConversion((current) => ({ ...current, vehicleId: event.target.value }))
-                              }
-                              placeholder="Vehicle ID"
-                            />
-                            <input
-                              className="form-input"
-                              type="date"
-                              value={conversion.dueDate}
-                              onChange={(event) =>
-                                setConversion((current) => ({ ...current, dueDate: event.target.value }))
-                              }
-                            />
-                            <input
-                              className="form-input"
-                              value={conversion.notes}
-                              onChange={(event) =>
-                                setConversion((current) => ({ ...current, notes: event.target.value }))
-                              }
-                              placeholder="Invoice notes"
-                            />
-                            <button className="button-primary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
-                              <FileText style={{ width: 15, height: 15 }} />
-                              Convert
-                            </button>
-                          </form>
-                        ) : null}
-                      </section>
-                    </aside>
+                        </section>
+                      </aside>
+                    </div>
+                  </>
+                ) : (
+                  <div className="panel" style={{ padding: 24, color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                    Select or create a sales order to view details.
                   </div>
-                </>
-              ) : (
-                <div className="panel" style={{ padding: 24, color: 'var(--color-text-muted)', textAlign: 'center' }}>
-                  Select or create a sales order to view details.
+                )}
+              </>
+            )}
+          </main>
+
+          {!viewDetail && (
+            <aside className="order-1" style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+              <section className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)' }}>Sales Orders</h1>
+                  <p style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 13, lineHeight: 1.4 }}>
+                    Create draft orders, manage lines, and convert confirmed orders to invoices.
+                  </p>
                 </div>
-              )}
-            </>
+
+                <form
+                  onSubmit={createOrder}
+                  className="grid grid-cols-1 gap-3"
+                >
+                  <h2 style={{ fontSize: 15, fontWeight: 800 }}>
+                    New Order
+                  </h2>
+                  <label className="min-w-0">
+                    <span className="form-label">Customer</span>
+                    <SearchableSelect
+                      value={header.customerId}
+                      onChange={(customerId) => updateHeader('customerId', customerId)}
+                      options={customers}
+                      placeholder="Search customer"
+                      emptyLabel="No customers found"
+                      getLabel={(customer) =>
+                        [customer.code, customer.name || customer.customerName]
+                          .filter(Boolean)
+                          .join(' - ') ||
+                        customer.id ||
+                        ''
+                      }
+                      getMeta={(customer) =>
+                        [customer.primaryContactPhone, customer.phone, customer.routeName, customer.salesRouteName]
+                          .filter(Boolean)
+                          .join(' ')
+                      }
+                    />
+                  </label>
+                  <label className="min-w-0">
+                    <span className="form-label">Delivery Date</span>
+                    <input
+                      className="form-input"
+                      type="date"
+                      value={header.deliveryDate}
+                      onChange={(event) => updateHeader('deliveryDate', event.target.value)}
+                    />
+                  </label>
+                  <label className="min-w-0">
+                    <span className="form-label">Notes</span>
+                    <input
+                      className="form-input"
+                      value={header.notes}
+                      onChange={(event) => updateHeader('notes', event.target.value)}
+                      placeholder="Optional order notes"
+                    />
+                  </label>
+                  <button
+                    className="button-primary w-full"
+                    type="submit"
+                    disabled={isSaving}
+                  >
+                    <PackagePlus style={{ width: 15, height: 15 }} />
+                    Create Draft Order
+                  </button>
+                </form>
+              </section>
+            </aside>
           )}
-        </main>
-
-        {!viewDetail && (
-          <aside style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
-            <section className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)' }}>Sales Orders</h1>
-                <p style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 13, lineHeight: 1.4 }}>
-                  Create draft orders, manage lines, and convert confirmed orders to invoices.
-                </p>
-              </div>
-
-              <form
-                onSubmit={createOrder}
-                style={{
-                  display: 'grid',
-                  gap: 10,
-                }}
-              >
-                <h2 style={{ fontSize: 15, fontWeight: 800 }}>New Order</h2>
-                <label>
-                  <span className="form-label">Customer</span>
-                  <SearchableSelect
-                    value={header.customerId}
-                    onChange={(customerId) => updateHeader('customerId', customerId)}
-                    options={customers}
-                    placeholder="Search customer"
-                    emptyLabel="No customers found"
-                    getLabel={(customer) =>
-                      [customer.code, customer.name || customer.customerName]
-                        .filter(Boolean)
-                        .join(' - ') ||
-                      customer.id ||
-                      ''
-                    }
-                    getMeta={(customer) =>
-                      [customer.primaryContactPhone, customer.phone, customer.routeName, customer.salesRouteName]
-                        .filter(Boolean)
-                        .join(' ')
-                    }
-                  />
-                </label>
-                <label>
-                  <span className="form-label">Delivery Date</span>
-                  <input
-                    className="form-input"
-                    type="date"
-                    value={header.deliveryDate}
-                    onChange={(event) => updateHeader('deliveryDate', event.target.value)}
-                  />
-                </label>
-                <label>
-                  <span className="form-label">Notes</span>
-                  <input
-                    className="form-input"
-                    value={header.notes}
-                    onChange={(event) => updateHeader('notes', event.target.value)}
-                    placeholder="Optional order notes"
-                  />
-                </label>
-                <button className="button-primary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
-                  <PackagePlus style={{ width: 15, height: 15 }} />
-                  Create Draft Order
-                </button>
-              </form>
-            </section>
-          </aside>
-        )}
+        </div>
       </div>
     </div>
   )

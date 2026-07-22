@@ -48,6 +48,7 @@ const navGroups = [
   {
     label: 'SALES',
     items: [
+      
       {
         label: 'Customer',
         to: '/sales/customers',
@@ -63,6 +64,17 @@ const navGroups = [
       {
         label: 'Sales Orders',
         to: '/sales/orders',
+        icon: ClipboardList,
+        permissions: [
+          PERMISSIONS.salesOrders.view,
+          PERMISSIONS.salesOrders.create,
+          PERMISSIONS.sales.orderRead,
+          PERMISSIONS.sales.orderCreate,
+        ],
+      },
+      {
+        label: 'Sales Orders List',
+        to: '/sales/list',
         icon: ClipboardList,
         permissions: [
           PERMISSIONS.salesOrders.view,
