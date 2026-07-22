@@ -1,4 +1,4 @@
-import { Plus, RotateCcw, Save, Search, Trash2 } from 'lucide-react'
+import { Plus, RotateCcw, Save, Search, Trash2, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -252,6 +252,10 @@ export default function InvoiceCreatorPage() {
   const [loadError, setLoadError] = useState('')
   const [salesRouteName, setSalesRouteName] = useState('')
   const [selectedCustomerDetails, setSelectedCustomerDetails] = useState(null)
+  const [serialNumber, setSerialNumber] = useState('')
+  const [serialNumberWarning, setSerialNumberWarning] = useState(false)
+  const [serialNumberChecking, setSerialNumberChecking] = useState(false)
+  const serialCheckTimeout = useRef(null)
 
   const {
     register,
@@ -338,6 +342,12 @@ export default function InvoiceCreatorPage() {
     }
 
     loadData()
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (serialCheckTimeout.current) clearTimeout(serialCheckTimeout.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -449,6 +459,38 @@ export default function InvoiceCreatorPage() {
     }
   }
 
+  function handleSerialNumberChange(value) {
+    setSerialNumber(value)
+    setSerialNumberWarning(false)
+    setSerialNumberChecking(false)
+
+    if (serialCheckTimeout.current) {
+      clearTimeout(serialCheckTimeout.current)
+    }
+
+    if (!value.trim()) return
+
+    serialCheckTimeout.current = setTimeout(async () => {
+      setSerialNumberChecking(true)
+      try {
+        const result = await salesService.checkSerialNumberExists(value.trim())
+        setSerialNumberWarning(Boolean(result.exists))
+      } catch (error) {
+        console.error('Serial number check failed:', error)
+      } finally {
+        setSerialNumberChecking(false)
+      }
+    }, 600)
+  }
+
+  function handleClear() {
+    if (serialCheckTimeout.current) clearTimeout(serialCheckTimeout.current)
+    setSerialNumber('')
+    setSerialNumberWarning(false)
+    setSerialNumberChecking(false)
+    reset(createDefaultValues())
+  }
+
   function validate(values) {
     if (!values.customerId) return 'Customer is required.'
     if (!values.salesRouteId) return 'Selected customer does not have a sales route.'
@@ -476,6 +518,7 @@ export default function InvoiceCreatorPage() {
 
     const payload = {
       customerId: values.customerId,
+      serialNumber: serialNumber.trim() || null,
       invoiceDate: new Date().toISOString(),
       dueDate: null,
       isTaxInvoice: isCustomerVatRegistered,
@@ -492,11 +535,7 @@ export default function InvoiceCreatorPage() {
     try {
       await salesService.createInvoice(payload)
       toast.success('Invoice created successfully.')
-      reset({
-        customerId: '',
-        salesRouteId: '',
-        lines: [],
-      })
+      handleClear()
       setSelectedCustomerDetails(null)
       setSalesRouteName('')
       setLinePage(1)
@@ -755,6 +794,47 @@ export default function InvoiceCreatorPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
+                  Serial Number
+                </label>
+                <input
+                  className="form-input"
+                  type="text"
+                  maxLength={20}
+                  value={serialNumber}
+                  onChange={(event) => handleSerialNumberChange(event.target.value)}
+                  placeholder="Enter CBL POS serial number"
+                  disabled={isSaving}
+                  style={{ width: '100%', height: 38, fontSize: 13 }}
+                />
+                {serialNumberWarning ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 6,
+                      marginTop: 6,
+                      color: 'var(--color-amber)',
+                    }}
+                  >
+                    <TriangleAlert
+                      aria-hidden="true"
+                      style={{ width: 13, height: 13, marginTop: 1, flex: '0 0 auto' }}
+                    />
+                    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.35 }}>
+                      Serial number {serialNumber} has already been used on another invoice. You
+                      can still save.
+                    </p>
+                  </div>
+                ) : null}
+                {serialNumberChecking ? (
+                  <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    Checking...
+                  </p>
+                ) : null}
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
                   Customer *
                 </label>
                 <input type="hidden" {...register('customerId')} />
@@ -873,7 +953,7 @@ export default function InvoiceCreatorPage() {
             <button
               type="button"
               className="button-secondary"
-              onClick={() => reset(createDefaultValues())}
+              onClick={handleClear}
             >
               <RotateCcw style={{ width: 15, height: 15 }} />
               Clear

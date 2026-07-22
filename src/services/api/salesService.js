@@ -94,6 +94,7 @@ function formatInvoice(invoice) {
     salesPersonId: invoice.salesPersonId ?? '',
     invoiceNumber: invoice.invoiceNumber ?? invoice.id,
     taxInvoiceNumber: invoice.taxInvoiceNumber ?? '',
+    serialNumber: invoice.serialNumber ?? '',
     invoiceDate: invoice.invoiceDate,
     dueDate: invoice.dueDate,
     status: invoice.status ?? 'Unpaid',
@@ -358,6 +359,7 @@ export const salesService = {
   async createInvoice(payload) {
     const response = await api.post('/api/v1/sales/invoices', {
       customerId: payload.customerId,
+      serialNumber: payload.serialNumber || null,
       invoiceDate: payload.invoiceDate,
       dueDate: payload.dueDate ?? null,
       isTaxInvoice: Boolean(payload.isTaxInvoice),
@@ -370,6 +372,16 @@ export const salesService = {
       })),
     })
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
+  },
+
+  async checkSerialNumberExists(serialNumber) {
+    if (!serialNumber?.trim()) return { exists: false }
+
+    const response = await api.get('/api/v1/sales/invoices/check-serial', {
+      params: { serialNumber },
+    })
+
+    return response.data ?? { exists: false }
   },
 
   // Get a single invoice by ID
