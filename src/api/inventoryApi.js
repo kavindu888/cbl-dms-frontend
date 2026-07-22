@@ -11,25 +11,48 @@ const inventoryAxios = {
 export const flagStockForReturn = (data) => inventoryAxios.post('/return-stock/flag', data)
 export const cancelReturnFlag = (id) => inventoryAxios.post(`/return-stock/${id}/cancel`)
 export const listReturnStock = (params) => inventoryAxios.get('/return-stock', { params })
-export const getReturnStockByProduct = (productId) => inventoryAxios.get(`/return-stock/by-product/${productId}`)
-export const getAvailableReturnStockByProduct = (productId) => inventoryAxios.get(`/return-stock/available/${productId}`)
+export const getReturnStockByProduct = (productId) =>
+  inventoryAxios.get(`/return-stock/by-product/${productId}`)
+export const getAvailableReturnStockByProduct = (productId) =>
+  inventoryAxios.get(`/return-stock/available/${productId}`)
 
 // In-Store Returns
 export const createInStoreReturn = (data) => inventoryAxios.post('/in-store-returns', data)
-export const addInStoreReturnLine = (id, data) => inventoryAxios.post(`/in-store-returns/${id}/lines`, data)
-export const removeInStoreReturnLine = (id, lineId) => inventoryAxios.delete(`/in-store-returns/${id}/lines/${lineId}`)
+export const addInStoreReturnLine = (id, data) =>
+  inventoryAxios.post(`/in-store-returns/${id}/lines`, data)
+export const removeInStoreReturnLine = (id, lineId) =>
+  inventoryAxios.delete(`/in-store-returns/${id}/lines/${lineId}`)
 export const submitInStoreReturn = (id) => inventoryAxios.post(`/in-store-returns/${id}/submit`)
-export const approveInStoreReturn = (id, data) => inventoryAxios.post(`/in-store-returns/${id}/approve`, data)
+export const approveInStoreReturn = (id, data) =>
+  inventoryAxios.post(`/in-store-returns/${id}/approve`, data)
 export const applyInStoreReturn = (id) => inventoryAxios.post(`/in-store-returns/${id}/apply`)
-export const cancelInStoreReturn = (id, data) => inventoryAxios.post(`/in-store-returns/${id}/cancel`, data)
+export const cancelInStoreReturn = (id, data) =>
+  inventoryAxios.post(`/in-store-returns/${id}/cancel`, data)
 export const getInStoreReturn = (id) => inventoryAxios.get(`/in-store-returns/${id}`)
 export const listInStoreReturns = (params) => inventoryAxios.get('/in-store-returns', { params })
 
+// Stock Adjustments
+export const createStockAdjustment = (data) => inventoryAxios.post('/stock-adjustments', data)
+export const addStockAdjustmentLine = (id, data) =>
+  inventoryAxios.post(`/stock-adjustments/${id}/lines`, data)
+export const removeStockAdjustmentLine = (id, lineId) =>
+  inventoryAxios.delete(`/stock-adjustments/${id}/lines/${lineId}`)
+export const submitStockAdjustment = (id) => inventoryAxios.post(`/stock-adjustments/${id}/submit`)
+export const approveStockAdjustment = (id) =>
+  inventoryAxios.post(`/stock-adjustments/${id}/approve`)
+export const applyStockAdjustment = (id) => inventoryAxios.post(`/stock-adjustments/${id}/apply`)
+export const cancelStockAdjustment = (id, data) =>
+  inventoryAxios.post(`/stock-adjustments/${id}/cancel`, data)
+export const getStockAdjustment = (id) => inventoryAxios.get(`/stock-adjustments/${id}`)
+export const listStockAdjustments = (params) => inventoryAxios.get('/stock-adjustments', { params })
+
 // Stock
 export const getStockLevels = (params) => inventoryAxios.get('/stock/levels', { params })
-export const getStockAvailability = (productId) => inventoryAxios.get(`/stock/availability/${productId}`)
+export const getStockAvailability = (productId) =>
+  inventoryAxios.get(`/stock/availability/${productId}`)
 export const getStockBatches = (productId) => inventoryAxios.get(`/stock/batches/${productId}`)
-export const getExpiringBatches = (withinDays = 30) => inventoryAxios.get('/stock/batches/expiring', { params: { withinDays } })
+export const getExpiringBatches = (withinDays = 30) =>
+  inventoryAxios.get('/stock/batches/expiring', { params: { withinDays } })
 export const getStockMovements = (params) => inventoryAxios.get('/stock/movements', { params })
 export const getLastBatchCost = (productId) => inventoryAxios.get(`/stock/last-cost/${productId}`)
 export const getLastPrices = (productId) => inventoryAxios.get(`/stock/last-prices/${productId}`)

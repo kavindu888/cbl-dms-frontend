@@ -39,6 +39,8 @@
     stocktakeManage: 'inventory:stocktake:manage',
     inStoreReturnCreate: 'inventory:instorereturn:create',
     inStoreReturnApprove: 'inventory:instorereturn:approve',
+    stockAdjustmentCreate: 'inventory:stock-adjustment:create',
+    stockAdjustmentApprove: 'inventory:stock-adjustment:approve',
   },
   sales: {
     orderCreate: 'sales:order:create',
@@ -141,7 +143,9 @@ function userHasAdminRole(user) {
 
 function hasPermissionToken(user, permission) {
   const userPermissions = getUserPermissions(user)
-  return userHasAdminRole(user) || userPermissions.includes('*') || userPermissions.includes(permission)
+  return (
+    userHasAdminRole(user) || userPermissions.includes('*') || userPermissions.includes(permission)
+  )
 }
 
 export function userHasAnyPermission(user, requiredPermissions) {

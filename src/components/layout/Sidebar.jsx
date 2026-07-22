@@ -20,6 +20,7 @@ import {
   Ruler,
   Search,
   Settings,
+  SlidersHorizontal,
   // Shield,
   ShoppingCart,
   // Store,
@@ -272,6 +273,12 @@ const navGroups = [
           PERMISSIONS.inventory.inStoreReturnApprove,
         ],
       },
+      {
+        label: 'Stock Adjustments',
+        to: '/inventory/stock-adjustments',
+        icon: SlidersHorizontal,
+        permissions: PERMISSIONS.inventory.stockAdjustmentCreate,
+      },
       // {
       //   label: 'Stock Audit',
       //   to: '/inventory/stock-audit',
@@ -446,12 +453,12 @@ export default function Sidebar() {
   const badgeValues = { pendingReturnApprovals }
   const accessibleNavGroups = navGroups
     .map((group) => {
-      const items = group.items.filter((item) => {
-        if (item.isSubHeader) return true
-        return userMeetsPermissionRequirement(user, item.permissions)
-      }).map((item) => (
-        item.badgeKey ? { ...item, badge: badgeValues[item.badgeKey] } : item
-      ))
+      const items = group.items
+        .filter((item) => {
+          if (item.isSubHeader) return true
+          return userMeetsPermissionRequirement(user, item.permissions)
+        })
+        .map((item) => (item.badgeKey ? { ...item, badge: badgeValues[item.badgeKey] } : item))
 
       const cleanedItems = []
       for (let i = 0; i < items.length; i++) {
