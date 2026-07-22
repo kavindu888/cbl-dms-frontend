@@ -55,6 +55,8 @@ import OpeningStockPage from '@pages/inventory/OpeningStock/OpeningStockPage'
 import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
 import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
 import StockAuditPage from '@pages/inventory/StockAudit/StockAuditPage'
+import StockAdjustmentCreatePage from '@pages/inventory/StockAdjustment/StockAdjustmentCreatePage'
+import StockAdjustmentListPage from '@pages/inventory/StockAdjustment/StockAdjustmentListPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { PERMISSIONS } from '@/utils/permissions'
 
@@ -197,10 +199,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'inventory/stock',
-        element: requirePermission(
-          <StockOverviewPage />,
-          PERMISSIONS.inventory.stockRead
-        ),
+        element: requirePermission(<StockOverviewPage />, PERMISSIONS.inventory.stockRead),
       },
       {
         path: 'inventory/opening-stock',
@@ -208,10 +207,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'inventory/return-stock',
-        element: requirePermission(
-          <ReturnStockPage />,
-          PERMISSIONS.inventory.stockRead
-        ),
+        element: requirePermission(<ReturnStockPage />, PERMISSIONS.inventory.stockRead),
       },
       {
         path: 'inventory/in-store-returns',
@@ -235,18 +231,26 @@ export const router = createBrowserRouter([
         ]),
       },
       {
-        path: 'inventory/stock-audit',
+        path: 'inventory/stock-adjustments',
         element: requirePermission(
-          <StockAuditPage />,
-          PERMISSIONS.inventory.stockRead
+          <StockAdjustmentListPage />,
+          PERMISSIONS.inventory.stockAdjustmentCreate
         ),
       },
       {
-        path: 'inventory/stock/batches/:productId',
+        path: 'inventory/stock-adjustments/new',
         element: requirePermission(
-          <StockBatchesDetailPage />,
-          PERMISSIONS.inventory.stockRead
+          <StockAdjustmentCreatePage />,
+          PERMISSIONS.inventory.stockAdjustmentCreate
         ),
+      },
+      {
+        path: 'inventory/stock-audit',
+        element: requirePermission(<StockAuditPage />, PERMISSIONS.inventory.stockRead),
+      },
+      {
+        path: 'inventory/stock/batches/:productId',
+        element: requirePermission(<StockBatchesDetailPage />, PERMISSIONS.inventory.stockRead),
       },
       {
         path: 'inventory/batches',
@@ -441,4 +445,3 @@ export const router = createBrowserRouter([
     element: <Navigate to="/" replace />,
   },
 ])
-
