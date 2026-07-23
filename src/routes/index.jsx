@@ -39,6 +39,7 @@ import InvoiceCreatorPage from '@pages/sales/InvoiceCreatorPage'
 import InvoiceDetailPage from '@pages/sales/InvoiceDetailPage'
 import InvoiceListPage from '@pages/sales/InvoiceListPage'
 import InvoicePaymentRecordPage from '@pages/sales/InvoicePaymentRecordPage'
+import NewSalesOrderPage from '@pages/sales/NewSalesOrderPage'
 import SalesOrderModulePage from '@pages/sales/SalesOrderModulePage'
 import SettingsPage from '@pages/settings/SettingsPage'
 import RolesPermissionsPage from '@pages/users/RolesPermissionsPage'
@@ -354,6 +355,13 @@ export const router = createBrowserRouter([
           PERMISSIONS.sales.orderRead,
           PERMISSIONS.sales.orderCreate,
         ]),
+      },
+      {
+        path: 'sales/orders/new',
+        element: requirePermission(<NewSalesOrderPage />, {
+          all: [PERMISSIONS.sales.orderRead],
+          any: [PERMISSIONS.salesOrders.create, PERMISSIONS.sales.orderCreate],
+        }),
       },
       {
         path: 'sales/orders',

@@ -14,6 +14,7 @@ import {
   Package,
   PackageCheck,
   PackageX,
+  PackagePlus,
   // ArrowLeftRight,
   Warehouse,
   Ruler,
@@ -48,7 +49,7 @@ const navGroups = [
   {
     label: 'SALES',
     items: [
-      
+
       {
         label: 'Customer',
         to: '/sales/customers',
@@ -65,6 +66,7 @@ const navGroups = [
         label: 'Sales Orders',
         to: '/sales/orders',
         icon: ClipboardList,
+        end: true,
         permissions: [
           PERMISSIONS.salesOrders.view,
           PERMISSIONS.salesOrders.create,
@@ -82,6 +84,15 @@ const navGroups = [
           PERMISSIONS.sales.orderRead,
           PERMISSIONS.sales.orderCreate,
         ],
+      },
+      {
+        label: 'New Sales Orders',
+        to: '/sales/orders/new',
+        icon: PackagePlus,
+        permissions: {
+          all: [PERMISSIONS.sales.orderRead],
+          any: [PERMISSIONS.salesOrders.create, PERMISSIONS.sales.orderCreate],
+        },
       },
       {
         label: 'Invoices',
@@ -481,15 +492,15 @@ export default function Sidebar() {
     .filter((group) => Boolean(group))
   const filteredNavGroups = normalizedQuery
     ? accessibleNavGroups
-        .map((group) => {
-          const items = group.items.filter((item) => {
-            if (item.isSubHeader) return false
-            const haystack = `${group.label} ${item.label}`.toLowerCase()
-            return haystack.includes(normalizedQuery)
-          })
-          return items.length ? { ...group, items } : null
+      .map((group) => {
+        const items = group.items.filter((item) => {
+          if (item.isSubHeader) return false
+          const haystack = `${group.label} ${item.label}`.toLowerCase()
+          return haystack.includes(normalizedQuery)
         })
-        .filter((group) => Boolean(group))
+        return items.length ? { ...group, items } : null
+      })
+      .filter((group) => Boolean(group))
     : accessibleNavGroups
   return (
     <Tooltip.Provider>
@@ -637,4 +648,3 @@ export default function Sidebar() {
     </Tooltip.Provider>
   )
 }
-
