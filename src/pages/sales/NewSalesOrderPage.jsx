@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/authStore'
 import { useStockAvailability, useStockBatches } from '@/hooks/useStock'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
@@ -456,8 +457,24 @@ function SearchableSelect({
   )
 }
 
-function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove }) {
-  const itemName = line?.productName || line?.productCode || line?.productId || `Line ${index + 1}`
+function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove, product }) {
+  const itemName =
+    product?.name ||
+    product?.productName ||
+    line?.productName ||
+    line?.productCode ||
+    product?.sku ||
+    product?.productSku ||
+    `Line ${index + 1}`
+  const itemCode = product?.sku || product?.productSku || line?.productCode || line?.productId || '-'
+  const batchLabel =
+    line?.batchNo ||
+    line?.batchNumber ||
+    line?.batchCode ||
+    line?.batchPicks?.[0]?.batchNo ||
+    line?.batchPicks?.[0]?.batchCode ||
+    line?.batchPicks?.[0]?.batchId ||
+    (Array.isArray(line?.batchPicks) && line.batchPicks.length > 1 ? `${line.batchPicks.length} batches` : '')
   const unit = line?.smallestUnitCode || line?.unitCode || line?.unitId || '-'
   const lineTotal =
     line?.lineTotal > 0 ? line.lineTotal : toNumber(line.quantity) * toNumber(line.unitPrice) * (1 - toNumber(line.discountPercent) / 100)
@@ -470,13 +487,16 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove 
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'flex-start',
-            gap: 3,
+            gap: 4,
           }}
         >
-          <span className="product-sku-badge mono">
-            {line?.productCode || line?.productId || '-'}
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+            <span className="product-sku-badge mono">{batchLabel || itemCode}</span>
+            {batchLabel ? <span className="product-info-sub mono">{itemCode}</span> : null}
+          </div>
+          <span className="product-info-sub" style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+            {itemName}
           </span>
-          <span className="product-info-sub">{itemName}</span>
         </div>
       </td>
       <td className="mono text-right">
@@ -583,6 +603,7 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove 
 
 export default function NewSalesOrderPage() {
   const navigate = useNavigate()
+  const sessionUser = useAuthStore((state) => state.user)
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [orders, setOrders] = useState([])
@@ -590,6 +611,7 @@ export default function NewSalesOrderPage() {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [salesRouteName, setSalesRouteName] = useState('')
   const [salesPersonName, setSalesPersonName] = useState('')
+  const [draftSalesRouteName, setDraftSalesRouteName] = useState('')
   const [header, setHeader] = useState(emptyHeader)
   const [line, setLine] = useState(emptyLine)
   const [lineDrafts, setLineDrafts] = useState({})
@@ -612,6 +634,11 @@ export default function NewSalesOrderPage() {
       return map
     }, {})
   }, [products])
+
+  const sessionSalesPersonName =
+    sessionUser?.username || sessionUser?.email || sessionUser?.employeeCode || 'Admin'
+  const selectedCustomer = customerById[header.customerId] || null
+  const draftSalesPersonName = sessionSalesPersonName
 
   const isDraft = selectedOrder?.status === 'Draft'
   const lineQtyNumber = toNumber(line.quantity)
@@ -711,6 +738,40 @@ export default function NewSalesOrderPage() {
       if (preferred) setSelectedOrderId(preferred.id)
     }
   }, [orders, selectedOrderId])
+
+  useEffect(() => {
+    let isCurrent = true
+
+    async function resolveDraftSalesRouteName() {
+      if (!selectedCustomer) {
+        setDraftSalesRouteName('')
+        return
+      }
+
+      if (selectedCustomer.salesRouteName || selectedCustomer.routeName) {
+        setDraftSalesRouteName(selectedCustomer.salesRouteName || selectedCustomer.routeName || '')
+        return
+      }
+
+      if (!selectedCustomer.salesRouteId) {
+        setDraftSalesRouteName('')
+        return
+      }
+
+      try {
+        const route = await masterService.getSalesRoute(selectedCustomer.salesRouteId)
+        if (isCurrent) setDraftSalesRouteName(route?.name || route?.code || '')
+      } catch {
+        if (isCurrent) setDraftSalesRouteName('')
+      }
+    }
+
+    resolveDraftSalesRouteName()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [selectedCustomer])
 
   useEffect(() => {
     if (!selectedOrderId) {
@@ -817,6 +878,8 @@ export default function NewSalesOrderPage() {
       })
       toast.success('Sales order created.')
       setHeader(emptyHeader)
+      setLine(emptyLine)
+      setCancelReason('')
       setSelectedOrderId(created.id)
       await loadOrdersAgain()
     } catch (requestError) {
@@ -941,9 +1004,15 @@ export default function NewSalesOrderPage() {
     try {
       await salesService.cancelSalesOrder(selectedOrder.id, cancelReason.trim())
       toast.success('Sales order cancelled.')
+      setHeader(emptyHeader)
+      setLine(emptyLine)
+      setLineDrafts({})
       setCancelReason('')
+      setSalesRouteName('')
+      setSalesPersonName('')
+      setSelectedOrder(null)
+      setSelectedOrderId('')
       await loadOrdersAgain()
-      setSelectedOrderId(selectedOrder.id)
     } catch (requestError) {
       toast.error(requestError.message || 'Unable to cancel sales order.')
     } finally {
@@ -1004,15 +1073,14 @@ export default function NewSalesOrderPage() {
           <form
             onSubmit={createOrder}
             style={{
-              display: 'flex',
-              flexWrap: 'wrap',
+              display: 'grid',
+              gap: 14,
+              gridTemplateColumns: 'minmax(0,1.35fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,0.9fr) minmax(0,1fr) auto',
               alignItems: 'end',
-              gap: 16,
-              width: '100%',
             }}
           >
-            <div className="w-full md:w-auto md:flex-[0.5_1_40px] min-w-[200px]">
-              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)' }}>
+            <div style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
                 Customer
               </span>
               <SearchableSelect
@@ -1022,12 +1090,42 @@ export default function NewSalesOrderPage() {
                 placeholder="Search customer"
                 emptyLabel="No customers found"
                 getLabel={(customer) => [customer.code, customer.name || customer.customerName].filter(Boolean).join(' - ') || customer.id || ''}
-                getMeta={(customer) => [customer.primaryContactPhone, customer.phone, customer.routeName, customer.salesRouteName].filter(Boolean).join(' ')}
+                getMeta={(customer) =>
+                  [customer.primaryContactPhone, customer.phone, customer.routeName, customer.salesRouteName]
+                    .filter(Boolean)
+                    .join(' ')
+                }
               />
             </div>
 
-            <div className="w-full md:w-[180px]">
-              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)' }}>
+            <div style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
+                Sales Route
+              </span>
+              <input
+                className="form-input"
+                value={draftSalesRouteName}
+                readOnly
+                tabIndex={-1}
+                style={{ height: 40, background: 'rgba(0,0,0,0.12)', cursor: 'not-allowed' }}
+              />
+            </div>
+
+            <div style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
+                Sales Person
+              </span>
+              <input
+                className="form-input"
+                value={draftSalesPersonName}
+                readOnly
+                tabIndex={-1}
+                style={{ height: 40, background: 'rgba(0,0,0,0.12)', cursor: 'not-allowed' }}
+              />
+            </div>
+
+            <div style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
                 Delivery Date
               </span>
               <input
@@ -1035,11 +1133,12 @@ export default function NewSalesOrderPage() {
                 type="date"
                 value={header.deliveryDate}
                 onChange={(event) => updateHeader('deliveryDate', event.target.value)}
+                style={{ height: 40 }}
               />
             </div>
 
-            <div className="w-full md:w-auto md:flex-[1_1_200px] min-w-[150px]">
-              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)' }}>
+            <div style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
                 Notes
               </span>
               <input
@@ -1047,14 +1146,20 @@ export default function NewSalesOrderPage() {
                 value={header.notes}
                 onChange={(event) => updateHeader('notes', event.target.value)}
                 placeholder="Optional order notes"
+                style={{ height: 40 }}
               />
             </div>
 
             <button
-              className="button-primary w-full md:w-auto"
+              className="button-primary"
               type="submit"
-              disabled={isSaving}
-              style={{ height: 40 }}
+              disabled={isSaving || !header.customerId}
+              style={{
+                height: 40,
+                padding: '0 16px',
+                justifyContent: 'center',
+                whiteSpace: 'nowrap',
+              }}
             >
               <PackagePlus className="h-4 w-4" />
               Create Draft Order
@@ -1083,7 +1188,6 @@ export default function NewSalesOrderPage() {
             </div>
           ) : selectedOrder ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0 }}>
-              {/* Header Info */}
               <div
                 style={{
                   display: 'flex',
@@ -1094,70 +1198,26 @@ export default function NewSalesOrderPage() {
                   borderBottom: '1px solid var(--color-border)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/sales/orders')}
-                    style={{
-                      height: 32,
-                      padding: '0 12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      borderRadius: 4,
-                      border: '1px solid var(--color-border)',
-                      background: 'transparent',
-                      color: 'var(--color-text-primary)',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <ArrowLeft style={{ width: 14, height: 14 }} />
-                    Back
-                  </button>
-                  <div>
-                    <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                      Sales Order Details
-                    </h2>
-                    <p style={{ marginTop: 2, fontSize: 11, color: 'var(--color-text-dim)' }}>
-                      <span className="mono" style={{ fontWeight: 700, color: 'var(--color-teal)' }}>
-                        {selectedOrder.orderNumber || '-'}
-                      </span>{' '}
-                      • selected order lines and totals
-                    </p>
-                  </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                    Product Entry
+                  </h2>
+                  <p style={{ marginTop: 2, fontSize: 11, color: 'var(--color-text-dim)' }}>
+                    Add products to the current draft order.
+                  </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <OrderStatusBadge status={selectedOrder.status} />
                 </div>
               </div>
 
-              {/* Order Info Cards */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: 12,
-                  padding: 12,
-                  borderRadius: 8,
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-bg-base)',
-                }}
-              >
-                <FieldCard label="Customer" value={activeCustomerName} />
-                <FieldCard label="Sales Route" value={activeRoutesName} />
-                <FieldCard label="Sales Person" value={activeSalesPerson} />
-                <FieldCard label="Delivery Date" value={formatDate(getDeliveryDate(selectedOrder))} />
-              </div>
               {/* Add Product Form */}
                   {isDraft ? (
                     <div
                       style={{
-                        borderTop: '1px solid var(--color-border)',
-                        background: line.isReturnLine ? 'rgba(245, 158, 11, 0.08)' : 'var(--color-bg-elevated)',
-                        border: line.isReturnLine ? '1px solid rgba(245, 158, 11, 0.35)' : 'none',
-                        borderRadius: line.isReturnLine ? 8 : 0,
+                        background: line.isReturnLine ? 'rgba(245, 158, 11, 0.08)' : 'rgba(226, 246, 252, 0.55)',
+                        border: line.isReturnLine ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(186, 211, 232, 0.9)',
+                        borderRadius: 8,
                         padding: 12,
                         transition: 'background 150ms ease, border-color 150ms ease',
                       }}
@@ -1365,6 +1425,7 @@ export default function NewSalesOrderPage() {
                               key={orderLine.id}
                               line={orderLine}
                               index={index}
+                              product={productById[orderLine.productId]}
                               draft={lineDrafts[orderLine.id] || {}}
                               isDraft={isDraft}
                               onDraftChange={updateLineDraft}
@@ -1468,3 +1529,4 @@ export default function NewSalesOrderPage() {
     </div>
   )
 }
+
