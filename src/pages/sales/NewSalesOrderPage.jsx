@@ -480,8 +480,8 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
     line?.lineTotal > 0 ? line.lineTotal : toNumber(line.quantity) * toNumber(line.unitPrice) * (1 - toNumber(line.discountPercent) / 100)
 
   return (
-    <tr className="hover:bg-bg-elevated/40">
-      <td>
+    <tr className="sales-new-order-line-row hover:bg-bg-elevated/40">
+      <td data-label="Item">
         <div
           style={{
             display: 'flex',
@@ -499,9 +499,10 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
           </span>
         </div>
       </td>
-      <td className="mono text-right">
+      <td className="mono text-right" data-label="Qty">
         {isDraft ? (
           <input
+            className="sales-new-order-line-input"
             style={{
               height: 32,
               width: 80,
@@ -526,12 +527,13 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
           </>
         )}
       </td>
-      <td className="mono text-right">
+      <td className="mono text-right" data-label="Selling Price">
         {formatMoney(line.unitPrice)}
       </td>
-      <td className="mono text-right">
+      <td className="mono text-right" data-label="Disc %">
         {isDraft ? (
           <input
+            className="sales-new-order-line-input"
             style={{
               height: 32,
               width: 60,
@@ -554,14 +556,15 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
           `${line.discountPercent}%`
         )}
       </td>
-      <td className="mono text-right font-semibold">
+      <td className="mono text-right font-semibold" data-label="Total">
         {formatMoney(lineTotal)}
       </td>
       {isDraft ? (
-        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+        <td className="sales-new-order-line-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Actions">
           <button
             type="button"
             onClick={() => onSave(line.id)}
+            className="sales-new-order-line-save"
             style={{
               height: 28,
               padding: '0 10px',
@@ -1036,14 +1039,16 @@ export default function NewSalesOrderPage() {
 
   return (
     <div
-      className="responsive-page"
+      className="responsive-page sales-new-order-page"
       style={{
-        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        height: 'calc(100dvh - var(--spacing-layout-topbar) - 56px)',
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
-        overflow: 'hidden',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch',
       }}
     >
       {/* <div>
@@ -1055,7 +1060,7 @@ export default function NewSalesOrderPage() {
         </p>
       </div> */}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pr-1 pb-4">
+      <div className="sales-new-order-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-visible overscroll-contain pr-1 pb-4">
         {/* Create New Order horizontal form */}
         <div
           className="panel"
@@ -1072,6 +1077,7 @@ export default function NewSalesOrderPage() {
           </h3>
           <form
             onSubmit={createOrder}
+            className="sales-new-order-form-grid"
             style={{
               display: 'grid',
               gap: 14,
@@ -1167,9 +1173,9 @@ export default function NewSalesOrderPage() {
           </form>
         </div>
 
-        {/* Selected Order Details (Full Width) */}
-        <section
-          className="panel responsive-detail-panel"
+      {/* Selected Order Details (Full Width) */}
+      <section
+        className="panel responsive-detail-panel sales-new-order-detail-panel"
           style={{
             padding: 16,
             display: 'flex',
@@ -1179,7 +1185,7 @@ export default function NewSalesOrderPage() {
             minWidth: 0,
             minHeight: 0,
             height: '100%',
-            overflow: 'hidden',
+            overflow: 'visible',
           }}
         >
           {isLoadingDetail ? (
@@ -1214,6 +1220,7 @@ export default function NewSalesOrderPage() {
               {/* Add Product Form */}
                   {isDraft ? (
                     <div
+                      className="sales-new-order-product-panel"
                       style={{
                         background: line.isReturnLine ? 'rgba(245, 158, 11, 0.08)' : 'rgba(226, 246, 252, 0.55)',
                         border: line.isReturnLine ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(186, 211, 232, 0.9)',
@@ -1224,7 +1231,7 @@ export default function NewSalesOrderPage() {
                     >
                       <form
                         onSubmit={addLine}
-                        className="grid grid-cols-1 sm:grid-cols-[minmax(200px,1.6fr)_100px_100px_auto]"
+                        className="sales-new-order-product-form grid grid-cols-1 sm:grid-cols-[minmax(200px,1.6fr)_100px_100px_auto]"
                         style={{
                           gap: 12,
                           alignItems: 'end',
@@ -1367,7 +1374,7 @@ export default function NewSalesOrderPage() {
 
               {/* Content Grid (Order Lines Table + Totals Sidebar) */}
               <div
-                className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
+                className="sales-new-order-content-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
                 style={{
                   gap: 16,
                   flex: 1,
@@ -1404,10 +1411,10 @@ export default function NewSalesOrderPage() {
 
                   {/* Table area */}
                   <div
-                    className="responsive-table-shell"
+                    className="sales-new-order-table-shell responsive-table-shell"
                     style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
                   >
-                    <table className="data-table product-table-compact">
+                    <table className="data-table product-table-compact sales-new-order-lines-table">
                       <thead>
                         <tr>
                           <th>Item</th>
@@ -1446,9 +1453,10 @@ export default function NewSalesOrderPage() {
                 </div>
 
                 {/* Sidebar Cards */}
-                <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <aside className="sales-new-order-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {/* Totals */}
                   <div
+                    className="sales-new-order-actions"
                     style={{
                       borderRadius: 8,
                       border: '1px solid var(--color-border)',
@@ -1490,7 +1498,7 @@ export default function NewSalesOrderPage() {
                         type="button"
                         disabled={isSaving || !selectedOrder}
                         onClick={confirmOrder}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] bg-[#11809f] px-4 text-[13px] font-semibold text-[#08131a] transition hover:bg-[#0d748f] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] bg-[#11809f] px-4 text-[13px] font-semibold text-[#08131a] transition hover:bg-[#0d748f] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer sales-new-order-confirm-button"
                       >
                         <CheckCircle2 className="h-4 w-4" />
                         Confirm Order
@@ -1508,7 +1516,7 @@ export default function NewSalesOrderPage() {
                         <button
                           type="submit"
                           disabled={isSaving}
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] border border-border px-4 text-[13px] font-semibold text-text-primary transition hover:bg-bg-elevated disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] border border-border px-4 text-[13px] font-semibold text-text-primary transition hover:bg-bg-elevated disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer sales-new-order-cancel-button"
                         >
                           <XCircle className="h-4 w-4" />
                           Cancel Order
