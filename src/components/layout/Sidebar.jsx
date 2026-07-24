@@ -6,6 +6,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   FileText,
+  // FileCheck2,
   LayoutDashboard,
   LogOut,
   BadgeCheck,
@@ -15,6 +16,7 @@ import {
   PackageCheck,
   PackagePlus,
   PackageX,
+  Percent,
   // ArrowLeftRight,
   Warehouse,
   Ruler,
@@ -27,6 +29,7 @@ import {
   Tags,
   // Truck,
   Route,
+  // Landmark,
   User,
   UserCog,
   Users,
@@ -106,6 +109,35 @@ const navGroups = [
       },
     ],
   },
+  // {
+  //   label: 'COLLECTIONS',
+  //   items: [
+  //     {
+  //       label: 'Daily Sessions',
+  //       to: '/collections/sessions',
+  //       icon: ClipboardList,
+  //       permissions: [PERMISSIONS.collections.sessionRead, PERMISSIONS.collections.sessionCreate],
+  //     },
+  //     {
+  //       label: 'Cheques',
+  //       to: '/collections/cheques',
+  //       icon: FileCheck2,
+  //       permissions: [PERMISSIONS.collections.chequeRead, PERMISSIONS.collections.chequeManage],
+  //     },
+  //     {
+  //       label: 'Deposit Batches',
+  //       to: '/collections/deposit-batches',
+  //       icon: Landmark,
+  //       permissions: [PERMISSIONS.collections.depositBatchCreate, PERMISSIONS.collections.depositBatchManage],
+  //     },
+  //     {
+  //       label: 'Customer Accounts',
+  //       to: '/collections/customer-accounts',
+  //       icon: Users,
+  //       permissions: [PERMISSIONS.collections.customerAccountRead, PERMISSIONS.collections.customerAccountManage],
+  //     },
+  //   ],
+  // },
   {
     label: 'PURCHASING',
     items: [
@@ -226,6 +258,12 @@ const navGroups = [
         label: 'Category',
         to: '/master/categories',
         icon: Tags,
+        permissions: PERMISSIONS.masterData.categoryManage,
+      },
+      {
+        label: 'Category Discounts',
+        to: '/master/category-discounts',
+        icon: Percent,
         permissions: PERMISSIONS.masterData.categoryManage,
       },
       {
