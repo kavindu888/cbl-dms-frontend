@@ -23,12 +23,10 @@ const emptyLine = {
   productId: '',
   quantity: '',
   discountPercent: '0',
-}
-
-const emptyConversion = {
-  vehicleId: '',
-  dueDate: '',
-  notes: '',
+  grtsPercent: null,
+  isDiscountLocked: false,
+  isReturnLine: false,
+  returnReason: '',
 }
 
 function formatMoney(value) {
@@ -53,6 +51,47 @@ function toNumber(value) {
 
 function statusLabel(status) {
   return String(status || '').replace(/([a-z])([A-Z])/g, '$1 $2')
+}
+
+function returnReasonLabel(reason) {
+  const normalized = String(reason ?? '').toLowerCase()
+  if (normalized === '1' || normalized === 'damaged') return 'Damaged'
+  if (normalized === '2' || normalized === 'expired') return 'Expired'
+  if (normalized === '3' || normalized === 'shortexpiry' || normalized === 'short expire') {
+    return 'Short Expiry'
+  }
+  if (normalized === '4' || normalized === 'unwanted') return 'Unwanted'
+  return reason ? String(reason) : 'Return'
+}
+
+function returnReasonStyle(reason) {
+  const label = returnReasonLabel(reason)
+  if (label === 'Damaged') {
+    return {
+      color: '#fdba74',
+      borderColor: 'rgba(154, 52, 18, 0.65)',
+      background: 'rgba(154, 52, 18, 0.18)',
+    }
+  }
+  if (label === 'Expired') {
+    return {
+      color: '#fca5a5',
+      borderColor: 'rgba(153, 27, 27, 0.65)',
+      background: 'rgba(153, 27, 27, 0.18)',
+    }
+  }
+  if (label === 'Short Expiry') {
+    return {
+      color: 'var(--color-amber)',
+      borderColor: 'rgba(245, 158, 11, 0.45)',
+      background: 'rgba(245, 158, 11, 0.12)',
+    }
+  }
+  return {
+    color: 'var(--color-text-muted)',
+    borderColor: 'var(--color-border)',
+    background: 'rgba(255,255,255,0.04)',
+  }
 }
 
 function DetailItem({ label, value }) {
@@ -371,17 +410,24 @@ function SearchableSelect({
   )
 }
 
-function AmountLine({ label, value, strong = false }) {
+function AmountLine({ label, value, strong = false, tone, negative = false }) {
+  const color =
+    tone === 'warning'
+      ? 'var(--color-amber)'
+      : strong
+        ? 'var(--color-amber)'
+        : undefined
+
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-      <span style={{ color: strong ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+      <span style={{ color: tone === 'warning' ? 'rgba(245, 158, 11, 0.82)' : strong ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
         {label}
       </span>
       <span
         className="mono"
-        style={{ fontWeight: strong ? 800 : 600, color: strong ? 'var(--color-amber)' : undefined }}
+        style={{ fontWeight: strong ? 800 : 600, color }}
       >
-        {formatMoney(value)}
+        {negative ? `− ${formatMoney(value)}` : formatMoney(value)}
       </span>
     </div>
   )
@@ -398,7 +444,6 @@ export default function SalesOrderModulePage() {
   const [header, setHeader] = useState(emptyHeader)
   const [line, setLine] = useState(emptyLine)
   const [lineDrafts, setLineDrafts] = useState({})
-  const [conversion, setConversion] = useState(emptyConversion)
   const [cancelReason, setCancelReason] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -470,16 +515,18 @@ export default function SalesOrderModulePage() {
   const lineQtyNumber = toNumber(line.quantity)
   const hasAvailabilityData = Boolean(availabilityData)
   const qtyExceedsSellable =
-    hasAvailabilityData && Boolean(line.quantity) && lineQtyNumber > sellableQty && sellableQty > 0
+    !line.isReturnLine && hasAvailabilityData && Boolean(line.quantity) && lineQtyNumber > sellableQty && sellableQty > 0
   const noSellableStock =
-    hasAvailabilityData && Boolean(line.quantity) && sellableQty <= 0 && Boolean(line.productId)
+    !line.isReturnLine && hasAvailabilityData && Boolean(line.quantity) && sellableQty <= 0 && Boolean(line.productId)
 
   const computedGross = useMemo(() => {
-    return selectedOrder?.lines?.reduce((sum, l) => sum + (toNumber(l.quantity) * toNumber(l.unitPrice)), 0) ?? 0
+    return selectedOrder?.lines
+      ?.filter((l) => !l.isReturnLine)
+      .reduce((sum, l) => sum + (toNumber(l.quantity) * toNumber(l.unitPrice)), 0) ?? 0
   }, [selectedOrder])
 
   const computedSupplierDiscount = useMemo(() => {
-    return selectedOrder?.lines?.reduce((sum, l) => {
+    return selectedOrder?.lines?.filter((l) => !l.isReturnLine).reduce((sum, l) => {
       const price = toNumber(l.unitPrice)
       const qty = toNumber(l.quantity)
       const disc = toNumber(l.discountPercent)
@@ -489,7 +536,7 @@ export default function SalesOrderModulePage() {
   }, [selectedOrder])
 
   const computedDistributorDiscount = useMemo(() => {
-    return selectedOrder?.lines?.reduce((sum, l) => {
+    return selectedOrder?.lines?.filter((l) => !l.isReturnLine).reduce((sum, l) => {
       const price = toNumber(l.unitPrice)
       const qty = toNumber(l.quantity)
       const disc = toNumber(l.discountPercent)
@@ -501,7 +548,7 @@ export default function SalesOrderModulePage() {
   const computedDiscount = computedSupplierDiscount + computedDistributorDiscount
 
   const computedVat = useMemo(() => {
-    return selectedOrder?.lines?.reduce((sum, l) => {
+    return selectedOrder?.lines?.filter((l) => !l.isReturnLine).reduce((sum, l) => {
       if (!l.isVatApplicable) return sum
       const price = toNumber(l.unitPrice)
       const qty = toNumber(l.quantity)
@@ -511,13 +558,24 @@ export default function SalesOrderModulePage() {
     }, 0) ?? 0
   }, [selectedOrder])
 
-  const computedNet = computedGross - computedDiscount + computedVat
+  const computedReturnCredit = useMemo(() => {
+    return selectedOrder?.lines
+      ?.filter((l) => l.isReturnLine)
+      .reduce((sum, l) => {
+        const lineTotal = toNumber(l.lineTotal)
+        if (lineTotal > 0) return sum + lineTotal
+        return sum + (toNumber(l.quantity) * toNumber(l.unitPrice) * (1 - toNumber(l.discountPercent) / 100))
+      }, 0) ?? 0
+  }, [selectedOrder])
+
+  const computedNet = computedGross - computedDiscount - computedReturnCredit + computedVat
 
   const gross = selectedOrder?.grossAmount > 0 ? selectedOrder.grossAmount : computedGross
   const discount = selectedOrder?.totalDiscountAmount > 0 ? selectedOrder.totalDiscountAmount : computedDiscount
   const supplierDiscount = selectedOrder?.totalSupplierDiscountAmount > 0 ? selectedOrder.totalSupplierDiscountAmount : computedSupplierDiscount
   const distributorDiscount = selectedOrder?.totalDistributorDiscountAmount > 0 ? selectedOrder.totalDistributorDiscountAmount : computedDistributorDiscount
   const vat = selectedOrder?.vatAmount > 0 ? selectedOrder.vatAmount : computedVat
+  const returnCredit = selectedOrder?.returnCreditAmount > 0 ? selectedOrder.returnCreditAmount : computedReturnCredit
   const net = selectedOrder?.netAmount > 0 ? selectedOrder.netAmount : computedNet
 
   async function loadReferenceData() {
@@ -560,12 +618,29 @@ export default function SalesOrderModulePage() {
     setIsLoadingDetail(true)
     try {
       const order = await salesService.getSalesOrder(orderId)
+      console.log('Order detail:', order)
+      console.log('Order lines:', order.lines)
+      console.log('Return line fields:', order.lines?.find((item) => item.isReturnLine))
+      console.log('Line fields:', order.lines?.[0] ? Object.keys(order.lines[0]) : 'no lines')
       setSelectedOrder(order)
+      const discountLocks = await Promise.all(
+        (order.lines || []).map(async (item) => ({
+          id: item.id,
+          grtsPercent: item.isReturnLine ? null : await getGrtsPercentForProduct(item.productId),
+        }))
+      )
+      const discountLockByLineId = discountLocks.reduce((map, item) => {
+        map[item.id] = item.grtsPercent
+        return map
+      }, {})
       setLineDrafts(
         (order.lines || []).reduce((map, item) => {
+          const grtsPercent = discountLockByLineId[item.id] ?? null
           map[item.id] = {
             quantity: String(item.quantity),
             discountPercent: String(item.discountPercent),
+            grtsPercent,
+            isDiscountLocked: !item.isReturnLine && grtsPercent !== null,
           }
           return map
         }, {})
@@ -630,18 +705,52 @@ export default function SalesOrderModulePage() {
   }
 
   function updateLine(field, value) {
+    if (field === 'discountPercent' && line.isDiscountLocked) return
     setLine((current) => ({ ...current, [field]: value }))
   }
 
-  function handleProductSelect(productId) {
+  async function getGrtsPercentForProduct(productId) {
+    if (!productId) return null
+
+    try {
+      const cachedProduct = productById[productId]
+      const product = cachedProduct?.categoryId || cachedProduct?.category?.id
+        ? cachedProduct
+        : await masterService.getProduct(productId)
+      const categoryId = product?.categoryId || product?.category?.id || ''
+
+      return categoryId ? await masterService.getCategoryDiscount(categoryId) : null
+    } catch {
+      return null
+    }
+  }
+
+  async function handleProductSelect(productId) {
+    if (!productId) {
+      setLine((current) => ({
+        ...current,
+        productId: '',
+        quantity: '',
+        discountPercent: '0',
+        grtsPercent: null,
+        isDiscountLocked: false,
+      }))
+      return
+    }
+
+    const grtsPercent = await getGrtsPercentForProduct(productId)
     setLine((current) => ({
       ...current,
       productId,
       quantity: '',
+      discountPercent: String(grtsPercent ?? 0),
+      grtsPercent,
+      isDiscountLocked: !current.isReturnLine && grtsPercent !== null,
     }))
   }
 
   function updateLineDraft(lineId, field, value) {
+    if (field === 'discountPercent' && lineDrafts[lineId]?.isDiscountLocked) return
     setLineDrafts((current) => ({
       ...current,
       [lineId]: {
@@ -691,12 +800,19 @@ export default function SalesOrderModulePage() {
       return
     }
 
+    if (line.isReturnLine && !line.returnReason) {
+      toast.error('Select a return reason.')
+      return
+    }
+
     setIsSaving(true)
     try {
       await salesService.addSalesOrderLine(selectedOrder.id, {
         productId: line.productId,
         quantity: toNumber(line.quantity),
         discountPercent: toNumber(line.discountPercent),
+        isReturnLine: Boolean(line.isReturnLine),
+        returnReason: line.isReturnLine ? Number(line.returnReason) : null,
       })
       toast.success('Order line added.')
       setLine(emptyLine)
@@ -779,25 +895,40 @@ export default function SalesOrderModulePage() {
     }
   }
 
-  async function convertToInvoice(event) {
-    event.preventDefault()
+  function convertToInvoice() {
+    if (!selectedOrder) return
 
-    setIsSaving(true)
-    try {
-      const result = await salesService.convertSalesOrderToInvoice(selectedOrder.id, {
-        vehicleId: conversion.vehicleId.trim() || null,
-        dueDate: toIsoDate(conversion.dueDate),
-        notes: conversion.notes.trim() || null,
-      })
-      toast.success('Sales order converted to invoice.')
-      setConversion(emptyConversion)
-      await loadOrders()
-      if (result.invoiceId) navigate(`/sales/invoices/${result.invoiceId}`)
-    } catch (error) {
-      toast.error(error.message || 'Unable to convert sales order.')
-    } finally {
-      setIsSaving(false)
-    }
+    navigate('/sales/invoices/new', {
+      state: {
+        fromSalesOrder: true,
+        salesOrderId: selectedOrder.id,
+        salesOrderNumber: selectedOrder.orderNumber,
+        customerId: selectedOrder.customerId,
+        customerName: selectedOrder.customerName,
+        salesRouteId: selectedOrder.salesRouteId,
+        salesRouteName,
+        isVatApplicable: selectedOrder.isVatApplicable,
+        customerVatTin: selectedOrder.customerVatTin,
+        deliveryDate: selectedOrder.deliveryDate,
+        lines: (selectedOrder.lines || []).map((orderLine) => {
+          const product = productById[orderLine.productId] || null
+
+          return {
+            productId: orderLine.productId,
+            productName: product?.name || product?.productName || '',
+            productSku: product?.sku || product?.productSku || '',
+            unitId: orderLine.unitId || orderLine.smallestUnitCode || '',
+            smallestUnitName: orderLine.smallestUnitCode || orderLine.unitName || 'PCS',
+            mrp: orderLine.mrp || orderLine.unitPrice || 0,
+            quantity: orderLine.quantity,
+            discountPercent: orderLine.discountPercent,
+            grtsPercent: lineDrafts[orderLine.id]?.grtsPercent ?? null,
+            isReturnLine: Boolean(orderLine.isReturnLine),
+            returnReason: orderLine.returnReason ?? null,
+          }
+        }),
+      },
+    })
   }
 
   return (
@@ -1028,6 +1159,179 @@ export default function SalesOrderModulePage() {
                               selectedOrder.lines.map((orderLine) => {
                                 const product = productById[orderLine.productId]
                                 const draft = lineDrafts[orderLine.id] || {}
+                                const lineTotal =
+                                  orderLine.lineTotal > 0
+                                    ? orderLine.lineTotal
+                                    : orderLine.quantity * orderLine.unitPrice * (1 - (orderLine.discountPercent || 0) / 100)
+
+                                if (orderLine.isReturnLine) {
+                                  const reasonStyle = returnReasonStyle(orderLine.returnReason)
+
+                                  return (
+                                    <tr
+                                      key={orderLine.id}
+                                      style={{
+                                        borderTop: '1px solid rgba(245, 158, 11, 0.18)',
+                                        background: 'rgba(245, 158, 11, 0.08)',
+                                      }}
+                                    >
+                                      <td>
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                          <span
+                                            className="mono"
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              height: 22,
+                                              padding: '0 7px',
+                                              borderRadius: 7,
+                                              border: '1px solid rgba(245, 158, 11, 0.45)',
+                                              background: 'rgba(245, 158, 11, 0.14)',
+                                              color: 'var(--color-amber)',
+                                              fontSize: 10,
+                                              fontWeight: 900,
+                                              flexShrink: 0,
+                                            }}
+                                          >
+                                            RT
+                                          </span>
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                              {product?.sku || orderLine.productId}
+                                            </span>
+                                            <span style={{ fontWeight: 800, color: 'var(--color-text-primary)' }}>
+                                              {product?.name || 'Unknown Product'}
+                                            </span>
+                                            <span
+                                              style={{
+                                                display: 'inline-flex',
+                                                width: 'fit-content',
+                                                padding: '2px 8px',
+                                                borderRadius: 999,
+                                                border: `1px solid ${reasonStyle.borderColor}`,
+                                                background: reasonStyle.background,
+                                                color: reasonStyle.color,
+                                                fontSize: 11,
+                                                fontWeight: 800,
+                                              }}
+                                            >
+                                              {returnReasonLabel(orderLine.returnReason)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      <td className="mono" style={{ textAlign: 'right' }}>
+                                        {isDraft ? (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                                            <input
+                                              className="form-input"
+                                              type="number"
+                                              min="0"
+                                              value={draft.quantity || ''}
+                                              onChange={(event) =>
+                                                updateLineDraft(orderLine.id, 'quantity', event.target.value)
+                                              }
+                                              style={{ width: 90, height: 32, textAlign: 'right' }}
+                                            />
+                                            <span className="font-mono text-xs text-gray-300">
+                                              {orderLine.smallestUnitCode || 'PCS'}
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            {orderLine.quantity}{' '}
+                                            <span className="font-mono text-xs text-gray-300">
+                                              {orderLine.smallestUnitCode || 'PCS'}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="mono" style={{ textAlign: 'right' }}>
+                                        {orderLine.unitPrice > 0 ? (
+                                          <>
+                                            <div className="font-mono" style={{ color: 'var(--color-amber)' }}>
+                                              {formatMoney(orderLine.unitPrice)}
+                                            </div>
+                                            {orderLine.mrp > 0 ? (
+                                              <div className="text-xs text-gray-500 font-mono">
+                                                MRP: {formatMoney(orderLine.mrp)}
+                                              </div>
+                                            ) : null}
+                                          </>
+                                        ) : (
+                                          <span className="text-gray-500 text-xs">Pending confirm</span>
+                                        )}
+                                      </td>
+                                      <td className="mono" style={{ textAlign: 'right' }}>
+                                        {isDraft ? (
+                                          <>
+                                            <input
+                                              className="form-input"
+                                              type="number"
+                                              min="0"
+                                              max="10"
+                                              value={draft.discountPercent || ''}
+                                              onChange={(event) =>
+                                                updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
+                                              }
+                                              readOnly={draft.isDiscountLocked}
+                                              style={{ width: 78, height: 32, textAlign: 'right' }}
+                                            />
+                                            {draft.grtsPercent !== null && draft.grtsPercent !== undefined ? (
+                                              <div
+                                                style={{
+                                                  marginTop: 4,
+                                                  color: 'var(--color-text-muted)',
+                                                  fontSize: 11,
+                                                  whiteSpace: 'nowrap',
+                                                }}
+                                              >
+                                                GRTS default: {draft.grtsPercent}%
+                                              </div>
+                                            ) : null}
+                                          </>
+                                        ) : (
+                                          `${orderLine.discountPercent}%`
+                                        )}
+                                      </td>
+                                      <td className="mono" style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                                        —
+                                      </td>
+                                      <td
+                                        className="mono"
+                                        style={{
+                                          textAlign: 'right',
+                                          fontWeight: 900,
+                                          color: 'var(--color-amber)',
+                                        }}
+                                      >
+                                        − {formatMoney(lineTotal)}
+                                      </td>
+                                      {isDraft ? (
+                                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                          <button
+                                            className="button-secondary"
+                                            type="button"
+                                            disabled={isSaving}
+                                            onClick={() => updateOrderLine(orderLine.id)}
+                                            style={{ height: 30, paddingInline: 10, marginRight: 6 }}
+                                          >
+                                            Save
+                                          </button>
+                                          <button
+                                            className="button-secondary"
+                                            type="button"
+                                            disabled={isSaving}
+                                            onClick={() => removeOrderLine(orderLine.id)}
+                                            style={{ height: 30, paddingInline: 10 }}
+                                          >
+                                            <Trash2 style={{ width: 13, height: 13 }} />
+                                          </button>
+                                        </td>
+                                      ) : null}
+                                    </tr>
+                                  )
+                                }
 
                                 if (!isDraft && orderLine.isPicked && orderLine.batchPicks?.length > 0) {
                                   return (
@@ -1148,17 +1452,43 @@ export default function SalesOrderModulePage() {
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
                                       {isDraft ? (
-                                        <input
-                                          className="form-input"
-                                          type="number"
-                                          min="0"
-                                          max="10"
-                                          value={draft.discountPercent || ''}
-                                          onChange={(event) =>
-                                            updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
-                                          }
-                                          style={{ width: 78, height: 32, textAlign: 'right' }}
-                                        />
+                                        <>
+                                          <input
+                                            className="form-input"
+                                            type="number"
+                                            min="0"
+                                            max="10"
+                                            value={draft.discountPercent || ''}
+                                            onChange={(event) =>
+                                              updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
+                                            }
+                                            readOnly={draft.isDiscountLocked}
+                                            style={{
+                                              width: 78,
+                                              height: 32,
+                                              textAlign: 'right',
+                                              ...(draft.isDiscountLocked
+                                                ? {
+                                                    background: 'rgba(255,255,255,0.05)',
+                                                    color: 'var(--color-text-muted)',
+                                                    cursor: 'not-allowed',
+                                                  }
+                                                : {}),
+                                            }}
+                                          />
+                                          {draft.isDiscountLocked ? (
+                                            <div
+                                              style={{
+                                                marginTop: 4,
+                                                color: 'var(--color-accent)',
+                                                fontSize: 11,
+                                                whiteSpace: 'nowrap',
+                                              }}
+                                            >
+                                              GRTS {draft.grtsPercent}% - locked
+                                            </div>
+                                          ) : null}
+                                        </>
                                       ) : (
                                         `${orderLine.discountPercent}%`
                                       )}
@@ -1220,10 +1550,80 @@ export default function SalesOrderModulePage() {
                               gap: 12,
                               alignItems: 'start',
                               overflow: 'visible',
+                              border: line.isReturnLine ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent',
+                              borderRadius: 12,
+                              background: line.isReturnLine ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                              padding: line.isReturnLine ? 10 : 0,
+                              transition: 'background 160ms ease, border-color 160ms ease, padding 160ms ease',
                             }}
                           >
                             <label style={{ minWidth: 0 }}>
-                              <span className="form-label">Product</span>
+                              <span
+                                className="form-label"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: 10,
+                                }}
+                              >
+                                <span>Product</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setLine((current) => {
+                                      const isReturnLine = !current.isReturnLine
+
+                                      return {
+                                        ...current,
+                                        isReturnLine,
+                                        returnReason: '',
+                                        isDiscountLocked:
+                                          !isReturnLine && current.grtsPercent !== null,
+                                      }
+                                    })
+                                  }
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    height: 28,
+                                    padding: '0 10px',
+                                    borderRadius: 9,
+                                    border: line.isReturnLine
+                                      ? '1px solid rgba(245, 158, 11, 0.62)'
+                                      : '1px solid var(--color-border)',
+                                    background: line.isReturnLine
+                                      ? 'rgba(245, 158, 11, 0.18)'
+                                      : 'var(--color-bg-base)',
+                                    color: line.isReturnLine ? 'var(--color-amber)' : 'var(--color-text-muted)',
+                                    fontSize: 11,
+                                    fontWeight: 900,
+                                    letterSpacing: '0.04em',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <span aria-hidden="true">{line.isReturnLine ? '↩' : '+'}</span>
+                                  {line.isReturnLine ? 'RETURN' : 'SALE'}
+                                </button>
+                              </span>
+                              {line.isReturnLine ? (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    margin: '-2px 0 8px',
+                                    color: 'var(--color-text-muted)',
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  <span style={{ color: 'var(--color-amber)', fontWeight: 900 }}>
+                                    ↩ Return Line
+                                  </span>
+                                  <span>stock adds back to inventory on invoice</span>
+                                </div>
+                              ) : null}
                               <SearchableSelect
                                 value={line.productId}
                                 onChange={handleProductSelect}
@@ -1257,6 +1657,28 @@ export default function SalesOrderModulePage() {
                                 totalReserved={totalReserved}
                                 unitCode={unitCode}
                               />
+                              {line.isReturnLine ? (
+                                <div style={{ marginTop: 10 }}>
+                                  <span className="form-label">Return Reason *</span>
+                                  <select
+                                    className="form-input"
+                                    value={line.returnReason}
+                                    onChange={(event) => updateLine('returnReason', event.target.value)}
+                                    style={{
+                                      height: 38,
+                                      borderColor: 'rgba(245, 158, 11, 0.45)',
+                                      background: 'rgba(10, 10, 16, 0.72)',
+                                      color: 'var(--color-text-primary)',
+                                    }}
+                                  >
+                                    <option value="">Select reason...</option>
+                                    <option value="1">Damaged → return stock</option>
+                                    <option value="2">Expired → return stock</option>
+                                    <option value="3">Short Expiry → main stock</option>
+                                    <option value="4">Unwanted → main stock</option>
+                                  </select>
+                                </div>
+                              ) : null}
                             </label>
                             <label>
                               <span className="form-label">
@@ -1292,7 +1714,40 @@ export default function SalesOrderModulePage() {
                                 max="10"
                                 value={line.discountPercent}
                                 onChange={(event) => updateLine('discountPercent', event.target.value)}
+                                readOnly={line.isDiscountLocked}
+                                style={
+                                  line.isDiscountLocked
+                                    ? {
+                                        background: 'rgba(255,255,255,0.05)',
+                                        color: 'var(--color-text-muted)',
+                                        cursor: 'not-allowed',
+                                      }
+                                    : undefined
+                                }
                               />
+                              {line.isDiscountLocked ? (
+                                <span
+                                  style={{
+                                    display: 'block',
+                                    marginTop: 4,
+                                    color: 'var(--color-accent)',
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  GRTS {line.grtsPercent}% - locked
+                                </span>
+                              ) : line.grtsPercent !== null ? (
+                                <span
+                                  style={{
+                                    display: 'block',
+                                    marginTop: 4,
+                                    color: 'var(--color-text-muted)',
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  GRTS default: {line.grtsPercent}%
+                                </span>
+                              ) : null}
                             </label>
                             <button
                               className="button-primary"
@@ -1301,12 +1756,13 @@ export default function SalesOrderModulePage() {
                                 isSaving ||
                                 !line.productId ||
                                 !line.quantity ||
-                                lineQtyNumber <= 0
+                                lineQtyNumber <= 0 ||
+                                (line.isReturnLine && !line.returnReason)
                               }
                               style={{ height: 38, justifyContent: 'center', marginTop: 22 }}
                             >
                               <PackagePlus style={{ width: 15, height: 15 }} />
-                              Add Line
+                              {line.isReturnLine ? 'Add Return' : 'Add Line'}
                             </button>
                           </form>
                         </div>
@@ -1332,6 +1788,14 @@ export default function SalesOrderModulePage() {
                           value={distributorDiscount}
                         />
                         <AmountLine label="VAT" value={vat} />
+                        {returnCredit > 0 ? (
+                          <AmountLine
+                            label="Returns Credit"
+                            value={returnCredit}
+                            tone="warning"
+                            negative
+                          />
+                        ) : null}
                         <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
                         <AmountLine label="Net" value={net} strong />
                       </section>
@@ -1368,37 +1832,13 @@ export default function SalesOrderModulePage() {
                         </div>
 
                         {isConfirmed ? (
-                          <form onSubmit={convertToInvoice} style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                          <section style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
                             <h3 style={{ fontSize: 14, fontWeight: 800 }}>Convert To Invoice</h3>
-                            <input
-                              className="form-input"
-                              value={conversion.vehicleId}
-                              onChange={(event) =>
-                                setConversion((current) => ({ ...current, vehicleId: event.target.value }))
-                              }
-                              placeholder="Vehicle ID"
-                            />
-                            <input
-                              className="form-input"
-                              type="date"
-                              value={conversion.dueDate}
-                              onChange={(event) =>
-                                setConversion((current) => ({ ...current, dueDate: event.target.value }))
-                              }
-                            />
-                            <input
-                              className="form-input"
-                              value={conversion.notes}
-                              onChange={(event) =>
-                                setConversion((current) => ({ ...current, notes: event.target.value }))
-                              }
-                              placeholder="Invoice notes"
-                            />
-                            <button className="button-primary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
+                            <button className="button-primary" type="button" disabled={isSaving} onClick={convertToInvoice} style={{ width: '100%' }}>
                               <FileText style={{ width: 15, height: 15 }} />
-                              Convert
+                              Convert to Invoice
                             </button>
-                          </form>
+                          </section>
                         ) : null}
                       </section>
                     </aside>

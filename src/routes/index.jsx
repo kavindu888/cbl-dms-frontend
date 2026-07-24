@@ -3,14 +3,18 @@ import { AppShell } from '@components/layout'
 import { Role } from '@/types/auth.types'
 import LoginPage from '@pages/auth/LoginPage'
 import RegisterPage from '@pages/auth/RegisterPage'
-import AgingAnalysisPage from '@pages/collections/AgingAnalysisPage'
-import DailyEntryPage from '@pages/collections/DailyEntryPage'
+import ChequesPage from '@pages/collections/ChequesPage'
+import CollectionSessionDetailPage from '@pages/collections/CollectionSessionDetailPage'
+import CollectionSessionsPage from '@pages/collections/CollectionSessionsPage'
+import CustomerAccountPage from '@pages/collections/CustomerAccountPage'
+import DepositBatchesPage from '@pages/collections/DepositBatchesPage'
 import ReconciliationPage from '@pages/collections/ReconciliationPage'
 import DashboardPage from '@pages/dashboard/DashboardPage'
 import FleetOverviewPage from '@pages/fleet/FleetOverviewPage'
 import VehicleDetailPage from '@pages/fleet/VehicleDetailPage'
 import StockModulePage from '@pages/inventory/StockModulePage'
 import StockBatchesPage from '@pages/inventory/StockBatchesPage'
+import CategoryDiscountList from '@pages/master/CategoryDiscounts/CategoryDiscountList'
 import CategoryListPage from '@pages/master/CategoryListPage'
 import MasterCustomerListPage from '@pages/master/CustomerListPage'
 import Product from '@pages/master/Product'
@@ -301,6 +305,10 @@ export const router = createBrowserRouter([
         element: requirePermission(<CategoryListPage />, PERMISSIONS.masterData.categoryManage),
       },
       {
+        path: 'master/category-discounts',
+        element: requirePermission(<CategoryDiscountList />, PERMISSIONS.masterData.categoryManage),
+      },
+      {
         path: 'master/brands',
         element: <Navigate to="/master/products" replace />,
       },
@@ -381,20 +389,32 @@ export const router = createBrowserRouter([
         path: 'sales/invoices/:id',
         element: requirePermission(<InvoiceDetailPage />, PERMISSIONS.sales.invoiceRead),
       },
+      { path: 'collections', element: <Navigate to="/collections/sessions" replace /> },
+      { path: 'collections/daily', element: <Navigate to="/collections/sessions" replace /> },
+      { path: 'collections/aging', element: <Navigate to="/collections/customer-accounts" replace /> },
       {
-        path: 'collections/daily',
-        element: requirePermission(<DailyEntryPage />, PERMISSIONS.collections.sessionManage),
+        path: 'collections/sessions',
+        element: requirePermission(<CollectionSessionsPage />, [PERMISSIONS.collections.sessionRead, PERMISSIONS.collections.sessionCreate]),
       },
       {
-        path: 'collections/aging',
-        element: requirePermission(<AgingAnalysisPage />, PERMISSIONS.collections.creditManage),
+        path: 'collections/sessions/:id',
+        element: requirePermission(<CollectionSessionDetailPage />, [PERMISSIONS.collections.sessionRead, PERMISSIONS.collections.collectionRead]),
       },
       {
-        path: 'collections/reconciliation',
-        element: requirePermission(<ReconciliationPage />, [
-          PERMISSIONS.collections.cashVerify,
-          PERMISSIONS.collections.chequeProcess,
-        ]),
+        path: 'collections/sessions/:id/reconciliation',
+        element: requirePermission(<ReconciliationPage />, [PERMISSIONS.collections.reconciliationRead, PERMISSIONS.collections.sessionRead]),
+      },
+      {
+        path: 'collections/cheques',
+        element: requirePermission(<ChequesPage />, [PERMISSIONS.collections.chequeRead, PERMISSIONS.collections.chequeManage]),
+      },
+      {
+        path: 'collections/deposit-batches',
+        element: requirePermission(<DepositBatchesPage />, [PERMISSIONS.collections.depositBatchCreate, PERMISSIONS.collections.depositBatchManage]),
+      },
+      {
+        path: 'collections/customer-accounts',
+        element: requirePermission(<CustomerAccountPage />, [PERMISSIONS.collections.customerAccountRead, PERMISSIONS.collections.customerAccountManage]),
       },
       {
         path: 'fleet',

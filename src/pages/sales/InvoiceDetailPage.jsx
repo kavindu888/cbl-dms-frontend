@@ -21,6 +21,19 @@ function invoiceStatusLabel(status) {
   return String(status || '').replace(/([a-z])([A-Z])/g, '$1 $2')
 }
 
+function billReturnReasonLabel(value) {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (normalized === '1' || normalized === 'damage' || normalized === 'damaged') return 'DAMAGE:'
+  if (normalized === '2' || normalized === 'expiry' || normalized === 'expired') return 'EXPIRY:'
+  if (normalized === '3' || normalized === 'short expiry' || normalized === 'shortexpiry') {
+    return 'SHORT EXPIRY:'
+  }
+  if (normalized === '4' || normalized === 'overstock' || normalized === 'unwanted') {
+    return 'OVERSTOCK:'
+  }
+  return value ? String(value) : 'RETURNS:'
+}
+
 function InfoItem({ label, value, subValue, isCode = false }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
@@ -28,11 +41,10 @@ function InfoItem({ label, value, subValue, isCode = false }) {
         className="form-label"
         style={{
           marginBottom: 0,
-          fontSize: '11px',
+          fontSize: 11,
           fontWeight: 600,
           color: 'var(--color-text-dim)',
           textTransform: 'uppercase',
-          letterSpacing: '0.04em',
         }}
       >
         {label}
@@ -53,7 +65,7 @@ function InfoItem({ label, value, subValue, isCode = false }) {
         <span
           className={isCode ? 'mono' : ''}
           style={{
-            fontSize: '13px',
+            fontSize: 13,
             fontWeight: 600,
             color: 'var(--color-text-primary)',
             wordBreak: 'break-word',
@@ -62,11 +74,11 @@ function InfoItem({ label, value, subValue, isCode = false }) {
         >
           {value || '-'}
         </span>
-        {subValue && (
+        {subValue ? (
           <span
             className="mono"
             style={{
-              fontSize: '10px',
+              fontSize: 10,
               color: 'var(--color-text-muted)',
               marginTop: 2,
               wordBreak: 'break-all',
@@ -74,13 +86,13 @@ function InfoItem({ label, value, subValue, isCode = false }) {
           >
             {subValue}
           </span>
-        )}
+        ) : null}
       </div>
     </div>
   )
 }
 
-function AmountRow({ label, value, strong = false, tone }) {
+function AmountRow({ label, value, strong = false, tone, negative = false }) {
   const color =
     tone === 'success'
       ? 'var(--color-teal)'
@@ -98,7 +110,7 @@ function AmountRow({ label, value, strong = false, tone }) {
         {label}
       </span>
       <span className="mono" style={{ color }}>
-        {money(value)}
+        {negative ? `- ${money(value)}` : money(value)}
       </span>
     </div>
   )
@@ -114,11 +126,15 @@ export default function InvoiceDetailPage() {
   const [error, setError] = useState('')
 
   const productById = useMemo(() => {
-    return products.reduce((map, p) => {
-      map[p.id] = p
+    return products.reduce((map, product) => {
+      map[product.id] = product
       return map
     }, {})
   }, [products])
+
+  const normalInvoiceLines = useMemo(() => {
+    return (invoice?.lines || []).filter((line) => !line.isReturnLine)
+  }, [invoice])
 
   async function loadInvoice() {
     setIsLoading(true)
@@ -126,41 +142,40 @@ export default function InvoiceDetailPage() {
 
     try {
       const result = await salesService.getInvoice(id)
+      console.log('Invoice return sections:', result?.returnSections)
       setInvoice(result)
 
-      if (result) {
-        if (result.customerId) {
-          salesService
-            .getCustomer(result.customerId)
-            .then((c) => setCustomerName(c?.name || ''))
-            .catch(() => setCustomerName(''))
-        } else {
-          setCustomerName('')
-        }
-
-        if (result.salesRouteId) {
-          masterService
-            .getSalesRoute(result.salesRouteId)
-            .then((r) => setSalesRouteName(r?.name || ''))
-            .catch(() => setSalesRouteName(''))
-        } else {
-          setSalesRouteName('')
-        }
-
-        const productIds = Array.from(
-          new Set((result.lines || []).map((line) => line.productId).filter(Boolean))
-        )
-
-        Promise.allSettled(productIds.map((productId) => masterService.getProduct(productId)))
-          .then((responses) => {
-            setProducts(
-              responses.flatMap((response) =>
-                response.status === 'fulfilled' && response.value ? [response.value] : []
-              )
-            )
-          })
-          .catch(() => setProducts([]))
+      if (result?.customerId) {
+        salesService
+          .getCustomer(result.customerId)
+          .then((customer) => setCustomerName(customer?.name || ''))
+          .catch(() => setCustomerName(''))
+      } else {
+        setCustomerName('')
       }
+
+      if (result?.salesRouteId) {
+        masterService
+          .getSalesRoute(result.salesRouteId)
+          .then((route) => setSalesRouteName(route?.name || ''))
+          .catch(() => setSalesRouteName(''))
+      } else {
+        setSalesRouteName('')
+      }
+
+      const productIds = Array.from(
+        new Set((result?.lines || []).map((line) => line.productId).filter(Boolean))
+      )
+
+      Promise.allSettled(productIds.map((productId) => masterService.getProduct(productId)))
+        .then((responses) => {
+          setProducts(
+            responses.flatMap((response) =>
+              response.status === 'fulfilled' && response.value ? [response.value] : []
+            )
+          )
+        })
+        .catch(() => setProducts([]))
     } catch (loadError) {
       setError(loadError.message || 'Unable to load invoice.')
       setInvoice(null)
@@ -282,113 +297,47 @@ export default function InvoiceDetailPage() {
 
           <section
             className="panel overflow-hidden"
-            style={{
-              flex: 1,
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
+            style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
           >
             <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border)' }}>
               <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-text-primary)' }}>
-                Invoice Lines
+                Ordered Items
               </h2>
             </div>
             <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              <table className="data-table" style={{ minWidth: 800 }}>
+              <table className="data-table" style={{ minWidth: 760 }}>
                 <thead>
                   <tr>
-                    <th style={{ whiteSpace: 'nowrap' }}>Item</th>
-                    <th style={{ whiteSpace: 'nowrap' }}>Batch</th>
-                    <th style={{ whiteSpace: 'nowrap' }}>Smallest Unit</th>
-                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
-                      MRP
-                    </th>
-                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
-                      Qty
-                    </th>
-                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
-                      Disc %
-                    </th>
-                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
-                      Selling Price
-                    </th>
-                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>
-                      Total
-                    </th>
+                    <th>SKU</th>
+                    <th>UNIT</th>
+                    <th className="text-right">QTY</th>
+                    <th className="text-right">RATE</th>
+                    <th className="text-right">AMOUNT</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(invoice.lines || []).map((line) => {
+                  {normalInvoiceLines.map((line) => {
                     const product = productById[line.productId]
-                    const productSku = product?.sku || line.productId
-                    const productName = product?.name || 'Unknown Product'
+                    const productSku = line.productSku || product?.sku || line.productId
+                    const productName = line.productName || product?.name || 'Unknown Product'
 
                     return (
                       <tr key={line.id}>
-                        <td style={{ verticalAlign: 'middle' }}>
-                          <div
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 3,
-                              alignItems: 'flex-start',
-                            }}
-                          >
-                            <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <div className="mono" style={{ fontSize: 12, color: 'var(--color-accent)' }}>
                               {productSku}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 600,
-                                color: 'var(--color-text-primary)',
-                              }}
-                            >
-                              {productName}
-                            </span>
+                            </div>
+                            <div style={{ fontWeight: 700 }}>{productName}</div>
+                            <div className="mono" style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                              MRP: {money(line.mrp)}
+                            </div>
                           </div>
                         </td>
-                        <td
-                          className="font-mono text-xs text-cyan-600"
-                          style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}
-                        >
-                          {line.batchNo}
-                        </td>
-                        <td
-                          className="text-right mono"
-                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
-                        >
-                          {line.smallestUnitCode || line.unitId || '-'}
-                        </td>
-                        <td
-                          className="text-right mono"
-                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
-                        >
-                          {money(line.mrp)}
-                        </td>
-                        <td
-                          className="text-right mono"
-                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
-                        >
-                          {line.quantity}
-                        </td>
-                        <td
-                          className="text-right mono"
-                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
-                        >
-                          {line.discountPercent}%
-                        </td>
-                        <td
-                          className="text-right mono"
-                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}
-                        >
-                          {money(line.unitPrice)}
-                        </td>
-                        <td
-                          className="text-right mono"
-                          style={{ whiteSpace: 'nowrap', verticalAlign: 'middle', fontWeight: 700 }}
-                        >
+                        <td className="mono">{line.smallestUnitCode || line.unitId || '-'}</td>
+                        <td className="mono text-right">{line.quantity}</td>
+                        <td className="mono text-right">{money(line.unitPrice)}</td>
+                        <td className="mono text-right" style={{ fontWeight: 800 }}>
                           {money(line.lineTotal)}
                         </td>
                       </tr>
@@ -396,6 +345,87 @@ export default function InvoiceDetailPage() {
                   })}
                 </tbody>
               </table>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  borderTop: '1px solid var(--color-border)',
+                  fontWeight: 800,
+                }}
+              >
+                <span>NET TOTAL B/F RETURN</span>
+                <span className="mono">{money(invoice.grossAmount)}</span>
+              </div>
+
+              {(invoice.returnSections || []).map((section) => (
+                <div key={section.reasonLabel} style={{ marginTop: 12 }}>
+                  <div
+                    style={{
+                      padding: '0 12px 6px',
+                      color: 'var(--color-amber)',
+                      fontSize: 13,
+                      fontWeight: 800,
+                    }}
+                  >
+                    {billReturnReasonLabel(section.reasonLabel)}
+                  </div>
+                  <table className="data-table" style={{ minWidth: 760 }}>
+                    <tbody>
+                      {(section.lines || []).map((line, index) => (
+                        <tr
+                          key={`${section.reasonLabel}-${line.productId}-${index}`}
+                          style={{
+                            color: 'var(--color-text-muted)',
+                            textDecoration: 'line-through',
+                          }}
+                        >
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              <div style={{ fontWeight: 700 }}>{line.productName || line.productId}</div>
+                              <div className="mono" style={{ fontSize: 11 }}>
+                                MRP: {money(line.mrp)}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="mono">{line.unitCode || '-'}</td>
+                          <td className="mono text-right">{line.quantity}</td>
+                          <td className="mono text-right">{money(line.sellingPrice)}</td>
+                          <td className="mono text-right">{money(line.lineTotal)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '6px 12px',
+                      color: 'var(--color-amber)',
+                      fontSize: 13,
+                    }}
+                  >
+                    <span>Subtotal</span>
+                    <span className="mono">{money(section.sectionTotal)}</span>
+                  </div>
+                </div>
+              ))}
+
+              {Number(invoice.totalReturnAmount || 0) > 0 ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '6px 12px',
+                    color: 'var(--color-text-muted)',
+                    fontSize: 13,
+                  }}
+                >
+                  <span>REVERSE GRTS</span>
+                  <span className="mono">(0.00)</span>
+                </div>
+              ) : null}
             </div>
           </section>
         </main>
@@ -424,24 +454,14 @@ export default function InvoiceDetailPage() {
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
               <AmountRow label="Gross" value={invoice.grossAmount} />
-              <AmountRow label="Discount" value={invoice.totalDiscountAmount} />
-              {Number(invoice.totalSupplierDiscountAmount || 0) > 0 && (
-                <AmountRow label="Supplier Discount" value={invoice.totalSupplierDiscountAmount} />
-              )}
-              {Number(invoice.totalDistributorDiscountAmount || 0) > 0 && (
-                <AmountRow
-                  label="Distributor Discount"
-                  value={invoice.totalDistributorDiscountAmount}
-                />
-              )}
-              {Number(invoice.totalReturnAmount || 0) > 0 && (
+              {Number(invoice.totalDiscountAmount || 0) > 0 ? (
+                <AmountRow label="SkuDiscount" value={invoice.totalDiscountAmount} />
+              ) : null}
+              {Number(invoice.totalReturnAmount || 0) > 0 ? (
                 <AmountRow label="Returns" value={invoice.totalReturnAmount} />
-              )}
-              {Number(invoice.vatAmount || 0) > 0 && (
-                <AmountRow label="VAT" value={invoice.vatAmount} />
-              )}
+              ) : null}
               <div style={{ borderTop: '1px solid var(--color-border)', margin: '3px 0' }} />
-              <AmountRow label="Net" value={invoice.netAmount} strong />
+              <AmountRow label="Net(Rs)" value={invoice.netAmount} strong />
               <div style={{ borderTop: '1px solid var(--color-border)', margin: '3px 0' }} />
               <AmountRow label="Paid" value={invoice.paidAmount} />
               <AmountRow

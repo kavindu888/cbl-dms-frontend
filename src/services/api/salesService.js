@@ -94,6 +94,7 @@ function formatInvoice(invoice) {
     salesPersonId: invoice.salesPersonId ?? '',
     invoiceNumber: invoice.invoiceNumber ?? invoice.id,
     taxInvoiceNumber: invoice.taxInvoiceNumber ?? '',
+    serialNumber: invoice.serialNumber ?? '',
     invoiceDate: invoice.invoiceDate,
     dueDate: invoice.dueDate,
     status: invoice.status ?? 'Unpaid',
@@ -106,10 +107,25 @@ function formatInvoice(invoice) {
     totalSupplierDiscountAmount: Number(invoice.totalSupplierDiscountAmount ?? 0),
     totalDistributorDiscountAmount: Number(invoice.totalDistributorDiscountAmount ?? 0),
     totalReturnAmount: Number(invoice.totalReturnAmount ?? 0),
+    returnCreditAmount: Number(invoice.returnCreditAmount ?? 0),
     vatAmount: Number(invoice.vatAmount ?? 0),
     netAmount: Number(invoice.netAmount ?? 0),
     paidAmount: Number(invoice.paidAmount ?? 0),
     outstandingAmount: Number(invoice.outstandingAmount ?? 0),
+    returnSections: (invoice.returnSections || []).map((section) => ({
+      reasonLabel: section.reasonLabel ?? '',
+      sectionTotal: Number(section.sectionTotal ?? 0),
+      lines: (section.lines || []).map((line) => ({
+        productId: line.productId ?? '',
+        productSku: line.productSku ?? '',
+        productName: line.productName ?? '',
+        unitCode: line.unitCode ?? line.smallestUnitCode ?? '',
+        quantity: Number(line.quantity ?? 0),
+        mrp: Number(line.mrp ?? 0),
+        sellingPrice: Number(line.sellingPrice ?? line.unitPrice ?? 0),
+        lineTotal: Number(line.lineTotal ?? 0),
+      })),
+    })),
     lines: (invoice.lines || []).map((line) => ({
       id: line.id,
       productId: line.productId ?? '',
@@ -130,6 +146,8 @@ function formatInvoice(invoice) {
       batchId: line.batchId ?? null,
       batchNo: line.batchNo ?? '',
       smallestUnitCode: line.smallestUnitCode ?? '',
+      isReturnLine: Boolean(line.isReturnLine),
+      returnReason: line.returnReason ?? null,
     })),
   }
 }
@@ -348,13 +366,14 @@ export const salesService = {
 
   async convertSalesOrderToInvoice(id, payload) {
     const response = await api.post(`/api/sales/orders/${id}/convert-to-invoice`, payload)
-    return response.data
+    return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
   },
   // Sales invoice related APIs
   // Create a new invoice
   async createInvoice(payload) {
     const response = await api.post('/api/v1/sales/invoices', {
       customerId: payload.customerId,
+      serialNumber: payload.serialNumber || null,
       invoiceDate: payload.invoiceDate,
       dueDate: payload.dueDate ?? null,
       isTaxInvoice: Boolean(payload.isTaxInvoice),
@@ -367,6 +386,16 @@ export const salesService = {
       })),
     })
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
+  },
+
+  async checkSerialNumberExists(serialNumber) {
+    if (!serialNumber?.trim()) return { exists: false }
+
+    const response = await api.get('/api/v1/sales/invoices/check-serial', {
+      params: { serialNumber },
+    })
+
+    return response.data ?? { exists: false }
   },
 
   // Get a single invoice by ID
