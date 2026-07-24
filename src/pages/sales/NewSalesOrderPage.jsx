@@ -292,6 +292,7 @@ function SearchableSelect({
   const selectedLabel = selected ? getLabel(selected) : ''
   const [query, setQuery] = useState(selectedLabel)
   const [open, setOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
 
   useEffect(() => {
     if (selectedLabel) {
@@ -299,94 +300,155 @@ function SearchableSelect({
     } else if (!open) {
       setQuery('')
     }
-  }, [open, selectedLabel])
+  }, [selectedLabel, open])
 
   useEffect(() => {
-    function handleClickOutside(event) {
+    if (!open) return undefined
+
+    function handleOutsideClick(event) {
       if (!containerRef.current?.contains(event.target)) {
         setOpen(false)
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [open])
 
   const filteredOptions = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) return options
+    const text = query.trim().toLowerCase()
+    const filtered = text
+      ? options.filter((option) =>
+        `${getLabel(option)} ${getMeta(option)}`.toLowerCase().includes(text)
+      )
+      : options
 
-    return options.filter((option) => {
-      const label = getLabel(option).toLowerCase()
-      const meta = String(getMeta(option) || '').toLowerCase()
-      return label.includes(normalized) || meta.includes(normalized)
-    })
+    return filtered.slice(0, 60)
   }, [getLabel, getMeta, options, query])
 
-  function choose(option) {
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [query])
+
+  function selectOption(option) {
+    const label = getLabel(option)
     onChange(option.id)
-    setQuery(getLabel(option))
+    setQuery(label)
     setOpen(false)
   }
 
-  return (
-    <div ref={containerRef} className="relative">
-      <div style={{ position: 'relative' }}>
-        <Search
-          style={{
-            pointerEvents: 'none',
-            position: 'absolute',
-            left: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 15,
-            height: 15,
-            color: 'var(--color-text-dim)',
-          }}
-        />
-        <input
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value)
-            setOpen(true)
-          }}
-          onFocus={() => setOpen(true)}
-          placeholder={placeholder}
-          className="form-input"
-          style={{
-            paddingLeft: 36,
-            paddingRight: 36,
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => setOpen((current) => !current)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[4px] p-1 text-text-dim transition hover:bg-bg-elevated hover:text-text-primary"
-          aria-label="Toggle dropdown"
-        >
-          <ChevronDown className="h-4 w-4" />
-        </button>
-      </div>
+  const opensUp = menuPlacement === 'top'
 
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      <Search
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          left: 11,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 14,
+          height: 14,
+          color: 'var(--color-text-muted)',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
+      <input
+        className="form-input"
+        value={query}
+        placeholder={placeholder}
+        autoComplete="off"
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          const nextQuery = event.target.value
+          setQuery(nextQuery)
+          setOpen(true)
+          if (value) onChange('')
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            if (open && filteredOptions[highlightedIndex]) {
+              selectOption(filteredOptions[highlightedIndex])
+            }
+          } else if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setOpen(true)
+            setHighlightedIndex((current) =>
+              Math.min(current + 1, Math.max(filteredOptions.length - 1, 0))
+            )
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            setHighlightedIndex((current) => Math.max(current - 1, 0))
+          } else if (event.key === 'Escape') {
+            setOpen(false)
+            setQuery(selectedLabel)
+          }
+        }}
+        style={{ width: '100%', height: 38, paddingLeft: 32 }}
+      />
       {open ? (
         <div
-          className={`absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-[8px] border border-border bg-bg-surface shadow-[0_24px_48px_rgba(0,0,0,0.18)] ${menuPlacement === 'top' ? 'bottom-full mb-1 mt-0' : ''
-            }`}
+          role="listbox"
+          style={{
+            position: 'absolute',
+            zIndex: 120,
+            top: opensUp ? 'auto' : 'calc(100% + 4px)',
+            bottom: opensUp ? 'calc(100% + 4px)' : 'auto',
+            left: 0,
+            right: 0,
+            maxHeight: 260,
+            overflowY: 'auto',
+            border: '1px solid var(--color-border)',
+            borderRadius: 8,
+            background: 'var(--color-bg-surface)',
+            boxShadow: '0 16px 34px rgba(0, 0, 0, 0.4)',
+          }}
         >
           {filteredOptions.length ? (
-            filteredOptions.map((option) => (
-              <button
-                type="button"
-                key={option.id}
-                onClick={() => choose(option)}
-                className="flex w-full flex-col gap-0.5 border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-bg-base"
-              >
-                <span className="text-[13px] font-semibold text-text-primary">{getLabel(option)}</span>
-                {getMeta(option) ? <span className="text-[11px] text-text-dim">{getMeta(option)}</span> : null}
-              </button>
-            ))
+            filteredOptions.map((option, index) => {
+              const label = getLabel(option)
+              const meta = getMeta(option)
+              const isHighlighted = index === highlightedIndex
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="option"
+                  aria-selected={option.id === value}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    selectOption(option)
+                  }}
+                  style={{
+                    display: 'grid',
+                    gap: 3,
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: 0,
+                    borderBottom: '1px solid var(--color-border)',
+                    background: isHighlighted ? 'rgba(125, 224, 232, 0.12)' : 'transparent',
+                    color: 'var(--color-text-primary)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 800 }}>{label}</span>
+                  {meta ? (
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{meta}</span>
+                  ) : null}
+                </button>
+              )
+            })
           ) : (
-            <div className="px-3 py-3 text-[13px] text-text-dim">{emptyLabel}</div>
+            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 12 }}>{emptyLabel}</div>
           )}
         </div>
       ) : null}
@@ -893,11 +955,11 @@ export default function NewSalesOrderPage() {
   const canAddLine =
     Boolean(
       selectedOrder &&
-        selectedOrder.status === 'Draft' &&
-        line.productId &&
-        line.quantity &&
-        lineQtyNumber > 0 &&
-        (!line.isReturnLine || line.returnReason)
+      selectedOrder.status === 'Draft' &&
+      line.productId &&
+      line.quantity &&
+      lineQtyNumber > 0 &&
+      (!line.isReturnLine || line.returnReason)
     )
   const activeCustomerName = customerById[selectedOrder?.customerId]?.name || selectedOrder?.customerName || selectedOrder?.customerId
   const activeRoutesName = salesRouteName || selectedOrder?.salesRouteName || selectedOrder?.salesRouteId
@@ -928,481 +990,481 @@ export default function NewSalesOrderPage() {
         {/* Create New Order horizontal form */}
         <div
           className="panel"
-        style={{
-          padding: '12px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-          flexShrink: 0,
-        }}
-      >
-        <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-          Create New Order
-        </h3>
-        <form
-          onSubmit={createOrder}
           style={{
+            padding: '12px 16px',
             display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'end',
-            gap: 16,
-            width: '100%',
+            flexDirection: 'column',
+            gap: 10,
+            flexShrink: 0,
           }}
         >
-          <div className="w-full md:w-auto md:flex-[0.5_1_40px] min-w-[200px]">
-            <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)' }}>
-              Customer
-            </span>
-            <SearchableSelect
-              value={header.customerId}
-              onChange={(customerId) => updateHeader('customerId', customerId)}
-              options={customers}
-              placeholder="Search customer"
-              emptyLabel="No customers found"
-              getLabel={(customer) => [customer.code, customer.name || customer.customerName].filter(Boolean).join(' - ') || customer.id || ''}
-              getMeta={(customer) => [customer.primaryContactPhone, customer.phone, customer.routeName, customer.salesRouteName].filter(Boolean).join(' ')}
-            />
-          </div>
-
-          <div className="w-full md:w-[180px]">
-            <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)' }}>
-              Delivery Date
-            </span>
-            <input
-              className="form-input"
-              type="date"
-              value={header.deliveryDate}
-              onChange={(event) => updateHeader('deliveryDate', event.target.value)}
-            />
-          </div>
-
-          <div className="w-full md:w-auto md:flex-[1_1_200px] min-w-[150px]">
-            <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)' }}>
-              Notes
-            </span>
-            <input
-              className="form-input"
-              value={header.notes}
-              onChange={(event) => updateHeader('notes', event.target.value)}
-              placeholder="Optional order notes"
-            />
-          </div>
-
-          <button
-            className="button-primary w-full md:w-auto"
-            type="submit"
-            disabled={isSaving}
-            style={{ height: 40 }}
+          <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+            Create New Order
+          </h3>
+          <form
+            onSubmit={createOrder}
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'end',
+              gap: 16,
+              width: '100%',
+            }}
           >
-            <PackagePlus className="h-4 w-4" />
-            Create Draft Order
-          </button>
-        </form>
-      </div>
-
-      {/* Selected Order Details (Full Width) */}
-      <section
-        className="panel responsive-detail-panel"
-        style={{
-          padding: 16,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-          flex: 1,
-          minWidth: 0,
-          minHeight: 0,
-          height: '100%',
-          overflow: 'hidden',
-        }}
-      >
-        {isLoadingDetail ? (
-          <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-dim)' }}>
-            Loading order details...
-          </div>
-        ) : selectedOrder ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0 }}>
-            {/* Header Info */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                paddingBottom: 12,
-                borderBottom: '1px solid var(--color-border)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => navigate('/sales/orders')}
-                  style={{
-                    height: 32,
-                    padding: '0 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    borderRadius: 4,
-                    border: '1px solid var(--color-border)',
-                    background: 'transparent',
-                    color: 'var(--color-text-primary)',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <ArrowLeft style={{ width: 14, height: 14 }} />
-                  Back
-                </button>
-                <div>
-                  <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                    Sales Order Details
-                  </h2>
-                  <p style={{ marginTop: 2, fontSize: 11, color: 'var(--color-text-dim)' }}>
-                    <span className="mono" style={{ fontWeight: 700, color: 'var(--color-teal)' }}>
-                      {selectedOrder.orderNumber || '-'}
-                    </span>{' '}
-                    • selected order lines and totals
-                  </p>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <OrderStatusBadge status={selectedOrder.status} />
-              </div>
+            <div className="w-full md:w-auto md:flex-[0.5_1_40px] min-w-[200px]">
+              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)' }}>
+                Customer
+              </span>
+              <SearchableSelect
+                value={header.customerId}
+                onChange={(customerId) => updateHeader('customerId', customerId)}
+                options={customers}
+                placeholder="Search customer"
+                emptyLabel="No customers found"
+                getLabel={(customer) => [customer.code, customer.name || customer.customerName].filter(Boolean).join(' - ') || customer.id || ''}
+                getMeta={(customer) => [customer.primaryContactPhone, customer.phone, customer.routeName, customer.salesRouteName].filter(Boolean).join(' ')}
+              />
             </div>
 
-            {/* Order Info Cards */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: 12,
-                padding: 12,
-                borderRadius: 8,
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-bg-base)',
-              }}
-            >
-              <FieldCard label="Customer" value={activeCustomerName} />
-              <FieldCard label="Sales Route" value={activeRoutesName} />
-              <FieldCard label="Sales Person" value={activeSalesPerson} />
-              <FieldCard label="Delivery Date" value={formatDate(getDeliveryDate(selectedOrder))} />
+            <div className="w-full md:w-[180px]">
+              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)' }}>
+                Delivery Date
+              </span>
+              <input
+                className="form-input"
+                type="date"
+                value={header.deliveryDate}
+                onChange={(event) => updateHeader('deliveryDate', event.target.value)}
+              />
             </div>
 
-            {/* Content Grid (Order Lines Table + Totals Sidebar) */}
-            <div
-              className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
-              style={{
-                gap: 16,
-                flex: 1,
-                minHeight: 0,
-              }}
+            <div className="w-full md:w-auto md:flex-[1_1_200px] min-w-[150px]">
+              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 600, color: 'var(--color-text-dim)' }}>
+                Notes
+              </span>
+              <input
+                className="form-input"
+                value={header.notes}
+                onChange={(event) => updateHeader('notes', event.target.value)}
+                placeholder="Optional order notes"
+              />
+            </div>
+
+            <button
+              className="button-primary w-full md:w-auto"
+              type="submit"
+              disabled={isSaving}
+              style={{ height: 40 }}
             >
-              {/* Order Lines Card */}
+              <PackagePlus className="h-4 w-4" />
+              Create Draft Order
+            </button>
+          </form>
+        </div>
+
+        {/* Selected Order Details (Full Width) */}
+        <section
+          className="panel responsive-detail-panel"
+          style={{
+            padding: 16,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+            height: '100%',
+            overflow: 'hidden',
+          }}
+        >
+          {isLoadingDetail ? (
+            <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-dim)' }}>
+              Loading order details...
+            </div>
+          ) : selectedOrder ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0 }}>
+              {/* Header Info */}
               <div
                 style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  paddingBottom: 12,
+                  borderBottom: '1px solid var(--color-border)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/sales/orders')}
+                    style={{
+                      height: 32,
+                      padding: '0 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      borderRadius: 4,
+                      border: '1px solid var(--color-border)',
+                      background: 'transparent',
+                      color: 'var(--color-text-primary)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <ArrowLeft style={{ width: 14, height: 14 }} />
+                    Back
+                  </button>
+                  <div>
+                    <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                      Sales Order Details
+                    </h2>
+                    <p style={{ marginTop: 2, fontSize: 11, color: 'var(--color-text-dim)' }}>
+                      <span className="mono" style={{ fontWeight: 700, color: 'var(--color-teal)' }}>
+                        {selectedOrder.orderNumber || '-'}
+                      </span>{' '}
+                      • selected order lines and totals
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <OrderStatusBadge status={selectedOrder.status} />
+                </div>
+              </div>
+
+              {/* Order Info Cards */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: 12,
+                  padding: 12,
                   borderRadius: 8,
                   border: '1px solid var(--color-border)',
                   background: 'var(--color-bg-base)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  minHeight: 0,
-                  height: '100%',
                 }}
               >
-                <div
-                  style={{
-                    padding: '12px 14px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    borderBottom: '1px solid var(--color-border)',
-                    background: 'var(--color-bg-elevated)',
-                  }}
-                >
-                  <FileText className="h-4 w-4 text-[#8ee8f0]" />
-                  <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                    Order Lines
-                  </h3>
-                </div>
-
-                {/* Table area */}
-                <div
-                  className="responsive-table-shell"
-                  style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
-                >
-                  <table className="data-table product-table-compact">
-                    <thead>
-                      <tr>
-                        <th>Item</th>
-                        <th style={{ textAlign: 'right' }}>Qty</th>
-                        <th style={{ textAlign: 'right' }}>Selling Price</th>
-                        <th style={{ textAlign: 'right' }}>Disc %</th>
-                        <th style={{ textAlign: 'right' }}>Total</th>
-                        {isDraft ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {getOrderLines(selectedOrder).length ? (
-                        getOrderLines(selectedOrder).map((orderLine, index) => (
-                          <LineRow
-                            key={orderLine.id}
-                            line={orderLine}
-                            index={index}
-                            draft={lineDrafts[orderLine.id] || {}}
-                            isDraft={isDraft}
-                            onDraftChange={updateLineDraft}
-                            onSave={updateOrderLine}
-                            onRemove={removeOrderLine}
-                          />
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={isDraft ? 6 : 5} className="px-4 py-6 text-center text-[13px] text-text-dim">
-                            No order lines added yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Add Product Form */}
-                {isDraft ? (
-                  <div
-                    style={{
-                      borderTop: '1px solid var(--color-border)',
-                      background: line.isReturnLine ? 'rgba(245, 158, 11, 0.08)' : 'var(--color-bg-elevated)',
-                      border: line.isReturnLine ? '1px solid rgba(245, 158, 11, 0.35)' : 'none',
-                      borderRadius: line.isReturnLine ? 8 : 0,
-                      padding: 12,
-                      transition: 'background 150ms ease, border-color 150ms ease',
-                    }}
-                  >
-                    <form
-                      onSubmit={addLine}
-                      className="grid grid-cols-1 sm:grid-cols-[minmax(200px,1.6fr)_100px_100px_auto]"
-                      style={{
-                        gap: 12,
-                        alignItems: 'end',
-                      }}
-                    >
-                      <label className="min-w-0" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
-                            Product
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setLine((current) => ({
-                                ...current,
-                                isReturnLine: !current.isReturnLine,
-                                returnReason: '',
-                              }))
-                            }
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              height: 24,
-                              padding: '0 8px',
-                              borderRadius: 6,
-                              border: line.isReturnLine
-                                ? '1px solid rgba(245, 158, 11, 0.62)'
-                                : '1px solid var(--color-border)',
-                              background: line.isReturnLine
-                                ? 'rgba(245, 158, 11, 0.18)'
-                                : 'var(--color-bg-base)',
-                              color: line.isReturnLine ? 'var(--color-amber)' : 'var(--color-text-muted)',
-                              fontSize: 10,
-                              fontWeight: 900,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <span>{line.isReturnLine ? '↩ RETURN' : '+ SALE'}</span>
-                          </button>
-                        </div>
-                        {line.isReturnLine ? (
-                          <div style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
-                            <span style={{ color: 'var(--color-amber)', fontWeight: 900 }}>
-                              ↩ Return Line
-                            </span>
-                            <span>stock adds back to inventory on invoice</span>
-                          </div>
-                        ) : null}
-                        <SearchableSelect
-                          value={line.productId}
-                          onChange={(productId) => updateLine('productId', productId)}
-                          options={products}
-                          placeholder="Search product"
-                          emptyLabel="No products found"
-                          menuPlacement="top"
-                          getLabel={(product) => [product.sku || product.productSku || '', product.name || product.productName || ''].filter(Boolean).join(' - ') || product.id || ''}
-                          getMeta={(product) =>
-                            [product.barcode, product.unitCode, product.uomBase || product.baseUom, product.brandName, product.category?.name]
-                              .filter(Boolean)
-                              .join(' • ')
-                          }
-                        />
-                        <StockAvailabilityHint
-                          isLoading={loadingAvailability}
-                          productId={line.productId}
-                          availabilityData={availabilityData}
-                          sellableQty={sellableQty}
-                          totalAvailable={totalAvailable}
-                          totalReserved={totalReserved}
-                          unitCode={unitCode}
-                        />
-                        {line.isReturnLine ? (
-                          <div style={{ marginTop: 10 }}>
-                            <span style={{ display: 'block', marginBottom: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
-                              Return Reason *
-                            </span>
-                            <select
-                              className="form-input"
-                              value={line.returnReason}
-                              onChange={(event) => updateLine('returnReason', event.target.value)}
-                              style={{
-                                height: 38,
-                                borderColor: 'rgba(245, 158, 11, 0.45)',
-                                background: 'rgba(10, 10, 16, 0.72)',
-                                color: 'var(--color-text-primary)',
-                              }}
-                            >
-                              <option value="">Select reason...</option>
-                              <option value="1">Damaged → return stock</option>
-                              <option value="2">Expired → return stock</option>
-                              <option value="3">Short Expiry → main stock</option>
-                              <option value="4">Unwanted → main stock</option>
-                            </select>
-                          </div>
-                        ) : null}
-                      </label>
-
-                      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
-                          Qty
-                        </span>
-                        <input
-                          className="form-input"
-                          style={{ textAlign: 'right' }}
-                          type="number"
-                          min="0"
-                          value={line.quantity}
-                          onChange={(event) => updateLine('quantity', event.target.value)}
-                        />
-                      </label>
-
-                      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
-                          Discount %
-                        </span>
-                        <input
-                          className="form-input"
-                          style={{ textAlign: 'right' }}
-                          type="number"
-                          min="0"
-                          max="10"
-                          value={line.discountPercent}
-                          onChange={(event) => updateLine('discountPercent', event.target.value)}
-                        />
-                      </label>
-
-                      <button
-                        className="button-primary"
-                        type="submit"
-                        disabled={isSaving || !canAddLine}
-                        style={{ height: 40 }}
-                      >
-                        <Plus className="h-4 w-4" />
-                        {line.isReturnLine ? 'Add Return' : 'Add Line'}
-                      </button>
-                    </form>
-                  </div>
-                ) : null}
+                <FieldCard label="Customer" value={activeCustomerName} />
+                <FieldCard label="Sales Route" value={activeRoutesName} />
+                <FieldCard label="Sales Person" value={activeSalesPerson} />
+                <FieldCard label="Delivery Date" value={formatDate(getDeliveryDate(selectedOrder))} />
               </div>
 
-              {/* Sidebar Cards */}
-              <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {/* Totals */}
+              {/* Content Grid (Order Lines Table + Totals Sidebar) */}
+              <div
+                className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
+                style={{
+                  gap: 16,
+                  flex: 1,
+                  minHeight: 0,
+                }}
+              >
+                {/* Order Lines Card */}
                 <div
                   style={{
                     borderRadius: 8,
                     border: '1px solid var(--color-border)',
-                    background: 'var(--color-bg-elevated)',
-                    padding: 12,
+                    background: 'var(--color-bg-base)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 6,
+                    minHeight: 0,
+                    height: '100%',
                   }}
                 >
-                  <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4 }}>
-                    Totals
-                  </h3>
-                  <AmountLine label="Gross" value={gross} />
-                  <AmountLine label="Discount" value={discount} />
-                  <AmountLine label="VAT" value={vat} />
-                  {returnCredit > 0 ? <AmountLine label="Returns Credit" value={returnCredit} negative /> : null}
-                  <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
-                  <AmountLine label="Net" value={net} strong />
-                  <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
-                  <AmountLine label="Paid" value={paid} />
-                  <AmountLine label="Outstanding" value={outstanding} strong />
-                </div>
+                  <div
+                    style={{
+                      padding: '12px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      borderBottom: '1px solid var(--color-border)',
+                      background: 'var(--color-bg-elevated)',
+                    }}
+                  >
+                    <FileText className="h-4 w-4 text-[#8ee8f0]" />
+                    <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                      Order Lines
+                    </h3>
+                  </div>
 
-                {/* Actions */}
-                <div
-                  style={{
-                    borderRadius: 8,
-                    border: '1px solid var(--color-border)',
-                    background: 'var(--color-bg-elevated)',
-                    padding: 12,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                  }}
-                >
+                  {/* Table area */}
+                  <div
+                    className="responsive-table-shell"
+                    style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
+                  >
+                    <table className="data-table product-table-compact">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th style={{ textAlign: 'right' }}>Qty</th>
+                          <th style={{ textAlign: 'right' }}>Selling Price</th>
+                          <th style={{ textAlign: 'right' }}>Disc %</th>
+                          <th style={{ textAlign: 'right' }}>Total</th>
+                          {isDraft ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {getOrderLines(selectedOrder).length ? (
+                          getOrderLines(selectedOrder).map((orderLine, index) => (
+                            <LineRow
+                              key={orderLine.id}
+                              line={orderLine}
+                              index={index}
+                              draft={lineDrafts[orderLine.id] || {}}
+                              isDraft={isDraft}
+                              onDraftChange={updateLineDraft}
+                              onSave={updateOrderLine}
+                              onRemove={removeOrderLine}
+                            />
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={isDraft ? 6 : 5} className="px-4 py-6 text-center text-[13px] text-text-dim">
+                              No order lines added yet.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Add Product Form */}
                   {isDraft ? (
-                    <button
-                      type="button"
-                      disabled={isSaving || !selectedOrder}
-                      onClick={confirmOrder}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] bg-[#11809f] px-4 text-[13px] font-semibold text-[#08131a] transition hover:bg-[#0d748f] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                    <div
+                      style={{
+                        borderTop: '1px solid var(--color-border)',
+                        background: line.isReturnLine ? 'rgba(245, 158, 11, 0.08)' : 'var(--color-bg-elevated)',
+                        border: line.isReturnLine ? '1px solid rgba(245, 158, 11, 0.35)' : 'none',
+                        borderRadius: line.isReturnLine ? 8 : 0,
+                        padding: 12,
+                        transition: 'background 150ms ease, border-color 150ms ease',
+                      }}
                     >
-                      <CheckCircle2 className="h-4 w-4" />
-                      Confirm Order
-                    </button>
-                  ) : null}
-
-                  {selectedOrder && !['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
-                    <form onSubmit={cancelOrder} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <input
-                        className="form-input"
-                        value={cancelReason}
-                        onChange={(event) => setCancelReason(event.target.value)}
-                        placeholder="Cancel reason"
-                      />
-                      <button
-                        type="submit"
-                        disabled={isSaving}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] border border-border px-4 text-[13px] font-semibold text-text-primary transition hover:bg-bg-elevated disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                      <form
+                        onSubmit={addLine}
+                        className="grid grid-cols-1 sm:grid-cols-[minmax(200px,1.6fr)_100px_100px_auto]"
+                        style={{
+                          gap: 12,
+                          alignItems: 'end',
+                        }}
                       >
-                        <XCircle className="h-4 w-4" />
-                        Cancel Order
-                      </button>
-                    </form>
+                        <label className="min-w-0" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
+                              Product
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLine((current) => ({
+                                  ...current,
+                                  isReturnLine: !current.isReturnLine,
+                                  returnReason: '',
+                                }))
+                              }
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                height: 24,
+                                padding: '0 8px',
+                                borderRadius: 6,
+                                border: line.isReturnLine
+                                  ? '1px solid rgba(245, 158, 11, 0.62)'
+                                  : '1px solid var(--color-border)',
+                                background: line.isReturnLine
+                                  ? 'rgba(245, 158, 11, 0.18)'
+                                  : 'var(--color-bg-base)',
+                                color: line.isReturnLine ? 'var(--color-amber)' : 'var(--color-text-muted)',
+                                fontSize: 10,
+                                fontWeight: 900,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <span>{line.isReturnLine ? '↩ RETURN' : '+ SALE'}</span>
+                            </button>
+                          </div>
+                          {line.isReturnLine ? (
+                            <div style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                              <span style={{ color: 'var(--color-amber)', fontWeight: 900 }}>
+                                ↩ Return Line
+                              </span>
+                              <span>stock adds back to inventory on invoice</span>
+                            </div>
+                          ) : null}
+                          <SearchableSelect
+                            value={line.productId}
+                            onChange={(productId) => updateLine('productId', productId)}
+                            options={products}
+                            placeholder="Search product"
+                            emptyLabel="No products found"
+                            menuPlacement="top"
+                            getLabel={(product) => [product.sku || product.productSku || '', product.name || product.productName || ''].filter(Boolean).join(' - ') || product.id || ''}
+                            getMeta={(product) =>
+                              [product.barcode, product.unitCode, product.uomBase || product.baseUom, product.brandName, product.category?.name]
+                                .filter(Boolean)
+                                .join(' • ')
+                            }
+                          />
+                          <StockAvailabilityHint
+                            isLoading={loadingAvailability}
+                            productId={line.productId}
+                            availabilityData={availabilityData}
+                            sellableQty={sellableQty}
+                            totalAvailable={totalAvailable}
+                            totalReserved={totalReserved}
+                            unitCode={unitCode}
+                          />
+                          {line.isReturnLine ? (
+                            <div style={{ marginTop: 10 }}>
+                              <span style={{ display: 'block', marginBottom: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
+                                Return Reason *
+                              </span>
+                              <select
+                                className="form-input"
+                                value={line.returnReason}
+                                onChange={(event) => updateLine('returnReason', event.target.value)}
+                                style={{
+                                  height: 38,
+                                  borderColor: 'rgba(245, 158, 11, 0.45)',
+                                  background: 'rgba(10, 10, 16, 0.72)',
+                                  color: 'var(--color-text-primary)',
+                                }}
+                              >
+                                <option value="">Select reason...</option>
+                                <option value="1">Damaged → return stock</option>
+                                <option value="2">Expired → return stock</option>
+                                <option value="3">Short Expiry → main stock</option>
+                                <option value="4">Unwanted → main stock</option>
+                              </select>
+                            </div>
+                          ) : null}
+                        </label>
+
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
+                            Qty
+                          </span>
+                          <input
+                            className="form-input"
+                            style={{ textAlign: 'right' }}
+                            type="number"
+                            min="0"
+                            value={line.quantity}
+                            onChange={(event) => updateLine('quantity', event.target.value)}
+                          />
+                        </label>
+
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
+                            Discount %
+                          </span>
+                          <input
+                            className="form-input"
+                            style={{ textAlign: 'right' }}
+                            type="number"
+                            min="0"
+                            max="10"
+                            value={line.discountPercent}
+                            onChange={(event) => updateLine('discountPercent', event.target.value)}
+                          />
+                        </label>
+
+                        <button
+                          className="button-primary"
+                          type="submit"
+                          disabled={isSaving || !canAddLine}
+                          style={{ height: 40 }}
+                        >
+                          <Plus className="h-4 w-4" />
+                          {line.isReturnLine ? 'Add Return' : 'Add Line'}
+                        </button>
+                      </form>
+                    </div>
                   ) : null}
                 </div>
-              </aside>
+
+                {/* Sidebar Cards */}
+                <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Totals */}
+                  <div
+                    style={{
+                      borderRadius: 8,
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-bg-elevated)',
+                      padding: 12,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4 }}>
+                      Totals
+                    </h3>
+                    <AmountLine label="Gross" value={gross} />
+                    <AmountLine label="Discount" value={discount} />
+                    <AmountLine label="VAT" value={vat} />
+                    {returnCredit > 0 ? <AmountLine label="Returns Credit" value={returnCredit} negative /> : null}
+                    <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+                    <AmountLine label="Net" value={net} strong />
+                    <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+                    <AmountLine label="Paid" value={paid} />
+                    <AmountLine label="Outstanding" value={outstanding} strong />
+                  </div>
+
+                  {/* Actions */}
+                  <div
+                    style={{
+                      borderRadius: 8,
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-bg-elevated)',
+                      padding: 12,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    {isDraft ? (
+                      <button
+                        type="button"
+                        disabled={isSaving || !selectedOrder}
+                        onClick={confirmOrder}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] bg-[#11809f] px-4 text-[13px] font-semibold text-[#08131a] transition hover:bg-[#0d748f] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Confirm Order
+                      </button>
+                    ) : null}
+
+                    {selectedOrder && !['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
+                      <form onSubmit={cancelOrder} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <input
+                          className="form-input"
+                          value={cancelReason}
+                          onChange={(event) => setCancelReason(event.target.value)}
+                          placeholder="Cancel reason"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isSaving}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] border border-border px-4 text-[13px] font-semibold text-text-primary transition hover:bg-bg-elevated disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Cancel Order
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
+                </aside>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-dim)', fontSize: 13 }}>
-            Create a draft order on the top to begin.
-          </div>
-        )}
-      </section>
+          ) : (
+            <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-dim)', fontSize: 13 }}>
+              Create a draft order on the top to begin.
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )
