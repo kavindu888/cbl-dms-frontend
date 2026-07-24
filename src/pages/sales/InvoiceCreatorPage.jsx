@@ -1,6 +1,7 @@
-import { Plus, RotateCcw, Save, Search, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Info, Plus, RotateCcw, Save, Search, Trash2, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
@@ -15,6 +16,7 @@ const emptyLine = {
   quantity: 1,
   mrp: 0,
   discountPercent: 0,
+  grtsPercent: null,
 }
 
 function createDefaultValues() {
@@ -50,6 +52,12 @@ function getLineAmounts(line) {
     unitPrice,
     lineTotal,
   }
+}
+
+function getInvoiceId(response) {
+  if (typeof response === 'string' || typeof response === 'number') return String(response)
+
+  return response?.id ?? response?.value ?? response?.data?.id ?? response?.data?.value ?? response?.data
 }
 
 const readOnlyDisplayStyle = {
@@ -245,6 +253,11 @@ function SearchablePicker({
 }
 
 export default function InvoiceCreatorPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const orderState = location.state
+  const isFromSalesOrder = orderState?.fromSalesOrder === true
+  const hasPrefilledFromSalesOrder = useRef(false)
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [isLoadingData, setIsLoadingData] = useState(true)
@@ -255,6 +268,7 @@ export default function InvoiceCreatorPage() {
   const [serialNumber, setSerialNumber] = useState('')
   const [serialNumberWarning, setSerialNumberWarning] = useState(false)
   const [serialNumberChecking, setSerialNumberChecking] = useState(false)
+  const [returnLines, setReturnLines] = useState([])
   const serialCheckTimeout = useRef(null)
 
   const {
@@ -311,15 +325,22 @@ export default function InvoiceCreatorPage() {
       { gross: 0, discount: 0 }
     )
 
-    const netBeforeVat = subtotal.gross - subtotal.discount
+    const returnTotal = returnLines.reduce((sum, line) => {
+      const mrp = Number(line.mrp || line.unitPrice || 0)
+      const discountPercent = Number(line.discountPercent || 0)
+      const quantity = Number(line.quantity || 0)
+      return sum + mrp * (1 - discountPercent / 100) * quantity
+    }, 0)
+    const netBeforeVat = subtotal.gross - subtotal.discount - returnTotal
     const vat = isCustomerVatRegistered ? Math.round(netBeforeVat * 18) / 100 : 0
 
     return {
       ...subtotal,
+      returnTotal,
       vat,
       net: netBeforeVat + vat,
     }
-  }, [isCustomerVatRegistered, lines])
+  }, [isCustomerVatRegistered, lines, returnLines])
 
   useEffect(() => {
     async function loadData() {
@@ -349,6 +370,46 @@ export default function InvoiceCreatorPage() {
       if (serialCheckTimeout.current) clearTimeout(serialCheckTimeout.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (!isFromSalesOrder || !orderState || hasPrefilledFromSalesOrder.current) return
+
+    hasPrefilledFromSalesOrder.current = true
+    setSerialNumber('')
+    setSerialNumberWarning(false)
+    setSerialNumberChecking(false)
+    setSelectedCustomerDetails({
+      id: orderState.customerId,
+      name: orderState.customerName,
+      salesRouteId: orderState.salesRouteId,
+      salesRouteName: orderState.salesRouteName,
+      isVatRegistered: Boolean(orderState.isVatApplicable),
+      taxNumber: orderState.customerVatTin || '',
+    })
+    setSalesRouteName(orderState.salesRouteName || '')
+    const orderLines = orderState.lines || []
+    const normalLines = orderLines.filter((line) => !line.isReturnLine)
+    const orderReturnLines = orderLines.filter((line) => line.isReturnLine)
+
+    setReturnLines(orderReturnLines)
+
+    const prefilledLines = normalLines.map((line) => ({
+      productId: line.productId || '',
+      unitId: line.unitId || line.smallestUnitName || '',
+      unitName: line.smallestUnitName || '',
+      quantity: Number(line.quantity || 0),
+      mrp: Number(line.mrp || 0),
+      discountPercent: Number(line.discountPercent || 0),
+      grtsPercent: line.grtsPercent ?? null,
+    }))
+
+    reset({
+      customerId: orderState.customerId || '',
+      salesRouteId: orderState.salesRouteId || '',
+      lines: prefilledLines.length ? prefilledLines : [{ ...emptyLine }],
+    })
+    setLinePage(1)
+  }, [isFromSalesOrder, orderState, reset])
 
   useEffect(() => {
     setValue('salesRouteId', selectedCustomer?.salesRouteId || '')
@@ -416,6 +477,8 @@ export default function InvoiceCreatorPage() {
       setValue(`lines.${index}.unitId`, '', { shouldDirty: true })
       setValue(`lines.${index}.unitName`, '', { shouldDirty: true })
       setValue(`lines.${index}.mrp`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.discountPercent`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.grtsPercent`, null, { shouldDirty: true })
       return
     }
 
@@ -425,6 +488,10 @@ export default function InvoiceCreatorPage() {
         masterService.getProductUomChain(productId).catch(() => null),
         inventoryService.getLastPrices(productId).catch(() => null),
       ])
+      const categoryId = product.categoryId || product.category?.id || ''
+      const grtsPercent = categoryId
+        ? await masterService.getCategoryDiscount(categoryId).catch(() => null)
+        : null
       console.log('Product API response:', product)
       console.log('Fields:', Object.keys(product || {}))
       const smallestUnit =
@@ -444,6 +511,8 @@ export default function InvoiceCreatorPage() {
           shouldDirty: true,
         }
       )
+      setValue(`lines.${index}.discountPercent`, grtsPercent ?? 0, { shouldDirty: true })
+      setValue(`lines.${index}.grtsPercent`, grtsPercent, { shouldDirty: true })
     } catch (error) {
       toast.error(error?.message || 'Unable to load product details.')
       const product = productById[productId]
@@ -489,6 +558,7 @@ export default function InvoiceCreatorPage() {
     setSerialNumberWarning(false)
     setSerialNumberChecking(false)
     reset(createDefaultValues())
+    setReturnLines([])
   }
 
   function validate(values) {
@@ -533,12 +603,25 @@ export default function InvoiceCreatorPage() {
 
     setIsSaving(true)
     try {
-      await salesService.createInvoice(payload)
-      toast.success('Invoice created successfully.')
+      const response = isFromSalesOrder
+        ? await salesService.convertSalesOrderToInvoice(orderState.salesOrderId, {
+            serialNumber: serialNumber.trim() || null,
+            notes: null,
+          })
+        : await salesService.createInvoice(payload)
+      console.log('Create invoice response:', response)
+      console.log('Type:', typeof response)
+      const invoiceId = getInvoiceId(response)
       handleClear()
       setSelectedCustomerDetails(null)
       setSalesRouteName('')
       setLinePage(1)
+      if (isFromSalesOrder) {
+        toast.success('Sales order converted to invoice.')
+        navigate(invoiceId ? `/sales/invoices/${invoiceId}` : '/sales/invoices/new', { replace: true })
+      } else {
+        toast.success('Invoice created successfully.')
+      }
     } catch (error) {
       toast.error(error?.message || 'Invoice could not be created.')
     } finally {
@@ -558,13 +641,60 @@ export default function InvoiceCreatorPage() {
       }}
     >
       <div>
+        {isFromSalesOrder ? (
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              marginBottom: 10,
+              border: 0,
+              background: 'transparent',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              fontSize: 13,
+              padding: 0,
+            }}
+          >
+            <ArrowLeft style={{ width: 14, height: 14 }} />
+            Back to Sales Order
+          </button>
+        ) : null}
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-          Create Invoice
+          {isFromSalesOrder ? 'Convert to Invoice' : 'Create Invoice'}
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          Backend creates the invoice with today's server date: {formatDate(new Date())}.
+          {isFromSalesOrder
+            ? `Converting Sales Order ${orderState.salesOrderNumber || ''}. You can adjust before saving.`
+            : `Backend creates the invoice with today's server date: ${formatDate(new Date())}.`}
         </p>
       </div>
+
+      {isFromSalesOrder ? (
+        <div
+          className="panel"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+            borderColor: 'rgba(125, 224, 232, 0.3)',
+            background: 'rgba(125, 224, 232, 0.08)',
+            color: 'var(--color-accent)',
+          }}
+        >
+          <Info style={{ width: 16, height: 16, flex: '0 0 auto' }} />
+          <p style={{ margin: 0, fontSize: 13 }}>
+            Pre-filled from Sales Order{' '}
+            <span className="mono" style={{ fontWeight: 800 }}>
+              {orderState.salesOrderNumber}
+            </span>
+            . Review and adjust before saving.
+          </p>
+        </div>
+      ) : null}
 
       {loadError && (
         <div className="panel" style={{ padding: 16, color: 'var(--color-danger)' }}>
@@ -724,13 +854,26 @@ export default function InvoiceCreatorPage() {
                         />
                       </td>
                       <td>
-                        <input
-                          className="form-input mono text-right"
-                          type="number"
-                          step="0.01"
-                          max="10"
-                          {...register(`lines.${index}.discountPercent`)}
-                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <input
+                            className="form-input mono text-right"
+                            type="number"
+                            step="0.01"
+                            max="10"
+                            {...register(`lines.${index}.discountPercent`)}
+                          />
+                          {line.grtsPercent !== null && line.grtsPercent !== undefined ? (
+                            <span
+                              style={{
+                                color: 'var(--color-text-muted)',
+                                fontSize: 11,
+                                textAlign: 'right',
+                              }}
+                            >
+                              GRTS default: {line.grtsPercent}%
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>
                         {money(unitPrice)}
@@ -929,6 +1072,14 @@ export default function InvoiceCreatorPage() {
                 <span style={{ color: 'var(--color-text-muted)' }}>Discount</span>
                 <span className="mono">{money(totals.discount)}</span>
               </div>
+              {totals.returnTotal > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--color-amber)' }}>Returns</span>
+                  <span className="mono" style={{ color: 'var(--color-amber)' }}>
+                    - {money(totals.returnTotal)}
+                  </span>
+                </div>
+              ) : null}
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--color-text-muted)' }}>VAT</span>
                 <span className="mono">{money(totals.vat)}</span>

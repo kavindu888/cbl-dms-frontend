@@ -112,6 +112,20 @@ function formatInvoice(invoice) {
     netAmount: Number(invoice.netAmount ?? 0),
     paidAmount: Number(invoice.paidAmount ?? 0),
     outstandingAmount: Number(invoice.outstandingAmount ?? 0),
+    returnSections: (invoice.returnSections || []).map((section) => ({
+      reasonLabel: section.reasonLabel ?? '',
+      sectionTotal: Number(section.sectionTotal ?? 0),
+      lines: (section.lines || []).map((line) => ({
+        productId: line.productId ?? '',
+        productSku: line.productSku ?? '',
+        productName: line.productName ?? '',
+        unitCode: line.unitCode ?? line.smallestUnitCode ?? '',
+        quantity: Number(line.quantity ?? 0),
+        mrp: Number(line.mrp ?? 0),
+        sellingPrice: Number(line.sellingPrice ?? line.unitPrice ?? 0),
+        lineTotal: Number(line.lineTotal ?? 0),
+      })),
+    })),
     lines: (invoice.lines || []).map((line) => ({
       id: line.id,
       productId: line.productId ?? '',
@@ -352,7 +366,7 @@ export const salesService = {
 
   async convertSalesOrderToInvoice(id, payload) {
     const response = await api.post(`/api/sales/orders/${id}/convert-to-invoice`, payload)
-    return response.data
+    return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
   },
   // Sales invoice related APIs
   // Create a new invoice

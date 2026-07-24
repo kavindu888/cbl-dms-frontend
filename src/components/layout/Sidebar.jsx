@@ -15,6 +15,7 @@ import {
   Package,
   PackageCheck,
   PackageX,
+  Percent,
   // ArrowLeftRight,
   Warehouse,
   Ruler,
@@ -255,6 +256,12 @@ const navGroups = [
         label: 'Category',
         to: '/master/categories',
         icon: Tags,
+        permissions: PERMISSIONS.masterData.categoryManage,
+      },
+      {
+        label: 'Category Discounts',
+        to: '/master/category-discounts',
+        icon: Percent,
         permissions: PERMISSIONS.masterData.categoryManage,
       },
       {

@@ -129,6 +129,7 @@ function formatProduct(product) {
     name: product.name ?? '',
     description: product.description ?? '',
     category: product.category ?? { id: '', code: '', name: '' },
+    categoryId: product.categoryId ?? product.category?.id ?? '',
     uomBase: product.baseUom ?? product.uomBase ?? '',
     baseUom: product.baseUom ?? product.uomBase ?? '',
     smallestUnitId: product.smallestUnitId ?? product.smallestUomCode ?? smallestUom,
@@ -227,6 +228,31 @@ function formatCategory(category) {
     children: (category.children || []).map(formatCategory),
     createdAt: category.createdAt,
     updatedAt: category.updatedAt,
+  }
+}
+
+function unwrapMasterData(response) {
+  return response.data?.data?.value ?? response.data?.data ?? response.data
+}
+
+function formatCategoryDiscount(discount) {
+  if (!discount) return null
+  const status = discount.status ?? (discount.isActive === false ? 'Inactive' : 'Active')
+  const discountPercent = discount.discountPercent ?? discount.activeDiscountPercent ?? 0
+
+  return {
+    id: discount.id,
+    categoryId: discount.categoryId ?? discount.category?.id ?? '',
+    category: discount.category ?? null,
+    categoryName: discount.categoryName ?? discount.category?.name ?? '',
+    discountPercent: Number(discountPercent),
+    effectiveFrom: discount.effectiveFrom ?? discount.activeFrom,
+    effectiveTo: discount.effectiveTo ?? discount.activeTo ?? null,
+    notes: discount.notes ?? '',
+    status,
+    isActive: discount.isActive ?? status === 'Active',
+    createdAt: discount.createdAt,
+    updatedAt: discount.updatedAt,
   }
 }
 
@@ -439,6 +465,52 @@ export const masterService = {
   async getProduct(id) {
     const response = await getOnce(`/api/v1/master-data/products/${id}`)
     return formatProduct(getValue(response, 'Unable to load product.'))
+  },
+
+  async getCategoryDiscount(categoryId) {
+    if (!categoryId) return null
+
+    const response = await getOnce(`/api/master/category-discounts/active/${categoryId}`)
+    const data = response.data?.data?.value ?? response.data?.data ?? response.data
+    const discountPercent = data?.discountPercent ?? null
+
+    return discountPercent === null || discountPercent === undefined
+      ? null
+      : Number(discountPercent)
+  },
+
+  async listCategoryDiscounts() {
+    const response = await getOnce('/api/master/category-discounts')
+    return (unwrapMasterData(response) || []).map(formatCategoryDiscount)
+  },
+
+  async getCategoryDiscountDetail(id) {
+    const response = await getOnce(`/api/master/category-discounts/${id}`)
+    return formatCategoryDiscount(unwrapMasterData(response))
+  },
+
+  async getActiveCategoryDiscount(categoryId) {
+    return this.getCategoryDiscount(categoryId)
+  },
+
+  async getCategoryDiscountsByCategory(categoryId) {
+    const response = await getOnce(`/api/master/category-discounts/by-category/${categoryId}`)
+    return (unwrapMasterData(response) || []).map(formatCategoryDiscount)
+  },
+
+  async createCategoryDiscount(payload) {
+    const response = await api.post('/api/master/category-discounts', payload)
+    return formatCategoryDiscount(unwrapMasterData(response))
+  },
+
+  async updateCategoryDiscount(id, payload) {
+    const response = await api.put(`/api/master/category-discounts/${id}`, payload)
+    return formatCategoryDiscount(unwrapMasterData(response))
+  },
+
+  async deactivateCategoryDiscount(id) {
+    const response = await api.delete(`/api/master/category-discounts/${id}`)
+    return unwrapMasterData(response)
   },
 
   async getProductUomChain(id) {

@@ -23,14 +23,10 @@ const emptyLine = {
   productId: '',
   quantity: '',
   discountPercent: '0',
+  grtsPercent: null,
+  isDiscountLocked: false,
   isReturnLine: false,
   returnReason: '',
-}
-
-const emptyConversion = {
-  vehicleId: '',
-  dueDate: '',
-  notes: '',
 }
 
 function formatMoney(value) {
@@ -448,7 +444,6 @@ export default function SalesOrderModulePage() {
   const [header, setHeader] = useState(emptyHeader)
   const [line, setLine] = useState(emptyLine)
   const [lineDrafts, setLineDrafts] = useState({})
-  const [conversion, setConversion] = useState(emptyConversion)
   const [cancelReason, setCancelReason] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -623,12 +618,29 @@ export default function SalesOrderModulePage() {
     setIsLoadingDetail(true)
     try {
       const order = await salesService.getSalesOrder(orderId)
+      console.log('Order detail:', order)
+      console.log('Order lines:', order.lines)
+      console.log('Return line fields:', order.lines?.find((item) => item.isReturnLine))
+      console.log('Line fields:', order.lines?.[0] ? Object.keys(order.lines[0]) : 'no lines')
       setSelectedOrder(order)
+      const discountLocks = await Promise.all(
+        (order.lines || []).map(async (item) => ({
+          id: item.id,
+          grtsPercent: item.isReturnLine ? null : await getGrtsPercentForProduct(item.productId),
+        }))
+      )
+      const discountLockByLineId = discountLocks.reduce((map, item) => {
+        map[item.id] = item.grtsPercent
+        return map
+      }, {})
       setLineDrafts(
         (order.lines || []).reduce((map, item) => {
+          const grtsPercent = discountLockByLineId[item.id] ?? null
           map[item.id] = {
             quantity: String(item.quantity),
             discountPercent: String(item.discountPercent),
+            grtsPercent,
+            isDiscountLocked: !item.isReturnLine && grtsPercent !== null,
           }
           return map
         }, {})
@@ -693,18 +705,52 @@ export default function SalesOrderModulePage() {
   }
 
   function updateLine(field, value) {
+    if (field === 'discountPercent' && line.isDiscountLocked) return
     setLine((current) => ({ ...current, [field]: value }))
   }
 
-  function handleProductSelect(productId) {
+  async function getGrtsPercentForProduct(productId) {
+    if (!productId) return null
+
+    try {
+      const cachedProduct = productById[productId]
+      const product = cachedProduct?.categoryId || cachedProduct?.category?.id
+        ? cachedProduct
+        : await masterService.getProduct(productId)
+      const categoryId = product?.categoryId || product?.category?.id || ''
+
+      return categoryId ? await masterService.getCategoryDiscount(categoryId) : null
+    } catch {
+      return null
+    }
+  }
+
+  async function handleProductSelect(productId) {
+    if (!productId) {
+      setLine((current) => ({
+        ...current,
+        productId: '',
+        quantity: '',
+        discountPercent: '0',
+        grtsPercent: null,
+        isDiscountLocked: false,
+      }))
+      return
+    }
+
+    const grtsPercent = await getGrtsPercentForProduct(productId)
     setLine((current) => ({
       ...current,
       productId,
       quantity: '',
+      discountPercent: String(grtsPercent ?? 0),
+      grtsPercent,
+      isDiscountLocked: !current.isReturnLine && grtsPercent !== null,
     }))
   }
 
   function updateLineDraft(lineId, field, value) {
+    if (field === 'discountPercent' && lineDrafts[lineId]?.isDiscountLocked) return
     setLineDrafts((current) => ({
       ...current,
       [lineId]: {
@@ -849,25 +895,40 @@ export default function SalesOrderModulePage() {
     }
   }
 
-  async function convertToInvoice(event) {
-    event.preventDefault()
+  function convertToInvoice() {
+    if (!selectedOrder) return
 
-    setIsSaving(true)
-    try {
-      const result = await salesService.convertSalesOrderToInvoice(selectedOrder.id, {
-        vehicleId: conversion.vehicleId.trim() || null,
-        dueDate: toIsoDate(conversion.dueDate),
-        notes: conversion.notes.trim() || null,
-      })
-      toast.success('Sales order converted to invoice.')
-      setConversion(emptyConversion)
-      await loadOrders()
-      if (result.invoiceId) navigate(`/sales/invoices/${result.invoiceId}`)
-    } catch (error) {
-      toast.error(error.message || 'Unable to convert sales order.')
-    } finally {
-      setIsSaving(false)
-    }
+    navigate('/sales/invoices/new', {
+      state: {
+        fromSalesOrder: true,
+        salesOrderId: selectedOrder.id,
+        salesOrderNumber: selectedOrder.orderNumber,
+        customerId: selectedOrder.customerId,
+        customerName: selectedOrder.customerName,
+        salesRouteId: selectedOrder.salesRouteId,
+        salesRouteName,
+        isVatApplicable: selectedOrder.isVatApplicable,
+        customerVatTin: selectedOrder.customerVatTin,
+        deliveryDate: selectedOrder.deliveryDate,
+        lines: (selectedOrder.lines || []).map((orderLine) => {
+          const product = productById[orderLine.productId] || null
+
+          return {
+            productId: orderLine.productId,
+            productName: product?.name || product?.productName || '',
+            productSku: product?.sku || product?.productSku || '',
+            unitId: orderLine.unitId || orderLine.smallestUnitCode || '',
+            smallestUnitName: orderLine.smallestUnitCode || orderLine.unitName || 'PCS',
+            mrp: orderLine.mrp || orderLine.unitPrice || 0,
+            quantity: orderLine.quantity,
+            discountPercent: orderLine.discountPercent,
+            grtsPercent: lineDrafts[orderLine.id]?.grtsPercent ?? null,
+            isReturnLine: Boolean(orderLine.isReturnLine),
+            returnReason: orderLine.returnReason ?? null,
+          }
+        }),
+      },
+    })
   }
 
   return (
@@ -1203,17 +1264,32 @@ export default function SalesOrderModulePage() {
                                       </td>
                                       <td className="mono" style={{ textAlign: 'right' }}>
                                         {isDraft ? (
-                                          <input
-                                            className="form-input"
-                                            type="number"
-                                            min="0"
-                                            max="10"
-                                            value={draft.discountPercent || ''}
-                                            onChange={(event) =>
-                                              updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
-                                            }
-                                            style={{ width: 78, height: 32, textAlign: 'right' }}
-                                          />
+                                          <>
+                                            <input
+                                              className="form-input"
+                                              type="number"
+                                              min="0"
+                                              max="10"
+                                              value={draft.discountPercent || ''}
+                                              onChange={(event) =>
+                                                updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
+                                              }
+                                              readOnly={draft.isDiscountLocked}
+                                              style={{ width: 78, height: 32, textAlign: 'right' }}
+                                            />
+                                            {draft.grtsPercent !== null && draft.grtsPercent !== undefined ? (
+                                              <div
+                                                style={{
+                                                  marginTop: 4,
+                                                  color: 'var(--color-text-muted)',
+                                                  fontSize: 11,
+                                                  whiteSpace: 'nowrap',
+                                                }}
+                                              >
+                                                GRTS default: {draft.grtsPercent}%
+                                              </div>
+                                            ) : null}
+                                          </>
                                         ) : (
                                           `${orderLine.discountPercent}%`
                                         )}
@@ -1376,17 +1452,43 @@ export default function SalesOrderModulePage() {
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
                                       {isDraft ? (
-                                        <input
-                                          className="form-input"
-                                          type="number"
-                                          min="0"
-                                          max="10"
-                                          value={draft.discountPercent || ''}
-                                          onChange={(event) =>
-                                            updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
-                                          }
-                                          style={{ width: 78, height: 32, textAlign: 'right' }}
-                                        />
+                                        <>
+                                          <input
+                                            className="form-input"
+                                            type="number"
+                                            min="0"
+                                            max="10"
+                                            value={draft.discountPercent || ''}
+                                            onChange={(event) =>
+                                              updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
+                                            }
+                                            readOnly={draft.isDiscountLocked}
+                                            style={{
+                                              width: 78,
+                                              height: 32,
+                                              textAlign: 'right',
+                                              ...(draft.isDiscountLocked
+                                                ? {
+                                                    background: 'rgba(255,255,255,0.05)',
+                                                    color: 'var(--color-text-muted)',
+                                                    cursor: 'not-allowed',
+                                                  }
+                                                : {}),
+                                            }}
+                                          />
+                                          {draft.isDiscountLocked ? (
+                                            <div
+                                              style={{
+                                                marginTop: 4,
+                                                color: 'var(--color-accent)',
+                                                fontSize: 11,
+                                                whiteSpace: 'nowrap',
+                                              }}
+                                            >
+                                              GRTS {draft.grtsPercent}% - locked
+                                            </div>
+                                          ) : null}
+                                        </>
                                       ) : (
                                         `${orderLine.discountPercent}%`
                                       )}
@@ -1469,11 +1571,17 @@ export default function SalesOrderModulePage() {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    setLine((current) => ({
-                                      ...current,
-                                      isReturnLine: !current.isReturnLine,
-                                      returnReason: '',
-                                    }))
+                                    setLine((current) => {
+                                      const isReturnLine = !current.isReturnLine
+
+                                      return {
+                                        ...current,
+                                        isReturnLine,
+                                        returnReason: '',
+                                        isDiscountLocked:
+                                          !isReturnLine && current.grtsPercent !== null,
+                                      }
+                                    })
                                   }
                                   style={{
                                     display: 'inline-flex',
@@ -1606,7 +1714,40 @@ export default function SalesOrderModulePage() {
                                 max="10"
                                 value={line.discountPercent}
                                 onChange={(event) => updateLine('discountPercent', event.target.value)}
+                                readOnly={line.isDiscountLocked}
+                                style={
+                                  line.isDiscountLocked
+                                    ? {
+                                        background: 'rgba(255,255,255,0.05)',
+                                        color: 'var(--color-text-muted)',
+                                        cursor: 'not-allowed',
+                                      }
+                                    : undefined
+                                }
                               />
+                              {line.isDiscountLocked ? (
+                                <span
+                                  style={{
+                                    display: 'block',
+                                    marginTop: 4,
+                                    color: 'var(--color-accent)',
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  GRTS {line.grtsPercent}% - locked
+                                </span>
+                              ) : line.grtsPercent !== null ? (
+                                <span
+                                  style={{
+                                    display: 'block',
+                                    marginTop: 4,
+                                    color: 'var(--color-text-muted)',
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  GRTS default: {line.grtsPercent}%
+                                </span>
+                              ) : null}
                             </label>
                             <button
                               className="button-primary"
@@ -1691,37 +1832,13 @@ export default function SalesOrderModulePage() {
                         </div>
 
                         {isConfirmed ? (
-                          <form onSubmit={convertToInvoice} style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                          <section style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
                             <h3 style={{ fontSize: 14, fontWeight: 800 }}>Convert To Invoice</h3>
-                            <input
-                              className="form-input"
-                              value={conversion.vehicleId}
-                              onChange={(event) =>
-                                setConversion((current) => ({ ...current, vehicleId: event.target.value }))
-                              }
-                              placeholder="Vehicle ID"
-                            />
-                            <input
-                              className="form-input"
-                              type="date"
-                              value={conversion.dueDate}
-                              onChange={(event) =>
-                                setConversion((current) => ({ ...current, dueDate: event.target.value }))
-                              }
-                            />
-                            <input
-                              className="form-input"
-                              value={conversion.notes}
-                              onChange={(event) =>
-                                setConversion((current) => ({ ...current, notes: event.target.value }))
-                              }
-                              placeholder="Invoice notes"
-                            />
-                            <button className="button-primary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
+                            <button className="button-primary" type="button" disabled={isSaving} onClick={convertToInvoice} style={{ width: '100%' }}>
                               <FileText style={{ width: 15, height: 15 }} />
-                              Convert
+                              Convert to Invoice
                             </button>
-                          </form>
+                          </section>
                         ) : null}
                       </section>
                     </aside>

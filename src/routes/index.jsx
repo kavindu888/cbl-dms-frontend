@@ -14,6 +14,7 @@ import FleetOverviewPage from '@pages/fleet/FleetOverviewPage'
 import VehicleDetailPage from '@pages/fleet/VehicleDetailPage'
 import StockModulePage from '@pages/inventory/StockModulePage'
 import StockBatchesPage from '@pages/inventory/StockBatchesPage'
+import CategoryDiscountList from '@pages/master/CategoryDiscounts/CategoryDiscountList'
 import CategoryListPage from '@pages/master/CategoryListPage'
 import MasterCustomerListPage from '@pages/master/CustomerListPage'
 import Product from '@pages/master/Product'
@@ -293,6 +294,10 @@ export const router = createBrowserRouter([
       {
         path: 'master/categories',
         element: requirePermission(<CategoryListPage />, PERMISSIONS.masterData.categoryManage),
+      },
+      {
+        path: 'master/category-discounts',
+        element: requirePermission(<CategoryDiscountList />, PERMISSIONS.masterData.categoryManage),
       },
       {
         path: 'master/brands',
