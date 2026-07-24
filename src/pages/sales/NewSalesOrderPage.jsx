@@ -397,7 +397,7 @@ function SearchableSelect({
           role="listbox"
           style={{
             position: 'absolute',
-            zIndex: 120,
+            zIndex: 240,
             top: opensUp ? 'auto' : 'calc(100% + 4px)',
             bottom: opensUp ? 'calc(100% + 4px)' : 'auto',
             left: 0,
@@ -977,14 +977,14 @@ export default function NewSalesOrderPage() {
         overflow: 'hidden',
       }}
     >
-      <div>
+      {/* <div>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>
           New Sales Orders
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
           Create draft orders, manage lines, and convert confirmed orders to invoices.
         </p>
-      </div>
+      </div> */}
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pr-1 pb-4">
         {/* Create New Order horizontal form */}
@@ -1150,86 +1150,7 @@ export default function NewSalesOrderPage() {
                 <FieldCard label="Sales Person" value={activeSalesPerson} />
                 <FieldCard label="Delivery Date" value={formatDate(getDeliveryDate(selectedOrder))} />
               </div>
-
-              {/* Content Grid (Order Lines Table + Totals Sidebar) */}
-              <div
-                className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
-                style={{
-                  gap: 16,
-                  flex: 1,
-                  minHeight: 0,
-                }}
-              >
-                {/* Order Lines Card */}
-                <div
-                  style={{
-                    borderRadius: 8,
-                    border: '1px solid var(--color-border)',
-                    background: 'var(--color-bg-base)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: 0,
-                    height: '100%',
-                  }}
-                >
-                  <div
-                    style={{
-                      padding: '12px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      borderBottom: '1px solid var(--color-border)',
-                      background: 'var(--color-bg-elevated)',
-                    }}
-                  >
-                    <FileText className="h-4 w-4 text-[#8ee8f0]" />
-                    <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                      Order Lines
-                    </h3>
-                  </div>
-
-                  {/* Table area */}
-                  <div
-                    className="responsive-table-shell"
-                    style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
-                  >
-                    <table className="data-table product-table-compact">
-                      <thead>
-                        <tr>
-                          <th>Item</th>
-                          <th style={{ textAlign: 'right' }}>Qty</th>
-                          <th style={{ textAlign: 'right' }}>Selling Price</th>
-                          <th style={{ textAlign: 'right' }}>Disc %</th>
-                          <th style={{ textAlign: 'right' }}>Total</th>
-                          {isDraft ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {getOrderLines(selectedOrder).length ? (
-                          getOrderLines(selectedOrder).map((orderLine, index) => (
-                            <LineRow
-                              key={orderLine.id}
-                              line={orderLine}
-                              index={index}
-                              draft={lineDrafts[orderLine.id] || {}}
-                              isDraft={isDraft}
-                              onDraftChange={updateLineDraft}
-                              onSave={updateOrderLine}
-                              onRemove={removeOrderLine}
-                            />
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={isDraft ? 6 : 5} className="px-4 py-6 text-center text-[13px] text-text-dim">
-                              No order lines added yet.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Add Product Form */}
+              {/* Add Product Form */}
                   {isDraft ? (
                     <div
                       style={{
@@ -1299,7 +1220,7 @@ export default function NewSalesOrderPage() {
                             options={products}
                             placeholder="Search product"
                             emptyLabel="No products found"
-                            menuPlacement="top"
+                            menuPlacement="bottom"
                             getLabel={(product) => [product.sku || product.productSku || '', product.name || product.productName || ''].filter(Boolean).join(' - ') || product.id || ''}
                             getMeta={(product) =>
                               [product.barcode, product.unitCode, product.uomBase || product.baseUom, product.brandName, product.category?.name]
@@ -1383,6 +1304,84 @@ export default function NewSalesOrderPage() {
                       </form>
                     </div>
                   ) : null}
+
+              {/* Content Grid (Order Lines Table + Totals Sidebar) */}
+              <div
+                className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
+                style={{
+                  gap: 16,
+                  flex: 1,
+                  minHeight: 0,
+                }}
+              >
+                {/* Order Lines Card */}
+                <div
+                  style={{
+                    borderRadius: 8,
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-bg-base)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                    height: '100%',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '12px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      borderBottom: '1px solid var(--color-border)',
+                      background: 'var(--color-bg-elevated)',
+                    }}
+                  >
+                    <FileText className="h-4 w-4 text-[#8ee8f0]" />
+                    <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                      Order Lines
+                    </h3>
+                  </div>
+
+                  {/* Table area */}
+                  <div
+                    className="responsive-table-shell"
+                    style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
+                  >
+                    <table className="data-table product-table-compact">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th style={{ textAlign: 'right' }}>Qty</th>
+                          <th style={{ textAlign: 'right' }}>Selling Price</th>
+                          <th style={{ textAlign: 'right' }}>Disc %</th>
+                          <th style={{ textAlign: 'right' }}>Total</th>
+                          {isDraft ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {getOrderLines(selectedOrder).length ? (
+                          getOrderLines(selectedOrder).map((orderLine, index) => (
+                            <LineRow
+                              key={orderLine.id}
+                              line={orderLine}
+                              index={index}
+                              draft={lineDrafts[orderLine.id] || {}}
+                              isDraft={isDraft}
+                              onDraftChange={updateLineDraft}
+                              onSave={updateOrderLine}
+                              onRemove={removeOrderLine}
+                            />
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={isDraft ? 6 : 5} className="px-4 py-6 text-center text-[13px] text-text-dim">
+                              No order lines added yet.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
                 {/* Sidebar Cards */}
