@@ -513,16 +513,29 @@ export default function SalesListPage() {
 
   return (
     <div
-      className="responsive-page"
+      className="responsive-page sales-list-page"
       style={{
         height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
         overflow: 'hidden',
       }}
     >
+      <div
+        className="sales-list-scroll"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          paddingRight: 2,
+        }}
+      >
       <div>
         <h1
           style={{
@@ -959,7 +972,7 @@ export default function SalesListPage() {
 
                   <div
                     className="responsive-table-shell"
-                    style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
+                    style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}
                   >
                     <table className="data-table product-table-compact">
                       <thead>
@@ -1025,6 +1038,7 @@ export default function SalesListPage() {
             <DetailMessage icon>Select an order to view details</DetailMessage>
           )}
         </section>
+      </div>
       </div>
     </div>
   )
