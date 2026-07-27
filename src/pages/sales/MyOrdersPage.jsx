@@ -8,6 +8,7 @@ import {
   ShoppingBag,
   UserCircle2,
 } from 'lucide-react'
+import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useAuthStore } from '@stores/authStore'
@@ -397,14 +398,10 @@ export default function MyOrdersPage() {
 
   return (
     <div
-      className="responsive-page"
+      className="responsive-page my-orders-page flex w-full flex-col gap-3 overflow-visible pb-4"
       style={{
-        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
-        minHeight: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-        overflow: 'hidden',
+        height: 'auto',
+        minHeight: 'calc(100dvh - var(--spacing-layout-topbar) - 56px)',
       }}
     >
       <div className="flex flex-col gap-3">
@@ -477,26 +474,15 @@ export default function MyOrdersPage() {
       </div>
 
       <div
-        className="responsive-master-detail"
+        className="responsive-master-detail grid grid-cols-1 gap-4 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]"
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(320px, 380px) minmax(0, 1fr)',
-          gap: 16,
           alignItems: 'stretch',
-          flex: 1,
-          minHeight: 0,
-          overflow: 'hidden',
         }}
       >
         <section
           className="panel responsive-queue-panel"
           style={{
             padding: 12,
-            display: 'grid',
-            gridTemplateRows: 'auto minmax(0, 1fr)',
-            minHeight: 0,
-            height: '100%',
-            overflow: 'hidden',
           }}
         >
           <div
@@ -547,7 +533,7 @@ export default function MyOrdersPage() {
             </span>
           </div>
 
-          <div style={{ minHeight: 0, overflowY: 'auto', paddingRight: 2 }}>
+          <div>
             {isLoading ? (
               <div
                 style={{
@@ -616,16 +602,10 @@ export default function MyOrdersPage() {
         </section>
 
         <section
-          className="panel responsive-detail-panel"
+          className="panel responsive-detail-panel flex flex-col gap-3"
           style={{
             padding: 16,
             minWidth: 0,
-            minHeight: 0,
-            height: '100%',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 14,
           }}
         >
           {isLoadingDetail ? (
@@ -713,7 +693,7 @@ export default function MyOrdersPage() {
                 <DetailField label="Notes" value={activeOrder.notes || '-'} />
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+              <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-[15px] font-bold text-text-primary">Order Lines</h3>
@@ -726,7 +706,7 @@ export default function MyOrdersPage() {
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <div>
                   {lineItems.length ? (
                     <div className="flex flex-col gap-3">
                       {lineItems.map((line) => (

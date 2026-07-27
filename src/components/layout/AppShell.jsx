@@ -16,7 +16,7 @@ export default function AppShell() {
   }, [pathname, setActiveModule])
   return (
     <div
-      className="relative h-screen overflow-hidden bg-bg-base text-text-primary lg:grid"
+      className="relative flex h-[100dvh] flex-col overflow-hidden bg-bg-base text-text-primary lg:grid"
       style={{
         gridTemplateColumns: `${sidebarCollapsed ? '84px' : 'var(--spacing-layout-sidebar)'} 1fr`,
         gridTemplateRows: 'var(--spacing-layout-topbar) 1fr',
@@ -34,10 +34,12 @@ export default function AppShell() {
       <Sidebar />
       <TopBar />
       <main
-        className={`relative row-start-2 min-h-0 lg:col-start-2 ${isProfilePage ? 'overflow-hidden' : 'overflow-y-auto'}`}
+        className={`relative min-h-0 flex-1 overflow-x-hidden ${
+          isProfilePage ? 'overflow-hidden' : 'overflow-y-auto'
+        } lg:row-start-2 lg:col-start-2`}
       >
         <div
-          className="page-shell"
+          className="page-shell flex min-h-full flex-col"
           style={
             isProfilePage
               ? {
