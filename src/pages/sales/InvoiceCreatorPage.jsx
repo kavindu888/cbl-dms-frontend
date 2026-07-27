@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
+import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { formatDate } from '@/utils'
 import SimplePagination from '@components/ui/SimplePagination'
 
@@ -569,11 +570,11 @@ export default function InvoiceCreatorPage() {
         !line.productId ||
         Number(line.quantity) <= 0 ||
         Number(line.discountPercent) < 0 ||
-        Number(line.discountPercent) > 10
+        Number(line.discountPercent) > DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT
     )
 
     if (invalidLine) {
-      return 'Each line needs a product, quantity, and discount between 0 and 10%.'
+      return `Each line needs a product, quantity, and discount between 0 and ${DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}%.`
     }
 
     return ''
@@ -859,7 +860,7 @@ export default function InvoiceCreatorPage() {
                             className="form-input mono text-right"
                             type="number"
                             step="0.01"
-                            max="10"
+                            max={DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}
                             {...register(`lines.${index}.discountPercent`)}
                           />
                           {line.grtsPercent !== null && line.grtsPercent !== undefined ? (

@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useStockAvailability, useStockBatches } from '@/hooks/useStock'
+import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import { usersService } from '@/services/api/usersService'
@@ -530,7 +531,7 @@ export default function SalesOrderModulePage() {
       const price = toNumber(l.unitPrice)
       const qty = toNumber(l.quantity)
       const disc = toNumber(l.discountPercent)
-      const supplierDisc = Math.min(disc, 8)
+      const supplierDisc = Math.min(disc, DISCOUNT_POLICY.SUPPLIER_THRESHOLD_PERCENT)
       return sum + (price * qty * supplierDisc / 100)
     }, 0) ?? 0
   }, [selectedOrder])
@@ -540,7 +541,7 @@ export default function SalesOrderModulePage() {
       const price = toNumber(l.unitPrice)
       const qty = toNumber(l.quantity)
       const disc = toNumber(l.discountPercent)
-      const distributorDisc = Math.max(0, disc - 8)
+      const distributorDisc = Math.max(0, disc - DISCOUNT_POLICY.SUPPLIER_THRESHOLD_PERCENT)
       return sum + (price * qty * distributorDisc / 100)
     }, 0) ?? 0
   }, [selectedOrder])
@@ -1269,7 +1270,7 @@ export default function SalesOrderModulePage() {
                                               className="form-input"
                                               type="number"
                                               min="0"
-                                              max="10"
+                                              max={DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}
                                               value={draft.discountPercent || ''}
                                               onChange={(event) =>
                                                 updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
@@ -1457,7 +1458,7 @@ export default function SalesOrderModulePage() {
                                             className="form-input"
                                             type="number"
                                             min="0"
-                                            max="10"
+                                            max={DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}
                                             value={draft.discountPercent || ''}
                                             onChange={(event) =>
                                               updateLineDraft(orderLine.id, 'discountPercent', event.target.value)
@@ -1711,7 +1712,7 @@ export default function SalesOrderModulePage() {
                                 className="form-input"
                                 type="number"
                                 min="0"
-                                max="10"
+                                max={DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}
                                 value={line.discountPercent}
                                 onChange={(event) => updateLine('discountPercent', event.target.value)}
                                 readOnly={line.isDiscountLocked}
