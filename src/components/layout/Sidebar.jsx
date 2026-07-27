@@ -95,6 +95,13 @@ const navGroups = [
         },
       },
       {
+        label: 'MY Orders',
+        to: '/sales/orders/my-orders',
+        icon: ClipboardList,
+        end: true,
+        permissions: PERMISSIONS.salesOrders.view,
+      },
+      {
         label: 'Invoices',
         to: '/sales/invoices',
         icon: FileText,
