@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
+import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useAuthStore } from '@stores/authStore'
 import { masterService } from '@/services/api/masterService'
@@ -59,7 +60,9 @@ function getOrderCustomer(order) {
 function DetailField({ label, value }) {
   return (
     <div className="min-w-0">
-      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">{label}</div>
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">
+        {label}
+      </div>
       <div className="flex min-h-10 items-center rounded-[6px] border border-border bg-bg-base px-3 py-2 text-[14px] font-semibold text-text-primary">
         {value || '-'}
       </div>
@@ -76,12 +79,16 @@ function SummaryPill({ icon: Icon, label, value, tone = 'default' }) {
         : 'border-border bg-bg-base text-text-muted'
 
   return (
-    <div className={`flex min-w-0 items-center gap-3 rounded-[10px] border px-3 py-2 ${toneClasses}`}>
+    <div
+      className={`flex min-w-0 items-center gap-3 rounded-[10px] border px-3 py-2 ${toneClasses}`}
+    >
       <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-bg-elevated text-text-primary">
         <Icon size={16} />
       </div>
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] opacity-80">{label}</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] opacity-80">
+          {label}
+        </div>
         <div className="truncate text-[13px] font-bold text-text-primary">{value}</div>
       </div>
     </div>
@@ -129,53 +136,14 @@ function OrderCard({ order, isSelected, onSelect }) {
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
-        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-text-dim">Net Amount</span>
-        <span className="mono text-[13px] font-bold text-text-primary">{formatMoney(order.netAmount)}</span>
+        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-text-dim">
+          Net Amount
+        </span>
+        <span className="mono text-[13px] font-bold text-text-primary">
+          {formatMoney(order.netAmount)}
+        </span>
       </div>
     </button>
-  )
-}
-
-function LineItemCard({ line, product }) {
-  const code = product?.sku || line?.productCode || line?.productId || '-'
-  const name = product?.name || line?.productName || line?.productCode || line?.productId || 'Order line'
-  const unitCode = line?.smallestUnitCode || line?.unitCode || product?.smallestUnitName || product?.uomBase || '-'
-
-  return (
-    <div className="rounded-[12px] border border-border bg-bg-base p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="mono truncate text-[12px] font-extrabold text-[#8ee8f0]">{code}</div>
-          <div className="mt-1 truncate text-[13px] font-semibold text-text-primary">{name}</div>
-        </div>
-        <div className="rounded-[8px] border border-border bg-bg-elevated px-2 py-1 text-[11px] font-bold text-text-muted">
-          {unitCode}
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2 text-[12px] sm:grid-cols-4">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">Qty</div>
-          <div className="mono mt-1 font-bold text-text-primary">
-            {Number(line?.quantity ?? 0).toLocaleString('en-LK')}
-          </div>
-        </div>
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">Price</div>
-          <div className="mono mt-1 font-bold text-text-primary">{formatMoney(line?.unitPrice)}</div>
-        </div>
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">Discount</div>
-          <div className="mono mt-1 font-bold text-text-primary">
-            {Number(line?.discountPercent ?? 0).toLocaleString('en-LK')}%
-          </div>
-        </div>
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">Line Total</div>
-          <div className="mono mt-1 font-bold text-text-primary">{formatMoney(line?.lineTotal)}</div>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -340,7 +308,13 @@ export default function MyOrdersPage() {
           setSalesPersonName('')
         }
 
-        const productIds = Array.from(new Set(getOrderLines(detail).map((line) => line.productId).filter(Boolean)))
+        const productIds = Array.from(
+          new Set(
+            getOrderLines(detail)
+              .map((line) => line.productId)
+              .filter(Boolean)
+          )
+        )
         if (productIds.length) {
           Promise.allSettled(productIds.map((productId) => masterService.getProduct(productId)))
             .then((responses) => {
@@ -398,91 +372,104 @@ export default function MyOrdersPage() {
 
   return (
     <div
-      className="responsive-page my-orders-page flex w-full flex-col gap-3 overflow-visible pb-4"
+      className="responsive-page my-orders-page"
       style={{
-        height: 'auto',
-        minHeight: 'calc(100dvh - var(--spacing-layout-topbar) - 56px)',
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        overflow: 'hidden',
       }}
     >
-      <div className="flex flex-col gap-3">
-        <div>
-          <h1
-            style={{
-              fontSize: 26,
-              fontWeight: 700,
-              color: 'var(--color-text-primary)',
-              lineHeight: 1.2,
-            }}
-          >
-            MY Orders
-          </h1>
-          <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-            Orders returned for {currentUserLabel}, with the list on the left and full order details on the right.
-          </p>
-        </div>
-
-        <div
-          className="panel responsive-filter-bar"
+      <div>
+        <h1
           style={{
-            padding: 16,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 16,
-            flexShrink: 0,
+            fontSize: 26,
+            fontWeight: 700,
+            color: 'var(--color-text-primary)',
+            lineHeight: 1.2,
           }}
         >
-          <div style={{ position: 'relative', flex: 1 }}>
-            <Search
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: 16,
-                height: 16,
-                color: 'var(--color-text-dim)',
-              }}
-            />
-            <input
-              className="form-input"
-              placeholder="Search by order number or customer..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              style={{
-                width: '100%',
-                height: 40,
-                paddingLeft: 36,
-                background: 'rgba(0,0,0,0.15)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 6,
-                color: 'var(--color-text-primary)',
-                fontSize: 14,
-              }}
-            />
-          </div>
-
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={refreshOrders}
-            style={{ height: 40, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7 }}
-          >
-            <RefreshCw style={{ width: 15, height: 15 }} />
-            Refresh
-          </button>
-        </div>
+          My Orders
+        </h1>
+        <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
+          Review orders returned for {currentUserLabel} and inspect the full order details below.
+        </p>
       </div>
 
       <div
-        className="responsive-master-detail grid grid-cols-1 gap-4 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]"
+        className="panel responsive-filter-bar"
         style={{
+          padding: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 16,
+              height: 16,
+              color: 'var(--color-text-dim)',
+            }}
+          />
+          <input
+            className="form-input"
+            placeholder="Search by order number or customer..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            style={{
+              width: '100%',
+              height: 40,
+              paddingLeft: 36,
+              background: 'rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              color: 'var(--color-text-primary)',
+              fontSize: 14,
+            }}
+          />
+        </div>
+
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={refreshOrders}
+          style={{ height: 40, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7 }}
+        >
+          <RefreshCw style={{ width: 15, height: 15 }} />
+          Refresh
+        </button>
+      </div>
+
+      <div
+        className="responsive-master-detail"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(320px, 380px) minmax(0, 1fr)',
+          gap: 16,
           alignItems: 'stretch',
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
         }}
       >
         <section
           className="panel responsive-queue-panel"
           style={{
             padding: 12,
+            display: 'grid',
+            gridTemplateRows: 'auto minmax(0, 1fr) auto',
+            minHeight: 0,
+            height: '100%',
+            overflow: 'hidden',
           }}
         >
           <div
@@ -492,6 +479,7 @@ export default function MyOrdersPage() {
               justifyContent: 'space-between',
               gap: 12,
               padding: '4px 4px 14px',
+              borderBottom: '1px solid var(--color-border)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -533,15 +521,15 @@ export default function MyOrdersPage() {
             </span>
           </div>
 
-          <div>
+          <div style={{ minHeight: 0, overflowY: 'auto', paddingRight: 2, marginTop: 12 }}>
             {isLoading ? (
               <div
                 style={{
-                  minHeight: '100%',
                   display: 'grid',
                   placeItems: 'center',
                   color: 'var(--color-text-muted)',
                   fontSize: 13,
+                  padding: 24,
                 }}
               >
                 Loading your orders...
@@ -581,9 +569,15 @@ export default function MyOrdersPage() {
                       border: '1px solid var(--color-border)',
                     }}
                   >
-                    {error ? <FileText style={{ width: 24, height: 24 }} /> : <ClipboardList style={{ width: 24, height: 24 }} />}
+                    {error ? (
+                      <FileText style={{ width: 24, height: 24 }} />
+                    ) : (
+                      <ClipboardList style={{ width: 24, height: 24 }} />
+                    )}
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                  <div
+                    style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}
+                  >
                     {error
                       ? error
                       : orders.length
@@ -599,13 +593,30 @@ export default function MyOrdersPage() {
               </div>
             )}
           </div>
+
+          <div
+            style={{ marginTop: 12, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}
+          >
+            <SimplePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={filteredOrders.length}
+              onPageChange={setPage}
+              itemLabel="orders"
+            />
+          </div>
         </section>
 
         <section
-          className="panel responsive-detail-panel flex flex-col gap-3"
+          className="panel responsive-detail-panel"
           style={{
-            padding: 16,
+            padding: 0,
             minWidth: 0,
+            minHeight: 0,
+            height: '100%',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           {isLoadingDetail ? (
@@ -622,8 +633,23 @@ export default function MyOrdersPage() {
               Loading order details...
             </div>
           ) : activeOrder ? (
-            <>
-              <div className="flex flex-col gap-4 border-b border-border pb-4">
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  padding: 16,
+                  borderBottom: '1px solid var(--color-border)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="mono text-[12px] font-extrabold text-[#8ee8f0]">
@@ -665,66 +691,188 @@ export default function MyOrdersPage() {
                 </div>
               </div>
 
-              {detailError ? (
-                <div className="rounded-[10px] border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
-                  {detailError}
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                  minHeight: 0,
+                }}
+              >
+                {detailError ? (
+                  <div className="rounded-[10px] border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
+                    {detailError}
+                  </div>
+                ) : null}
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <DetailField
+                    label="Customer"
+                    value={activeOrder.customerName || activeOrder.customerId}
+                  />
+                  <DetailField label="Status" value={statusLabel(activeOrder.status)} />
+                  <DetailField label="Delivery Date" value={formatDate(activeOrder.deliveryDate)} />
+                  <DetailField
+                    label="VAT"
+                    value={activeOrder.isVatApplicable ? 'Applicable' : 'Not Applicable'}
+                  />
                 </div>
-              ) : null}
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <DetailField label="Customer" value={activeOrder.customerName || activeOrder.customerId} />
-                <DetailField label="Status" value={statusLabel(activeOrder.status)} />
-                <DetailField label="Delivery Date" value={formatDate(activeOrder.deliveryDate)} />
-                <DetailField label="VAT" value={activeOrder.isVatApplicable ? 'Applicable' : 'Not Applicable'} />
-              </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <DetailField label="Gross Amount" value={formatMoney(activeOrder.grossAmount)} />
+                  <DetailField
+                    label="Discount"
+                    value={formatMoney(activeOrder.totalDiscountAmount)}
+                  />
+                  <DetailField label="VAT Amount" value={formatMoney(activeOrder.vatAmount)} />
+                  <DetailField label="Net Amount" value={formatMoney(activeOrder.netAmount)} />
+                </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <DetailField label="Gross Amount" value={formatMoney(activeOrder.grossAmount)} />
-                <DetailField label="Discount" value={formatMoney(activeOrder.totalDiscountAmount)} />
-                <DetailField label="VAT Amount" value={formatMoney(activeOrder.vatAmount)} />
-                <DetailField label="Net Amount" value={formatMoney(activeOrder.netAmount)} />
-              </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DetailField
+                    label="Cancelled Reason"
+                    value={activeOrder.cancelledReason || activeOrder.cancelReason || '-'}
+                  />
+                  <DetailField label="Notes" value={activeOrder.notes || '-'} />
+                </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <DetailField
-                  label="Cancelled Reason"
-                  value={activeOrder.cancelledReason || activeOrder.cancelReason || '-'}
-                />
-                <DetailField label="Notes" value={activeOrder.notes || '-'} />
-              </div>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-[15px] font-bold text-text-primary">Order Lines</h3>
+                      <p className="mt-1 text-[12px] text-text-muted">
+                        {lineItems.length} line{lineItems.length === 1 ? '' : 's'} in this order
+                      </p>
+                    </div>
+                    <div className="rounded-[999px] border border-border bg-bg-base px-3 py-1 text-[12px] font-bold text-text-primary">
+                      {formatMoney(activeOrder.netAmount)}
+                    </div>
+                  </div>
 
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-[15px] font-bold text-text-primary">Order Lines</h3>
-                    <p className="mt-1 text-[12px] text-text-muted">
-                      {lineItems.length} line{lineItems.length === 1 ? '' : 's'} in this order
-                    </p>
-                  </div>
-                  <div className="rounded-[999px] border border-border bg-bg-base px-3 py-1 text-[12px] font-bold text-text-primary">
-                    {formatMoney(activeOrder.netAmount)}
-                  </div>
-                </div>
+                    {lineItems.length ? (
+                      <div
+                        style={{
+                          minHeight: 150,
+                          overflow: 'hidden',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 8,
+                          display: 'flex',
+                          flexDirection: 'column',
+                        }}
+                      >
+                        <div
+                          style={{
+                            padding: '10px 12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            borderBottom: '1px solid var(--color-border)',
+                            background: 'var(--color-bg-surface)',
+                          }}
+                        >
+                          <ShoppingBag
+                            style={{ width: 14, height: 14, color: 'var(--color-teal)' }}
+                          />
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: 'var(--color-text-primary)',
+                            }}
+                          >
+                            Items List
+                          </span>
+                        </div>
+                        <div
+                          className="responsive-table-shell"
+                          style={{ overflowX: 'auto', maxHeight: 350 }}
+                        >
+                          <table className="data-table product-table-compact">
+                            <thead>
+                              <tr>
+                                <th>Item</th>
+                                <th>Unit</th>
+                                <th style={{ textAlign: 'right' }}>Price</th>
+                                <th style={{ textAlign: 'right' }}>Qty</th>
+                                <th style={{ textAlign: 'right' }}>Disc %</th>
+                                <th style={{ textAlign: 'right' }}>Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {lineItems.map((line) => {
+                                const product = productById[line.productId]
+                                const code =
+                                  product?.sku || line?.productCode || line?.productId || '-'
+                                const name =
+                                  product?.name ||
+                                  line?.productName ||
+                                  line?.productCode ||
+                                  line?.productId ||
+                                  'Order line'
+                                const unitCode =
+                                  line?.smallestUnitCode ||
+                                  line?.unitCode ||
+                                  product?.smallestUnitName ||
+                                  product?.uomBase ||
+                                  '-'
 
-                <div>
-                  {lineItems.length ? (
-                    <div className="flex flex-col gap-3">
-                      {lineItems.map((line) => (
-                        <LineItemCard
-                          key={line.id}
-                          line={line}
-                          product={productById[line.productId]}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid min-h-[180px] place-items-center rounded-[12px] border border-border bg-bg-base p-6 text-center text-[13px] text-text-muted">
-                      This order does not include line items yet.
-                    </div>
-                  )}
+                                return (
+                                  <tr key={line.id}>
+                                    <td>
+                                      <div
+                                        style={{
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          alignItems: 'flex-start',
+                                          gap: 2,
+                                        }}
+                                      >
+                                        <span className="product-sku-badge mono">{code}</span>
+                                        <span
+                                          className="product-info-sub"
+                                          style={{
+                                            fontSize: 12,
+                                            color: 'var(--color-text-muted)',
+                                            fontWeight: 500,
+                                          }}
+                                        >
+                                          {name}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="mono">{unitCode}</td>
+                                    <td className="mono text-right">
+                                      {formatMoney(line?.unitPrice)}
+                                    </td>
+                                    <td className="mono text-right">
+                                      {Number(line?.quantity ?? 0).toLocaleString('en-LK')}
+                                    </td>
+                                    <td className="mono text-right">
+                                      {Number(line?.discountPercent ?? 0).toLocaleString('en-LK')}%
+                                    </td>
+                                    <td className="mono text-right font-semibold">
+                                      {formatMoney(line?.lineTotal)}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid min-h-[180px] place-items-center rounded-[12px] border border-border bg-bg-base p-6 text-center text-[13px] text-text-muted">
+                        This order does not include line items yet.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </>
+            </div>
           ) : (
             <div
               style={{
