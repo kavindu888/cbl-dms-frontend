@@ -1238,6 +1238,70 @@ tr:hover .copy-btn {
   .page-shell .sales-new-order-page .sales-new-order-actions input {
     width: 100% !important;
   }
+
+  .page-shell .sales-new-order-page .sales-new-order-table-shell {
+    overflow-x: auto !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-lines-table {
+    display: table !important;
+    width: 100% !important;
+    min-width: 760px !important;
+    table-layout: auto !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-lines-table thead {
+    display: table-header-group !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-lines-table tbody {
+    display: table-row-group !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-lines-table tr {
+    display: table-row !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-lines-table th,
+  .page-shell .sales-new-order-page .sales-new-order-lines-table td {
+    display: table-cell !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-line-row {
+    display: table-row !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-line-row td {
+    display: table-cell !important;
+    align-items: initial !important;
+    justify-content: initial !important;
+    gap: 0 !important;
+    width: auto !important;
+    padding: 10px 12px !important;
+    border-bottom: 1px solid var(--color-border) !important;
+    text-align: inherit !important;
+    white-space: nowrap !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-line-row td::before {
+    content: none !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-line-row td[data-label='Actions'] {
+    flex-direction: row !important;
+    align-items: center !important;
+    white-space: nowrap !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-line-actions button,
+  .page-shell .sales-new-order-page .sales-new-order-confirm-button,
+  .page-shell .sales-new-order-page .sales-new-order-cancel-button {
+    width: auto !important;
+  }
 }
 
 @media (max-width: 900px) {

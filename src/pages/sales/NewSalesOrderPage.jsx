@@ -1117,7 +1117,7 @@ export default function NewSalesOrderPage() {
               />
             </div>
 
-            <div style={{ minWidth: 0 }}>
+            {/* <div style={{ minWidth: 0 }}>
               <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
                 Sales Person
               </span>
@@ -1128,7 +1128,7 @@ export default function NewSalesOrderPage() {
                 tabIndex={-1}
                 style={{ height: 40, background: 'rgba(0,0,0,0.12)', cursor: 'not-allowed' }}
               />
-            </div>
+            </div> */}
 
             <div style={{ minWidth: 0 }}>
               <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
@@ -1373,26 +1373,29 @@ export default function NewSalesOrderPage() {
                   ) : null}
 
               {/* Content Grid (Order Lines Table + Totals Sidebar) */}
+            <div
+              className="sales-new-order-content-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
+              style={{
+                gap: 16,
+                flex: 1,
+                minHeight: 0,
+                minWidth: 0,
+              }}
+            >
+              {/* Order Lines Card */}
               <div
-                className="sales-new-order-content-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
                 style={{
-                  gap: 16,
-                  flex: 1,
-                  minHeight: 0,
-                }}
-              >
-                {/* Order Lines Card */}
-                <div
-                  style={{
                     borderRadius: 8,
                     border: '1px solid var(--color-border)',
                     background: 'var(--color-bg-base)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: 0,
-                    height: '100%',
-                  }}
-                >
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minHeight: 0,
+                  minWidth: 0,
+                  height: '100%',
+                  maxWidth: '100%',
+                }}
+              >
                   <div
                     style={{
                       padding: '12px 14px',
@@ -1412,9 +1415,9 @@ export default function NewSalesOrderPage() {
                   {/* Table area */}
                   <div
                     className="sales-new-order-table-shell responsive-table-shell"
-                    style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
+                    style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}
                   >
-                    <table className="data-table product-table-compact sales-new-order-lines-table">
+                    <table className="data-table product-table-compact sales-new-order-lines-table" style={{ minWidth: 760 }}>
                       <thead>
                         <tr>
                           <th>Item</th>
@@ -1453,7 +1456,10 @@ export default function NewSalesOrderPage() {
                 </div>
 
                 {/* Sidebar Cards */}
-                <aside className="sales-new-order-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <aside
+                  className="sales-new-order-sidebar"
+                  style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, maxWidth: '100%' }}
+                >
                   {/* Totals */}
                   <div
                     className="sales-new-order-actions"
