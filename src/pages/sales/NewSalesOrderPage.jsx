@@ -792,43 +792,7 @@ export default function NewSalesOrderPage() {
       try {
         const order = await salesService.getSalesOrder(orderId)
         if (!isCurrent) return
-
-        setSelectedOrder(order)
-        setLineDrafts(
-          (order.lines || []).reduce((map, item) => {
-            map[item.id] = {
-              quantity: String(item.quantity),
-              discountPercent: String(item.discountPercent),
-            }
-            return map
-          }, {})
-        )
-
-        if (order.salesRouteId) {
-          masterService
-            .getSalesRoute(order.salesRouteId)
-            .then((route) => {
-              if (isCurrent) setSalesRouteName(route?.name || '')
-            })
-            .catch(() => {
-              if (isCurrent) setSalesRouteName('')
-            })
-        } else {
-          setSalesRouteName('')
-        }
-
-        if (order.salesPersonId) {
-          usersService
-            .getUser(order.salesPersonId)
-            .then((user) => {
-              if (isCurrent) setSalesPersonName(user?.username || user?.email || '')
-            })
-            .catch(() => {
-              if (isCurrent) setSalesPersonName('')
-            })
-        } else {
-          setSalesPersonName('')
-        }
+        hydrateSelectedOrder(order)
       } catch (requestError) {
         if (!isCurrent) return
         toast.error(requestError.message || 'Unable to load order detail.')
@@ -899,6 +863,45 @@ export default function NewSalesOrderPage() {
     setOrders(sorted)
   }
 
+  function hydrateSelectedOrder(order) {
+    setSelectedOrder(order)
+    setLineDrafts(
+      (order.lines || []).reduce((map, item) => {
+        map[item.id] = {
+          quantity: String(item.quantity),
+          discountPercent: String(item.discountPercent),
+        }
+        return map
+      }, {})
+    )
+
+    if (order.salesRouteId) {
+      masterService
+        .getSalesRoute(order.salesRouteId)
+        .then((route) => {
+          setSalesRouteName(route?.name || '')
+        })
+        .catch(() => {
+          setSalesRouteName('')
+        })
+    } else {
+      setSalesRouteName('')
+    }
+
+    if (order.salesPersonId) {
+      usersService
+        .getUser(order.salesPersonId)
+        .then((user) => {
+          setSalesPersonName(user?.username || user?.email || '')
+        })
+        .catch(() => {
+          setSalesPersonName('')
+        })
+    } else {
+      setSalesPersonName('')
+    }
+  }
+
   async function addLine(event) {
     event.preventDefault()
 
@@ -933,8 +936,9 @@ export default function NewSalesOrderPage() {
       })
       toast.success('Order line added.')
       setLine(emptyLine)
+      const refreshed = await salesService.getSalesOrder(selectedOrder.id)
+      hydrateSelectedOrder(refreshed)
       await loadOrdersAgain()
-      setSelectedOrderId(selectedOrder.id)
     } catch (requestError) {
       toast.error(requestError.message || 'Unable to add order line.')
     } finally {
@@ -953,8 +957,9 @@ export default function NewSalesOrderPage() {
         discountPercent: toNumber(draft.discountPercent),
       })
       toast.success('Order line updated.')
+      const refreshed = await salesService.getSalesOrder(selectedOrder.id)
+      hydrateSelectedOrder(refreshed)
       await loadOrdersAgain()
-      setSelectedOrderId(selectedOrder.id)
     } catch (requestError) {
       toast.error(requestError.message || 'Unable to update order line.')
     } finally {
@@ -969,8 +974,9 @@ export default function NewSalesOrderPage() {
     try {
       await salesService.removeSalesOrderLine(selectedOrder.id, lineId)
       toast.success('Order line removed.')
+      const refreshed = await salesService.getSalesOrder(selectedOrder.id)
+      hydrateSelectedOrder(refreshed)
       await loadOrdersAgain()
-      setSelectedOrderId(selectedOrder.id)
     } catch (requestError) {
       toast.error(requestError.message || 'Unable to remove order line.')
     } finally {
