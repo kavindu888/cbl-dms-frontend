@@ -74,15 +74,9 @@ function statusClasses(status) {
   if (normalized === 'cancelled' || normalized === 'canceled') {
     return 'border-[#ff7b8a]/30 bg-[#ff7b8a]/10 text-[#ff7b8a]'
   }
-
   if (normalized === 'converted' || normalized === 'confirmed' || normalized === 'submitted') {
     return 'border-[#8ee8f0]/30 bg-[#8ee8f0]/10 text-[#8ee8f0]'
   }
-
-  if (normalized === 'draft') {
-    return 'border-border bg-bg-base text-text-muted'
-  }
-
   return 'border-border bg-bg-base text-text-muted'
 }
 
@@ -373,54 +367,32 @@ function SearchableSelect({
 }
 
 function StockAvailabilityHint({ productId }) {
-  const {
-    data: availabilityResponse,
-    isLoading,
-    isError,
-    error,
-  } = useStockAvailability(productId)
+  const { data, isLoading, isError, error } = useStockAvailability(productId)
 
   if (!productId) return null
 
-  // Support both direct response and { data: {...} } response formats
-  const data = availabilityResponse?.data ?? availabilityResponse ?? {}
-
-  // Prefer actual sellable quantity.
-  // totalAvailable may include reserved stock depending on the backend.
+  const availability = data?.data ?? data ?? {}
   const sellableQty = Number(
-    data.sellable ??
-      data.sellableQuantity ??
-      data.availableQuantity ??
-      data.availableQty ??
-      data.quantityAvailable ??
-      data.totalAvailable ??
-      data.qty ??
+    availability.sellable ??
+      availability.sellableQuantity ??
+      availability.availableQuantity ??
+      availability.availableQty ??
+      availability.quantityAvailable ??
+      availability.totalAvailable ??
+      availability.qty ??
       0
   )
-
   const totalAvailable = Number(
-    data.totalAvailable ??
-      data.availableQuantity ??
-      data.availableQty ??
-      sellableQty
+    availability.totalAvailable ?? availability.availableQuantity ?? sellableQty
   )
-
-  const totalReserved = Number(
-    data.totalReserved ??
-      data.reservedQuantity ??
-      data.reservedQty ??
-      0
-  )
-
+  const totalReserved = Number(availability.totalReserved ?? availability.reservedQuantity ?? 0)
   const unitCode =
-    data.smallestUnitCode ||
-    data.unitCode ||
-    data.uomCode ||
-    data.baseUomCode ||
-    data.unit ||
+    availability.smallestUnitCode ||
+    availability.unitCode ||
+    availability.uomCode ||
+    availability.baseUomCode ||
+    availability.unit ||
     ''
-
-  const hasStock = sellableQty > 0
 
   return (
     <div
@@ -454,21 +426,16 @@ function StockAvailabilityHint({ productId }) {
       {!isLoading && isError ? (
         <span
           title={error?.message || 'Unable to check stock'}
-          style={{
-            color: 'var(--color-danger)',
-            fontWeight: 700,
-          }}
+          style={{ color: 'var(--color-danger)', fontWeight: 700 }}
         >
           Unable to check stock
         </span>
       ) : null}
 
       {!isLoading && !isError ? (
-        hasStock ? (
+        sellableQty > 0 ? (
           <span
-            title={`Total available: ${totalAvailable.toLocaleString('en-LK')}${
-              unitCode ? ` ${unitCode}` : ''
-            }`}
+            title={`Total available: ${totalAvailable.toLocaleString('en-LK')}${unitCode ? ` ${unitCode}` : ''}`}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -488,18 +455,12 @@ function StockAvailabilityHint({ productId }) {
                 flexShrink: 0,
               }}
             />
-
             <strong
               className="mono"
-              style={{
-                color: 'var(--color-text-primary)',
-                fontSize: 13,
-                fontWeight: 900,
-              }}
+              style={{ color: 'var(--color-text-primary)', fontSize: 13, fontWeight: 900 }}
             >
               {sellableQty.toLocaleString('en-LK')}
             </strong>
-
             {unitCode ? (
               <span
                 className="mono"
@@ -516,9 +477,7 @@ function StockAvailabilityHint({ productId }) {
                 {unitCode}
               </span>
             ) : null}
-
             <span>sellable</span>
-
             {totalReserved > 0 ? (
               <span style={{ color: 'var(--color-text-dim)' }}>
                 ({totalReserved.toLocaleString('en-LK')} reserved)
@@ -570,7 +529,6 @@ function LineRow({ line, index, product, draft, canEdit, onDraftChange, onSave, 
       : Number(line?.quantity || 0) *
         Number(line?.unitPrice || 0) *
         (1 - Number(line?.discountPercent || 0) / 100)
-
   const draftQuantity = draft?.quantity ?? String(line?.quantity ?? '')
   const draftDiscount = draft?.discountPercent ?? String(line?.discountPercent ?? '0')
 
@@ -693,7 +651,7 @@ function LineRow({ line, index, product, draft, canEdit, onDraftChange, onSave, 
 
 export default function NewSalesOrderPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const orderIdParam = searchParams.get('orderId')
   const sessionUser = useAuthStore((state) => state.user)
 
@@ -732,19 +690,13 @@ export default function NewSalesOrderPage() {
   }, [products])
 
   const selectedCustomer = customerById[header.customerId] || null
-  const selectedRouteId = normalizeText(
-  selectedCustomer?.salesRouteId ||
-    selectedCustomer?.routeId ||
-    selectedOrder?.salesRouteId ||
-    selectedOrder?.routeId ||
+  const selectedCustomerRouteName =
+    salesRouteName ||
+    selectedCustomer?.salesRouteName ||
+    selectedCustomer?.routeName ||
+    selectedOrder?.salesRouteName ||
+    selectedOrder?.routeName ||
     ''
-)
-
-const selectedCustomerRouteName =
-  selectedCustomer?.salesRouteName ||
-  selectedCustomer?.routeName ||
-  salesRouteName ||
-  ''
   const selectedOrderLines = getOrderLines(selectedOrder)
   const canEditCurrentDraft =
     !selectedOrder || (isOrderDraft(selectedOrder) && canEditDraftOrder(selectedOrder, sessionUser))
@@ -773,7 +725,6 @@ const selectedCustomerRouteName =
 
     async function loadInitialData() {
       setIsLoadingInitialData(true)
-
       try {
         const [customerList, productList] = await Promise.all([
           salesService.listAllCustomers({ pageSize: 100, isActive: true }),
@@ -928,19 +879,17 @@ const selectedCustomerRouteName =
             )
           )
           setSalesRouteName(
-  customerById[order.customerId]?.salesRouteName ||
-    customerById[order.customerId]?.routeName ||
-    order.salesRouteName ||
-    order.routeName ||
-    ''
-)
+            customerById[order.customerId]?.salesRouteName ||
+              customerById[order.customerId]?.routeName ||
+              order.salesRouteName ||
+              order.routeName ||
+              ''
+          )
           setCancelReason('')
         } catch (error) {
           toast.error(error.message || 'Draft creation failed.')
         } finally {
-          if (isMountedRef.current) {
-            setIsCreatingDraft(false)
-          }
+          if (isMountedRef.current) setIsCreatingDraft(false)
           draftCreationPromiseRef.current = null
         }
       })()
@@ -956,65 +905,53 @@ const selectedCustomerRouteName =
   }, [orderIdParam, header.customerId, header.deliveryDate, header.notes, customerById])
 
   useEffect(() => {
-  let isCurrent = true
+    let isCurrent = true
 
-  async function resolveSalesRouteName() {
-    const directRouteName =
-      selectedCustomer?.salesRouteName ||
-      selectedCustomer?.routeName ||
-      selectedOrder?.salesRouteName ||
-      selectedOrder?.routeName ||
-      ''
+    async function loadSalesRouteName() {
+      const routeId = selectedCustomer?.salesRouteId || selectedOrder?.salesRouteId || ''
 
-    // Customer/order response එකේ name එක direct තිබුණොත් API call එකක් අවශ්‍ය නැහැ.
-    if (directRouteName) {
-      setSalesRouteName(directRouteName)
-      return
+      if (selectedCustomer?.salesRouteName) {
+        setSalesRouteName(selectedCustomer.salesRouteName)
+        return
+      }
+
+      if (selectedCustomer?.routeName) {
+        setSalesRouteName(selectedCustomer.routeName)
+        return
+      }
+
+      if (!routeId) {
+        setSalesRouteName('')
+        return
+      }
+
+      try {
+        const route = await masterService.getSalesRoute(routeId)
+        if (!isCurrent) return
+
+        setSalesRouteName(
+          route?.name || route?.routeName || route?.salesRouteName || route?.code || ''
+        )
+      } catch {
+        if (isCurrent) {
+          setSalesRouteName('')
+        }
+      }
     }
 
-    // Route ID එකක් නැත්නම් field එක clear කරන්න.
-    if (!selectedRouteId) {
-      setSalesRouteName('')
-      return
+    void loadSalesRouteName()
+
+    return () => {
+      isCurrent = false
     }
-
-    try {
-      const response = await masterService.getSalesRoute(selectedRouteId)
-
-      if (!isCurrent) return
-
-      // Support both direct object and { data: object } API responses.
-      const route = response?.data ?? response ?? {}
-
-      const resolvedName =
-        route.name ||
-        route.routeName ||
-        route.salesRouteName ||
-        route.code ||
-        route.routeCode ||
-        ''
-
-      setSalesRouteName(resolvedName)
-    } catch (error) {
-      if (!isCurrent) return
-
-      console.error('Unable to resolve sales route name:', error)
-      setSalesRouteName('')
-    }
-  }
-
-  resolveSalesRouteName()
-
-  return () => {
-    isCurrent = false
-  }
-}, [
-  selectedRouteId,
-  selectedCustomer?.salesRouteName,
-  selectedCustomer?.routeName,
-  selectedOrder?.salesRouteName,
-  selectedOrder?.routeName,
-])
+  }, [
+    selectedCustomer?.salesRouteId,
+    selectedCustomer?.salesRouteName,
+    selectedCustomer?.routeName,
+    selectedOrder?.salesRouteId,
+    selectedOrder?.salesRouteName,
+    selectedOrder?.routeName,
+  ])
 
   function updateHeader(field, value) {
     setHeader((current) => ({
@@ -1041,7 +978,27 @@ const selectedCustomerRouteName =
   }
 
   function resetLineForm() {
-    setLine(emptyLine)
+    setLine({ ...emptyLine })
+  }
+
+  function resetNewOrderForm() {
+    if (autoCreateTimerRef.current) {
+      clearTimeout(autoCreateTimerRef.current)
+      autoCreateTimerRef.current = null
+    }
+
+    currentDraftOrderIdRef.current = ''
+    draftCreationPromiseRef.current = null
+    setSelectedOrder(null)
+    setHeader({ ...emptyHeader })
+    setLine({ ...emptyLine })
+    setLineDrafts({})
+    setSalesRouteName('')
+    setCancelReason('')
+    setDetailError('')
+    setIsCreatingDraft(false)
+    setIsSaving(false)
+    setSearchParams({}, { replace: true })
   }
 
   async function reloadOrder(orderId) {
@@ -1061,12 +1018,12 @@ const selectedCustomerRouteName =
       )
     )
     setSalesRouteName(
-  customerById[order.customerId]?.salesRouteName ||
-    customerById[order.customerId]?.routeName ||
-    order.salesRouteName ||
-    order.routeName ||
-    ''
-)
+      customerById[order.customerId]?.salesRouteName ||
+        customerById[order.customerId]?.routeName ||
+        order.salesRouteName ||
+        order.routeName ||
+        ''
+    )
     return order
   }
 
@@ -1106,8 +1063,7 @@ const selectedCustomerRouteName =
         }
 
         currentDraftOrderIdRef.current = draftOrderId
-        const order = await reloadOrder(draftOrderId)
-        return order
+        return await reloadOrder(draftOrderId)
       } catch (error) {
         toast.error(error.message || 'Draft creation failed.')
         throw error
@@ -1296,16 +1252,8 @@ const selectedCustomerRouteName =
       }
 
       await salesService.confirmSalesOrder(draftOrder.id)
-
       toast.success('Sales order confirmed.')
-      currentDraftOrderIdRef.current = ''
-      draftCreationPromiseRef.current = null
-      setSelectedOrder(null)
-      setHeader(emptyHeader)
-      setLine(emptyLine)
-      setLineDrafts({})
-      setSalesRouteName('')
-      setCancelReason('')
+      resetNewOrderForm()
       navigate('/sales/orders', { replace: true })
     } catch (error) {
       toast.error(error.message || 'Unable to confirm sales order.')
@@ -1328,13 +1276,7 @@ const selectedCustomerRouteName =
       setIsSaving(true)
       await salesService.cancelSalesOrder(selectedOrder.id, reason)
       toast.success('Sales order cancelled.')
-      currentDraftOrderIdRef.current = ''
-      setSelectedOrder(null)
-      setHeader(emptyHeader)
-      setLine(emptyLine)
-      setLineDrafts({})
-      setSalesRouteName('')
-      setCancelReason('')
+      resetNewOrderForm()
       navigate('/sales/orders/my-orders', { replace: true })
     } catch (error) {
       toast.error(error.message || 'Unable to cancel sales order.')
@@ -1347,7 +1289,7 @@ const selectedCustomerRouteName =
     ? `Editing draft order for ${currentUserLabel}.`
     : 'Start a new draft order, add lines, and confirm when ready.'
 
-  const orderStatus = selectedOrder?.status || (currentDraftOrderIdRef.current ? 'Draft' : 'Draft')
+  const orderStatus = selectedOrder?.status || 'Draft'
 
   return (
     <div
@@ -1390,14 +1332,14 @@ const selectedCustomerRouteName =
           flexShrink: 0,
         }}
       >
-        {/*<div className="flex items-center gap-2">
+        {/* <div className="flex items-center gap-2">
           <span className="inline-flex items-center rounded-[6px] border border-border bg-bg-base px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
             Product
           </span>
           <span className="inline-flex items-center rounded-[6px] border border-border bg-bg-base px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
             + Sale
-          </span> 
-        </div>*/}
+          </span>
+        </div> */}
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(180px,220px)_minmax(180px,220px)]">
           <label className="min-w-0">
@@ -1410,10 +1352,8 @@ const selectedCustomerRouteName =
               options={customers}
               placeholder="Search customer"
               emptyLabel="No customers found"
-              getLabel={(customer) => [customer.code, customer.name].filter(Boolean).join(' - ')}
-              getMeta={(customer) =>
-              [customer.salesRouteName || customer.routeName,customer.primaryContactPhone || customer.phone,].filter(Boolean).join(' • ')
-              }
+              getLabel={(customer) => customer.name || customer.code || ''}
+              getMeta={(customer) => customer.salesRouteName || ''}
             />
           </label>
 
@@ -1470,11 +1410,7 @@ const selectedCustomerRouteName =
 
       <div
         className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]"
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflow: 'hidden',
-        }}
+        style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
       >
         <section
           className="panel"
@@ -1486,7 +1422,7 @@ const selectedCustomerRouteName =
             flexDirection: 'column',
           }}
         >
-          <div
+          {/* <div
             className="border-b border-border px-4 py-3"
             style={{ background: 'var(--color-bg-surface)' }}
           >
@@ -1494,7 +1430,7 @@ const selectedCustomerRouteName =
               <FileText className="h-4 w-4 text-[#8ee8f0]" />
               <h3 className="text-[12px] font-bold text-text-primary">Order Lines</h3>
             </div>
-          </div>
+          </div> */}
 
           <div className="flex-1 overflow-hidden">
             {isLoadingDetail ? (
@@ -1530,7 +1466,6 @@ const selectedCustomerRouteName =
                     padding: 12,
                     width: '100%',
                     minWidth: 0,
-                    maxWidth: '100%',
                     boxSizing: 'border-box',
                     overflow: 'visible',
                   }}
@@ -1851,7 +1786,7 @@ const selectedCustomerRouteName =
             ) : null}
           </div>
 
-          {/* <div
+          <div
             className="panel"
             style={{
               borderRadius: 8,
@@ -1872,7 +1807,7 @@ const selectedCustomerRouteName =
             <FieldCard label="Notes" value={normalizeText(header.notes) || '-'} />
             <FieldCard label="Status" value={statusLabel(orderStatus)} />
             <FieldCard label="Order Date" value={formatDateTime(selectedOrder?.orderDate)} />
-          </div> */}
+          </div>
         </aside>
       </div>
     </div>
