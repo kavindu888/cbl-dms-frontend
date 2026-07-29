@@ -732,8 +732,19 @@ export default function NewSalesOrderPage() {
   }, [products])
 
   const selectedCustomer = customerById[header.customerId] || null
-  const selectedCustomerRouteName =
-    selectedCustomer?.salesRouteName || salesRouteName || selectedOrder?.salesRouteId || ''
+  const selectedRouteId = normalizeText(
+  selectedCustomer?.salesRouteId ||
+    selectedCustomer?.routeId ||
+    selectedOrder?.salesRouteId ||
+    selectedOrder?.routeId ||
+    ''
+)
+
+const selectedCustomerRouteName =
+  selectedCustomer?.salesRouteName ||
+  selectedCustomer?.routeName ||
+  salesRouteName ||
+  ''
   const selectedOrderLines = getOrderLines(selectedOrder)
   const canEditCurrentDraft =
     !selectedOrder || (isOrderDraft(selectedOrder) && canEditDraftOrder(selectedOrder, sessionUser))
@@ -854,7 +865,11 @@ export default function NewSalesOrderPage() {
           )
         )
         setSalesRouteName(
-          customerById[order.customerId]?.salesRouteName || order.salesRouteId || ''
+          customerById[order.customerId]?.salesRouteName ||
+            customerById[order.customerId]?.routeName ||
+            order.salesRouteName ||
+            order.routeName ||
+            ''
         )
         setCancelReason('')
       } catch (error) {
@@ -913,8 +928,12 @@ export default function NewSalesOrderPage() {
             )
           )
           setSalesRouteName(
-            customerById[order.customerId]?.salesRouteName || order.salesRouteId || ''
-          )
+  customerById[order.customerId]?.salesRouteName ||
+    customerById[order.customerId]?.routeName ||
+    order.salesRouteName ||
+    order.routeName ||
+    ''
+)
           setCancelReason('')
         } catch (error) {
           toast.error(error.message || 'Draft creation failed.')
@@ -937,14 +956,65 @@ export default function NewSalesOrderPage() {
   }, [orderIdParam, header.customerId, header.deliveryDate, header.notes, customerById])
 
   useEffect(() => {
-    if (selectedCustomer?.salesRouteName) {
-      setSalesRouteName(selectedCustomer.salesRouteName)
-    } else if (selectedCustomer?.salesRouteId) {
-      setSalesRouteName(selectedCustomer.salesRouteId)
-    } else if (!header.customerId) {
+  let isCurrent = true
+
+  async function resolveSalesRouteName() {
+    const directRouteName =
+      selectedCustomer?.salesRouteName ||
+      selectedCustomer?.routeName ||
+      selectedOrder?.salesRouteName ||
+      selectedOrder?.routeName ||
+      ''
+
+    // Customer/order response එකේ name එක direct තිබුණොත් API call එකක් අවශ්‍ය නැහැ.
+    if (directRouteName) {
+      setSalesRouteName(directRouteName)
+      return
+    }
+
+    // Route ID එකක් නැත්නම් field එක clear කරන්න.
+    if (!selectedRouteId) {
+      setSalesRouteName('')
+      return
+    }
+
+    try {
+      const response = await masterService.getSalesRoute(selectedRouteId)
+
+      if (!isCurrent) return
+
+      // Support both direct object and { data: object } API responses.
+      const route = response?.data ?? response ?? {}
+
+      const resolvedName =
+        route.name ||
+        route.routeName ||
+        route.salesRouteName ||
+        route.code ||
+        route.routeCode ||
+        ''
+
+      setSalesRouteName(resolvedName)
+    } catch (error) {
+      if (!isCurrent) return
+
+      console.error('Unable to resolve sales route name:', error)
       setSalesRouteName('')
     }
-  }, [selectedCustomer, header.customerId])
+  }
+
+  resolveSalesRouteName()
+
+  return () => {
+    isCurrent = false
+  }
+}, [
+  selectedRouteId,
+  selectedCustomer?.salesRouteName,
+  selectedCustomer?.routeName,
+  selectedOrder?.salesRouteName,
+  selectedOrder?.routeName,
+])
 
   function updateHeader(field, value) {
     setHeader((current) => ({
@@ -990,7 +1060,13 @@ export default function NewSalesOrderPage() {
         ])
       )
     )
-    setSalesRouteName(customerById[order.customerId]?.salesRouteName || order.salesRouteId || '')
+    setSalesRouteName(
+  customerById[order.customerId]?.salesRouteName ||
+    customerById[order.customerId]?.routeName ||
+    order.salesRouteName ||
+    order.routeName ||
+    ''
+)
     return order
   }
 
@@ -1314,14 +1390,14 @@ export default function NewSalesOrderPage() {
           flexShrink: 0,
         }}
       >
-        <div className="flex items-center gap-2">
+        {/*<div className="flex items-center gap-2">
           <span className="inline-flex items-center rounded-[6px] border border-border bg-bg-base px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
             Product
           </span>
           <span className="inline-flex items-center rounded-[6px] border border-border bg-bg-base px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
             + Sale
-          </span>
-        </div>
+          </span> 
+        </div>*/}
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(180px,220px)_minmax(180px,220px)]">
           <label className="min-w-0">
@@ -1336,7 +1412,7 @@ export default function NewSalesOrderPage() {
               emptyLabel="No customers found"
               getLabel={(customer) => [customer.code, customer.name].filter(Boolean).join(' - ')}
               getMeta={(customer) =>
-                [customer.salesRouteName, customer.salesRouteId].filter(Boolean).join(' - ')
+              [customer.salesRouteName || customer.routeName,customer.primaryContactPhone || customer.phone,].filter(Boolean).join(' • ')
               }
             />
           </label>
@@ -1775,7 +1851,7 @@ export default function NewSalesOrderPage() {
             ) : null}
           </div>
 
-          <div
+          {/* <div
             className="panel"
             style={{
               borderRadius: 8,
@@ -1796,7 +1872,7 @@ export default function NewSalesOrderPage() {
             <FieldCard label="Notes" value={normalizeText(header.notes) || '-'} />
             <FieldCard label="Status" value={statusLabel(orderStatus)} />
             <FieldCard label="Order Date" value={formatDateTime(selectedOrder?.orderDate)} />
-          </div>
+          </div> */}
         </aside>
       </div>
     </div>
