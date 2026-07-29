@@ -1187,11 +1187,14 @@ export default function NewSalesOrderPage() {
             display: 'flex',
             flexDirection: 'column',
             gap: 12,
-            flex: 1,
+            width: '100%',
             minWidth: 0,
-            minHeight: 0,
-            height: '100%',
+
+            height: 'auto',
+            minHeight: 'fit-content',
+            flex: '0 0 auto',
             overflow: 'visible',
+            boxSizing: 'border-box',
           }}
         >
           {isLoadingDetail ? (
@@ -1199,7 +1202,7 @@ export default function NewSalesOrderPage() {
               Loading order details...
             </div>
           ) : selectedOrder ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0 }}>
+            <div style={{display: 'flex',flexDirection: 'column',gap: 12,width: '100%',minWidth: 0,height: 'auto',minHeight: 'fit-content',}}>
               <div
                 style={{
                   display: 'flex',
@@ -1388,9 +1391,10 @@ export default function NewSalesOrderPage() {
               className="sales-new-order-content-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
               style={{
                 gap: 16,
-                flex: 1,
-                minHeight: 0,
+                width: '100%',
                 minWidth: 0,
+                minHeight: 420,
+                alignItems: 'stretch',
               }}
             >
               {/* Order Lines Card */}
@@ -1399,12 +1403,15 @@ export default function NewSalesOrderPage() {
                     borderRadius: 8,
                     border: '1px solid var(--color-border)',
                     background: 'var(--color-bg-base)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  minHeight: 0,
-                  minWidth: 0,
-                  height: '100%',
-                  maxWidth: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+
+                    width: '100%',
+                    minWidth: 0,
+                    maxWidth: '100%',
+
+                    height: 'auto',
+                    minHeight: 420,
                 }}
               >
                   <div
@@ -1426,7 +1433,7 @@ export default function NewSalesOrderPage() {
                   {/* Table area */}
                   <div
                     className="sales-new-order-table-shell responsive-table-shell"
-                    style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}
+                    style={{ flex: 1,overflowX: 'auto',overflowY: 'auto',minHeight: 320,maxHeight: 520,}}
                   >
                     <table className="data-table product-table-compact sales-new-order-lines-table" style={{ minWidth: 760 }}>
                       <thead>
