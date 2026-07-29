@@ -1,26 +1,12 @@
 import dayjs from 'dayjs'
-import {
-  ArrowLeft,
-  CheckCircle2,
-  ChevronDown,
-  FileText,
-  PackagePlus,
-  Plus,
-  Search,
-  Trash2,
-  XCircle,
-  RefreshCw,
-} from 'lucide-react'
+import { CheckCircle2, FileText, Plus, RefreshCw, Search, Trash2, XCircle } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
-import { useStockAvailability, useStockBatches } from '@/hooks/useStock'
+import { useStockAvailability } from '@/hooks/useStock'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
-import { usersService } from '@/services/api/usersService'
-
-const orderPageSize = 100
 
 const emptyHeader = {
   customerId: '',
@@ -30,7 +16,7 @@ const emptyHeader = {
 
 const emptyLine = {
   productId: '',
-  quantity: '',
+  quantity: '1',
   discountPercent: '0',
   isReturnLine: false,
   returnReason: '',
@@ -44,20 +30,31 @@ function formatMoney(value) {
 }
 
 function formatDate(value) {
-  return value ? dayjs(value).format('DD MMM YYYY') : '-'
+  if (!value) return '-'
+  const date = dayjs(value)
+  return date.isValid() ? date.format('DD MMM YYYY') : '-'
+}
+
+function formatDateTime(value) {
+  if (!value) return '-'
+  const date = dayjs(value)
+  return date.isValid() ? date.format('DD MMM YYYY, hh:mm A') : '-'
+}
+
+function toDateInputValue(value) {
+  if (!value) return ''
+  const date = dayjs(value)
+  return date.isValid() ? date.format('YYYY-MM-DD') : ''
 }
 
 function toIsoDate(value) {
-  return value ? dayjs(value).toISOString() : null
+  if (!value) return null
+  const date = dayjs(value)
+  return date.isValid() ? date.startOf('day').toISOString() : null
 }
 
-function toNumber(value) {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : 0
-}
-
-function statusLabel(status) {
-  return String(status || 'Draft').replace(/([a-z])([A-Z])/g, '$1 $2')
+function normalizeText(value) {
+  return String(value ?? '').trim()
 }
 
 function normalizeStatus(status) {
@@ -67,78 +64,88 @@ function normalizeStatus(status) {
     .replace(/[\s-]+/g, '_')
 }
 
+function statusLabel(status) {
+  return String(status || 'Draft').replace(/([a-z])([A-Z])/g, '$1 $2')
+}
+
 function statusClasses(status) {
   const normalized = normalizeStatus(status)
 
   if (normalized === 'cancelled' || normalized === 'canceled') {
     return 'border-[#ff7b8a]/30 bg-[#ff7b8a]/10 text-[#ff7b8a]'
   }
+
   if (normalized === 'converted' || normalized === 'confirmed' || normalized === 'submitted') {
     return 'border-[#8ee8f0]/30 bg-[#8ee8f0]/10 text-[#8ee8f0]'
   }
+
   if (normalized === 'draft') {
     return 'border-border bg-bg-base text-text-muted'
   }
+
   return 'border-border bg-bg-base text-text-muted'
-}
-
-function getOrderDate(order) {
-  return order?.orderDate || order?.createdAt || order?.date || order?.submittedAt || ''
-}
-
-function getDeliveryDate(order) {
-  return order?.deliveryDate || order?.expectedDeliveryDate || order?.dueDate || ''
-}
-
-function getOrderCustomer(order) {
-  return order?.customerName || order?.customerCode || order?.customerId || '-'
-}
-
-function getSalesRoute(order) {
-  return order?.salesRouteName || order?.salesRouteCode || order?.salesRouteId || '-'
-}
-
-function getSalesPerson(order) {
-  return order?.salesPersonName || order?.salesPersonId || '-'
 }
 
 function getOrderLines(order) {
   return Array.isArray(order?.lines) ? order.lines : []
 }
 
-function getComputedTotals(order) {
-  const lines = getOrderLines(order).filter((line) => !line.isReturnLine)
-  const gross = lines.reduce(
-    (sum, line) => sum + toNumber(line.quantity) * toNumber(line.unitPrice),
-    0
-  )
-  const discount = lines.reduce(
-    (sum, line) =>
-      sum +
-      toNumber(line.quantity) * toNumber(line.unitPrice) * (toNumber(line.discountPercent) / 100),
-    0
-  )
-  const vat = lines.reduce((sum, line) => {
-    if (!line.isVatApplicable) return sum
-    const subtotal = toNumber(line.quantity) * toNumber(line.unitPrice)
-    const afterDiscount = subtotal - subtotal * (toNumber(line.discountPercent) / 100)
-    return sum + Math.round(afterDiscount * 0.18 * 100) / 100
-  }, 0)
-  const returnCredit = getOrderLines(order)
-    .filter((line) => line.isReturnLine)
-    .reduce((sum, line) => {
-      const lineTotal = toNumber(line.lineTotal)
-      if (lineTotal > 0) return sum + lineTotal
-      return (
-        sum +
-        toNumber(line.quantity) *
-          toNumber(line.unitPrice) *
-          (1 - toNumber(line.discountPercent) / 100)
-      )
-    }, 0)
-  const net = gross - discount - returnCredit + vat
+function getUserRoles(user) {
+  const roles = Array.isArray(user?.roles)
+    ? user.roles
+    : user?.role
+      ? [user.role]
+      : user?.roleName
+        ? [user.roleName]
+        : user?.userRole
+          ? [user.userRole]
+          : []
 
-  return { gross, discount, vat, returnCredit, net }
+  return roles
+    .map((role) =>
+      typeof role === 'string'
+        ? role.trim()
+        : String(
+            role?.name || role?.Name || role?.roleName || role?.RoleName || role?.userRole || ''
+          ).trim()
+    )
+    .filter(Boolean)
+}
+
+function isAdminUser(user) {
+  return getUserRoles(user).some((role) => role.toLowerCase() === 'admin')
+}
+
+function getCurrentUserId(user) {
+  return normalizeText(user?.id || user?.userId || user?.sub || user?.userID)
+}
+
+function canEditDraftOrder(order, user) {
+  if (!order || normalizeStatus(order.status) !== 'draft') return false
+  if (isAdminUser(user)) return true
+
+  const currentUserId = getCurrentUserId(user)
+  const orderOwnerId = normalizeText(order.salesPersonId || order.salesPerson?.id || order.ownerId)
+  return Boolean(currentUserId && orderOwnerId && currentUserId === orderOwnerId)
+}
+
+function resolveOrderId(response) {
+  if (!response) return ''
+  if (typeof response === 'string') return response
+  return normalizeText(
+    response.id ||
+      response.orderId ||
+      response.salesOrderId ||
+      response.value ||
+      response.data?.id ||
+      response.data?.value ||
+      response.data?.salesOrderId ||
+      ''
+  )
+}
+
+function isOrderDraft(order) {
+  return normalizeStatus(order?.status) === 'draft'
 }
 
 function FieldCard({ label, value }) {
@@ -158,127 +165,19 @@ function AmountLine({ label, value, strong = false, negative = false }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-1.5">
       <span
-        className={`text-[12px] ${strong ? 'font-bold text-text-primary' : 'font-medium text-text-primary'}`}
+        className={`text-[12px] ${
+          strong ? 'font-bold text-text-primary' : 'font-medium text-text-primary'
+        }`}
       >
         {label}
       </span>
       <span
-        className={`font-mono text-right text-[12px] ${strong ? 'font-extrabold text-text-primary' : 'font-semibold text-text-muted'} ${negative ? 'text-[#8ee8f0]' : ''}`}
+        className={`font-mono text-right text-[12px] ${
+          strong ? 'font-extrabold text-text-primary' : 'font-semibold text-text-muted'
+        } ${negative ? 'text-[#8ee8f0]' : ''}`}
       >
         {negative ? `- ${formatMoney(value)}` : formatMoney(value)}
       </span>
-    </div>
-  )
-}
-
-function StockAvailabilityHint({
-  isLoading,
-  productId,
-  availabilityData,
-  sellableQty,
-  totalAvailable,
-  totalReserved,
-  unitCode,
-}) {
-  if (!productId) return null
-
-  const isOutOfStock = availabilityData && sellableQty <= 0
-  const dotColor = isOutOfStock ? 'var(--color-danger)' : 'var(--color-teal)'
-  const dotGlow = isOutOfStock ? 'rgba(255, 100, 116, 0.16)' : 'rgba(142, 232, 240, 0.16)'
-  const textColor = isOutOfStock ? 'var(--color-danger)' : 'var(--color-text-primary)'
-
-  return (
-    <div
-      aria-live="polite"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        minHeight: 24,
-        marginTop: 8,
-        paddingLeft: 2,
-        color: 'var(--color-text-muted)',
-        fontSize: 12,
-        lineHeight: 1.2,
-      }}
-    >
-      {isLoading ? (
-        <>
-          <RefreshCw
-            size={12}
-            style={{
-              color: 'var(--color-teal)',
-              animation: 'spin 1s linear infinite',
-              flexShrink: 0,
-            }}
-          />
-          <span>Checking stock...</span>
-        </>
-      ) : null}
-
-      {!isLoading && availabilityData ? (
-        <span
-          title={`Total available: ${totalAvailable.toLocaleString()}${unitCode ? ` ${unitCode}` : ''}`}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 6,
-            color: textColor,
-          }}
-        >
-          <span
-            aria-hidden="true"
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 999,
-              background: dotColor,
-              boxShadow: `0 0 0 3px ${dotGlow}`,
-              flexShrink: 0,
-            }}
-          />
-          {isOutOfStock ? (
-            <span style={{ fontWeight: 800 }}>Out of stock</span>
-          ) : (
-            <>
-              <strong
-                className="mono"
-                style={{
-                  color: 'var(--color-text-primary)',
-                  fontSize: 13,
-                  fontWeight: 900,
-                }}
-              >
-                {sellableQty.toLocaleString()}
-              </strong>
-              {unitCode ? (
-                <span
-                  className="mono"
-                  style={{
-                    padding: '2px 6px',
-                    borderRadius: 6,
-                    border: '1px solid var(--color-border)',
-                    background: 'rgba(142, 232, 240, 0.08)',
-                    color: 'var(--color-teal)',
-                    fontSize: 10,
-                    fontWeight: 900,
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  {unitCode}
-                </span>
-              ) : null}
-              <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>sellable</span>
-              {totalReserved > 0 ? (
-                <span style={{ color: 'var(--color-text-dim)' }}>
-                  ({totalReserved.toLocaleString()} reserved)
-                </span>
-              ) : null}
-            </>
-          )}
-        </span>
-      ) : null}
     </div>
   )
 }
@@ -303,7 +202,6 @@ function SearchableSelect({
   emptyLabel = 'No matches found',
   getLabel,
   getMeta = () => '',
-  menuPlacement = 'bottom',
 }) {
   const containerRef = useRef(null)
   const selected = options.find((option) => option.id === value) || null
@@ -354,8 +252,6 @@ function SearchableSelect({
     setQuery(label)
     setOpen(false)
   }
-
-  const opensUp = menuPlacement === 'top'
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
@@ -410,14 +306,14 @@ function SearchableSelect({
         }}
         style={{ width: '100%', height: 38, paddingLeft: 32 }}
       />
+
       {open ? (
         <div
           role="listbox"
           style={{
             position: 'absolute',
             zIndex: 240,
-            top: opensUp ? 'auto' : 'calc(100% + 4px)',
-            bottom: opensUp ? 'calc(100% + 4px)' : 'auto',
+            top: 'calc(100% + 4px)',
             left: 0,
             right: 0,
             maxHeight: 260,
@@ -476,50 +372,213 @@ function SearchableSelect({
   )
 }
 
-function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove, product }) {
+function StockAvailabilityHint({ productId }) {
+  const {
+    data: availabilityResponse,
+    isLoading,
+    isError,
+    error,
+  } = useStockAvailability(productId)
+
+  if (!productId) return null
+
+  // Support both direct response and { data: {...} } response formats
+  const data = availabilityResponse?.data ?? availabilityResponse ?? {}
+
+  // Prefer actual sellable quantity.
+  // totalAvailable may include reserved stock depending on the backend.
+  const sellableQty = Number(
+    data.sellable ??
+      data.sellableQuantity ??
+      data.availableQuantity ??
+      data.availableQty ??
+      data.quantityAvailable ??
+      data.totalAvailable ??
+      data.qty ??
+      0
+  )
+
+  const totalAvailable = Number(
+    data.totalAvailable ??
+      data.availableQuantity ??
+      data.availableQty ??
+      sellableQty
+  )
+
+  const totalReserved = Number(
+    data.totalReserved ??
+      data.reservedQuantity ??
+      data.reservedQty ??
+      0
+  )
+
+  const unitCode =
+    data.smallestUnitCode ||
+    data.unitCode ||
+    data.uomCode ||
+    data.baseUomCode ||
+    data.unit ||
+    ''
+
+  const hasStock = sellableQty > 0
+
+  return (
+    <div
+      aria-live="polite"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        minHeight: 24,
+        marginTop: 8,
+        paddingLeft: 2,
+        color: 'var(--color-text-muted)',
+        fontSize: 12,
+        lineHeight: 1.2,
+      }}
+    >
+      {isLoading ? (
+        <>
+          <RefreshCw
+            size={12}
+            style={{
+              color: 'var(--color-teal)',
+              animation: 'spin 1s linear infinite',
+              flexShrink: 0,
+            }}
+          />
+          <span>Checking stock...</span>
+        </>
+      ) : null}
+
+      {!isLoading && isError ? (
+        <span
+          title={error?.message || 'Unable to check stock'}
+          style={{
+            color: 'var(--color-danger)',
+            fontWeight: 700,
+          }}
+        >
+          Unable to check stock
+        </span>
+      ) : null}
+
+      {!isLoading && !isError ? (
+        hasStock ? (
+          <span
+            title={`Total available: ${totalAvailable.toLocaleString('en-LK')}${
+              unitCode ? ` ${unitCode}` : ''
+            }`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 6,
+              color: 'var(--color-text-primary)',
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 999,
+                background: 'var(--color-teal)',
+                boxShadow: '0 0 0 3px rgba(142, 232, 240, 0.16)',
+                flexShrink: 0,
+              }}
+            />
+
+            <strong
+              className="mono"
+              style={{
+                color: 'var(--color-text-primary)',
+                fontSize: 13,
+                fontWeight: 900,
+              }}
+            >
+              {sellableQty.toLocaleString('en-LK')}
+            </strong>
+
+            {unitCode ? (
+              <span
+                className="mono"
+                style={{
+                  padding: '2px 6px',
+                  borderRadius: 6,
+                  border: '1px solid var(--color-border)',
+                  background: 'rgba(142, 232, 240, 0.08)',
+                  color: 'var(--color-teal)',
+                  fontSize: 10,
+                  fontWeight: 900,
+                }}
+              >
+                {unitCode}
+              </span>
+            ) : null}
+
+            <span>sellable</span>
+
+            {totalReserved > 0 ? (
+              <span style={{ color: 'var(--color-text-dim)' }}>
+                ({totalReserved.toLocaleString('en-LK')} reserved)
+              </span>
+            ) : null}
+          </span>
+        ) : (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              color: 'var(--color-danger)',
+              fontWeight: 800,
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 999,
+                background: 'var(--color-danger)',
+                boxShadow: '0 0 0 3px rgba(255, 100, 116, 0.16)',
+              }}
+            />
+            Out of stock
+          </span>
+        )
+      ) : null}
+    </div>
+  )
+}
+
+function LineRow({ line, index, product, draft, canEdit, onDraftChange, onSave, onRemove }) {
   const itemName =
     product?.name ||
     product?.productName ||
     line?.productName ||
     line?.productCode ||
     product?.sku ||
-    product?.productSku ||
+    line?.productSku ||
     `Line ${index + 1}`
-  const itemCode =
-    product?.sku || product?.productSku || line?.productCode || line?.productId || '-'
-  const batchLabel =
-    line?.batchNo ||
-    line?.batchNumber ||
-    line?.batchCode ||
-    line?.batchPicks?.[0]?.batchNo ||
-    line?.batchPicks?.[0]?.batchCode ||
-    line?.batchPicks?.[0]?.batchId ||
-    (Array.isArray(line?.batchPicks) && line.batchPicks.length > 1
-      ? `${line.batchPicks.length} batches`
-      : '')
-  const unit = line?.smallestUnitCode || line?.unitCode || line?.unitId || '-'
+  const itemCode = product?.sku || line?.productCode || line?.productId || '-'
+  const unit = line?.smallestUnitCode || product?.smallestUnitName || product?.uomBase || '-'
   const lineTotal =
     line?.lineTotal > 0
       ? line.lineTotal
-      : toNumber(line.quantity) *
-        toNumber(line.unitPrice) *
-        (1 - toNumber(line.discountPercent) / 100)
+      : Number(line?.quantity || 0) *
+        Number(line?.unitPrice || 0) *
+        (1 - Number(line?.discountPercent || 0) / 100)
+
+  const draftQuantity = draft?.quantity ?? String(line?.quantity ?? '')
+  const draftDiscount = draft?.discountPercent ?? String(line?.discountPercent ?? '0')
 
   return (
     <tr className="sales-new-order-line-row hover:bg-bg-elevated/40">
       <td data-label="Item">
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            gap: 4,
-          }}
-        >
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-            <span className="product-sku-badge mono">{batchLabel || itemCode}</span>
-            {batchLabel ? <span className="product-info-sub mono">{itemCode}</span> : null}
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+          <span className="product-sku-badge mono">{itemCode}</span>
           <span
             className="product-info-sub"
             style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}
@@ -529,12 +588,12 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
         </div>
       </td>
       <td className="mono text-right" data-label="Qty">
-        {isDraft ? (
+        {canEdit ? (
           <input
             className="sales-new-order-line-input"
             style={{
               height: 32,
-              width: 80,
+              width: 82,
               background: 'rgba(0,0,0,0.15)',
               border: '1px solid var(--color-border)',
               borderRadius: 4,
@@ -546,12 +605,13 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
             }}
             type="number"
             min="0"
-            value={draft.quantity || ''}
+            value={draftQuantity}
             onChange={(event) => onDraftChange(line.id, 'quantity', event.target.value)}
           />
         ) : (
           <>
-            {line.quantity} <span className="text-[11px] font-medium text-text-dim">{unit}</span>
+            {Number(line.quantity || 0).toLocaleString('en-LK')}{' '}
+            <span className="text-[11px] font-medium text-text-dim">{unit}</span>
           </>
         )}
       </td>
@@ -559,7 +619,7 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
         {formatMoney(line.unitPrice)}
       </td>
       <td className="mono text-right" data-label="Disc %">
-        {isDraft ? (
+        {canEdit ? (
           <input
             className="sales-new-order-line-input"
             style={{
@@ -577,22 +637,18 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
             type="number"
             min="0"
             max="10"
-            value={draft.discountPercent || ''}
+            value={draftDiscount}
             onChange={(event) => onDraftChange(line.id, 'discountPercent', event.target.value)}
           />
         ) : (
-          `${line.discountPercent}%`
+          `${Number(line.discountPercent || 0).toLocaleString('en-LK')}%`
         )}
       </td>
       <td className="mono text-right font-semibold" data-label="Total">
         {formatMoney(lineTotal)}
       </td>
-      {isDraft ? (
-        <td
-          className="sales-new-order-line-actions"
-          style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
-          data-label="Actions"
-        >
+      {canEdit ? (
+        <td className="text-right" data-label="Actions">
           <button
             type="button"
             onClick={() => onSave(line.id)}
@@ -615,20 +671,19 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
           <button
             type="button"
             onClick={() => onRemove(line.id)}
+            className="sales-new-order-line-remove"
             style={{
               height: 28,
-              padding: '0 8px',
+              width: 32,
               borderRadius: 4,
               border: '1px solid var(--color-border)',
               background: 'var(--color-bg-elevated)',
-              color: 'var(--color-text-primary)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              color: 'var(--color-text-muted)',
               cursor: 'pointer',
             }}
+            aria-label="Remove line"
           >
-            <Trash2 style={{ width: 13, height: 13 }} />
+            <Trash2 size={14} />
           </button>
         </td>
       ) : null}
@@ -638,23 +693,29 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
 
 export default function NewSalesOrderPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const orderIdParam = searchParams.get('orderId')
   const sessionUser = useAuthStore((state) => state.user)
+
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
-  const [orders, setOrders] = useState([])
-  const [selectedOrderId, setSelectedOrderId] = useState('')
   const [selectedOrder, setSelectedOrder] = useState(null)
-  const [salesRouteName, setSalesRouteName] = useState('')
-  const [salesPersonName, setSalesPersonName] = useState('')
-  const [draftSalesRouteName, setDraftSalesRouteName] = useState('')
   const [header, setHeader] = useState(emptyHeader)
   const [line, setLine] = useState(emptyLine)
   const [lineDrafts, setLineDrafts] = useState({})
-  const [cancelReason, setCancelReason] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingInitialData, setIsLoadingInitialData] = useState(true)
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [isConfirming, setIsConfirming] = useState(false)
+  const [detailError, setDetailError] = useState('')
+  const [salesRouteName, setSalesRouteName] = useState('')
+  const [cancelReason, setCancelReason] = useState('')
+
+  const currentDraftOrderIdRef = useRef('')
+  const draftCreationPromiseRef = useRef(null)
+  const autoCreateTimerRef = useRef(null)
+  const isMountedRef = useRef(true)
 
   const customerById = useMemo(() => {
     return customers.reduce((map, customer) => {
@@ -670,684 +731,725 @@ export default function NewSalesOrderPage() {
     }, {})
   }, [products])
 
-  const sessionSalesPersonName =
-    sessionUser?.username || sessionUser?.email || sessionUser?.employeeCode || 'Admin'
   const selectedCustomer = customerById[header.customerId] || null
-  const draftSalesPersonName = sessionSalesPersonName
+  const selectedCustomerRouteName =
+    selectedCustomer?.salesRouteName || salesRouteName || selectedOrder?.salesRouteId || ''
+  const selectedOrderLines = getOrderLines(selectedOrder)
+  const canEditCurrentDraft =
+    !selectedOrder || (isOrderDraft(selectedOrder) && canEditDraftOrder(selectedOrder, sessionUser))
+  const currentUserLabel =
+    sessionUser?.username || sessionUser?.email || sessionUser?.employeeCode || 'your account'
 
-  const isDraft = selectedOrder?.status === 'Draft'
-  const lineQtyNumber = toNumber(line.quantity)
-
-  const { data: availabilityData, isLoading: loadingAvailability } = useStockAvailability(
-    line.productId
+  const gross = selectedOrderLines.reduce(
+    (sum, orderLine) => sum + Number(orderLine.quantity || 0) * Number(orderLine.unitPrice || 0),
+    0
   )
-  const { data: selectedProductBatches = [] } = useStockBatches(line.productId)
-  const inventoryUnitCode =
-    availabilityData?.smallestUnitCode ||
-    availabilityData?.unitCode ||
-    availabilityData?.uomCode ||
-    availabilityData?.baseUomCode ||
-    selectedProductBatches.find((batch) => batch.smallestUnitCode)?.smallestUnitCode ||
-    ''
-  const sellableQty = Number(availabilityData?.sellable ?? 0)
-  const totalReserved = Number(availabilityData?.totalReserved ?? 0)
-  const totalAvailable = Number(availabilityData?.totalAvailable ?? 0)
-  const unitCode =
-    inventoryUnitCode ||
-    productById[line.productId]?.smallestUnitCode ||
-    productById[line.productId]?.smallestUnitId ||
-    productById[line.productId]?.uomBase ||
-    ''
-  const computedTotals = getComputedTotals(selectedOrder)
-  const gross = selectedOrder?.grossAmount > 0 ? selectedOrder.grossAmount : computedTotals.gross
-  const discount =
-    selectedOrder?.totalDiscountAmount > 0
-      ? selectedOrder.totalDiscountAmount
-      : computedTotals.discount
-  const vat = selectedOrder?.vatAmount > 0 ? selectedOrder.vatAmount : computedTotals.vat
-  const returnCredit =
-    selectedOrder?.returnCreditAmount > 0
-      ? selectedOrder.returnCreditAmount
-      : computedTotals.returnCredit
-  const net = selectedOrder?.netAmount > 0 ? selectedOrder.netAmount : computedTotals.net
-  const paid = Number(selectedOrder?.paidAmount ?? 0)
-  const outstanding = Number(selectedOrder?.outstandingAmount ?? 0)
+  const discount = selectedOrderLines.reduce(
+    (sum, orderLine) =>
+      sum +
+      Number(orderLine.quantity || 0) *
+        Number(orderLine.unitPrice || 0) *
+        (Number(orderLine.discountPercent || 0) / 100),
+    0
+  )
+  const vat = Number(selectedOrder?.vatAmount || 0)
+  const net = Number(selectedOrder?.netAmount || gross - discount + vat)
+  const paid = Number(selectedOrder?.paidAmount || 0)
+  const outstanding = Number(selectedOrder?.outstandingAmount || net - paid)
 
   useEffect(() => {
-    let isCurrent = true
+    isMountedRef.current = true
 
-    async function loadReferenceData() {
-      setIsLoading(true)
-      setError('')
+    async function loadInitialData() {
+      setIsLoadingInitialData(true)
 
       try {
-        const [customerResult, productResult] = await Promise.all([
+        const [customerList, productList] = await Promise.all([
           salesService.listAllCustomers({ pageSize: 100, isActive: true }),
-          masterService.listAllProducts({ pageSize: 100, status: 'Active' }),
+          masterService.listAllProducts({ page: 1, pageSize: 200, isActive: true }),
         ])
 
-        if (!isCurrent) return
-        setCustomers(customerResult || [])
-        setProducts(productResult || [])
-      } catch (requestError) {
-        if (isCurrent) {
-          setError(requestError.message || 'Unable to load reference data.')
-        }
+        if (!isMountedRef.current) return
+        setCustomers(Array.isArray(customerList) ? customerList : [])
+        setProducts(Array.isArray(productList) ? productList : [])
+      } catch (error) {
+        if (!isMountedRef.current) return
+        toast.error(error.message || 'Unable to load sales order data.')
       } finally {
-        if (isCurrent) setIsLoading(false)
+        if (isMountedRef.current) setIsLoadingInitialData(false)
       }
     }
 
-    loadReferenceData()
+    loadInitialData()
 
     return () => {
-      isCurrent = false
+      isMountedRef.current = false
+      if (autoCreateTimerRef.current) {
+        clearTimeout(autoCreateTimerRef.current)
+      }
     }
   }, [])
 
   useEffect(() => {
-    let isCurrent = true
-
-    async function loadOrders() {
-      try {
-        const result = await salesService.listSalesOrders({ page: 1, pageSize: orderPageSize })
-        if (!isCurrent) return
-
-        const list = Array.isArray(result) ? result : result?.items || result?.data || []
-        const sorted = [...list].sort(
-          (a, b) => new Date(getOrderDate(b)) - new Date(getOrderDate(a))
-        )
-        setOrders(sorted)
-
-        const preferred = sorted.find((order) => order.status === 'Draft') || sorted[0] || null
-        setSelectedOrderId((currentId) => currentId || preferred?.id || '')
-      } catch (requestError) {
-        if (!isCurrent) return
-        toast.error(requestError.message || 'Unable to load sales orders.')
-        setOrders([])
-        setSelectedOrderId('')
-      }
-    }
-
-    loadOrders()
-
-    return () => {
-      isCurrent = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!selectedOrderId && orders.length) {
-      const preferred = orders.find((order) => order.status === 'Draft') || orders[0]
-      if (preferred) setSelectedOrderId(preferred.id)
-    }
-  }, [orders, selectedOrderId])
-
-  useEffect(() => {
-    let isCurrent = true
-
-    async function resolveDraftSalesRouteName() {
-      if (!selectedCustomer) {
-        setDraftSalesRouteName('')
-        return
-      }
-
-      if (selectedCustomer.salesRouteName || selectedCustomer.routeName) {
-        setDraftSalesRouteName(selectedCustomer.salesRouteName || selectedCustomer.routeName || '')
-        return
-      }
-
-      if (!selectedCustomer.salesRouteId) {
-        setDraftSalesRouteName('')
-        return
-      }
-
-      try {
-        const route = await masterService.getSalesRoute(selectedCustomer.salesRouteId)
-        if (isCurrent) setDraftSalesRouteName(route?.name || route?.code || '')
-      } catch {
-        if (isCurrent) setDraftSalesRouteName('')
-      }
-    }
-
-    resolveDraftSalesRouteName()
-
-    return () => {
-      isCurrent = false
-    }
-  }, [selectedCustomer])
-
-  useEffect(() => {
-    if (!selectedOrderId) {
+    if (!orderIdParam) {
+      currentDraftOrderIdRef.current = ''
+      draftCreationPromiseRef.current = null
       setSelectedOrder(null)
+      setHeader(emptyHeader)
+      setLine(emptyLine)
       setLineDrafts({})
       setSalesRouteName('')
-      setSalesPersonName('')
+      setCancelReason('')
+      setDetailError('')
       return
     }
 
     let isCurrent = true
 
-    async function loadSelectedOrder(orderId) {
+    async function loadDraft() {
       setIsLoadingDetail(true)
+      setDetailError('')
+
       try {
-        const order = await salesService.getSalesOrder(orderId)
+        const order = await salesService.getSalesOrder(orderIdParam)
         if (!isCurrent) return
-        hydrateSelectedOrder(order)
-      } catch (requestError) {
+
+        if (!order) {
+          toast.error('Draft not found.')
+          setDetailError('Draft not found.')
+          setSelectedOrder(null)
+          return
+        }
+
+        if (!isOrderDraft(order)) {
+          toast.error('This order is no longer Draft.')
+          setDetailError('This order is no longer Draft.')
+          setSelectedOrder(order)
+          return
+        }
+
+        if (!canEditDraftOrder(order, sessionUser)) {
+          toast.error('You are not allowed to edit this draft.')
+          setDetailError('You are not allowed to edit this draft.')
+          setSelectedOrder(order)
+          return
+        }
+
+        currentDraftOrderIdRef.current = order.id
+        setSelectedOrder(order)
+        setHeader({
+          customerId: order.customerId || '',
+          deliveryDate: toDateInputValue(order.deliveryDate),
+          notes: order.notes || '',
+        })
+        setLineDrafts(
+          Object.fromEntries(
+            getOrderLines(order).map((orderLine) => [
+              orderLine.id,
+              {
+                quantity: String(orderLine.quantity ?? ''),
+                discountPercent: String(orderLine.discountPercent ?? '0'),
+              },
+            ])
+          )
+        )
+        setSalesRouteName(
+          customerById[order.customerId]?.salesRouteName || order.salesRouteId || ''
+        )
+        setCancelReason('')
+      } catch (error) {
         if (!isCurrent) return
-        toast.error(requestError.message || 'Unable to load order detail.')
+        toast.error(error.message || 'Unable to load draft order.')
+        setDetailError(error.message || 'Unable to load draft order.')
         setSelectedOrder(null)
-        setLineDrafts({})
       } finally {
         if (isCurrent) setIsLoadingDetail(false)
       }
     }
 
-    loadSelectedOrder(selectedOrderId)
+    loadDraft()
 
     return () => {
       isCurrent = false
     }
-  }, [selectedOrderId])
+  }, [orderIdParam, customerById, sessionUser])
+
+  useEffect(() => {
+    if (orderIdParam) return undefined
+    if (!header.customerId || !header.deliveryDate) return undefined
+    if (currentDraftOrderIdRef.current || draftCreationPromiseRef.current) return undefined
+
+    autoCreateTimerRef.current = setTimeout(() => {
+      if (currentDraftOrderIdRef.current || draftCreationPromiseRef.current) return
+
+      const promise = (async () => {
+        setIsCreatingDraft(true)
+        try {
+          const created = await salesService.createSalesOrder({
+            customerId: header.customerId,
+            deliveryDate: toIsoDate(header.deliveryDate),
+            notes: normalizeText(header.notes) || null,
+          })
+
+          const draftOrderId = resolveOrderId(created)
+          if (!draftOrderId) {
+            throw new Error('Draft creation failed.')
+          }
+
+          currentDraftOrderIdRef.current = draftOrderId
+          const order = await salesService.getSalesOrder(draftOrderId)
+          if (!isMountedRef.current) return
+
+          setSelectedOrder(order)
+          setLineDrafts(
+            Object.fromEntries(
+              getOrderLines(order).map((orderLine) => [
+                orderLine.id,
+                {
+                  quantity: String(orderLine.quantity ?? ''),
+                  discountPercent: String(orderLine.discountPercent ?? '0'),
+                },
+              ])
+            )
+          )
+          setSalesRouteName(
+            customerById[order.customerId]?.salesRouteName || order.salesRouteId || ''
+          )
+          setCancelReason('')
+        } catch (error) {
+          toast.error(error.message || 'Draft creation failed.')
+        } finally {
+          if (isMountedRef.current) {
+            setIsCreatingDraft(false)
+          }
+          draftCreationPromiseRef.current = null
+        }
+      })()
+
+      draftCreationPromiseRef.current = promise
+    }, 450)
+
+    return () => {
+      if (autoCreateTimerRef.current) {
+        clearTimeout(autoCreateTimerRef.current)
+      }
+    }
+  }, [orderIdParam, header.customerId, header.deliveryDate, header.notes, customerById])
+
+  useEffect(() => {
+    if (selectedCustomer?.salesRouteName) {
+      setSalesRouteName(selectedCustomer.salesRouteName)
+    } else if (selectedCustomer?.salesRouteId) {
+      setSalesRouteName(selectedCustomer.salesRouteId)
+    } else if (!header.customerId) {
+      setSalesRouteName('')
+    }
+  }, [selectedCustomer, header.customerId])
 
   function updateHeader(field, value) {
-    setHeader((current) => ({ ...current, [field]: value }))
+    setHeader((current) => ({
+      ...current,
+      [field]: value,
+    }))
   }
 
   function updateLine(field, value) {
-    setLine((current) => ({ ...current, [field]: value }))
+    setLine((current) => ({
+      ...current,
+      [field]: value,
+    }))
   }
 
   function updateLineDraft(lineId, field, value) {
     setLineDrafts((current) => ({
       ...current,
       [lineId]: {
-        ...current[lineId],
+        ...(current[lineId] || {}),
         [field]: value,
       },
     }))
   }
 
-  async function createOrder(event) {
-    event.preventDefault()
-
-    if (!header.customerId) {
-      toast.error('Select a customer.')
-      return
-    }
-
-    setIsSaving(true)
-    try {
-      const created = await salesService.createSalesOrder({
-        customerId: header.customerId,
-        deliveryDate: toIsoDate(header.deliveryDate),
-        notes: header.notes.trim() || null,
-      })
-      toast.success('Sales order created.')
-      setHeader(emptyHeader)
-      setLine(emptyLine)
-      setCancelReason('')
-      setSelectedOrderId(created.id)
-      await loadOrdersAgain()
-    } catch (requestError) {
-      toast.error(requestError.message || 'Unable to create sales order.')
-    } finally {
-      setIsSaving(false)
-    }
+  function resetLineForm() {
+    setLine(emptyLine)
   }
 
-  async function loadOrdersAgain() {
-    const result = await salesService.listSalesOrders({ page: 1, pageSize: orderPageSize })
-    const list = Array.isArray(result) ? result : result?.items || result?.data || []
-    const sorted = [...list].sort((a, b) => new Date(getOrderDate(b)) - new Date(getOrderDate(a)))
-    setOrders(sorted)
-  }
+  async function reloadOrder(orderId) {
+    const order = await salesService.getSalesOrder(orderId)
+    if (!isMountedRef.current) return order
 
-  function hydrateSelectedOrder(order) {
     setSelectedOrder(order)
     setLineDrafts(
-      (order.lines || []).reduce((map, item) => {
-        map[item.id] = {
-          quantity: String(item.quantity),
-          discountPercent: String(item.discountPercent),
-        }
-        return map
-      }, {})
+      Object.fromEntries(
+        getOrderLines(order).map((orderLine) => [
+          orderLine.id,
+          {
+            quantity: String(orderLine.quantity ?? ''),
+            discountPercent: String(orderLine.discountPercent ?? '0'),
+          },
+        ])
+      )
     )
+    setSalesRouteName(customerById[order.customerId]?.salesRouteName || order.salesRouteId || '')
+    return order
+  }
 
-    if (order.salesRouteId) {
-      masterService
-        .getSalesRoute(order.salesRouteId)
-        .then((route) => {
-          setSalesRouteName(route?.name || '')
-        })
-        .catch(() => {
-          setSalesRouteName('')
-        })
-    } else {
-      setSalesRouteName('')
+  async function ensureDraftOrder() {
+    if (currentDraftOrderIdRef.current) {
+      return selectedOrder?.id === currentDraftOrderIdRef.current
+        ? selectedOrder
+        : reloadOrder(currentDraftOrderIdRef.current)
     }
 
-    if (order.salesPersonId) {
-      usersService
-        .getUser(order.salesPersonId)
-        .then((user) => {
-          setSalesPersonName(user?.username || user?.email || '')
-        })
-        .catch(() => {
-          setSalesPersonName('')
-        })
-    } else {
-      setSalesPersonName('')
+    if (!header.customerId) {
+      toast.error('Customer is required.')
+      return null
     }
+
+    if (!header.deliveryDate) {
+      toast.error('Delivery Date is required.')
+      return null
+    }
+
+    if (draftCreationPromiseRef.current) {
+      return draftCreationPromiseRef.current
+    }
+
+    const promise = (async () => {
+      setIsCreatingDraft(true)
+      try {
+        const created = await salesService.createSalesOrder({
+          customerId: header.customerId,
+          deliveryDate: toIsoDate(header.deliveryDate),
+          notes: normalizeText(header.notes) || null,
+        })
+
+        const draftOrderId = resolveOrderId(created)
+        if (!draftOrderId) {
+          throw new Error('Draft creation failed.')
+        }
+
+        currentDraftOrderIdRef.current = draftOrderId
+        const order = await reloadOrder(draftOrderId)
+        return order
+      } catch (error) {
+        toast.error(error.message || 'Draft creation failed.')
+        throw error
+      } finally {
+        if (isMountedRef.current) {
+          setIsCreatingDraft(false)
+        }
+        draftCreationPromiseRef.current = null
+      }
+    })()
+
+    draftCreationPromiseRef.current = promise
+    return promise
+  }
+
+  function validateLineInput() {
+    if (!line.productId) {
+      toast.error('Product is required.')
+      return false
+    }
+
+    if (Number(line.quantity || 0) <= 0) {
+      toast.error('Quantity must be greater than zero.')
+      return false
+    }
+
+    const discountPercent = Number(line.discountPercent || 0)
+    if (discountPercent < 0 || discountPercent > 10) {
+      toast.error('Discount percent must be between 0 and 10.')
+      return false
+    }
+
+    if (line.isReturnLine && !normalizeText(line.returnReason)) {
+      toast.error('Return reason is required.')
+      return false
+    }
+
+    return true
   }
 
   async function addLine(event) {
     event.preventDefault()
-
-    if (!selectedOrder || selectedOrder.status !== 'Draft') {
-      toast.error('Select a draft order.')
+    if (!canEditCurrentDraft) {
+      toast.error('This draft cannot be edited.')
       return
     }
 
-    if (!line.productId) {
-      toast.error('Select a product.')
+    if (!validateLineInput()) return
+
+    try {
+      setIsSaving(true)
+      const draftOrder = await ensureDraftOrder()
+      if (!draftOrder) return
+
+      await salesService.addSalesOrderLine(draftOrder.id, {
+        productId: line.productId,
+        quantity: Number(line.quantity),
+        discountPercent: Number(line.discountPercent || 0),
+      })
+
+      await reloadOrder(draftOrder.id)
+      resetLineForm()
+      toast.success('Line added.')
+    } catch (error) {
+      toast.error(error.message || 'Unable to add order line.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function saveLine(lineId) {
+    const draftOrder = selectedOrder
+    if (!draftOrder) return
+    if (!canEditCurrentDraft) {
+      toast.error('This draft cannot be edited.')
       return
     }
 
-    if (toNumber(line.quantity) <= 0) {
+    const draft = lineDrafts[lineId] || {}
+    const quantity = Number(draft.quantity || 0)
+    const discountPercent = Number(draft.discountPercent || 0)
+
+    if (quantity <= 0) {
       toast.error('Quantity must be greater than zero.')
       return
     }
 
-    if (line.isReturnLine && !line.returnReason) {
-      toast.error('Select a return reason.')
+    if (discountPercent < 0 || discountPercent > 10) {
+      toast.error('Discount percent must be between 0 and 10.')
       return
     }
 
-    setIsSaving(true)
     try {
-      await salesService.addSalesOrderLine(selectedOrder.id, {
-        productId: line.productId,
-        quantity: toNumber(line.quantity),
-        discountPercent: toNumber(line.discountPercent),
-        isReturnLine: Boolean(line.isReturnLine),
-        returnReason: line.isReturnLine ? Number(line.returnReason) : null,
+      setIsSaving(true)
+      await salesService.updateSalesOrderLine(draftOrder.id, lineId, {
+        quantity,
+        discountPercent,
       })
-      toast.success('Order line added.')
-      setLine(emptyLine)
-      const refreshed = await salesService.getSalesOrder(selectedOrder.id)
-      hydrateSelectedOrder(refreshed)
-      await loadOrdersAgain()
-    } catch (requestError) {
-      toast.error(requestError.message || 'Unable to add order line.')
+      await reloadOrder(draftOrder.id)
+      toast.success('Line saved.')
+    } catch (error) {
+      toast.error(error.message || 'Unable to update order line.')
     } finally {
       setIsSaving(false)
     }
   }
 
-  async function updateOrderLine(lineId) {
-    const draft = lineDrafts[lineId]
-    if (!draft || !selectedOrder) return
+  async function removeLine(lineId) {
+    const draftOrder = selectedOrder
+    if (!draftOrder) return
+    if (!canEditCurrentDraft) {
+      toast.error('This draft cannot be edited.')
+      return
+    }
 
-    setIsSaving(true)
     try {
-      await salesService.updateSalesOrderLine(selectedOrder.id, lineId, {
-        quantity: toNumber(draft.quantity),
-        discountPercent: toNumber(draft.discountPercent),
-      })
-      toast.success('Order line updated.')
-      const refreshed = await salesService.getSalesOrder(selectedOrder.id)
-      hydrateSelectedOrder(refreshed)
-      await loadOrdersAgain()
-    } catch (requestError) {
-      toast.error(requestError.message || 'Unable to update order line.')
+      setIsSaving(true)
+      await salesService.removeSalesOrderLine(draftOrder.id, lineId)
+      await reloadOrder(draftOrder.id)
+      toast.success('Line removed.')
+    } catch (error) {
+      toast.error(error.message || 'Unable to remove order line.')
     } finally {
       setIsSaving(false)
     }
   }
 
-  async function removeOrderLine(lineId) {
-    if (!selectedOrder) return
+  async function savePendingLineEdits(orderId) {
+    const lines = getOrderLines(selectedOrder)
+    const dirtyLines = lines.filter((orderLine) => {
+      const draft = lineDrafts[orderLine.id]
+      if (!draft) return false
+      return (
+        String(draft.quantity ?? '').trim() !== String(orderLine.quantity ?? '') ||
+        String(draft.discountPercent ?? '').trim() !== String(orderLine.discountPercent ?? '0')
+      )
+    })
 
-    setIsSaving(true)
-    try {
-      await salesService.removeSalesOrderLine(selectedOrder.id, lineId)
-      toast.success('Order line removed.')
-      const refreshed = await salesService.getSalesOrder(selectedOrder.id)
-      hydrateSelectedOrder(refreshed)
-      await loadOrdersAgain()
-    } catch (requestError) {
-      toast.error(requestError.message || 'Unable to remove order line.')
-    } finally {
-      setIsSaving(false)
+    for (const orderLine of dirtyLines) {
+      const draft = lineDrafts[orderLine.id]
+      const quantity = Number(draft.quantity || 0)
+      const discountPercent = Number(draft.discountPercent || 0)
+
+      if (quantity <= 0) {
+        throw new Error('Quantity must be greater than zero.')
+      }
+
+      if (discountPercent < 0 || discountPercent > 10) {
+        throw new Error('Discount percent must be between 0 and 10.')
+      }
+
+      await salesService.updateSalesOrderLine(orderId, orderLine.id, {
+        quantity,
+        discountPercent,
+      })
     }
   }
 
   async function confirmOrder() {
-    if (!selectedOrder) return
+    if (!canEditCurrentDraft) {
+      toast.error('This draft cannot be edited.')
+      return
+    }
 
-    setIsSaving(true)
+    if (!header.customerId) {
+      toast.error('Customer is required.')
+      return
+    }
+
+    if (!header.deliveryDate) {
+      toast.error('Delivery Date is required.')
+      return
+    }
+
     try {
-      await salesService.confirmSalesOrder(selectedOrder.id)
+      setIsConfirming(true)
+      const draftOrder = await ensureDraftOrder()
+      if (!draftOrder) return
+
+      await savePendingLineEdits(draftOrder.id)
+
+      const latestOrder = await reloadOrder(draftOrder.id)
+      if (!getOrderLines(latestOrder).length) {
+        toast.error('No order lines to confirm.')
+        return
+      }
+
+      await salesService.confirmSalesOrder(draftOrder.id)
+
       toast.success('Sales order confirmed.')
-      await loadOrdersAgain()
-      setSelectedOrderId(selectedOrder.id)
-    } catch (requestError) {
-      toast.error(requestError.message || 'Unable to confirm sales order.')
+      currentDraftOrderIdRef.current = ''
+      draftCreationPromiseRef.current = null
+      setSelectedOrder(null)
+      setHeader(emptyHeader)
+      setLine(emptyLine)
+      setLineDrafts({})
+      setSalesRouteName('')
+      setCancelReason('')
+      navigate('/sales/orders', { replace: true })
+    } catch (error) {
+      toast.error(error.message || 'Unable to confirm sales order.')
     } finally {
-      setIsSaving(false)
+      setIsConfirming(false)
     }
   }
 
   async function cancelOrder(event) {
     event.preventDefault()
-
     if (!selectedOrder) return
-    if (!cancelReason.trim()) {
-      toast.error('Cancellation reason is required.')
+    if (!canEditCurrentDraft) {
+      toast.error('This draft cannot be edited.')
       return
     }
 
-    setIsSaving(true)
+    const reason = normalizeText(cancelReason) || 'Cancelled by user'
+
     try {
-      await salesService.cancelSalesOrder(selectedOrder.id, cancelReason.trim())
+      setIsSaving(true)
+      await salesService.cancelSalesOrder(selectedOrder.id, reason)
       toast.success('Sales order cancelled.')
+      currentDraftOrderIdRef.current = ''
+      setSelectedOrder(null)
       setHeader(emptyHeader)
       setLine(emptyLine)
       setLineDrafts({})
-      setCancelReason('')
       setSalesRouteName('')
-      setSalesPersonName('')
-      setSelectedOrder(null)
-      setSelectedOrderId('')
-      await loadOrdersAgain()
-    } catch (requestError) {
-      toast.error(requestError.message || 'Unable to cancel sales order.')
+      setCancelReason('')
+      navigate('/sales/orders/my-orders', { replace: true })
+    } catch (error) {
+      toast.error(error.message || 'Unable to cancel sales order.')
     } finally {
       setIsSaving(false)
     }
   }
 
-  const selectedLine = productById[line.productId] || null
-  const canAddLine = Boolean(
-    selectedOrder &&
-    selectedOrder.status === 'Draft' &&
-    line.productId &&
-    line.quantity &&
-    lineQtyNumber > 0 &&
-    (!line.isReturnLine || line.returnReason)
-  )
-  const activeCustomerName =
-    customerById[selectedOrder?.customerId]?.name ||
-    selectedOrder?.customerName ||
-    selectedOrder?.customerId
-  const activeRoutesName =
-    salesRouteName || selectedOrder?.salesRouteName || selectedOrder?.salesRouteId
-  const activeSalesPerson =
-    salesPersonName || selectedOrder?.salesPersonName || selectedOrder?.salesPersonId
+  const pageSubtitle = orderIdParam
+    ? `Editing draft order for ${currentUserLabel}.`
+    : 'Start a new draft order, add lines, and confirm when ready.'
+
+  const orderStatus = selectedOrder?.status || (currentDraftOrderIdRef.current ? 'Draft' : 'Draft')
 
   return (
     <div
-      className="responsive-page sales-new-order-page"
+      className="responsive-page"
       style={{
-        height: 'calc(100dvh - var(--spacing-layout-topbar) - 56px)',
+        height: 'calc(100vh - var(--spacing-layout-topbar) - 56px)',
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        WebkitOverflowScrolling: 'touch',
+        overflow: 'hidden',
       }}
     >
-      {/* <div>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>
-          New Sales Orders
-        </h1>
-        <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          Create draft orders, manage lines, and convert confirmed orders to invoices.
-        </p>
-      </div> */}
-
-      <div className="sales-new-order-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-visible overscroll-contain pr-1 pb-4">
-        {/* Create New Order horizontal form */}
-        <div
-          className="panel"
-          style={{
-            padding: '12px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-            flexShrink: 0,
-          }}
-        >
-          <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-            Create New Order
-          </h3>
-          <form
-            onSubmit={createOrder}
-            className="sales-new-order-form-grid"
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1
             style={{
-              display: 'grid',
-              gap: 14,
-              gridTemplateColumns:
-                'minmax(0,1.35fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,0.9fr) minmax(0,1fr) auto',
-              alignItems: 'end',
+              fontSize: 26,
+              fontWeight: 700,
+              color: 'var(--color-text-primary)',
+              lineHeight: 1.2,
             }}
           >
-            <div style={{ minWidth: 0 }}>
-              <span
-                style={{
-                  display: 'block',
-                  marginBottom: 4,
-                  textTransform: 'uppercase',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: 'var(--color-text-dim)',
-                }}
-              >
-                Customer
-              </span>
-              <SearchableSelect
-                value={header.customerId}
-                onChange={(customerId) => updateHeader('customerId', customerId)}
-                options={customers}
-                placeholder="Search customer"
-                emptyLabel="No customers found"
-                getLabel={(customer) =>
-                  [customer.code, customer.name || customer.customerName]
-                    .filter(Boolean)
-                    .join(' - ') ||
-                  customer.id ||
-                  ''
-                }
-                getMeta={(customer) =>
-                  [
-                    customer.primaryContactPhone,
-                    customer.phone,
-                    customer.routeName,
-                    customer.salesRouteName,
-                  ]
-                    .filter(Boolean)
-                    .join(' ')
-                }
-              />
-            </div>
+            Product Entry
+          </h1>
+          <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
+            {pageSubtitle}
+          </p>
+        </div>
+        <OrderStatusBadge status={orderStatus} />
+      </div>
 
-            <div style={{ minWidth: 0 }}>
-              <span
-                style={{
-                  display: 'block',
-                  marginBottom: 4,
-                  textTransform: 'uppercase',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: 'var(--color-text-dim)',
-                }}
-              >
-                Sales Route
-              </span>
-              <input
-                className="form-input"
-                value={draftSalesRouteName}
-                readOnly
-                tabIndex={-1}
-                style={{ height: 40, background: 'rgba(0,0,0,0.12)', cursor: 'not-allowed' }}
-              />
-            </div>
-
-            {/* <div style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
-                Sales Person
-              </span>
-              <input
-                className="form-input"
-                value={draftSalesPersonName}
-                readOnly
-                tabIndex={-1}
-                style={{ height: 40, background: 'rgba(0,0,0,0.12)', cursor: 'not-allowed' }}
-              />
-            </div> */}
-
-            <div style={{ minWidth: 0 }}>
-              <span
-                style={{
-                  display: 'block',
-                  marginBottom: 4,
-                  textTransform: 'uppercase',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: 'var(--color-text-dim)',
-                }}
-              >
-                Delivery Date
-              </span>
-              <input
-                className="form-input"
-                type="date"
-                value={header.deliveryDate}
-                onChange={(event) => updateHeader('deliveryDate', event.target.value)}
-                style={{ height: 40 }}
-              />
-            </div>
-
-            <div style={{ minWidth: 0 }}>
-              <span
-                style={{
-                  display: 'block',
-                  marginBottom: 4,
-                  textTransform: 'uppercase',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: 'var(--color-text-dim)',
-                }}
-              >
-                Notes
-              </span>
-              <input
-                className="form-input"
-                value={header.notes}
-                onChange={(event) => updateHeader('notes', event.target.value)}
-                placeholder="Optional order notes"
-                style={{ height: 40 }}
-              />
-            </div>
-
-            <button
-              className="button-primary"
-              type="submit"
-              disabled={isSaving || !header.customerId}
-              style={{
-                height: 40,
-                padding: '0 16px',
-                justifyContent: 'center',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <PackagePlus className="h-4 w-4" />
-              Create Draft Order
-            </button>
-          </form>
+      <section
+        className="panel"
+        style={{
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          flexShrink: 0,
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center rounded-[6px] border border-border bg-bg-base px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
+            Product
+          </span>
+          <span className="inline-flex items-center rounded-[6px] border border-border bg-bg-base px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
+            + Sale
+          </span>
         </div>
 
-        {/* Selected Order Details (Full Width) */}
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(180px,220px)_minmax(180px,220px)]">
+          <label className="min-w-0">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">
+              Customer
+            </div>
+            <SearchableSelect
+              value={header.customerId}
+              onChange={(customerId) => updateHeader('customerId', customerId)}
+              options={customers}
+              placeholder="Search customer"
+              emptyLabel="No customers found"
+              getLabel={(customer) => [customer.code, customer.name].filter(Boolean).join(' - ')}
+              getMeta={(customer) =>
+                [customer.salesRouteName, customer.salesRouteId].filter(Boolean).join(' - ')
+              }
+            />
+          </label>
+
+          <label>
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">
+              Sales Route
+            </div>
+            <input
+              className="form-input"
+              value={selectedCustomerRouteName}
+              readOnly
+              placeholder="Auto-filled from customer"
+              style={{ height: 38 }}
+            />
+          </label>
+
+          <label>
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">
+              Delivery Date
+            </div>
+            <input
+              className="form-input"
+              type="date"
+              value={header.deliveryDate}
+              onChange={(event) => updateHeader('deliveryDate', event.target.value)}
+              disabled={Boolean(selectedOrder)}
+              style={{ height: 38 }}
+            />
+          </label>
+        </div>
+
+        <label>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">
+            Notes
+          </div>
+          <textarea
+            className="form-input"
+            value={header.notes}
+            onChange={(event) => updateHeader('notes', event.target.value)}
+            rows={2}
+            disabled={Boolean(selectedOrder)}
+            placeholder="Optional note"
+            style={{ minHeight: 44, resize: 'vertical' }}
+          />
+        </label>
+
+        {selectedOrder ? (
+          <div className="text-[12px] text-text-muted">
+            Draft header is locked after creation because the reference sales backend exposes line,
+            confirm, and cancel actions only.
+          </div>
+        ) : null}
+      </section>
+
+      <div
+        className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+        }}
+      >
         <section
-          className="panel responsive-detail-panel sales-new-order-detail-panel"
+          className="panel"
           style={{
-            padding: 16,
+            padding: 0,
+            minHeight: 0,
+            overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            gap: 12,
-            width: '100%',
-            minWidth: 0,
-
-            height: 'auto',
-            minHeight: 'fit-content',
-            flex: '0 0 auto',
-            overflow: 'visible',
-            boxSizing: 'border-box',
           }}
         >
-          {isLoadingDetail ? (
-            <div
-              style={{
-                display: 'flex',
-                flex: 1,
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-text-dim)',
-              }}
-            >
-              Loading order details...
+          <div
+            className="border-b border-border px-4 py-3"
+            style={{ background: 'var(--color-bg-surface)' }}
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-[#8ee8f0]" />
+              <h3 className="text-[12px] font-bold text-text-primary">Order Lines</h3>
             </div>
-          ) : selectedOrder ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-                width: '100%',
-                minWidth: 0,
-                height: 'auto',
-                minHeight: 'fit-content',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  paddingBottom: 12,
-                  borderBottom: '1px solid var(--color-border)',
-                }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                    Product Entry
-                  </h2>
-                  <p style={{ marginTop: 2, fontSize: 11, color: 'var(--color-text-dim)' }}>
-                    Add products to the current draft order.
-                  </p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <OrderStatusBadge status={selectedOrder.status} />
+          </div>
+
+          <div className="flex-1 overflow-hidden">
+            {isLoadingDetail ? (
+              <div className="grid h-full place-items-center p-6 text-[13px] text-text-muted">
+                Loading draft order...
+              </div>
+            ) : detailError ? (
+              <div className="grid h-full place-items-center p-6 text-center text-[13px] text-text-muted">
+                <div className="max-w-[320px]">
+                  <div className="mb-2 text-[14px] font-semibold text-text-primary">
+                    {detailError}
+                  </div>
+                  <div>Open a valid draft order from My Orders or create a new one.</div>
                 </div>
               </div>
-
-              {/* Add Product Form */}
-              {isDraft ? (
+            ) : (
+              <div
+                className="sales-new-order-content-grid"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0,1fr)',
+                  gap: 16,
+                  padding: 16,
+                  minHeight: 0,
+                }}
+              >
                 <div
                   className="sales-new-order-product-panel"
                   style={{
-                    background: line.isReturnLine
-                      ? 'rgba(245, 158, 11, 0.08)'
-                      : 'rgba(226, 246, 252, 0.55)',
-                    border: line.isReturnLine
-                      ? '1px solid rgba(245, 158, 11, 0.35)'
-                      : '1px solid rgba(186, 211, 232, 0.9)',
+                    background: 'rgba(226, 246, 252, 0.55)',
+                    border: '1px solid rgba(186, 211, 232, 0.9)',
                     borderRadius: 8,
                     padding: 12,
                     width: '100%',
@@ -1355,32 +1457,16 @@ export default function NewSalesOrderPage() {
                     maxWidth: '100%',
                     boxSizing: 'border-box',
                     overflow: 'visible',
-                    transition: 'background 150ms ease, border-color 150ms ease',
                   }}
                 >
                   <form
                     onSubmit={addLine}
-                    className="sales-new-order-product-form grid grid-cols-1 sm:grid-cols-[minmax(200px,1.6fr)_100px_100px_auto]"
-                    style={{
-                      gap: 12,
-                      alignItems: 'end',
-                    }}
+                    className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(200px,1.6fr)_100px_100px_auto]"
+                    style={{ alignItems: 'end' }}
                   >
-                    <label
-                      className="min-w-0"
-                      style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
-                    >
-                      <div
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            textTransform: 'uppercase',
-                            color: 'var(--color-text-dim)',
-                          }}
-                        >
+                    <label className="min-w-0">
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">
                           Product
                         </span>
                         <button
@@ -1392,167 +1478,103 @@ export default function NewSalesOrderPage() {
                               returnReason: '',
                             }))
                           }
+                          className="inline-flex h-6 items-center gap-1 rounded-[6px] border px-2 text-[10px] font-bold uppercase tracking-[0.08em]"
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            height: 24,
-                            padding: '0 8px',
-                            borderRadius: 6,
-                            border: line.isReturnLine
-                              ? '1px solid rgba(245, 158, 11, 0.62)'
-                              : '1px solid var(--color-border)',
+                            borderColor: line.isReturnLine
+                              ? 'rgba(245, 158, 11, 0.62)'
+                              : 'var(--color-border)',
                             background: line.isReturnLine
                               ? 'rgba(245, 158, 11, 0.18)'
                               : 'var(--color-bg-base)',
                             color: line.isReturnLine
                               ? 'var(--color-amber)'
                               : 'var(--color-text-muted)',
-                            fontSize: 10,
-                            fontWeight: 900,
-                            cursor: 'pointer',
                           }}
                         >
-                          <span>{line.isReturnLine ? '↩ RETURN' : '+ SALE'}</span>
+                          <span>{line.isReturnLine ? 'Return' : '+ Sale'}</span>
                         </button>
                       </div>
-                      {line.isReturnLine ? (
-                        <div
-                          style={{
-                            marginBottom: 4,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            fontSize: 11,
-                            color: 'var(--color-text-muted)',
-                          }}
-                        >
-                          <span style={{ color: 'var(--color-amber)', fontWeight: 900 }}>
-                            ↩ Return Line
-                          </span>
-                          <span>stock adds back to inventory on invoice</span>
-                        </div>
-                      ) : null}
                       <SearchableSelect
                         value={line.productId}
                         onChange={(productId) => updateLine('productId', productId)}
                         options={products}
                         placeholder="Search product"
                         emptyLabel="No products found"
-                        menuPlacement="bottom"
                         getLabel={(product) =>
                           [
                             product.sku || product.productSku || '',
                             product.name || product.productName || '',
                           ]
                             .filter(Boolean)
-                            .join(' - ') ||
-                          product.id ||
-                          ''
+                            .join(' - ')
                         }
                         getMeta={(product) =>
                           [
                             product.barcode,
-                            product.unitCode,
                             product.uomBase || product.baseUom,
-                            product.brandName,
                             product.category?.name,
                           ]
                             .filter(Boolean)
                             .join(' • ')
                         }
                       />
-                      <StockAvailabilityHint
-                        isLoading={loadingAvailability}
-                        productId={line.productId}
-                        availabilityData={availabilityData}
-                        sellableQty={sellableQty}
-                        totalAvailable={totalAvailable}
-                        totalReserved={totalReserved}
-                        unitCode={unitCode}
-                      />
+                      <StockAvailabilityHint productId={line.productId} />
                       {line.isReturnLine ? (
                         <div style={{ marginTop: 10 }}>
-                          <span
-                            style={{
-                              display: 'block',
-                              marginBottom: 4,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              textTransform: 'uppercase',
-                              color: 'var(--color-text-dim)',
-                            }}
-                          >
+                          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">
                             Return Reason *
-                          </span>
+                          </div>
                           <select
                             className="form-input"
                             value={line.returnReason}
                             onChange={(event) => updateLine('returnReason', event.target.value)}
-                            style={{
-                              height: 38,
-                              borderColor: 'rgba(245, 158, 11, 0.45)',
-                              background: 'rgba(10, 10, 16, 0.72)',
-                              color: 'var(--color-text-primary)',
-                            }}
+                            style={{ height: 38 }}
                           >
                             <option value="">Select reason...</option>
-                            <option value="1">Damaged → return stock</option>
-                            <option value="2">Expired → return stock</option>
-                            <option value="3">Short Expiry → main stock</option>
-                            <option value="4">Unwanted → main stock</option>
+                            <option value="Damaged">Damaged</option>
+                            <option value="Expired">Expired</option>
+                            <option value="Short Expiry">Short Expiry</option>
+                            <option value="Unwanted">Unwanted</option>
                           </select>
                         </div>
                       ) : null}
                     </label>
 
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          textTransform: 'uppercase',
-                          color: 'var(--color-text-dim)',
-                        }}
-                      >
+                    <label>
+                      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">
                         Qty
-                      </span>
+                      </div>
                       <input
                         className="form-input"
-                        style={{ textAlign: 'right' }}
                         type="number"
                         min="0"
                         value={line.quantity}
                         onChange={(event) => updateLine('quantity', event.target.value)}
+                        style={{ textAlign: 'right', height: 38 }}
                       />
                     </label>
 
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          textTransform: 'uppercase',
-                          color: 'var(--color-text-dim)',
-                        }}
-                      >
+                    <label>
+                      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">
                         Discount %
-                      </span>
+                      </div>
                       <input
                         className="form-input"
-                        style={{ textAlign: 'right' }}
                         type="number"
                         min="0"
                         max="10"
                         value={line.discountPercent}
                         onChange={(event) => updateLine('discountPercent', event.target.value)}
+                        style={{ textAlign: 'right', height: 38 }}
                       />
                     </label>
 
                     <button
                       className="button-primary"
                       type="submit"
-                      disabled={isSaving || !canAddLine}
+                      disabled={
+                        isSaving || isCreatingDraft || isLoadingInitialData || !canEditCurrentDraft
+                      }
                       style={{ height: 40 }}
                     >
                       <Plus className="h-4 w-4" />
@@ -1560,20 +1582,7 @@ export default function NewSalesOrderPage() {
                     </button>
                   </form>
                 </div>
-              ) : null}
 
-              {/* Content Grid (Order Lines Table + Totals Sidebar) */}
-              <div
-                className="sales-new-order-content-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
-                style={{
-                  gap: 16,
-                  width: '100%',
-                  minWidth: 0,
-                  minHeight: 420,
-                  alignItems: 'stretch',
-                }}
-              >
-                {/* Order Lines Card */}
                 <div
                   style={{
                     borderRadius: 8,
@@ -1581,12 +1590,9 @@ export default function NewSalesOrderPage() {
                     background: 'var(--color-bg-base)',
                     display: 'flex',
                     flexDirection: 'column',
-
                     width: '100%',
                     minWidth: 0,
                     maxWidth: '100%',
-
-                    height: 'auto',
                     minHeight: 420,
                   }}
                 >
@@ -1608,7 +1614,6 @@ export default function NewSalesOrderPage() {
                     </h3>
                   </div>
 
-                  {/* Table area */}
                   <div
                     className="sales-new-order-table-shell responsive-table-shell"
                     style={{
@@ -1630,28 +1635,30 @@ export default function NewSalesOrderPage() {
                           <th style={{ textAlign: 'right' }}>Selling Price</th>
                           <th style={{ textAlign: 'right' }}>Disc %</th>
                           <th style={{ textAlign: 'right' }}>Total</th>
-                          {isDraft ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
+                          {canEditCurrentDraft ? (
+                            <th style={{ textAlign: 'right' }}>Actions</th>
+                          ) : null}
                         </tr>
                       </thead>
                       <tbody>
-                        {getOrderLines(selectedOrder).length ? (
-                          getOrderLines(selectedOrder).map((orderLine, index) => (
+                        {selectedOrderLines.length ? (
+                          selectedOrderLines.map((orderLine, index) => (
                             <LineRow
                               key={orderLine.id}
                               line={orderLine}
                               index={index}
                               product={productById[orderLine.productId]}
                               draft={lineDrafts[orderLine.id] || {}}
-                              isDraft={isDraft}
+                              canEdit={canEditCurrentDraft}
                               onDraftChange={updateLineDraft}
-                              onSave={updateOrderLine}
-                              onRemove={removeOrderLine}
+                              onSave={saveLine}
+                              onRemove={removeLine}
                             />
                           ))
                         ) : (
                           <tr>
                             <td
-                              colSpan={isDraft ? 6 : 5}
+                              colSpan={canEditCurrentDraft ? 6 : 5}
                               className="px-4 py-6 text-center text-[13px] text-text-dim"
                             >
                               No order lines added yet.
@@ -1662,118 +1669,135 @@ export default function NewSalesOrderPage() {
                     </table>
                   </div>
                 </div>
-
-                {/* Sidebar Cards */}
-                <aside
-                  className="sales-new-order-sidebar"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                    minWidth: 0,
-                    maxWidth: '100%',
-                  }}
-                >
-                  {/* Totals */}
-                  <div
-                    className="sales-new-order-actions"
-                    style={{
-                      borderRadius: 8,
-                      border: '1px solid var(--color-border)',
-                      background: 'var(--color-bg-elevated)',
-                      padding: 12,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 6,
-                    }}
-                  >
-                    <h3
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: 'var(--color-text-primary)',
-                        marginBottom: 4,
-                      }}
-                    >
-                      Totals
-                    </h3>
-                    <AmountLine label="Gross" value={gross} />
-                    <AmountLine label="Discount" value={discount} />
-                    <AmountLine label="VAT" value={vat} />
-                    {returnCredit > 0 ? (
-                      <AmountLine label="Returns Credit" value={returnCredit} negative />
-                    ) : null}
-                    <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
-                    <AmountLine label="Net" value={net} strong />
-                    <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
-                    <AmountLine label="Paid" value={paid} />
-                    <AmountLine label="Outstanding" value={outstanding} strong />
-                  </div>
-
-                  {/* Actions */}
-                  <div
-                    style={{
-                      borderRadius: 8,
-                      border: '1px solid var(--color-border)',
-                      background: 'var(--color-bg-elevated)',
-                      padding: 12,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                    }}
-                  >
-                    {isDraft ? (
-                      <button
-                        type="button"
-                        disabled={isSaving || !selectedOrder}
-                        onClick={confirmOrder}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] bg-[#11809f] px-4 text-[13px] font-semibold text-[#08131a] transition hover:bg-[#0d748f] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer sales-new-order-confirm-button"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Confirm Order
-                      </button>
-                    ) : null}
-
-                    {selectedOrder && !['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
-                      <form
-                        onSubmit={cancelOrder}
-                        style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
-                      >
-                        <input
-                          className="form-input"
-                          value={cancelReason}
-                          onChange={(event) => setCancelReason(event.target.value)}
-                          placeholder="Cancel reason"
-                        />
-                        <button
-                          type="submit"
-                          disabled={isSaving}
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] border border-border px-4 text-[13px] font-semibold text-text-primary transition hover:bg-bg-elevated disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer sales-new-order-cancel-button"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          Cancel Order
-                        </button>
-                      </form>
-                    ) : null}
-                  </div>
-                </aside>
               </div>
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'flex',
-                flex: 1,
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-text-dim)',
-                fontSize: 13,
-              }}
-            >
-              Create a draft order on the top to begin.
-            </div>
-          )}
+            )}
+          </div>
         </section>
+
+        <aside
+          className="sales-new-order-sidebar"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            minWidth: 0,
+            maxWidth: '100%',
+          }}
+        >
+          <div
+            className="panel"
+            style={{
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-bg-elevated)',
+              padding: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}
+          >
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+              Totals
+            </h3>
+            <AmountLine label="Gross" value={gross} />
+            <AmountLine label="Discount" value={discount} />
+            <AmountLine label="VAT" value={vat} />
+            <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+            <AmountLine label="Net" value={net} strong />
+            <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+            <AmountLine label="Paid" value={paid} />
+            <AmountLine label="Outstanding" value={outstanding} strong />
+          </div>
+
+          <div
+            className="panel"
+            style={{
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-bg-elevated)',
+              padding: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+          >
+            {selectedOrder && canEditCurrentDraft ? (
+              <button
+                type="button"
+                disabled={isSaving || isCreatingDraft || isConfirming}
+                onClick={confirmOrder}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] bg-[#11809f] px-4 text-[13px] font-semibold text-[#08131a] transition hover:bg-[#0d748f] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Confirm Order
+              </button>
+            ) : selectedOrder ? (
+              <div
+                style={{
+                  borderRadius: 8,
+                  border: '1px dashed var(--color-border)',
+                  padding: 12,
+                  color: 'var(--color-text-muted)',
+                  fontSize: 12,
+                }}
+              >
+                This draft cannot be edited by the current user.
+              </div>
+            ) : null}
+
+            {selectedOrder && canEditCurrentDraft ? (
+              <form
+                onSubmit={cancelOrder}
+                style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+              >
+                <input
+                  className="form-input"
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                  placeholder="Cancel reason"
+                />
+                <button
+                  type="submit"
+                  disabled={isSaving || isConfirming}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] border border-border px-4 text-[13px] font-semibold text-text-primary transition hover:bg-bg-elevated disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Cancel Order
+                </button>
+              </form>
+            ) : null}
+
+            {!selectedOrder ? (
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                Select a customer and delivery date to auto-create a draft when you start adding
+                lines.
+              </div>
+            ) : null}
+          </div>
+
+          <div
+            className="panel"
+            style={{
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-bg-elevated)',
+              padding: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            <FieldCard
+              label="Customer"
+              value={selectedOrder?.customerName || selectedCustomer?.name || header.customerId}
+            />
+            <FieldCard label="Sales Route" value={selectedCustomerRouteName} />
+            <FieldCard label="Delivery Date" value={formatDate(header.deliveryDate)} />
+            <FieldCard label="Notes" value={normalizeText(header.notes) || '-'} />
+            <FieldCard label="Status" value={statusLabel(orderStatus)} />
+            <FieldCard label="Order Date" value={formatDateTime(selectedOrder?.orderDate)} />
+          </div>
+        </aside>
       </div>
     </div>
   )

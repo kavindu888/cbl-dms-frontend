@@ -3,6 +3,7 @@ import {
   ChevronRight,
   ClipboardList,
   FileText,
+  Pencil,
   RefreshCw,
   Search,
   ShoppingBag,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useAuthStore } from '@stores/authStore'
@@ -55,6 +57,55 @@ function getOrderDate(order) {
 
 function getOrderCustomer(order) {
   return order?.customerName || order?.customerCode || order?.customerId || '-'
+}
+
+function normalizeText(value) {
+  return String(value ?? '').trim()
+}
+
+function getUserRoles(user) {
+  const roles = Array.isArray(user?.roles)
+    ? user.roles
+    : user?.role
+      ? [user.role]
+      : user?.roleName
+        ? [user.roleName]
+        : user?.userRole
+          ? [user.userRole]
+          : []
+
+  return roles
+    .map((role) =>
+      typeof role === 'string'
+        ? role.trim()
+        : String(
+            role?.name || role?.Name || role?.roleName || role?.RoleName || role?.userRole || ''
+          ).trim()
+    )
+    .filter(Boolean)
+}
+
+function isAdminUser(user) {
+  return getUserRoles(user).some((role) => role.toLowerCase() === 'admin')
+}
+
+function getCurrentUserId(user) {
+  return normalizeText(user?.id || user?.userId || user?.sub || user?.userID)
+}
+
+function canEditDraftOrder(order, user) {
+  if (
+    !order ||
+    String(order.status || '')
+      .trim()
+      .toLowerCase() !== 'draft'
+  )
+    return false
+  if (isAdminUser(user)) return true
+
+  const currentUserId = getCurrentUserId(user)
+  const orderOwnerId = normalizeText(order.salesPersonId || order.salesPerson?.id || order.ownerId)
+  return Boolean(currentUserId && orderOwnerId && currentUserId === orderOwnerId)
 }
 
 function DetailField({ label, value }) {
@@ -148,6 +199,7 @@ function OrderCard({ order, isSelected, onSelect }) {
 }
 
 export default function MyOrdersPage() {
+  const navigate = useNavigate()
   const sessionUser = useAuthStore((state) => state.user)
   const [orders, setOrders] = useState([])
   const [search, setSearch] = useState('')
@@ -169,10 +221,22 @@ export default function MyOrdersPage() {
     }, {})
   }, [products])
 
+  const scopedOrders = useMemo(() => {
+    const currentUserId = getCurrentUserId(sessionUser)
+    if (!currentUserId) return orders
+
+    return orders.filter((order) => {
+      const orderOwnerId = normalizeText(
+        order.salesPersonId || order.salesPerson?.id || order.ownerId
+      )
+      return orderOwnerId ? orderOwnerId === currentUserId : true
+    })
+  }, [orders, sessionUser])
+
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase()
 
-    return orders
+    return scopedOrders
       .filter((order) => {
         if (!query) return true
         const haystack = [
@@ -189,7 +253,7 @@ export default function MyOrdersPage() {
         return haystack.includes(query)
       })
       .sort((a, b) => new Date(getOrderDate(b)) - new Date(getOrderDate(a)))
-  }, [orders, search])
+  }, [scopedOrders, search])
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize))
   const pagedOrders = useMemo(() => {
@@ -367,6 +431,7 @@ export default function MyOrdersPage() {
   const selectedFallback = filteredOrders.find((order) => order.id === selectedId) || null
   const activeOrder = selectedOrder || selectedFallback
   const lineItems = getOrderLines(activeOrder)
+  const canEditActiveDraft = canEditDraftOrder(activeOrder, sessionUser)
   const currentUserLabel =
     sessionUser?.username || sessionUser?.email || sessionUser?.employeeCode || 'your account'
 
@@ -668,6 +733,16 @@ export default function MyOrdersPage() {
                     <span className="rounded-[999px] border border-border bg-bg-base px-3 py-1 text-[12px] font-bold text-text-primary">
                       {formatMoney(activeOrder.netAmount)}
                     </span>
+                    {canEditActiveDraft ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/sales/orders/new?orderId=${activeOrder.id}`)}
+                        className="inline-flex items-center gap-2 rounded-[999px] border border-border bg-bg-base px-3 py-1 text-[12px] font-bold text-text-primary transition hover:bg-bg-elevated"
+                      >
+                        <Pencil size={14} />
+                        Edit Draft
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 

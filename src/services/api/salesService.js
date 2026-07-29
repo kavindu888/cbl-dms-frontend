@@ -190,7 +190,8 @@ export const salesService = {
     const pageSize = Math.min(Number(params.pageSize || 100), 100)
     const firstPage = await this.listCustomers({ ...params, page: 1, pageSize })
     const items = [...(firstPage.items || [])]
-    const fallbackTotalPages = Math.ceil(Number(firstPage.totalItems || items.length) / pageSize) || 1
+    const fallbackTotalPages =
+      Math.ceil(Number(firstPage.totalItems || items.length) / pageSize) || 1
     const totalPages = Number(firstPage.totalPages ?? fallbackTotalPages)
 
     if (totalPages <= 1) {
