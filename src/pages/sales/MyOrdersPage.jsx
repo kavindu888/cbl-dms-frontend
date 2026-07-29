@@ -47,6 +47,36 @@ function statusLabel(status) {
     .replace(/[\s-]+/g, ' ')
 }
 
+function getOrderStatusTone(status) {
+  const value = statusLabel(status).toLowerCase()
+  if (value.includes('cancel') || value.includes('reject')) {
+    return {
+      border: 'rgba(244, 63, 94, 0.28)',
+      bg: 'rgba(244, 63, 94, 0.08)',
+      text: 'var(--color-danger)',
+    }
+  }
+  if (value.includes('draft')) {
+    return {
+      border: 'rgba(148, 163, 184, 0.26)',
+      bg: 'rgba(148, 163, 184, 0.08)',
+      text: 'var(--color-text-muted)',
+    }
+  }
+  if (value.includes('confirm') || value.includes('approved') || value.includes('active')) {
+    return {
+      border: 'rgba(32, 212, 191, 0.28)',
+      bg: 'rgba(32, 212, 191, 0.10)',
+      text: 'var(--color-teal)',
+    }
+  }
+  return {
+    border: 'rgba(102, 181, 250, 0.26)',
+    bg: 'rgba(102, 181, 250, 0.10)',
+    text: 'var(--color-blue)',
+  }
+}
+
 function getOrderLines(order) {
   return Array.isArray(order?.lines) ? order.lines : []
 }
@@ -148,46 +178,64 @@ function SummaryPill({ icon: Icon, label, value, tone = 'default' }) {
 
 function OrderCard({ order, isSelected, onSelect }) {
   const date = formatDate(getOrderDate(order))
+  const statusTone = getOrderStatusTone(order.status)
 
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="group w-full rounded-[12px] border p-3 text-left transition-all"
+      className="group relative w-full overflow-hidden rounded-[14px] border text-left"
       style={{
-        borderColor: isSelected ? 'rgba(142, 232, 240, 0.4)' : 'var(--color-border)',
+        margin: '0 1px',
+        padding: '6px 9px 7px',
+        minHeight: 80,
+        borderColor: isSelected ? 'rgba(142, 232, 240, 0.55)' : 'rgba(164, 190, 255, 0.55)',
         background: isSelected
-          ? 'color-mix(in srgb, var(--color-teal) 10%, transparent)'
-          : 'var(--color-bg-elevated)',
-        boxShadow: isSelected ? '0 0 0 1px rgba(142, 232, 240, 0.08) inset' : 'none',
+          ? 'linear-gradient(180deg, rgba(142, 232, 240, 0.15) 0%, rgba(142, 232, 240, 0.08) 100%)'
+          : 'linear-gradient(180deg, rgba(235, 243, 255, 0.96) 0%, rgba(226, 236, 255, 0.74) 100%)',
+        boxShadow: isSelected
+          ? '0 0 0 1px rgba(142, 232, 240, 0.18) inset, 0 10px 20px rgba(142, 232, 240, 0.07)'
+          : '0 1px 0 rgba(255,255,255,0.72) inset',
       }}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="mono truncate text-[12px] font-extrabold text-[#8ee8f0]">
+          <div className="mono truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-[#72e6f3]">
             {order.orderNumber || 'Order'}
           </div>
-          <div className="mt-1 truncate text-[13px] font-semibold text-text-primary">
+          <div className="mt-0.5 truncate text-[14px] font-bold leading-tight text-text-primary">
             {getOrderCustomer(order)}
           </div>
         </div>
         <ChevronRight
-          size={15}
-          className="shrink-0"
-          style={{ color: isSelected ? 'var(--color-teal)' : 'var(--color-text-dim)' }}
+          size={16}
+          className="shrink-0 self-start"
+          style={{
+            marginTop: 1,
+            color: isSelected ? 'var(--color-teal)' : 'rgba(95, 116, 160, 0.9)',
+          }}
         />
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <StatusBadge status={statusLabel(order.status)} />
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <span
+          className="inline-flex items-center rounded-[999px] border px-2 py-[2px] text-[10px] font-bold uppercase tracking-[0.14em]"
+          style={{
+            borderColor: statusTone.border,
+            background: statusTone.bg,
+            color: statusTone.text,
+          }}
+        >
+          {statusLabel(order.status)}
+        </span>
         <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-dim">
-          <CalendarDays size={12} />
+          <CalendarDays size={11} />
           {date}
         </span>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
-        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-text-dim">
+      <div className="mt-2 flex items-center justify-between gap-3 border-t border-[rgba(164,190,255,0.38)] pt-1.5">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#5f7098]">
           Net Amount
         </span>
         <span className="mono text-[13px] font-bold text-text-primary">
@@ -543,8 +591,8 @@ export default function MyOrdersPage() {
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: 12,
-              padding: '4px 4px 14px',
-              borderBottom: '1px solid var(--color-border)',
+              padding: '4px 4px 12px',
+              borderBottom: '1px solid rgba(164, 190, 255, 0.32)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -586,7 +634,7 @@ export default function MyOrdersPage() {
             </span>
           </div>
 
-          <div style={{ minHeight: 0, overflowY: 'auto', paddingRight: 2, marginTop: 12 }}>
+          <div style={{ minHeight: 0, overflowY: 'auto', padding: '10px 3px 0' }}>
             {isLoading ? (
               <div
                 style={{
@@ -600,7 +648,7 @@ export default function MyOrdersPage() {
                 Loading your orders...
               </div>
             ) : filteredOrders.length ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {pagedOrders.map((order) => (
                   <OrderCard
                     key={order.id}
@@ -659,17 +707,13 @@ export default function MyOrdersPage() {
             )}
           </div>
 
-          <div
-            style={{ marginTop: 12, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}
-          >
-            <SimplePagination
-              page={page}
-              pageSize={pageSize}
-              totalItems={filteredOrders.length}
-              onPageChange={setPage}
-              itemLabel="orders"
-            />
-          </div>
+          <SimplePagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={filteredOrders.length}
+            onPageChange={setPage}
+            itemLabel="orders"
+          />
         </section>
 
         <section
