@@ -1102,6 +1102,13 @@ tr:hover .copy-btn {
     grid-template-columns: minmax(0, 1fr) 84px 84px auto !important;
   }
 
+  .page-shell .sales-new-order-page .sales-new-order-product-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
   .page-shell .sales-new-order-page .sales-new-order-table-shell {
     min-height: 0 !important;
     overflow-x: auto !important;
@@ -1137,6 +1144,14 @@ tr:hover .copy-btn {
   .page-shell .sales-new-order-page .sales-new-order-product-form > * {
     width: 100% !important;
     min-width: 0 !important;
+  }
+
+  .page-shell .sales-new-order-page .sales-new-order-product-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 10px !important;
   }
 
   .page-shell .sales-new-order-page .sales-new-order-form-grid button,

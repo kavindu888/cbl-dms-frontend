@@ -1232,6 +1232,11 @@ export default function NewSalesOrderPage() {
                         border: line.isReturnLine ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(186, 211, 232, 0.9)',
                         borderRadius: 8,
                         padding: 12,
+                        width: '100%',
+                        minWidth: 0,
+                        maxWidth: '100%',
+                        boxSizing: 'border-box',
+                        overflow: 'hidden',
                         transition: 'background 150ms ease, border-color 150ms ease',
                       }}
                     >
