@@ -61,7 +61,10 @@ function statusLabel(status) {
 }
 
 function normalizeStatus(status) {
-  return String(status || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
+  return String(status || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
 }
 
 function statusClasses(status) {
@@ -105,9 +108,14 @@ function getOrderLines(order) {
 
 function getComputedTotals(order) {
   const lines = getOrderLines(order).filter((line) => !line.isReturnLine)
-  const gross = lines.reduce((sum, line) => sum + toNumber(line.quantity) * toNumber(line.unitPrice), 0)
+  const gross = lines.reduce(
+    (sum, line) => sum + toNumber(line.quantity) * toNumber(line.unitPrice),
+    0
+  )
   const discount = lines.reduce(
-    (sum, line) => sum + toNumber(line.quantity) * toNumber(line.unitPrice) * (toNumber(line.discountPercent) / 100),
+    (sum, line) =>
+      sum +
+      toNumber(line.quantity) * toNumber(line.unitPrice) * (toNumber(line.discountPercent) / 100),
     0
   )
   const vat = lines.reduce((sum, line) => {
@@ -121,7 +129,12 @@ function getComputedTotals(order) {
     .reduce((sum, line) => {
       const lineTotal = toNumber(line.lineTotal)
       if (lineTotal > 0) return sum + lineTotal
-      return sum + toNumber(line.quantity) * toNumber(line.unitPrice) * (1 - toNumber(line.discountPercent) / 100)
+      return (
+        sum +
+        toNumber(line.quantity) *
+          toNumber(line.unitPrice) *
+          (1 - toNumber(line.discountPercent) / 100)
+      )
     }, 0)
   const net = gross - discount - returnCredit + vat
 
@@ -131,7 +144,9 @@ function getComputedTotals(order) {
 function FieldCard({ label, value }) {
   return (
     <div className="min-w-0">
-      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">{label}</div>
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dim">
+        {label}
+      </div>
       <div className="flex min-h-10 items-center rounded-[6px] border border-border bg-bg-base px-3 py-2 text-[14px] font-semibold text-text-primary">
         {value || '-'}
       </div>
@@ -142,7 +157,9 @@ function FieldCard({ label, value }) {
 function AmountLine({ label, value, strong = false, negative = false }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-1.5">
-      <span className={`text-[12px] ${strong ? 'font-bold text-text-primary' : 'font-medium text-text-primary'}`}>
+      <span
+        className={`text-[12px] ${strong ? 'font-bold text-text-primary' : 'font-medium text-text-primary'}`}
+      >
         {label}
       </span>
       <span
@@ -320,8 +337,8 @@ function SearchableSelect({
     const text = query.trim().toLowerCase()
     const filtered = text
       ? options.filter((option) =>
-        `${getLabel(option)} ${getMeta(option)}`.toLowerCase().includes(text)
-      )
+          `${getLabel(option)} ${getMeta(option)}`.toLowerCase().includes(text)
+        )
       : options
 
     return filtered.slice(0, 60)
@@ -449,7 +466,9 @@ function SearchableSelect({
               )
             })
           ) : (
-            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 12 }}>{emptyLabel}</div>
+            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 12 }}>
+              {emptyLabel}
+            </div>
           )}
         </div>
       ) : null}
@@ -466,7 +485,8 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
     product?.sku ||
     product?.productSku ||
     `Line ${index + 1}`
-  const itemCode = product?.sku || product?.productSku || line?.productCode || line?.productId || '-'
+  const itemCode =
+    product?.sku || product?.productSku || line?.productCode || line?.productId || '-'
   const batchLabel =
     line?.batchNo ||
     line?.batchNumber ||
@@ -474,10 +494,16 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
     line?.batchPicks?.[0]?.batchNo ||
     line?.batchPicks?.[0]?.batchCode ||
     line?.batchPicks?.[0]?.batchId ||
-    (Array.isArray(line?.batchPicks) && line.batchPicks.length > 1 ? `${line.batchPicks.length} batches` : '')
+    (Array.isArray(line?.batchPicks) && line.batchPicks.length > 1
+      ? `${line.batchPicks.length} batches`
+      : '')
   const unit = line?.smallestUnitCode || line?.unitCode || line?.unitId || '-'
   const lineTotal =
-    line?.lineTotal > 0 ? line.lineTotal : toNumber(line.quantity) * toNumber(line.unitPrice) * (1 - toNumber(line.discountPercent) / 100)
+    line?.lineTotal > 0
+      ? line.lineTotal
+      : toNumber(line.quantity) *
+        toNumber(line.unitPrice) *
+        (1 - toNumber(line.discountPercent) / 100)
 
   return (
     <tr className="sales-new-order-line-row hover:bg-bg-elevated/40">
@@ -494,7 +520,10 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
             <span className="product-sku-badge mono">{batchLabel || itemCode}</span>
             {batchLabel ? <span className="product-info-sub mono">{itemCode}</span> : null}
           </div>
-          <span className="product-info-sub" style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+          <span
+            className="product-info-sub"
+            style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}
+          >
             {itemName}
           </span>
         </div>
@@ -522,8 +551,7 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
           />
         ) : (
           <>
-            {line.quantity}{' '}
-            <span className="text-[11px] font-medium text-text-dim">{unit}</span>
+            {line.quantity} <span className="text-[11px] font-medium text-text-dim">{unit}</span>
           </>
         )}
       </td>
@@ -560,7 +588,11 @@ function LineRow({ line, index, draft, isDraft, onDraftChange, onSave, onRemove,
         {formatMoney(lineTotal)}
       </td>
       {isDraft ? (
-        <td className="sales-new-order-line-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Actions">
+        <td
+          className="sales-new-order-line-actions"
+          style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
+          data-label="Actions"
+        >
           <button
             type="button"
             onClick={() => onSave(line.id)}
@@ -646,7 +678,9 @@ export default function NewSalesOrderPage() {
   const isDraft = selectedOrder?.status === 'Draft'
   const lineQtyNumber = toNumber(line.quantity)
 
-  const { data: availabilityData, isLoading: loadingAvailability } = useStockAvailability(line.productId)
+  const { data: availabilityData, isLoading: loadingAvailability } = useStockAvailability(
+    line.productId
+  )
   const { data: selectedProductBatches = [] } = useStockBatches(line.productId)
   const inventoryUnitCode =
     availabilityData?.smallestUnitCode ||
@@ -666,10 +700,15 @@ export default function NewSalesOrderPage() {
     ''
   const computedTotals = getComputedTotals(selectedOrder)
   const gross = selectedOrder?.grossAmount > 0 ? selectedOrder.grossAmount : computedTotals.gross
-  const discount = selectedOrder?.totalDiscountAmount > 0 ? selectedOrder.totalDiscountAmount : computedTotals.discount
+  const discount =
+    selectedOrder?.totalDiscountAmount > 0
+      ? selectedOrder.totalDiscountAmount
+      : computedTotals.discount
   const vat = selectedOrder?.vatAmount > 0 ? selectedOrder.vatAmount : computedTotals.vat
   const returnCredit =
-    selectedOrder?.returnCreditAmount > 0 ? selectedOrder.returnCreditAmount : computedTotals.returnCredit
+    selectedOrder?.returnCreditAmount > 0
+      ? selectedOrder.returnCreditAmount
+      : computedTotals.returnCredit
   const net = selectedOrder?.netAmount > 0 ? selectedOrder.netAmount : computedTotals.net
   const paid = Number(selectedOrder?.paidAmount ?? 0)
   const outstanding = Number(selectedOrder?.outstandingAmount ?? 0)
@@ -715,7 +754,9 @@ export default function NewSalesOrderPage() {
         if (!isCurrent) return
 
         const list = Array.isArray(result) ? result : result?.items || result?.data || []
-        const sorted = [...list].sort((a, b) => new Date(getOrderDate(b)) - new Date(getOrderDate(a)))
+        const sorted = [...list].sort(
+          (a, b) => new Date(getOrderDate(b)) - new Date(getOrderDate(a))
+        )
         setOrders(sorted)
 
         const preferred = sorted.find((order) => order.status === 'Draft') || sorted[0] || null
@@ -1030,18 +1071,22 @@ export default function NewSalesOrderPage() {
   }
 
   const selectedLine = productById[line.productId] || null
-  const canAddLine =
-    Boolean(
-      selectedOrder &&
-      selectedOrder.status === 'Draft' &&
-      line.productId &&
-      line.quantity &&
-      lineQtyNumber > 0 &&
-      (!line.isReturnLine || line.returnReason)
-    )
-  const activeCustomerName = customerById[selectedOrder?.customerId]?.name || selectedOrder?.customerName || selectedOrder?.customerId
-  const activeRoutesName = salesRouteName || selectedOrder?.salesRouteName || selectedOrder?.salesRouteId
-  const activeSalesPerson = salesPersonName || selectedOrder?.salesPersonName || selectedOrder?.salesPersonId
+  const canAddLine = Boolean(
+    selectedOrder &&
+    selectedOrder.status === 'Draft' &&
+    line.productId &&
+    line.quantity &&
+    lineQtyNumber > 0 &&
+    (!line.isReturnLine || line.returnReason)
+  )
+  const activeCustomerName =
+    customerById[selectedOrder?.customerId]?.name ||
+    selectedOrder?.customerName ||
+    selectedOrder?.customerId
+  const activeRoutesName =
+    salesRouteName || selectedOrder?.salesRouteName || selectedOrder?.salesRouteId
+  const activeSalesPerson =
+    salesPersonName || selectedOrder?.salesPersonName || selectedOrder?.salesPersonId
 
   return (
     <div
@@ -1087,12 +1132,22 @@ export default function NewSalesOrderPage() {
             style={{
               display: 'grid',
               gap: 14,
-              gridTemplateColumns: 'minmax(0,1.35fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,0.9fr) minmax(0,1fr) auto',
+              gridTemplateColumns:
+                'minmax(0,1.35fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,0.9fr) minmax(0,1fr) auto',
               alignItems: 'end',
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
+              <span
+                style={{
+                  display: 'block',
+                  marginBottom: 4,
+                  textTransform: 'uppercase',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--color-text-dim)',
+                }}
+              >
                 Customer
               </span>
               <SearchableSelect
@@ -1101,9 +1156,20 @@ export default function NewSalesOrderPage() {
                 options={customers}
                 placeholder="Search customer"
                 emptyLabel="No customers found"
-                getLabel={(customer) => [customer.code, customer.name || customer.customerName].filter(Boolean).join(' - ') || customer.id || ''}
+                getLabel={(customer) =>
+                  [customer.code, customer.name || customer.customerName]
+                    .filter(Boolean)
+                    .join(' - ') ||
+                  customer.id ||
+                  ''
+                }
                 getMeta={(customer) =>
-                  [customer.primaryContactPhone, customer.phone, customer.routeName, customer.salesRouteName]
+                  [
+                    customer.primaryContactPhone,
+                    customer.phone,
+                    customer.routeName,
+                    customer.salesRouteName,
+                  ]
                     .filter(Boolean)
                     .join(' ')
                 }
@@ -1111,7 +1177,16 @@ export default function NewSalesOrderPage() {
             </div>
 
             <div style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
+              <span
+                style={{
+                  display: 'block',
+                  marginBottom: 4,
+                  textTransform: 'uppercase',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--color-text-dim)',
+                }}
+              >
                 Sales Route
               </span>
               <input
@@ -1137,7 +1212,16 @@ export default function NewSalesOrderPage() {
             </div> */}
 
             <div style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
+              <span
+                style={{
+                  display: 'block',
+                  marginBottom: 4,
+                  textTransform: 'uppercase',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--color-text-dim)',
+                }}
+              >
                 Delivery Date
               </span>
               <input
@@ -1150,7 +1234,16 @@ export default function NewSalesOrderPage() {
             </div>
 
             <div style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)' }}>
+              <span
+                style={{
+                  display: 'block',
+                  marginBottom: 4,
+                  textTransform: 'uppercase',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--color-text-dim)',
+                }}
+              >
                 Notes
               </span>
               <input
@@ -1179,9 +1272,9 @@ export default function NewSalesOrderPage() {
           </form>
         </div>
 
-      {/* Selected Order Details (Full Width) */}
-      <section
-        className="panel responsive-detail-panel sales-new-order-detail-panel"
+        {/* Selected Order Details (Full Width) */}
+        <section
+          className="panel responsive-detail-panel sales-new-order-detail-panel"
           style={{
             padding: 16,
             display: 'flex',
@@ -1198,11 +1291,29 @@ export default function NewSalesOrderPage() {
           }}
         >
           {isLoadingDetail ? (
-            <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-dim)' }}>
+            <div
+              style={{
+                display: 'flex',
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-text-dim)',
+              }}
+            >
               Loading order details...
             </div>
           ) : selectedOrder ? (
-            <div style={{display: 'flex',flexDirection: 'column',gap: 12,width: '100%',minWidth: 0,height: 'auto',minHeight: 'fit-content',}}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                width: '100%',
+                minWidth: 0,
+                height: 'auto',
+                minHeight: 'fit-content',
+              }}
+            >
               <div
                 style={{
                   display: 'flex',
@@ -1227,179 +1338,244 @@ export default function NewSalesOrderPage() {
               </div>
 
               {/* Add Product Form */}
-                  {isDraft ? (
-                    <div
-                      className="sales-new-order-product-panel"
-                      style={{
-                        background: line.isReturnLine ? 'rgba(245, 158, 11, 0.08)' : 'rgba(226, 246, 252, 0.55)',
-                        border: line.isReturnLine ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(186, 211, 232, 0.9)',
-                        borderRadius: 8,
-                        padding: 12,
-                        width: '100%',
-                        minWidth: 0,
-                        maxWidth: '100%',
-                        boxSizing: 'border-box',
-                        overflow: 'hidden',
-                        transition: 'background 150ms ease, border-color 150ms ease',
-                      }}
+              {isDraft ? (
+                <div
+                  className="sales-new-order-product-panel"
+                  style={{
+                    background: line.isReturnLine
+                      ? 'rgba(245, 158, 11, 0.08)'
+                      : 'rgba(226, 246, 252, 0.55)',
+                    border: line.isReturnLine
+                      ? '1px solid rgba(245, 158, 11, 0.35)'
+                      : '1px solid rgba(186, 211, 232, 0.9)',
+                    borderRadius: 8,
+                    padding: 12,
+                    width: '100%',
+                    minWidth: 0,
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
+                    overflow: 'visible',
+                    transition: 'background 150ms ease, border-color 150ms ease',
+                  }}
+                >
+                  <form
+                    onSubmit={addLine}
+                    className="sales-new-order-product-form grid grid-cols-1 sm:grid-cols-[minmax(200px,1.6fr)_100px_100px_auto]"
+                    style={{
+                      gap: 12,
+                      alignItems: 'end',
+                    }}
+                  >
+                    <label
+                      className="min-w-0"
+                      style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
                     >
-                      <form
-                        onSubmit={addLine}
-                        className="sales-new-order-product-form grid grid-cols-1 sm:grid-cols-[minmax(200px,1.6fr)_100px_100px_auto]"
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            color: 'var(--color-text-dim)',
+                          }}
+                        >
+                          Product
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLine((current) => ({
+                              ...current,
+                              isReturnLine: !current.isReturnLine,
+                              returnReason: '',
+                            }))
+                          }
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            height: 24,
+                            padding: '0 8px',
+                            borderRadius: 6,
+                            border: line.isReturnLine
+                              ? '1px solid rgba(245, 158, 11, 0.62)'
+                              : '1px solid var(--color-border)',
+                            background: line.isReturnLine
+                              ? 'rgba(245, 158, 11, 0.18)'
+                              : 'var(--color-bg-base)',
+                            color: line.isReturnLine
+                              ? 'var(--color-amber)'
+                              : 'var(--color-text-muted)',
+                            fontSize: 10,
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span>{line.isReturnLine ? '↩ RETURN' : '+ SALE'}</span>
+                        </button>
+                      </div>
+                      {line.isReturnLine ? (
+                        <div
+                          style={{
+                            marginBottom: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            fontSize: 11,
+                            color: 'var(--color-text-muted)',
+                          }}
+                        >
+                          <span style={{ color: 'var(--color-amber)', fontWeight: 900 }}>
+                            ↩ Return Line
+                          </span>
+                          <span>stock adds back to inventory on invoice</span>
+                        </div>
+                      ) : null}
+                      <SearchableSelect
+                        value={line.productId}
+                        onChange={(productId) => updateLine('productId', productId)}
+                        options={products}
+                        placeholder="Search product"
+                        emptyLabel="No products found"
+                        menuPlacement="bottom"
+                        getLabel={(product) =>
+                          [
+                            product.sku || product.productSku || '',
+                            product.name || product.productName || '',
+                          ]
+                            .filter(Boolean)
+                            .join(' - ') ||
+                          product.id ||
+                          ''
+                        }
+                        getMeta={(product) =>
+                          [
+                            product.barcode,
+                            product.unitCode,
+                            product.uomBase || product.baseUom,
+                            product.brandName,
+                            product.category?.name,
+                          ]
+                            .filter(Boolean)
+                            .join(' • ')
+                        }
+                      />
+                      <StockAvailabilityHint
+                        isLoading={loadingAvailability}
+                        productId={line.productId}
+                        availabilityData={availabilityData}
+                        sellableQty={sellableQty}
+                        totalAvailable={totalAvailable}
+                        totalReserved={totalReserved}
+                        unitCode={unitCode}
+                      />
+                      {line.isReturnLine ? (
+                        <div style={{ marginTop: 10 }}>
+                          <span
+                            style={{
+                              display: 'block',
+                              marginBottom: 4,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              color: 'var(--color-text-dim)',
+                            }}
+                          >
+                            Return Reason *
+                          </span>
+                          <select
+                            className="form-input"
+                            value={line.returnReason}
+                            onChange={(event) => updateLine('returnReason', event.target.value)}
+                            style={{
+                              height: 38,
+                              borderColor: 'rgba(245, 158, 11, 0.45)',
+                              background: 'rgba(10, 10, 16, 0.72)',
+                              color: 'var(--color-text-primary)',
+                            }}
+                          >
+                            <option value="">Select reason...</option>
+                            <option value="1">Damaged → return stock</option>
+                            <option value="2">Expired → return stock</option>
+                            <option value="3">Short Expiry → main stock</option>
+                            <option value="4">Unwanted → main stock</option>
+                          </select>
+                        </div>
+                      ) : null}
+                    </label>
+
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span
                         style={{
-                          gap: 12,
-                          alignItems: 'end',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          color: 'var(--color-text-dim)',
                         }}
                       >
-                        <label className="min-w-0" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
-                              Product
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setLine((current) => ({
-                                  ...current,
-                                  isReturnLine: !current.isReturnLine,
-                                  returnReason: '',
-                                }))
-                              }
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                height: 24,
-                                padding: '0 8px',
-                                borderRadius: 6,
-                                border: line.isReturnLine
-                                  ? '1px solid rgba(245, 158, 11, 0.62)'
-                                  : '1px solid var(--color-border)',
-                                background: line.isReturnLine
-                                  ? 'rgba(245, 158, 11, 0.18)'
-                                  : 'var(--color-bg-base)',
-                                color: line.isReturnLine ? 'var(--color-amber)' : 'var(--color-text-muted)',
-                                fontSize: 10,
-                                fontWeight: 900,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <span>{line.isReturnLine ? '↩ RETURN' : '+ SALE'}</span>
-                            </button>
-                          </div>
-                          {line.isReturnLine ? (
-                            <div style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
-                              <span style={{ color: 'var(--color-amber)', fontWeight: 900 }}>
-                                ↩ Return Line
-                              </span>
-                              <span>stock adds back to inventory on invoice</span>
-                            </div>
-                          ) : null}
-                          <SearchableSelect
-                            value={line.productId}
-                            onChange={(productId) => updateLine('productId', productId)}
-                            options={products}
-                            placeholder="Search product"
-                            emptyLabel="No products found"
-                            menuPlacement="bottom"
-                            getLabel={(product) => [product.sku || product.productSku || '', product.name || product.productName || ''].filter(Boolean).join(' - ') || product.id || ''}
-                            getMeta={(product) =>
-                              [product.barcode, product.unitCode, product.uomBase || product.baseUom, product.brandName, product.category?.name]
-                                .filter(Boolean)
-                                .join(' • ')
-                            }
-                          />
-                          <StockAvailabilityHint
-                            isLoading={loadingAvailability}
-                            productId={line.productId}
-                            availabilityData={availabilityData}
-                            sellableQty={sellableQty}
-                            totalAvailable={totalAvailable}
-                            totalReserved={totalReserved}
-                            unitCode={unitCode}
-                          />
-                          {line.isReturnLine ? (
-                            <div style={{ marginTop: 10 }}>
-                              <span style={{ display: 'block', marginBottom: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
-                                Return Reason *
-                              </span>
-                              <select
-                                className="form-input"
-                                value={line.returnReason}
-                                onChange={(event) => updateLine('returnReason', event.target.value)}
-                                style={{
-                                  height: 38,
-                                  borderColor: 'rgba(245, 158, 11, 0.45)',
-                                  background: 'rgba(10, 10, 16, 0.72)',
-                                  color: 'var(--color-text-primary)',
-                                }}
-                              >
-                                <option value="">Select reason...</option>
-                                <option value="1">Damaged → return stock</option>
-                                <option value="2">Expired → return stock</option>
-                                <option value="3">Short Expiry → main stock</option>
-                                <option value="4">Unwanted → main stock</option>
-                              </select>
-                            </div>
-                          ) : null}
-                        </label>
+                        Qty
+                      </span>
+                      <input
+                        className="form-input"
+                        style={{ textAlign: 'right' }}
+                        type="number"
+                        min="0"
+                        value={line.quantity}
+                        onChange={(event) => updateLine('quantity', event.target.value)}
+                      />
+                    </label>
 
-                        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
-                            Qty
-                          </span>
-                          <input
-                            className="form-input"
-                            style={{ textAlign: 'right' }}
-                            type="number"
-                            min="0"
-                            value={line.quantity}
-                            onChange={(event) => updateLine('quantity', event.target.value)}
-                          />
-                        </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          color: 'var(--color-text-dim)',
+                        }}
+                      >
+                        Discount %
+                      </span>
+                      <input
+                        className="form-input"
+                        style={{ textAlign: 'right' }}
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={line.discountPercent}
+                        onChange={(event) => updateLine('discountPercent', event.target.value)}
+                      />
+                    </label>
 
-                        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
-                            Discount %
-                          </span>
-                          <input
-                            className="form-input"
-                            style={{ textAlign: 'right' }}
-                            type="number"
-                            min="0"
-                            max="10"
-                            value={line.discountPercent}
-                            onChange={(event) => updateLine('discountPercent', event.target.value)}
-                          />
-                        </label>
-
-                        <button
-                          className="button-primary"
-                          type="submit"
-                          disabled={isSaving || !canAddLine}
-                          style={{ height: 40 }}
-                        >
-                          <Plus className="h-4 w-4" />
-                          {line.isReturnLine ? 'Add Return' : 'Add Line'}
-                        </button>
-                      </form>
-                    </div>
-                  ) : null}
+                    <button
+                      className="button-primary"
+                      type="submit"
+                      disabled={isSaving || !canAddLine}
+                      style={{ height: 40 }}
+                    >
+                      <Plus className="h-4 w-4" />
+                      {line.isReturnLine ? 'Add Return' : 'Add Line'}
+                    </button>
+                  </form>
+                </div>
+              ) : null}
 
               {/* Content Grid (Order Lines Table + Totals Sidebar) */}
-            <div
-              className="sales-new-order-content-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
-              style={{
-                gap: 16,
-                width: '100%',
-                minWidth: 0,
-                minHeight: 420,
-                alignItems: 'stretch',
-              }}
-            >
-              {/* Order Lines Card */}
               <div
+                className="sales-new-order-content-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]"
                 style={{
+                  gap: 16,
+                  width: '100%',
+                  minWidth: 0,
+                  minHeight: 420,
+                  alignItems: 'stretch',
+                }}
+              >
+                {/* Order Lines Card */}
+                <div
+                  style={{
                     borderRadius: 8,
                     border: '1px solid var(--color-border)',
                     background: 'var(--color-bg-base)',
@@ -1412,8 +1588,8 @@ export default function NewSalesOrderPage() {
 
                     height: 'auto',
                     minHeight: 420,
-                }}
-              >
+                  }}
+                >
                   <div
                     style={{
                       padding: '12px 14px',
@@ -1425,7 +1601,9 @@ export default function NewSalesOrderPage() {
                     }}
                   >
                     <FileText className="h-4 w-4 text-[#8ee8f0]" />
-                    <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                    <h3
+                      style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}
+                    >
                       Order Lines
                     </h3>
                   </div>
@@ -1433,9 +1611,18 @@ export default function NewSalesOrderPage() {
                   {/* Table area */}
                   <div
                     className="sales-new-order-table-shell responsive-table-shell"
-                    style={{ flex: 1,overflowX: 'auto',overflowY: 'auto',minHeight: 320,maxHeight: 520,}}
+                    style={{
+                      flex: 1,
+                      overflowX: 'auto',
+                      overflowY: 'auto',
+                      minHeight: 320,
+                      maxHeight: 520,
+                    }}
                   >
-                    <table className="data-table product-table-compact sales-new-order-lines-table" style={{ minWidth: 760 }}>
+                    <table
+                      className="data-table product-table-compact sales-new-order-lines-table"
+                      style={{ minWidth: 760 }}
+                    >
                       <thead>
                         <tr>
                           <th>Item</th>
@@ -1463,7 +1650,10 @@ export default function NewSalesOrderPage() {
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={isDraft ? 6 : 5} className="px-4 py-6 text-center text-[13px] text-text-dim">
+                            <td
+                              colSpan={isDraft ? 6 : 5}
+                              className="px-4 py-6 text-center text-[13px] text-text-dim"
+                            >
                               No order lines added yet.
                             </td>
                           </tr>
@@ -1476,7 +1666,13 @@ export default function NewSalesOrderPage() {
                 {/* Sidebar Cards */}
                 <aside
                   className="sales-new-order-sidebar"
-                  style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, maxWidth: '100%' }}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    minWidth: 0,
+                    maxWidth: '100%',
+                  }}
                 >
                   {/* Totals */}
                   <div
@@ -1491,13 +1687,22 @@ export default function NewSalesOrderPage() {
                       gap: 6,
                     }}
                   >
-                    <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4 }}>
+                    <h3
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: 'var(--color-text-primary)',
+                        marginBottom: 4,
+                      }}
+                    >
                       Totals
                     </h3>
                     <AmountLine label="Gross" value={gross} />
                     <AmountLine label="Discount" value={discount} />
                     <AmountLine label="VAT" value={vat} />
-                    {returnCredit > 0 ? <AmountLine label="Returns Credit" value={returnCredit} negative /> : null}
+                    {returnCredit > 0 ? (
+                      <AmountLine label="Returns Credit" value={returnCredit} negative />
+                    ) : null}
                     <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
                     <AmountLine label="Net" value={net} strong />
                     <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
@@ -1530,7 +1735,10 @@ export default function NewSalesOrderPage() {
                     ) : null}
 
                     {selectedOrder && !['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
-                      <form onSubmit={cancelOrder} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <form
+                        onSubmit={cancelOrder}
+                        style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                      >
                         <input
                           className="form-input"
                           value={cancelReason}
@@ -1552,7 +1760,16 @@ export default function NewSalesOrderPage() {
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-dim)', fontSize: 13 }}>
+            <div
+              style={{
+                display: 'flex',
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-text-dim)',
+                fontSize: 13,
+              }}
+            >
               Create a draft order on the top to begin.
             </div>
           )}
@@ -1561,4 +1778,3 @@ export default function NewSalesOrderPage() {
     </div>
   )
 }
-
