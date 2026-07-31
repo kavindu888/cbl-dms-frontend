@@ -19,6 +19,7 @@ import CategoryListPage from '@pages/master/CategoryListPage'
 import MasterCustomerListPage from '@pages/master/CustomerListPage'
 import Product from '@pages/master/Product'
 import SalesRouteListPage from '@pages/master/SalesRouteListPage'
+import SkuDiscountList from '@pages/master/SkuDiscounts/SkuDiscountList'
 import UnitOfMeasureListPage from '@pages/master/UnitOfMeasureListPage'
 import AllPurchaseOrdersPage from '@pages/purchasing/purchase-orders/AllPurchaseOrdersPage'
 import ApprovedPurchaseOrdersPage from '@pages/purchasing/purchase-orders/ApprovedPurchaseOrdersPage'
@@ -43,7 +44,8 @@ import InvoiceCreatorPage from '@pages/sales/InvoiceCreatorPage'
 import InvoiceDetailPage from '@pages/sales/InvoiceDetailPage'
 import InvoiceListPage from '@pages/sales/InvoiceListPage'
 import InvoicePaymentRecordPage from '@pages/sales/InvoicePaymentRecordPage'
-import SalesOrderModulePage from '@pages/sales/SalesOrderModulePage'
+import NewSalesOrder from '@pages/sales/NewSalesOrder'
+import SalesOrderList from '@pages/sales/SalesOrderList'
 import SettingsPage from '@pages/settings/SettingsPage'
 import RolesPermissionsPage from '@pages/users/RolesPermissionsPage'
 import UserListPage from '@pages/users/UserListPage'
@@ -300,6 +302,10 @@ export const router = createBrowserRouter([
         element: requirePermission(<CategoryDiscountList />, PERMISSIONS.masterData.categoryManage),
       },
       {
+        path: 'master/sku-discounts',
+        element: requirePermission(<SkuDiscountList />, PERMISSIONS.masterData.categoryManage),
+      },
+      {
         path: 'master/brands',
         element: <Navigate to="/master/products" replace />,
       },
@@ -355,10 +361,17 @@ export const router = createBrowserRouter([
       },
       {
         path: 'sales/orders',
-        element: requirePermission(<SalesOrderModulePage />, [
+        element: requirePermission(<SalesOrderList />, [
           PERMISSIONS.salesOrders.view,
           PERMISSIONS.salesOrders.create,
           PERMISSIONS.sales.orderRead,
+          PERMISSIONS.sales.orderCreate,
+        ]),
+      },
+      {
+        path: 'sales/orders/new',
+        element: requirePermission(<NewSalesOrder />, [
+          PERMISSIONS.salesOrders.create,
           PERMISSIONS.sales.orderCreate,
         ]),
       },

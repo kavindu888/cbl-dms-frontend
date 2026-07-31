@@ -16,6 +16,7 @@ import {
   PackageCheck,
   PackageX,
   Percent,
+  PlusCircle,
   // ArrowLeftRight,
   Warehouse,
   Ruler,
@@ -67,12 +68,19 @@ const navGroups = [
         label: 'Sales Orders',
         to: '/sales/orders',
         icon: ClipboardList,
+        end: true,
         permissions: [
           PERMISSIONS.salesOrders.view,
           PERMISSIONS.salesOrders.create,
           PERMISSIONS.sales.orderRead,
           PERMISSIONS.sales.orderCreate,
         ],
+      },
+      {
+        label: 'New Order',
+        to: '/sales/orders/new',
+        icon: PlusCircle,
+        permissions: [PERMISSIONS.salesOrders.create, PERMISSIONS.sales.orderCreate],
       },
       {
         label: 'Invoices',
@@ -261,6 +269,12 @@ const navGroups = [
       {
         label: 'Category Discounts',
         to: '/master/category-discounts',
+        icon: Percent,
+        permissions: PERMISSIONS.masterData.categoryManage,
+      },
+      {
+        label: 'SKU Discounts',
+        to: '/master/sku-discounts',
         icon: Percent,
         permissions: PERMISSIONS.masterData.categoryManage,
       },
