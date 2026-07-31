@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
+import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { formatDate } from '@/utils'
 import SimplePagination from '@components/ui/SimplePagination'
 
@@ -15,8 +16,13 @@ const emptyLine = {
   unitName: '',
   quantity: 1,
   mrp: 0,
-  discountPercent: 0,
-  grtsPercent: null,
+  categoryDiscountPercent: 0,
+  skuDiscountAvailable: false,
+  skuDiscountMax: 0,
+  skuDiscountPercent: 0,
+  specialDiscountAvailable: false,
+  specialDiscountMax: 0,
+  specialDiscountPercent: 0,
 }
 
 function createDefaultValues() {
@@ -41,13 +47,24 @@ function fieldError(message) {
 function getLineAmounts(line) {
   const mrp = Number(line?.mrp || 0)
   const quantity = Number(line?.quantity || 0)
-  const discountPercent = Number(line?.discountPercent || 0)
-  const discountAmount = mrp * quantity * (discountPercent / 100)
-  const unitPrice = mrp * (1 - discountPercent / 100)
+  const categoryDiscountPercent = Number(line?.categoryDiscountPercent || 0)
+  const skuDiscountPercent = Number(line?.skuDiscountPercent || 0)
+  const specialDiscountPercent = Number(line?.specialDiscountPercent || 0)
+  const totalDiscountPercent =
+    categoryDiscountPercent + skuDiscountPercent + specialDiscountPercent
+  const gross = mrp * quantity
+  const categoryDiscountAmount = gross * (categoryDiscountPercent / 100)
+  const skuDiscountAmount = gross * (skuDiscountPercent / 100)
+  const specialDiscountAmount = gross * (specialDiscountPercent / 100)
+  const discountAmount = categoryDiscountAmount + skuDiscountAmount + specialDiscountAmount
+  const unitPrice = mrp * (1 - totalDiscountPercent / 100)
   const lineTotal = unitPrice * quantity
 
   return {
-    gross: mrp * quantity,
+    gross,
+    categoryDiscountAmount,
+    skuDiscountAmount,
+    specialDiscountAmount,
     discountAmount,
     unitPrice,
     lineTotal,
@@ -319,15 +336,18 @@ export default function InvoiceCreatorPage() {
 
         return {
           gross: sum.gross + amounts.gross,
+          categoryDiscount: sum.categoryDiscount + amounts.categoryDiscountAmount,
+          skuDiscount: sum.skuDiscount + amounts.skuDiscountAmount,
+          specialDiscount: sum.specialDiscount + amounts.specialDiscountAmount,
           discount: sum.discount + amounts.discountAmount,
         }
       },
-      { gross: 0, discount: 0 }
+      { gross: 0, categoryDiscount: 0, skuDiscount: 0, specialDiscount: 0, discount: 0 }
     )
 
     const returnTotal = returnLines.reduce((sum, line) => {
       const mrp = Number(line.mrp || line.unitPrice || 0)
-      const discountPercent = Number(line.discountPercent || 0)
+      const discountPercent = Number(line.totalDiscountPercent ?? line.discountPercent ?? 0)
       const quantity = Number(line.quantity || 0)
       return sum + mrp * (1 - discountPercent / 100) * quantity
     }, 0)
@@ -399,8 +419,13 @@ export default function InvoiceCreatorPage() {
       unitName: line.smallestUnitName || '',
       quantity: Number(line.quantity || 0),
       mrp: Number(line.mrp || 0),
-      discountPercent: Number(line.discountPercent || 0),
-      grtsPercent: line.grtsPercent ?? null,
+      categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
+      skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
+      skuDiscountMax: Number(line.skuDiscountPercent || 0),
+      skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+      specialDiscountAvailable: Number(line.specialDiscountPercent || 0) > 0,
+      specialDiscountMax: Number(line.specialDiscountPercent || 0),
+      specialDiscountPercent: Number(line.specialDiscountPercent || 0),
     }))
 
     reset({
@@ -477,8 +502,13 @@ export default function InvoiceCreatorPage() {
       setValue(`lines.${index}.unitId`, '', { shouldDirty: true })
       setValue(`lines.${index}.unitName`, '', { shouldDirty: true })
       setValue(`lines.${index}.mrp`, 0, { shouldDirty: true })
-      setValue(`lines.${index}.discountPercent`, 0, { shouldDirty: true })
-      setValue(`lines.${index}.grtsPercent`, null, { shouldDirty: true })
+      setValue(`lines.${index}.categoryDiscountPercent`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.skuDiscountAvailable`, false, { shouldDirty: true })
+      setValue(`lines.${index}.skuDiscountMax`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.skuDiscountPercent`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.specialDiscountAvailable`, false, { shouldDirty: true })
+      setValue(`lines.${index}.specialDiscountMax`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.specialDiscountPercent`, 0, { shouldDirty: true })
       return
     }
 
@@ -489,11 +519,11 @@ export default function InvoiceCreatorPage() {
         inventoryService.getLastPrices(productId).catch(() => null),
       ])
       const categoryId = product.categoryId || product.category?.id || ''
-      const grtsPercent = categoryId
-        ? await masterService.getCategoryDiscount(categoryId).catch(() => null)
-        : null
-      console.log('Product API response:', product)
-      console.log('Fields:', Object.keys(product || {}))
+      const [categoryDiscount, skuDiscountInfo, specialDiscount] = await Promise.all([
+        categoryId ? masterService.getActiveCategoryDiscount(categoryId).catch(() => null) : null,
+        masterService.getSkuDiscountInfo(product.id).catch(() => null),
+        categoryId ? masterService.getActiveSpecialDiscount(categoryId).catch(() => null) : null,
+      ])
       const smallestUnit =
         uomChain?.smallestUomCode ||
         product.smallestUnitName ||
@@ -511,8 +541,21 @@ export default function InvoiceCreatorPage() {
           shouldDirty: true,
         }
       )
-      setValue(`lines.${index}.discountPercent`, grtsPercent ?? 0, { shouldDirty: true })
-      setValue(`lines.${index}.grtsPercent`, grtsPercent, { shouldDirty: true })
+      setValue(`lines.${index}.categoryDiscountPercent`, categoryDiscount ?? 0, {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.skuDiscountAvailable`, skuDiscountInfo?.hasSkuDiscount ?? false, {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.skuDiscountMax`, skuDiscountInfo?.maxSkuDiscountPercent ?? 0, {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.skuDiscountPercent`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.specialDiscountAvailable`, specialDiscount !== null, {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.specialDiscountMax`, specialDiscount ?? 0, { shouldDirty: true })
+      setValue(`lines.${index}.specialDiscountPercent`, 0, { shouldDirty: true })
     } catch (error) {
       toast.error(error?.message || 'Unable to load product details.')
       const product = productById[productId]
@@ -568,12 +611,18 @@ export default function InvoiceCreatorPage() {
       (line) =>
         !line.productId ||
         Number(line.quantity) <= 0 ||
-        Number(line.discountPercent) < 0 ||
-        Number(line.discountPercent) > 10
+        Number(line.skuDiscountPercent || 0) < 0 ||
+        Number(line.skuDiscountPercent || 0) > Number(line.skuDiscountMax || 0) ||
+        Number(line.specialDiscountPercent || 0) < 0 ||
+        Number(line.specialDiscountPercent || 0) > Number(line.specialDiscountMax || 0) ||
+        Number(line.categoryDiscountPercent || 0) +
+          Number(line.skuDiscountPercent || 0) +
+          Number(line.specialDiscountPercent || 0) >
+          DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT
     )
 
     if (invalidLine) {
-      return 'Each line needs a product, quantity, and discount between 0 and 10%.'
+      return `Each line needs a product, quantity, and discounts within their allowed maximums.`
     }
 
     return ''
@@ -597,7 +646,8 @@ export default function InvoiceCreatorPage() {
       lines: values.lines.map((line) => ({
         productId: line.productId,
         quantity: Number(line.quantity),
-        discountPercent: Number(line.discountPercent || 0),
+        skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+        specialDiscountPercent: Number(line.specialDiscountPercent || 0),
       })),
     }
 
@@ -758,12 +808,14 @@ export default function InvoiceCreatorPage() {
           <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'visible', minHeight: 0 }}>
             <table className="data-table" style={{ minWidth: 960, tableLayout: 'fixed' }}>
               <colgroup>
-                <col style={{ width: '30%' }} />
-                <col style={{ width: '16%' }} />
+                <col style={{ width: '26%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '8%' }} />
                 <col style={{ width: '8%' }} />
                 <col style={{ width: '9%' }} />
                 <col style={{ width: '9%' }} />
-                <col style={{ width: '11%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '10%' }} />
                 <col style={{ width: '12%' }} />
                 <col style={{ width: '5%' }} />
               </colgroup>
@@ -773,7 +825,9 @@ export default function InvoiceCreatorPage() {
                   <th>Smallest Unit</th>
                   <th className="text-right">MRP</th>
                   <th className="text-right">Qty</th>
-                  <th className="text-right">Disc %</th>
+                  <th className="text-right">Cat. Disc %</th>
+                  <th className="text-right">SKU Disc %</th>
+                  <th className="text-right">Special Disc %</th>
                   <th className="text-right">Unit Price</th>
                   <th className="text-right">Total</th>
                   <th></th>
@@ -854,26 +908,54 @@ export default function InvoiceCreatorPage() {
                         />
                       </td>
                       <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span
+                          className="mono"
+                          style={{
+                            color: 'var(--color-text-muted)',
+                            display: 'block',
+                            textAlign: 'right',
+                          }}
+                        >
+                          {Number(line.categoryDiscountPercent || 0).toFixed(2)}%
+                        </span>
+                      </td>
+                      <td>
+                        {line.skuDiscountAvailable ? (
                           <input
                             className="form-input mono text-right"
                             type="number"
+                            min="0"
                             step="0.01"
-                            max="10"
-                            {...register(`lines.${index}.discountPercent`)}
+                            max={line.skuDiscountMax || 0}
+                            {...register(`lines.${index}.skuDiscountPercent`)}
                           />
-                          {line.grtsPercent !== null && line.grtsPercent !== undefined ? (
-                            <span
-                              style={{
-                                color: 'var(--color-text-muted)',
-                                fontSize: 11,
-                                textAlign: 'right',
-                              }}
-                            >
-                              GRTS default: {line.grtsPercent}%
-                            </span>
-                          ) : null}
-                        </div>
+                        ) : (
+                          <span
+                            className="mono"
+                            style={{ color: 'var(--color-text-dim)', display: 'block', textAlign: 'right' }}
+                          >
+                            -
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {line.specialDiscountAvailable ? (
+                          <input
+                            className="form-input mono text-right"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            max={line.specialDiscountMax || 0}
+                            {...register(`lines.${index}.specialDiscountPercent`)}
+                          />
+                        ) : (
+                          <span
+                            className="mono"
+                            style={{ color: 'var(--color-text-dim)', display: 'block', textAlign: 'right' }}
+                          >
+                            -
+                          </span>
+                        )}
                       </td>
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>
                         {money(unitPrice)}
@@ -1069,9 +1151,21 @@ export default function InvoiceCreatorPage() {
                 <span className="mono">{money(totals.gross)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Discount</span>
-                <span className="mono">{money(totals.discount)}</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>Category Discount</span>
+                <span className="mono">{money(totals.categoryDiscount)}</span>
               </div>
+              {totals.skuDiscount > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--color-text-muted)' }}>SKU Discount</span>
+                  <span className="mono">{money(totals.skuDiscount)}</span>
+                </div>
+              ) : null}
+              {totals.specialDiscount > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--color-text-muted)' }}>Special Discount</span>
+                  <span className="mono">{money(totals.specialDiscount)}</span>
+                </div>
+              ) : null}
               {totals.returnTotal > 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--color-amber)' }}>Returns</span>

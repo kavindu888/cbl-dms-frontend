@@ -35,6 +35,8 @@ import CustomerGroupListPage from './pages/sales/CustomerGroupListPage'
 import InvoiceCreatorPage from './pages/sales/InvoiceCreatorPage'
 import InvoiceDetailPage from './pages/sales/InvoiceDetailPage'
 import InvoiceListPage from './pages/sales/InvoiceListPage'
+import NewSalesOrder from './pages/sales/NewSalesOrder'
+import SalesOrderList from './pages/sales/SalesOrderList'
 import SettingsPage from './pages/settings/SettingsPage'
 import RolesPermissionsPage from './pages/users/RolesPermissionsPage'
 import UserListPage from './pages/users/UserListPage'
@@ -199,6 +201,14 @@ export const router = createBrowserRouter([
       {
         path: 'sales/customers/:id',
         element: <CustomerDetailPage />,
+      },
+      {
+        path: 'sales/orders',
+        element: <SalesOrderList />,
+      },
+      {
+        path: 'sales/orders/new',
+        element: <NewSalesOrder />,
       },
       {
         path: 'sales/invoices',

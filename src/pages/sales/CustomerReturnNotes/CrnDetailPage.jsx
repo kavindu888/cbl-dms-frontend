@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
+import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { salesService } from '@/services/api/salesService'
 import { inventoryService } from '@/services/api/inventoryService'
 import { useAuthStore } from '@stores/authStore'
@@ -27,7 +28,10 @@ function money(value) {
 }
 
 function lineCreditAmount({ mrp, quantity, discountPercent }) {
-  const safeDiscount = Math.min(Number(discountPercent || 0), 10)
+  const safeDiscount = Math.min(
+    Number(discountPercent || 0),
+    DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT
+  )
   return Number(mrp || 0) * Number(quantity || 0) * (1 - safeDiscount / 100)
 }
 
@@ -319,16 +323,18 @@ export default function CrnDetailPage() {
     const product = products.find((item) => item.id === productId)
     setSelectedProductId(productId)
     setSelectedInvoiceLineId(product?.lastInvoiceLineId || null)
-    setLineDiscount(Math.min(Number(product?.lastDiscountPercent || 0), 10))
+    setLineDiscount(
+      Math.min(Number(product?.lastDiscountPercent || 0), DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT)
+    )
     setLineQty(Math.min(Number(lineQty || 1), Number(product?.maxReturnableQty ?? 999)))
     setDiscountError('')
   }
 
   function handleDiscountChange(value) {
     const nextValue = Number(value || 0)
-    if (nextValue > 10) {
-      setLineDiscount(10)
-      setDiscountError('Maximum discount is 10%')
+    if (nextValue > DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT) {
+      setLineDiscount(DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT)
+      setDiscountError(`Maximum discount is ${DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}%`)
       return
     }
     if (nextValue < 0) {
@@ -381,7 +387,9 @@ export default function CrnDetailPage() {
     if (lineQty <= 0) return toast.error('Quantity must be greater than zero.')
     if (lineMrp < 0) return toast.error('MRP cannot be negative.')
     if (lineDiscount < 0) return toast.error('Discount cannot be negative.')
-    if (lineDiscount > 10) return toast.error('Maximum discount is 10%')
+    if (lineDiscount > DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT) {
+      return toast.error(`Maximum discount is ${DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}%`)
+    }
     if (!lineReason) return toast.error('Return reason is required.')
     if (noReturnableQty) return toast.error('No returnable quantity remains for this product.')
     if (qtyExceedsMax) return toast.error(`Quantity exceeds returnable balance (${selectedHistory.maxReturnableQty}).`)
@@ -390,7 +398,7 @@ export default function CrnDetailPage() {
       productId: selectedProductId,
       quantity: Number(lineQty),
       mrp: Number(lineMrp),
-      discountPercent: Math.min(Number(lineDiscount), 10),
+      discountPercent: Math.min(Number(lineDiscount), DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT),
       reason: Number(lineReason),
       invoiceLineId: selectedInvoiceLineId,
     }, {
@@ -730,7 +738,7 @@ export default function CrnDetailPage() {
                 <input
                   type="number"
                   min="0"
-                  max={10}
+                  max={DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}
                   className={`form-input mono ${discountError ? 'error' : ''}`}
                   value={lineDiscount}
                   onChange={(e) => handleDiscountChange(e.target.value)}
@@ -739,7 +747,8 @@ export default function CrnDetailPage() {
                   <span className="form-error">{discountError}</span>
                 ) : selectedInvoiceLineId ? (
                   <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-                    Pre-filled from the customer&apos;s last invoice line. Maximum discount is 10%.
+                    Pre-filled from the customer&apos;s last invoice line. Maximum discount is{' '}
+                    {DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}%.
                   </span>
                 ) : null}
               </div>
@@ -829,7 +838,12 @@ export default function CrnDetailPage() {
                       <td>{line.productName || line.productId}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{line.quantity}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{money(line.mrp)}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{Math.min(Number(line.discountPercent || 0), 10)}%</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {Math.min(
+                          Number(line.discountPercent || 0),
+                          DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT
+                        )}%
+                      </td>
                       <td>
                         <StatusBadge status={reasonLabel(line.reason)} />
                       </td>

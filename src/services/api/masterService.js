@@ -138,6 +138,8 @@ function formatProduct(product) {
     unitPrice: product.sellingPrice ?? product.unitPrice ?? 0,
     sellingPrice: product.sellingPrice ?? product.unitPrice ?? 0,
     mrp: product.mrp ?? product.lastMrp ?? product.MRP ?? 0,
+    hasSkuDiscount: Boolean(product.hasSkuDiscount),
+    maxSkuDiscountPercent: Number(product.maxSkuDiscountPercent ?? 0),
     minValue:
       product.minValue !== undefined && product.minValue !== null
         ? product.minValue
@@ -253,6 +255,40 @@ function formatCategoryDiscount(discount) {
     isActive: discount.isActive ?? status === 'Active',
     createdAt: discount.createdAt,
     updatedAt: discount.updatedAt,
+  }
+}
+
+function formatSkuDiscount(discount) {
+  if (!discount) return null
+
+  return {
+    productId: discount.productId ?? discount.id ?? '',
+    sku: discount.sku ?? discount.productSku ?? '',
+    productName: discount.productName ?? discount.name ?? '',
+    categoryId: discount.categoryId ?? discount.category?.id ?? '',
+    categoryName: discount.categoryName ?? discount.category?.name ?? '',
+    hasSkuDiscount: Boolean(discount.hasSkuDiscount),
+    maxSkuDiscountPercent: Number(discount.maxSkuDiscountPercent ?? 0),
+  }
+}
+
+function formatSpecialDiscountEligibility(eligibility) {
+  if (!eligibility) return null
+  const status = eligibility.status ?? (eligibility.isActive === false ? 'Inactive' : 'Active')
+
+  return {
+    id: eligibility.id,
+    categoryId: eligibility.categoryId ?? eligibility.category?.id ?? '',
+    category: eligibility.category ?? null,
+    categoryName: eligibility.categoryName ?? eligibility.category?.name ?? '',
+    maxSpecialDiscountPercent: Number(eligibility.maxSpecialDiscountPercent ?? 0),
+    effectiveFrom: eligibility.effectiveFrom ?? eligibility.activeFrom,
+    effectiveTo: eligibility.effectiveTo ?? eligibility.activeTo ?? null,
+    notes: eligibility.notes ?? '',
+    status,
+    isActive: eligibility.isActive ?? status === 'Active',
+    createdAt: eligibility.createdAt,
+    updatedAt: eligibility.updatedAt,
   }
 }
 
@@ -442,7 +478,8 @@ export const masterService = {
     const pageSize = Math.min(Number(params.pageSize || 100), 100)
     const firstPage = await this.listProducts({ ...params, page: 1, pageSize })
     const items = [...(firstPage.items || [])]
-    const fallbackTotalPages = Math.ceil(Number(firstPage.totalItems || items.length) / pageSize) || 1
+    const fallbackTotalPages =
+      Math.ceil(Number(firstPage.totalItems || items.length) / pageSize) || 1
     const totalPages = Number(firstPage.totalPages ?? fallbackTotalPages)
 
     if (totalPages <= 1) {
@@ -491,6 +528,85 @@ export const masterService = {
 
   async getActiveCategoryDiscount(categoryId) {
     return this.getCategoryDiscount(categoryId)
+  },
+
+  async listProductSkuDiscounts() {
+    const response = await getOnce('/api/master/products/sku-discounts')
+    return (unwrapMasterData(response) || []).map(formatSkuDiscount)
+  },
+
+  async getSkuDiscountInfo(productId) {
+    if (!productId) return null
+
+    try {
+      const response = await getOnce(`/api/master/products/${productId}/sku-discount`)
+      return formatSkuDiscount(unwrapMasterData(response))
+    } catch {
+      const product = await this.getProduct(productId).catch(() => null)
+      if (product) {
+        return {
+          productId,
+          hasSkuDiscount: Boolean(product.hasSkuDiscount),
+          maxSkuDiscountPercent: Number(product.maxSkuDiscountPercent || 0),
+        }
+      }
+
+      return {
+        productId,
+        hasSkuDiscount: false,
+        maxSkuDiscountPercent: 0,
+      }
+    }
+  },
+
+  async setProductSkuDiscount(productId, payload) {
+    const response = await api.put(`/api/master/products/${productId}/sku-discount`, {
+      hasSkuDiscount: Boolean(payload.hasSkuDiscount),
+      maxSkuDiscountPercent: Number(payload.maxSkuDiscountPercent || 0),
+    })
+    return unwrapMasterData(response)
+  },
+
+  async getActiveSpecialDiscount(categoryId) {
+    if (!categoryId) return null
+
+    const response = await getOnce(
+      `/api/master/special-discount-eligibilities/active/${categoryId}`
+    )
+    const eligibility = formatSpecialDiscountEligibility(unwrapMasterData(response))
+    return eligibility?.maxSpecialDiscountPercent ?? null
+  },
+
+  async listSpecialDiscountEligibilities() {
+    const response = await getOnce('/api/master/special-discount-eligibilities')
+    return (unwrapMasterData(response) || []).map(formatSpecialDiscountEligibility)
+  },
+
+  async getSpecialDiscountEligibility(id) {
+    const response = await getOnce(`/api/master/special-discount-eligibilities/${id}`)
+    return formatSpecialDiscountEligibility(unwrapMasterData(response))
+  },
+
+  async getSpecialDiscountEligibilitiesByCategory(categoryId) {
+    const response = await getOnce(
+      `/api/master/special-discount-eligibilities/by-category/${categoryId}`
+    )
+    return (unwrapMasterData(response) || []).map(formatSpecialDiscountEligibility)
+  },
+
+  async createSpecialDiscountEligibility(payload) {
+    const response = await api.post('/api/master/special-discount-eligibilities', payload)
+    return formatSpecialDiscountEligibility(unwrapMasterData(response))
+  },
+
+  async updateSpecialDiscountEligibility(id, payload) {
+    const response = await api.put(`/api/master/special-discount-eligibilities/${id}`, payload)
+    return formatSpecialDiscountEligibility(unwrapMasterData(response))
+  },
+
+  async deactivateSpecialDiscountEligibility(id) {
+    const response = await api.delete(`/api/master/special-discount-eligibilities/${id}`)
+    return unwrapMasterData(response)
   },
 
   async getCategoryDiscountsByCategory(categoryId) {
