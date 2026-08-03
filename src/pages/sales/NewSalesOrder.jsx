@@ -662,22 +662,30 @@ export default function NewSalesOrder() {
                   </ReadOnlyDisplay>
                 </Field>
 
-                <Field label="Qty">
-                  <div>
-                    <input
-                      className="form-input mono"
-                      min="0"
-                      type="number"
-                      value={draftLine.quantity}
-                      onChange={(event) => updateDraftLine('quantity', event.target.value)}
-                      style={{ height: 40 }}
-                    />
-                    {availableQty !== null ? (
-                      <p className="mt-1 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                        {Number(availableQty).toLocaleString()} available
-                      </p>
-                    ) : null}
-                  </div>
+                <Field
+                  label="Qty"
+                  labelRight={
+                    availableQty !== null
+                      ? `${Number(availableQty).toLocaleString()} available`
+                      : null
+                  }
+                  labelRightColor={
+                    Number(availableQty) <= 0
+                      ? 'var(--color-danger)'
+                      : 'var(--color-teal)'
+                  }
+                >
+                  <input
+                    className="form-input mono"
+                    min="0"
+                    max={availableQty ?? undefined}
+                    type="number"
+                    value={draftLine.quantity}
+                    onChange={(event) =>
+                      updateDraftLine('quantity', event.target.value)
+                    }
+                    style={{ height: 40 }}
+                  />
                 </Field>
 
                 <Field label="SKU Disc %">
@@ -989,12 +997,43 @@ function MobileMetric({ label, value, strong = false }) {
   )
 }
 
-function Field({ label, children }) {
+function Field({
+  label,
+  labelRight,
+  labelRightColor = 'var(--color-teal)',
+  children,
+}) {
   return (
     <label className="block w-full min-w-0" style={{ fontSize: 10 }}>
-      <span className="form-label" style={{ fontSize: 10 }}>
-        {label}
+      <span
+        className="form-label"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          gap: 12,
+          fontSize: 10,
+        }}
+      >
+        <span>{label}</span>
+
+        {labelRight !== null && labelRight !== undefined ? (
+          <span
+            className="normal-case whitespace-nowrap"
+            style={{
+              marginLeft: 'auto',
+              textAlign: 'right',
+              color: labelRightColor,
+              fontSize: 10,
+              fontWeight: 700,
+            }}
+          >
+            {labelRight}
+          </span>
+        ) : null}
       </span>
+
       {children}
     </label>
   )
