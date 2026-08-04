@@ -3,6 +3,7 @@ import { ArrowLeft, CheckCircle2, PackagePlus, Search, Trash2 } from 'lucide-rea
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
@@ -78,6 +79,39 @@ function getLineAmounts(line) {
   return { gross, categoryDiscountAmount, skuDiscountAmount, specialDiscountAmount, unitPrice, net }
 }
 
+const returnReasonOptions = [
+  { value: '1', label: 'Damage' },
+  { value: '2', label: 'Expire' },
+  { value: '3', label: 'Short Expiry' },
+  { value: '4', label: 'Others' },
+]
+
+const emptyReturnDraftLine = {
+  productId: '',
+  productName: '',
+  productSku: '',
+  lastInvoiceId: '',
+  lastInvoiceLineId: '',
+  mrp: 0,
+  discountPercent: '',
+  reason: '1',
+  quantity: 1,
+  maxReturnableQty: 0,
+  totalInvoicedQty: 0,
+  totalReturnedQty: 0,
+}
+
+function getReturnLineAmounts(line) {
+  const quantity = toNumber(line.quantity)
+  const mrp = toNumber(line.mrp)
+  const discountPercent = toNumber(line.discountPercent)
+  const gross = mrp * quantity
+  const discountAmount = gross * (discountPercent / 100)
+  const creditAmount = gross - discountAmount
+
+  return { gross, discountAmount, creditAmount }
+}
+
 export default function NewSalesOrder() {
   const navigate = useNavigate()
   const [orderId, setOrderId] = useState(null)
@@ -103,10 +137,18 @@ export default function NewSalesOrder() {
   const [availableQty, setAvailableQty] = useState(null)
   const [orderSkuDiscountAmount, setOrderSkuDiscountAmount] = useState('')
   const [orderSpecialDiscountAmount, setOrderSpecialDiscountAmount] = useState('')
+  const [addItemMode, setAddItemMode] = useState('sale')
+  const [returnProducts, setReturnProducts] = useState([])
+  const [returnDraftLine, setReturnDraftLine] = useState(emptyReturnDraftLine)
+  const [returnCrnId, setReturnCrnId] = useState('')
+  const [returnCrnInvoiceId, setReturnCrnInvoiceId] = useState('')
+  const [isLoadingReturnProducts, setIsLoadingReturnProducts] = useState(false)
+  const [returnLoadError, setReturnLoadError] = useState('')
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [isSavingReturn, setIsSavingReturn] = useState(false)
 
   useEffect(() => {
     let isCurrent = true
@@ -157,6 +199,61 @@ export default function NewSalesOrder() {
     const customer = customers.find((item) => item.id === customerId) || null
     setSelectedCustomer(customer)
   }, [customerId, customers])
+
+  useEffect(() => {
+    let isCurrent = true
+
+    setAddItemMode('sale')
+    setReturnProducts([])
+    setReturnDraftLine(emptyReturnDraftLine)
+    setReturnCrnId('')
+    setReturnCrnInvoiceId('')
+    setReturnLoadError('')
+
+    if (!customerId) {
+      setIsLoadingReturnProducts(false)
+      return () => {
+        isCurrent = false
+      }
+    }
+
+    async function loadReturnProducts() {
+      setIsLoadingReturnProducts(true)
+      try {
+        const soldProducts = await salesService.getProductsSoldToCustomer(customerId)
+        if (!isCurrent) return
+
+        setReturnProducts(
+          (soldProducts || []).map((product) => ({
+            id: product.productId,
+            productId: product.productId,
+            productSku: product.productSku || product.productId,
+            productName: product.productName || product.productId,
+            lastMrp: Number(product.lastMrp || 0),
+            lastDiscountPercent: Number(product.lastDiscountPercent || 0),
+            lastInvoiceId: product.lastInvoiceId || '',
+            lastInvoiceLineId: product.lastInvoiceLineId || '',
+            lastSoldOn: product.lastSoldOn || null,
+            totalInvoicedQty: Number(product.totalInvoicedQty || 0),
+            totalReturnedQty: Number(product.totalReturnedQty || 0),
+            maxReturnableQty: Number(product.maxReturnableQty || 0),
+          }))
+        )
+      } catch (error) {
+        if (!isCurrent) return
+        setReturnProducts([])
+        setReturnLoadError(error.message || 'Unable to load products sold to this customer.')
+      } finally {
+        if (isCurrent) setIsLoadingReturnProducts(false)
+      }
+    }
+
+    loadReturnProducts()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [customerId])
 
   useEffect(() => {
     let isCurrent = true
@@ -329,6 +426,146 @@ export default function NewSalesOrder() {
     setOrderSpecialDiscountAmount(value)
   }
 
+  function updateReturnDraftLine(field, value) {
+    setReturnDraftLine((current) => ({ ...current, [field]: value }))
+  }
+
+  function handleReturnProductSelect(productId) {
+    if (!productId) {
+      setReturnDraftLine(emptyReturnDraftLine)
+      return
+    }
+
+    const selected = returnProducts.find((product) => product.id === productId)
+    if (!selected) return
+
+    if (returnCrnInvoiceId && selected.lastInvoiceId && selected.lastInvoiceId !== returnCrnInvoiceId) {
+      toast.error('Return items must stay within the same invoice.')
+      return
+    }
+
+    const nextInvoiceId = returnCrnInvoiceId || selected.lastInvoiceId || ''
+
+    if (returnCrnId && nextInvoiceId && nextInvoiceId !== returnCrnInvoiceId) {
+      toast.error('Return items must stay within the same invoice.')
+      return
+    }
+
+    if (!returnCrnInvoiceId && selected.lastInvoiceId) {
+      setReturnCrnInvoiceId(selected.lastInvoiceId)
+    }
+
+    setReturnDraftLine({
+      productId: selected.productId,
+      productName: selected.productName || '',
+      productSku: selected.productSku || '',
+      lastInvoiceId: selected.lastInvoiceId || '',
+      lastInvoiceLineId: selected.lastInvoiceLineId || '',
+      mrp: Number(selected.lastMrp || 0),
+      discountPercent: String(
+        Math.min(Number(selected.lastDiscountPercent || 0), DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT)
+      ),
+      reason: '1',
+      quantity: 1,
+      maxReturnableQty: Number(selected.maxReturnableQty || 0),
+      totalInvoicedQty: Number(selected.totalInvoicedQty || 0),
+      totalReturnedQty: Number(selected.totalReturnedQty || 0),
+    })
+  }
+
+  function updateReturnDiscountPercent(value) {
+    const requested = toNumber(value)
+
+    if (value !== '' && requested > DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT) {
+      toast.error(`Maximum discount is ${DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}%`)
+      updateReturnDraftLine('discountPercent', String(DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT))
+      return
+    }
+
+    updateReturnDraftLine('discountPercent', value)
+  }
+
+  function updateReturnReason(value) {
+    updateReturnDraftLine('reason', value)
+  }
+
+  async function handleAddReturnLine() {
+    if (!selectedCustomer) {
+      toast.error('Select a customer first.')
+      return
+    }
+
+    if (!returnDraftLine.productId) {
+      toast.error('Select a previously sold product.')
+      return
+    }
+
+    if (toNumber(returnDraftLine.quantity) <= 0) {
+      toast.error('Quantity must be greater than zero.')
+      return
+    }
+
+    if (toNumber(returnDraftLine.quantity) > toNumber(returnDraftLine.maxReturnableQty)) {
+      toast.error(
+        `Quantity exceeds returnable balance (${Number(returnDraftLine.maxReturnableQty || 0).toLocaleString()}).`
+      )
+      return
+    }
+
+    const discountPercent = toNumber(returnDraftLine.discountPercent)
+    if (discountPercent < 0) {
+      toast.error('Discount cannot be negative.')
+      return
+    }
+    if (discountPercent > DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT) {
+      toast.error(`Maximum discount is ${DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}%`)
+      return
+    }
+
+    setIsSavingReturn(true)
+    try {
+      let currentCrnId = returnCrnId
+      const invoiceId = returnCrnInvoiceId || returnDraftLine.lastInvoiceId
+
+      if (!currentCrnId) {
+        if (!invoiceId) {
+          toast.error('Unable to determine the invoice for this return item.')
+          return
+        }
+
+        const created = await salesService.createCrn({
+          customerId: selectedCustomer.id,
+          invoiceId,
+          notes: null,
+        })
+        currentCrnId = getOrderId(created)
+        setReturnCrnId(currentCrnId)
+        setReturnCrnInvoiceId(invoiceId)
+      }
+
+      if (!invoiceId) {
+        toast.error('Unable to determine the invoice for this return item.')
+        return
+      }
+
+      await salesService.addCrnLine(currentCrnId, {
+        productId: returnDraftLine.productId,
+        quantity: toNumber(returnDraftLine.quantity),
+        mrp: toNumber(returnDraftLine.mrp),
+        discountPercent,
+        reason: Number(returnDraftLine.reason),
+        invoiceLineId: returnDraftLine.lastInvoiceLineId || null,
+      })
+
+      toast.success('Return item saved to draft.')
+      setReturnDraftLine(emptyReturnDraftLine)
+    } catch (error) {
+      toast.error(error.message || 'Unable to save return item.')
+    } finally {
+      setIsSavingReturn(false)
+    }
+  }
+
   async function handleAddLine(event) {
     event.preventDefault()
 
@@ -336,6 +573,12 @@ export default function NewSalesOrder() {
       toast.error('Select a customer first.')
       return
     }
+
+    if (addItemMode === 'return') {
+      await handleAddReturnLine()
+      return
+    }
+
     if (!draftLine.productId) {
       toast.error('Select a product.')
       return
@@ -496,6 +739,21 @@ export default function NewSalesOrder() {
     orderSpecialDiscountAmount === ''
       ? Number(computedSummary.totalSpecialDiscountAmount || 0).toFixed(2)
       : orderSpecialDiscountAmount
+  const returnDraftPreview = useMemo(
+    () => getReturnLineAmounts(returnDraftLine),
+    [returnDraftLine]
+  )
+  const returnProductOptions = useMemo(() => {
+    const productsForMode = returnProducts.filter((product) =>
+      returnCrnInvoiceId ? product.lastInvoiceId === returnCrnInvoiceId : true
+    )
+
+    return productsForMode.filter((product) => Number(product.maxReturnableQty || 0) > 0)
+  }, [returnCrnInvoiceId, returnProducts])
+  const selectedReturnProduct =
+    returnProductOptions.find((product) => product.id === returnDraftLine.productId) || null
+  const returnSectionDisabled =
+    isSavingReturn || isLoadingReturnProducts || !selectedCustomer || addItemMode !== 'return'
 
   return (
     <div
@@ -597,131 +855,309 @@ export default function NewSalesOrder() {
             <div className="mb-3 flex flex-col gap-1">
               <div>
                 <h2 style={panelTitleStyle}>Add Item</h2>
+                <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  {addItemMode === 'return'
+                    ? 'Search previously sold products and draft a customer return note.'
+                    : 'Select a product, review pricing, then add it to the draft.'}
+                </p>
               </div>
             </div>
 
             <div className="w-full min-w-0 overflow-visible pb-1">
-              <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-[minmax(280px,2.15fr)_minmax(82px,0.5fr)_minmax(96px,0.62fr)_minmax(78px,0.4fr)_minmax(96px,0.62fr)_minmax(82px,0.52fr)_minmax(78px,0.4fr)_104px]">
+              <div
+                className={
+                  addItemMode === 'return'
+                    ? 'grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-[minmax(280px,2.15fr)_minmax(96px,0.62fr)_minmax(96px,0.62fr)_minmax(82px,0.52fr)_minmax(120px,0.8fr)_104px]'
+                    : 'grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-[minmax(280px,2.15fr)_minmax(82px,0.5fr)_minmax(96px,0.62fr)_minmax(78px,0.4fr)_minmax(96px,0.62fr)_minmax(82px,0.52fr)_minmax(78px,0.4fr)_104px]'
+                }
+              >
                 <div className="min-w-0 sm:col-span-2 md:col-span-3 xl:col-span-1">
-                  <Field label="Product">
+                  <Field
+                    label="Product"
+                    labelRight={
+                      addItemMode === 'return' ? (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                            style={{
+                              border: '1px solid rgba(32, 212, 191, 0.35)',
+                              background: 'rgba(32, 212, 191, 0.1)',
+                              color: 'var(--color-teal)',
+                            }}
+                          >
+                            RETURN
+                          </span>
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            onClick={() => {
+                              setAddItemMode('sale')
+                              setReturnDraftLine(emptyReturnDraftLine)
+                            }}
+                            style={{ height: 26, padding: '0 8px', fontSize: 10 }}
+                          >
+                            Back to Sale
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          onClick={() => setAddItemMode('return')}
+                          disabled={isLoadingReturnProducts || !selectedCustomer}
+                          style={{ height: 26, padding: '0 8px', fontSize: 10 }}
+                        >
+                          + RETURN
+                        </button>
+                      )
+                    }
+                  >
                     <SearchablePicker
-                      disabled={isLoadingProducts || isSaving}
-                      emptyLabel="No products found"
+                      disabled={
+                        addItemMode === 'return'
+                          ? isLoadingReturnProducts || isSavingReturn
+                          : isLoadingProducts || isSaving
+                      }
+                      emptyLabel={
+                        addItemMode === 'return'
+                          ? 'No returnable products found'
+                          : 'No products found'
+                      }
                       getLabel={(product) =>
-                        [product.sku, product.name].filter(Boolean).join(' - ') || product.id
+                        addItemMode === 'return'
+                          ? [product.productSku, product.productName].filter(Boolean).join(' - ') ||
+                            product.id
+                          : [product.sku, product.name].filter(Boolean).join(' - ') || product.id
                       }
                       getMeta={(product) =>
-                        [product.uomBase || product.baseUom, product.category?.name]
-                          .filter(Boolean)
-                          .join(' - ')
+                        addItemMode === 'return'
+                          ? [
+                              `Sold ${Number(product.totalInvoicedQty || 0).toLocaleString()}`,
+                              `Returned ${Number(product.totalReturnedQty || 0).toLocaleString()}`,
+                              `Returnable ${Number(product.maxReturnableQty || 0).toLocaleString()}`,
+                              product.lastSoldOn ? dayjs(product.lastSoldOn).format('DD MMM YYYY') : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' - ')
+                          : [product.uomBase || product.baseUom, product.category?.name]
+                              .filter(Boolean)
+                              .join(' - ')
                       }
                       getSearchText={(product) =>
-                        [
-                          product.sku,
-                          product.name,
-                          product.barcode,
-                          product.category?.name,
-                          product.id,
-                        ]
-                          .filter(Boolean)
-                          .join(' ')
+                        addItemMode === 'return'
+                          ? [
+                              product.productSku,
+                              product.productName,
+                              product.id,
+                              product.lastInvoiceId,
+                              product.lastInvoiceLineId,
+                            ]
+                              .filter(Boolean)
+                              .join(' ')
+                          : [
+                              product.sku,
+                              product.name,
+                              product.barcode,
+                              product.category?.name,
+                              product.id,
+                            ]
+                              .filter(Boolean)
+                              .join(' ')
                       }
-                      onChange={handleProductSelect}
-                      options={products}
+                      onChange={
+                        addItemMode === 'return' ? handleReturnProductSelect : handleProductSelect
+                      }
+                      options={addItemMode === 'return' ? returnProductOptions : products}
                       placeholder={
-                        isLoadingProducts
-                          ? 'Loading products...'
-                          : products.length
-                            ? 'Type SKU or product name...'
-                            : 'No active products available'
+                        addItemMode === 'return'
+                          ? isLoadingReturnProducts
+                            ? 'Loading sold products...'
+                            : returnProductOptions.length
+                              ? 'Search previously sold product...'
+                              : 'No returnable products available'
+                          : isLoadingProducts
+                            ? 'Loading products...'
+                            : products.length
+                              ? 'Type SKU or product name...'
+                              : 'No active products available'
                       }
-                      value={draftLine.productId}
+                      value={
+                        addItemMode === 'return' ? returnDraftLine.productId : draftLine.productId
+                      }
                     />
                   </Field>
                 </div>
 
-                <Field label="Unit">
-                  <ReadOnlyDisplay>
-                    <span className="mono tabular-nums">{draftLine.unitCode || '-'}</span>
-                  </ReadOnlyDisplay>
-                </Field>
+                {addItemMode === 'return' ? (
+                  <>
+                    <Field label="MRP">
+                      <ReadOnlyDisplay>
+                        <span className="mono tabular-nums">
+                          {Number(returnDraftLine.mrp || 0).toFixed(2)}
+                        </span>
+                      </ReadOnlyDisplay>
+                    </Field>
 
-                <Field label="MRP">
-                  <ReadOnlyDisplay>
-                    <span className="mono tabular-nums">
-                      {Number(draftLine.mrp || 0).toFixed(2)}
-                    </span>
-                  </ReadOnlyDisplay>
-                </Field>
+                    <Field label="Discount %">
+                      <input
+                        className="form-input mono"
+                        max={DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT}
+                        min="0"
+                        step="0.01"
+                        type="number"
+                        value={returnDraftLine.discountPercent}
+                        onChange={(event) => updateReturnDiscountPercent(event.target.value)}
+                        style={{ height: 40 }}
+                      />
+                    </Field>
 
-                <Field label="Cat. Disc %">
-                  <ReadOnlyDisplay>
-                    <span className="mono tabular-nums">
-                      {Number(draftLine.categoryDiscountPercent || 0).toFixed(2)}%
-                    </span>
-                  </ReadOnlyDisplay>
-                </Field>
+                    <Field label="Qty" labelRight={
+                      selectedReturnProduct
+                        ? `${Number(selectedReturnProduct.maxReturnableQty || 0).toLocaleString()} returnable`
+                        : null
+                    } labelRightColor={
+                      Number(selectedReturnProduct?.maxReturnableQty) <= 0
+                        ? 'var(--color-danger)'
+                        : 'var(--color-teal)'
+                    }>
+                      <input
+                        className="form-input mono"
+                        min="0"
+                        max={selectedReturnProduct?.maxReturnableQty ?? undefined}
+                        type="number"
+                        value={returnDraftLine.quantity}
+                        onChange={(event) =>
+                          updateReturnDraftLine('quantity', event.target.value)
+                        }
+                        style={{ height: 40 }}
+                      />
+                    </Field>
 
-                <Field label="Unit Price">
-                  <ReadOnlyDisplay>
-                    <span className="mono tabular-nums">
-                      {Number(draftPreview.unitPrice || 0).toFixed(2)}
-                    </span>
-                  </ReadOnlyDisplay>
-                </Field>
+                    <Field label="Reason">
+                      <select
+                        className="form-input"
+                        disabled={!selectedReturnProduct}
+                        value={returnDraftLine.reason}
+                        onChange={(event) => updateReturnReason(event.target.value)}
+                        style={{ height: 40 }}
+                      >
+                        {returnReasonOptions.map((reason) => (
+                          <option key={reason.value} value={reason.value}>
+                            {reason.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
 
-                <Field
-                  label="Qty"
-                  labelRight={
-                    availableQty !== null
-                      ? `${Number(availableQty).toLocaleString()} available`
-                      : null
-                  }
-                  labelRightColor={
-                    Number(availableQty) <= 0
-                      ? 'var(--color-danger)'
-                      : 'var(--color-teal)'
-                  }
-                >
-                  <input
-                    className="form-input mono"
-                    min="0"
-                    max={availableQty ?? undefined}
-                    type="number"
-                    value={draftLine.quantity}
-                    onChange={(event) =>
-                      updateDraftLine('quantity', event.target.value)
-                    }
-                    style={{ height: 40 }}
-                  />
-                </Field>
+                    <Field label="Credit">
+                      <ReadOnlyDisplay>
+                        <span className="mono tabular-nums">
+                          {money(returnDraftPreview.creditAmount)}
+                        </span>
+                      </ReadOnlyDisplay>
+                    </Field>
 
-                <Field label="SKU Disc %">
-                  {draftLine.skuDiscountAvailable ? (
-                    <input
-                      className="form-input mono"
-                      max={draftLine.skuDiscountMax || 0}
-                      min="0"
-                      step="0.01"
-                      type="number"
-                      value={draftLine.skuDiscountPercent}
-                      onChange={(event) => updateSkuDiscountPercent(event.target.value)}
+                    <button
+                      type="submit"
+                      className="button-secondary w-full sm:col-span-2 md:col-span-3 xl:col-span-1"
+                      disabled={returnSectionDisabled || !returnDraftLine.productId}
                       style={{ height: 40 }}
-                    />
-                  ) : (
-                    <ReadOnlyDisplay>-</ReadOnlyDisplay>
-                  )}
-                </Field>
-                <button
-                  type="submit"
-                  className="button-secondary w-full sm:col-span-2 md:col-span-3 xl:col-span-1"
-                  disabled={isSaving || !draftLine.productId}
-                  style={{ height: 40 }}
-                >
-                  <PackagePlus style={{ width: 14, height: 14 }} />
-                  Add Item
-                </button>
+                    >
+                      <PackagePlus style={{ width: 14, height: 14 }} />
+                      Add Return Item
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Field label="Unit">
+                      <ReadOnlyDisplay>
+                        <span className="mono tabular-nums">{draftLine.unitCode || '-'}</span>
+                      </ReadOnlyDisplay>
+                    </Field>
+
+                    <Field label="MRP">
+                      <ReadOnlyDisplay>
+                        <span className="mono tabular-nums">
+                          {Number(draftLine.mrp || 0).toFixed(2)}
+                        </span>
+                      </ReadOnlyDisplay>
+                    </Field>
+
+                    <Field label="Cat. Disc %">
+                      <ReadOnlyDisplay>
+                        <span className="mono tabular-nums">
+                          {Number(draftLine.categoryDiscountPercent || 0).toFixed(2)}%
+                        </span>
+                      </ReadOnlyDisplay>
+                    </Field>
+
+                    <Field label="Unit Price">
+                      <ReadOnlyDisplay>
+                        <span className="mono tabular-nums">
+                          {Number(draftPreview.unitPrice || 0).toFixed(2)}
+                        </span>
+                      </ReadOnlyDisplay>
+                    </Field>
+
+                    <Field
+                      label="Qty"
+                      labelRight={
+                        availableQty !== null
+                          ? `${Number(availableQty).toLocaleString()} available`
+                          : null
+                      }
+                      labelRightColor={
+                        Number(availableQty) <= 0
+                          ? 'var(--color-danger)'
+                          : 'var(--color-teal)'
+                      }
+                    >
+                      <input
+                        className="form-input mono"
+                        min="0"
+                        max={availableQty ?? undefined}
+                        type="number"
+                        value={draftLine.quantity}
+                        onChange={(event) =>
+                          updateDraftLine('quantity', event.target.value)
+                        }
+                        style={{ height: 40 }}
+                      />
+                    </Field>
+
+                    <Field label="SKU Disc %">
+                      {draftLine.skuDiscountAvailable ? (
+                        <input
+                          className="form-input mono"
+                          max={draftLine.skuDiscountMax || 0}
+                          min="0"
+                          step="0.01"
+                          type="number"
+                          value={draftLine.skuDiscountPercent}
+                          onChange={(event) => updateSkuDiscountPercent(event.target.value)}
+                          style={{ height: 40 }}
+                        />
+                      ) : (
+                        <ReadOnlyDisplay>-</ReadOnlyDisplay>
+                      )}
+                    </Field>
+                    <button
+                      type="submit"
+                      className="button-secondary w-full sm:col-span-2 md:col-span-3 xl:col-span-1"
+                      disabled={isSaving || !draftLine.productId}
+                      style={{ height: 40 }}
+                    >
+                      <PackagePlus style={{ width: 14, height: 14 }} />
+                      Add Item
+                    </button>
+                  </>
+                )}
               </div>
+              {addItemMode === 'return' && returnLoadError ? (
+                <div className="mt-3 rounded-lg border p-3 text-sm" style={{ borderColor: 'var(--color-border)', color: 'var(--color-danger)' }}>
+                  {returnLoadError}
+                </div>
+              ) : null}
             </div>
           </form>
 
