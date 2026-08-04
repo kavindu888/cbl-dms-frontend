@@ -112,6 +112,89 @@ function getReturnLineAmounts(line) {
   return { gross, discountAmount, creditAmount }
 }
 
+function getReturnLineId(response) {
+  if (typeof response === 'string' || typeof response === 'number') return String(response)
+  return (
+    response?.lineId ??
+    response?.lineID ??
+    response?.id ??
+    response?.value ??
+    response?.data?.lineId ??
+    response?.data?.lineID ??
+    response?.data?.id ??
+    response?.data?.value ??
+    response?.data
+  )
+}
+
+function normalizeReturnProduct(product) {
+  const productId =
+    product?.productId ?? product?.ProductId ?? product?.id ?? product?.Id ?? product?.sku ?? ''
+  const productSku =
+    product?.productSku ?? product?.ProductSku ?? product?.sku ?? product?.Sku ?? productId
+  const productName =
+    product?.productName ??
+    product?.ProductName ??
+    product?.name ??
+    product?.Name ??
+    productSku ??
+    productId
+  const totalInvoicedQty = toNumber(
+    product?.totalInvoicedQty ??
+      product?.TotalInvoicedQty ??
+      product?.invoicedQty ??
+      product?.InvoicedQty
+  )
+  const totalReturnedQty = toNumber(
+    product?.totalReturnedQty ??
+      product?.TotalReturnedQty ??
+      product?.returnedQty ??
+      product?.ReturnedQty
+  )
+  const maxReturnableQtyValue =
+    product?.maxReturnableQty ??
+    product?.MaxReturnableQty ??
+    product?.returnableQty ??
+    product?.ReturnableQty
+  const maxReturnableQty =
+    maxReturnableQtyValue === undefined || maxReturnableQtyValue === null
+      ? Math.max(totalInvoicedQty - totalReturnedQty, 0)
+      : toNumber(maxReturnableQtyValue)
+
+  return {
+    id: String(productId || productSku || productName || ''),
+    productId: String(productId || ''),
+    productSku: String(productSku || ''),
+    productName: String(productName || ''),
+    lastMrp: Number(product?.lastMrp ?? product?.LastMrp ?? product?.mrp ?? product?.Mrp ?? 0),
+    lastDiscountPercent: Number(
+      product?.lastDiscountPercent ??
+        product?.LastDiscountPercent ??
+        product?.discountPercent ??
+        product?.DiscountPercent ??
+        0
+    ),
+    lastInvoiceId: String(
+      product?.lastInvoiceId ??
+        product?.LastInvoiceId ??
+        product?.invoiceId ??
+        product?.InvoiceId ??
+        ''
+    ),
+    lastInvoiceLineId: String(
+      product?.lastInvoiceLineId ??
+        product?.LastInvoiceLineId ??
+        product?.invoiceLineId ??
+        product?.InvoiceLineId ??
+        ''
+    ),
+    lastSoldOn: product?.lastSoldOn ?? product?.LastSoldOn ?? null,
+    totalInvoicedQty,
+    totalReturnedQty,
+    maxReturnableQty,
+  }
+}
+
 export default function NewSalesOrder() {
   const navigate = useNavigate()
   const [orderId, setOrderId] = useState(null)
@@ -140,6 +223,7 @@ export default function NewSalesOrder() {
   const [addItemMode, setAddItemMode] = useState('sale')
   const [returnProducts, setReturnProducts] = useState([])
   const [returnDraftLine, setReturnDraftLine] = useState(emptyReturnDraftLine)
+  const [returnLines, setReturnLines] = useState([])
   const [returnCrnId, setReturnCrnId] = useState('')
   const [returnCrnInvoiceId, setReturnCrnInvoiceId] = useState('')
   const [isLoadingReturnProducts, setIsLoadingReturnProducts] = useState(false)
@@ -206,6 +290,7 @@ export default function NewSalesOrder() {
     setAddItemMode('sale')
     setReturnProducts([])
     setReturnDraftLine(emptyReturnDraftLine)
+    setReturnLines([])
     setReturnCrnId('')
     setReturnCrnInvoiceId('')
     setReturnLoadError('')
@@ -223,22 +308,7 @@ export default function NewSalesOrder() {
         const soldProducts = await salesService.getProductsSoldToCustomer(customerId)
         if (!isCurrent) return
 
-        setReturnProducts(
-          (soldProducts || []).map((product) => ({
-            id: product.productId,
-            productId: product.productId,
-            productSku: product.productSku || product.productId,
-            productName: product.productName || product.productId,
-            lastMrp: Number(product.lastMrp || 0),
-            lastDiscountPercent: Number(product.lastDiscountPercent || 0),
-            lastInvoiceId: product.lastInvoiceId || '',
-            lastInvoiceLineId: product.lastInvoiceLineId || '',
-            lastSoldOn: product.lastSoldOn || null,
-            totalInvoicedQty: Number(product.totalInvoicedQty || 0),
-            totalReturnedQty: Number(product.totalReturnedQty || 0),
-            maxReturnableQty: Number(product.maxReturnableQty || 0),
-          }))
-        )
+        setReturnProducts((soldProducts || []).map(normalizeReturnProduct))
       } catch (error) {
         if (!isCurrent) return
         setReturnProducts([])
@@ -439,7 +509,11 @@ export default function NewSalesOrder() {
     const selected = returnProducts.find((product) => product.id === productId)
     if (!selected) return
 
-    if (returnCrnInvoiceId && selected.lastInvoiceId && selected.lastInvoiceId !== returnCrnInvoiceId) {
+    if (
+      returnCrnInvoiceId &&
+      selected.lastInvoiceId &&
+      selected.lastInvoiceId !== returnCrnInvoiceId
+    ) {
       toast.error('Return items must stay within the same invoice.')
       return
     }
@@ -548,7 +622,7 @@ export default function NewSalesOrder() {
         return
       }
 
-      await salesService.addCrnLine(currentCrnId, {
+      const createdLine = await salesService.addCrnLine(currentCrnId, {
         productId: returnDraftLine.productId,
         quantity: toNumber(returnDraftLine.quantity),
         mrp: toNumber(returnDraftLine.mrp),
@@ -557,10 +631,62 @@ export default function NewSalesOrder() {
         invoiceLineId: returnDraftLine.lastInvoiceLineId || null,
       })
 
+      const returnReason = returnReasonOptions.find(
+        (reason) => reason.value === String(returnDraftLine.reason)
+      )
+      const returnAmounts = getReturnLineAmounts(returnDraftLine)
+      const returnLineId =
+        getReturnLineId(createdLine) || `${Date.now()}-${returnDraftLine.productId}`
+
+      setReturnLines((current) => [
+        ...current,
+        {
+          id: String(returnLineId),
+          backendLineId: String(returnLineId),
+          isReturnLine: true,
+          productId: returnDraftLine.productId,
+          productName: returnDraftLine.productName || returnDraftLine.productId,
+          productSku: returnDraftLine.productSku || returnDraftLine.productId,
+          unitCode: 'RET',
+          quantity: toNumber(returnDraftLine.quantity),
+          mrp: toNumber(returnDraftLine.mrp),
+          discountPercent,
+          reason: returnDraftLine.reason,
+          reasonLabel: returnReason?.label || 'Others',
+          grossAmount: returnAmounts.gross,
+          discountAmount: returnAmounts.discountAmount,
+          creditAmount: returnAmounts.creditAmount,
+          lineTotal: returnAmounts.creditAmount,
+          lastInvoiceId: returnDraftLine.lastInvoiceId || '',
+          lastInvoiceLineId: returnDraftLine.lastInvoiceLineId || '',
+          maxReturnableQty: Number(returnDraftLine.maxReturnableQty || 0),
+          totalInvoicedQty: Number(returnDraftLine.totalInvoicedQty || 0),
+          totalReturnedQty: Number(returnDraftLine.totalReturnedQty || 0),
+        },
+      ])
+
       toast.success('Return item saved to draft.')
       setReturnDraftLine(emptyReturnDraftLine)
     } catch (error) {
       toast.error(error.message || 'Unable to save return item.')
+    } finally {
+      setIsSavingReturn(false)
+    }
+  }
+
+  async function handleRemoveReturnLine(line) {
+    if (!line?.id) return
+
+    setIsSavingReturn(true)
+    try {
+      if (returnCrnId && line.backendLineId) {
+        await salesService.removeCrnLine(returnCrnId, line.backendLineId)
+      }
+
+      setReturnLines((current) => current.filter((item) => item.id !== line.id))
+      toast.success('Return item removed.')
+    } catch (error) {
+      toast.error(error.message || 'Unable to remove return item.')
     } finally {
       setIsSavingReturn(false)
     }
@@ -664,6 +790,19 @@ export default function NewSalesOrder() {
   }
 
   const draftPreview = getLineAmounts(draftLine)
+  const returnSummary = useMemo(
+    () =>
+      returnLines.reduce(
+        (sum, line) => {
+          const amounts = getReturnLineAmounts(line)
+          return {
+            totalReturnAmount: sum.totalReturnAmount + amounts.creditAmount,
+          }
+        },
+        { totalReturnAmount: 0 }
+      ),
+    [returnLines]
+  )
   const computedSummary = useMemo(() => {
     const totals = lines.reduce(
       (sum, line) => {
@@ -713,14 +852,16 @@ export default function NewSalesOrder() {
       selectedCustomerDetails?.isVatRegistered || selectedCustomer?.isVatRegistered
         ? Math.round(vatBase * 18) / 100
         : 0
+    const returnAmount = returnSummary.totalReturnAmount
 
     return {
       grossAmount,
       totalCategoryDiscountAmount: categoryDiscountAmount,
       totalSkuDiscountAmount: skuDiscountAmount,
       totalSpecialDiscountAmount: specialDiscountAmount,
+      totalReturnAmount: returnAmount,
       vatAmount: lines.length ? vatAmount : summary.vatAmount,
-      netAmount: lines.length ? vatBase + vatAmount : summary.netAmount,
+      netAmount: (lines.length ? vatBase + vatAmount : summary.netAmount) - returnAmount,
     }
   }, [
     lines,
@@ -729,6 +870,7 @@ export default function NewSalesOrder() {
     selectedCustomer,
     selectedCustomerDetails,
     summary,
+    returnSummary.totalReturnAmount,
   ])
   const confirmDisabled = isSaving || !orderId || lines.length === 0
   const skuDiscountInputValue =
@@ -739,17 +881,23 @@ export default function NewSalesOrder() {
     orderSpecialDiscountAmount === ''
       ? Number(computedSummary.totalSpecialDiscountAmount || 0).toFixed(2)
       : orderSpecialDiscountAmount
-  const returnDraftPreview = useMemo(
-    () => getReturnLineAmounts(returnDraftLine),
-    [returnDraftLine]
-  )
+  const returnDraftPreview = useMemo(() => getReturnLineAmounts(returnDraftLine), [returnDraftLine])
   const returnProductOptions = useMemo(() => {
-    const productsForMode = returnProducts.filter((product) =>
-      returnCrnInvoiceId ? product.lastInvoiceId === returnCrnInvoiceId : true
-    )
-
-    return productsForMode.filter((product) => Number(product.maxReturnableQty || 0) > 0)
-  }, [returnCrnInvoiceId, returnProducts])
+    return returnProducts
+  }, [returnProducts])
+  const displayLines = useMemo(
+    () => [
+      ...lines.map((line) => ({
+        ...line,
+        isReturnLine: false,
+      })),
+      ...returnLines.map((line) => ({
+        ...line,
+        isReturnLine: true,
+      })),
+    ],
+    [lines, returnLines]
+  )
   const selectedReturnProduct =
     returnProductOptions.find((product) => product.id === returnDraftLine.productId) || null
   const returnSectionDisabled =
@@ -935,7 +1083,9 @@ export default function NewSalesOrder() {
                               `Sold ${Number(product.totalInvoicedQty || 0).toLocaleString()}`,
                               `Returned ${Number(product.totalReturnedQty || 0).toLocaleString()}`,
                               `Returnable ${Number(product.maxReturnableQty || 0).toLocaleString()}`,
-                              product.lastSoldOn ? dayjs(product.lastSoldOn).format('DD MMM YYYY') : '',
+                              product.lastSoldOn
+                                ? dayjs(product.lastSoldOn).format('DD MMM YYYY')
+                                : '',
                             ]
                               .filter(Boolean)
                               .join(' - ')
@@ -1011,24 +1161,26 @@ export default function NewSalesOrder() {
                       />
                     </Field>
 
-                    <Field label="Qty" labelRight={
-                      selectedReturnProduct
-                        ? `${Number(selectedReturnProduct.maxReturnableQty || 0).toLocaleString()} returnable`
-                        : null
-                    } labelRightColor={
-                      Number(selectedReturnProduct?.maxReturnableQty) <= 0
-                        ? 'var(--color-danger)'
-                        : 'var(--color-teal)'
-                    }>
+                    <Field
+                      label="Qty"
+                      labelRight={
+                        selectedReturnProduct
+                          ? `${Number(selectedReturnProduct.maxReturnableQty || 0).toLocaleString()} returnable`
+                          : null
+                      }
+                      labelRightColor={
+                        Number(selectedReturnProduct?.maxReturnableQty) <= 0
+                          ? 'var(--color-danger)'
+                          : 'var(--color-teal)'
+                      }
+                    >
                       <input
                         className="form-input mono"
                         min="0"
                         max={selectedReturnProduct?.maxReturnableQty ?? undefined}
                         type="number"
                         value={returnDraftLine.quantity}
-                        onChange={(event) =>
-                          updateReturnDraftLine('quantity', event.target.value)
-                        }
+                        onChange={(event) => updateReturnDraftLine('quantity', event.target.value)}
                         style={{ height: 40 }}
                       />
                     </Field>
@@ -1107,9 +1259,7 @@ export default function NewSalesOrder() {
                           : null
                       }
                       labelRightColor={
-                        Number(availableQty) <= 0
-                          ? 'var(--color-danger)'
-                          : 'var(--color-teal)'
+                        Number(availableQty) <= 0 ? 'var(--color-danger)' : 'var(--color-teal)'
                       }
                     >
                       <input
@@ -1118,9 +1268,7 @@ export default function NewSalesOrder() {
                         max={availableQty ?? undefined}
                         type="number"
                         value={draftLine.quantity}
-                        onChange={(event) =>
-                          updateDraftLine('quantity', event.target.value)
-                        }
+                        onChange={(event) => updateDraftLine('quantity', event.target.value)}
                         style={{ height: 40 }}
                       />
                     </Field>
@@ -1154,7 +1302,10 @@ export default function NewSalesOrder() {
                 )}
               </div>
               {addItemMode === 'return' && returnLoadError ? (
-                <div className="mt-3 rounded-lg border p-3 text-sm" style={{ borderColor: 'var(--color-border)', color: 'var(--color-danger)' }}>
+                <div
+                  className="mt-3 rounded-lg border p-3 text-sm"
+                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-danger)' }}
+                >
                   {returnLoadError}
                 </div>
               ) : null}
@@ -1168,7 +1319,7 @@ export default function NewSalesOrder() {
             >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <h2 style={panelTitleStyle}>Order Lines ({lines.length})</h2>
+                  <h2 style={panelTitleStyle}>Order Lines ({displayLines.length})</h2>
                 </div>
                 {/* <span
                   className="mono hidden text-xs sm:inline"
@@ -1178,45 +1329,53 @@ export default function NewSalesOrder() {
                 </span> */}
               </div>
 
-              {lines.length ? (
+              {displayLines.length ? (
                 <>
                   <div className="hidden flex-1 overflow-auto md:block" style={{ minHeight: 0 }}>
                     <table
-                        className="data-table w-full table-fixed"
-                        style={{
-                          minWidth: 820,
-                          width: '100%',
-                          tableLayout: 'fixed',
-                        }}
-                      >
-                        <colgroup>
-                          <col style={{ width: '17%' }} />
-                          <col style={{ width: '9%' }} />
-                          <col style={{ width: '8%' }} />
-                          <col style={{ width: '14%' }} />
-                          <col style={{ width: '14%' }} />
-                          <col style={{ width: '14%' }} />
-                          <col style={{ width: '16%' }} />
-                          <col style={{ width: '8%' }} />
-                        </colgroup>
+                      className="data-table w-full table-fixed"
+                      style={{
+                        minWidth: 820,
+                        width: '100%',
+                        tableLayout: 'fixed',
+                      }}
+                    >
+                      <colgroup>
+                        <col style={{ width: '17%' }} />
+                        <col style={{ width: '9%' }} />
+                        <col style={{ width: '8%' }} />
+                        <col style={{ width: '14%' }} />
+                        <col style={{ width: '14%' }} />
+                        <col style={{ width: '14%' }} />
+                        <col style={{ width: '16%' }} />
+                        <col style={{ width: '8%' }} />
+                      </colgroup>
 
-                        <thead>
-                          <tr>
-                            <th style={{ textAlign: 'left' }}>Product</th>
-                            <th style={{ textAlign: 'left' }}>Unit</th>
-                            <th style={{ textAlign: 'right' }}>Qty</th>
-                            <th style={{ textAlign: 'right' }}>MRP</th>
-                            <th style={{ textAlign: 'right' }}>Cat. Disc %</th>
-                            <th style={{ textAlign: 'right' }}>SKU Disc %</th>
-                            <th style={{ textAlign: 'right' }}>Total</th>
-                            <th aria-label="Actions" />
-                          </tr>
-                        </thead>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left' }}>Product</th>
+                          <th style={{ textAlign: 'left' }}>Unit</th>
+                          <th style={{ textAlign: 'right' }}>Qty</th>
+                          <th style={{ textAlign: 'right' }}>MRP</th>
+                          <th style={{ textAlign: 'right' }}>Cat. Disc %</th>
+                          <th style={{ textAlign: 'right' }}>SKU Disc %</th>
+                          <th style={{ textAlign: 'right' }}>Total</th>
+                          <th aria-label="Actions" />
+                        </tr>
+                      </thead>
                       <tbody>
-                        {lines.map((line) => {
-                          const product = productById[line.productId]
-                          const name = product?.name || product?.productName || line.productId
-                          const sku = product?.sku || product?.productSku || ''
+                        {displayLines.map((line) => {
+                          const isReturnLine = Boolean(line.isReturnLine)
+                          const product = isReturnLine ? null : productById[line.productId]
+                          const name =
+                            line.productName ||
+                            product?.name ||
+                            product?.productName ||
+                            line.productId
+                          const sku = line.productSku || product?.sku || product?.productSku || ''
+                          const lineTotal = isReturnLine
+                            ? (line.lineTotal ?? line.creditAmount ?? 0)
+                            : line.lineTotal
 
                           return (
                             <tr key={line.id}>
@@ -1231,29 +1390,51 @@ export default function NewSalesOrder() {
                                       {sku}
                                     </div>
                                   ) : null}
+                                  {isReturnLine ? (
+                                    <div
+                                      className="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                      style={{
+                                        border: '1px solid rgba(32, 212, 191, 0.35)',
+                                        background: 'rgba(32, 212, 191, 0.1)',
+                                        color: 'var(--color-teal)',
+                                      }}
+                                    >
+                                      RETURN
+                                    </div>
+                                  ) : null}
                                 </div>
                               </td>
                               <td className="mono">
-                                {line.smallestUnitCode || line.unitId || 'PCS'}
+                                {isReturnLine
+                                  ? line.unitCode || 'RET'
+                                  : line.smallestUnitCode || line.unitId || 'PCS'}
                               </td>
-                              <td className="mono text-right">{line.quantity}</td>
+                              <td className="mono text-right">
+                                {isReturnLine ? `-${line.quantity}` : line.quantity}
+                              </td>
                               <td className="mono text-right">
                                 {money(line.mrp || line.unitPrice)}
                               </td>
                               <td className="mono text-right">
-                                {Number(line.categoryDiscountPercent || 0).toFixed(2)}%
+                                {isReturnLine
+                                  ? '-'
+                                  : `${Number(line.categoryDiscountPercent || 0).toFixed(2)}%`}
                               </td>
                               <td className="mono text-right">
-                                {Number(line.skuDiscountPercent || 0).toFixed(2)}%
+                                {isReturnLine
+                                  ? `${Number(line.discountPercent || 0).toFixed(2)}%`
+                                  : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`}
                               </td>
-                              <td className="mono text-right font-semibold">
-                                {money(line.lineTotal)}
-                              </td>
+                              <td className="mono text-right font-semibold">{money(lineTotal)}</td>
                               <td className="text-right">
                                 <button
                                   className="icon-button"
-                                  disabled={isSaving}
-                                  onClick={() => handleRemoveLine(line.id)}
+                                  disabled={isSaving || isSavingReturn}
+                                  onClick={() =>
+                                    isReturnLine
+                                      ? handleRemoveReturnLine(line)
+                                      : handleRemoveLine(line.id)
+                                  }
                                   type="button"
                                   style={{ height: 32, width: 32 }}
                                 >
@@ -1268,10 +1449,15 @@ export default function NewSalesOrder() {
                   </div>
 
                   <div className="grid gap-3 md:hidden">
-                    {lines.map((line) => {
-                      const product = productById[line.productId]
-                      const name = product?.name || product?.productName || line.productId
-                      const sku = product?.sku || product?.productSku || ''
+                    {displayLines.map((line) => {
+                      const isReturnLine = Boolean(line.isReturnLine)
+                      const product = isReturnLine ? null : productById[line.productId]
+                      const name =
+                        line.productName || product?.name || product?.productName || line.productId
+                      const sku = line.productSku || product?.sku || product?.productSku || ''
+                      const lineTotal = isReturnLine
+                        ? (line.lineTotal ?? line.creditAmount ?? 0)
+                        : line.lineTotal
 
                       return (
                         <div
@@ -1293,11 +1479,27 @@ export default function NewSalesOrder() {
                                   {sku}
                                 </p>
                               ) : null}
+                              {isReturnLine ? (
+                                <div
+                                  className="mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                  style={{
+                                    border: '1px solid rgba(32, 212, 191, 0.35)',
+                                    background: 'rgba(32, 212, 191, 0.1)',
+                                    color: 'var(--color-teal)',
+                                  }}
+                                >
+                                  RETURN
+                                </div>
+                              ) : null}
                             </div>
                             <button
                               className="icon-button shrink-0"
-                              disabled={isSaving}
-                              onClick={() => handleRemoveLine(line.id)}
+                              disabled={isSaving || isSavingReturn}
+                              onClick={() =>
+                                isReturnLine
+                                  ? handleRemoveReturnLine(line)
+                                  : handleRemoveLine(line.id)
+                              }
                               type="button"
                               style={{ height: 32, width: 32 }}
                             >
@@ -1307,19 +1509,34 @@ export default function NewSalesOrder() {
                           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                             <MobileMetric
                               label="Unit"
-                              value={line.smallestUnitCode || line.unitId || 'PCS'}
+                              value={
+                                isReturnLine
+                                  ? line.unitCode || 'RET'
+                                  : line.smallestUnitCode || line.unitId || 'PCS'
+                              }
                             />
-                            <MobileMetric label="Qty" value={line.quantity} />
+                            <MobileMetric
+                              label="Qty"
+                              value={isReturnLine ? `-${line.quantity}` : line.quantity}
+                            />
                             <MobileMetric label="MRP" value={money(line.mrp || line.unitPrice)} />
                             <MobileMetric
                               label="Cat. Disc"
-                              value={`${Number(line.categoryDiscountPercent || 0).toFixed(2)}%`}
+                              value={
+                                isReturnLine
+                                  ? '-'
+                                  : `${Number(line.categoryDiscountPercent || 0).toFixed(2)}%`
+                              }
                             />
                             <MobileMetric
                               label="SKU Disc"
-                              value={`${Number(line.skuDiscountPercent || 0).toFixed(2)}%`}
+                              value={
+                                isReturnLine
+                                  ? `${Number(line.discountPercent || 0).toFixed(2)}%`
+                                  : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`
+                              }
                             />
-                            <MobileMetric label="Total" strong value={money(line.lineTotal)} />
+                            <MobileMetric label="Total" strong value={money(lineTotal)} />
                           </div>
                         </div>
                       )
@@ -1379,6 +1596,7 @@ export default function NewSalesOrder() {
                   onChange={updateOrderSpecialDiscountAmount}
                 />
                 <SummaryRow label="VAT" value={money(computedSummary.vatAmount)} />
+                <SummaryRow label="Returns" value={money(computedSummary.totalReturnAmount)} />
                 <div style={{ borderTop: '1px solid var(--color-border)', margin: '2px 0' }} />
                 <SummaryRow label="Net" strong value={money(computedSummary.netAmount)} />
               </div>
@@ -1438,12 +1656,7 @@ function MobileMetric({ label, value, strong = false }) {
   )
 }
 
-function Field({
-  label,
-  labelRight,
-  labelRightColor = 'var(--color-teal)',
-  children,
-}) {
+function Field({ label, labelRight, labelRightColor = 'var(--color-teal)', children }) {
   return (
     <label className="block w-full min-w-0" style={{ fontSize: 10 }}>
       <span
