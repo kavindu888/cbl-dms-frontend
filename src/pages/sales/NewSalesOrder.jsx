@@ -112,89 +112,6 @@ function getReturnLineAmounts(line) {
   return { gross, discountAmount, creditAmount }
 }
 
-function getReturnLineId(response) {
-  if (typeof response === 'string' || typeof response === 'number') return String(response)
-  return (
-    response?.lineId ??
-    response?.lineID ??
-    response?.id ??
-    response?.value ??
-    response?.data?.lineId ??
-    response?.data?.lineID ??
-    response?.data?.id ??
-    response?.data?.value ??
-    response?.data
-  )
-}
-
-function normalizeReturnProduct(product) {
-  const productId =
-    product?.productId ?? product?.ProductId ?? product?.id ?? product?.Id ?? product?.sku ?? ''
-  const productSku =
-    product?.productSku ?? product?.ProductSku ?? product?.sku ?? product?.Sku ?? productId
-  const productName =
-    product?.productName ??
-    product?.ProductName ??
-    product?.name ??
-    product?.Name ??
-    productSku ??
-    productId
-  const totalInvoicedQty = toNumber(
-    product?.totalInvoicedQty ??
-      product?.TotalInvoicedQty ??
-      product?.invoicedQty ??
-      product?.InvoicedQty
-  )
-  const totalReturnedQty = toNumber(
-    product?.totalReturnedQty ??
-      product?.TotalReturnedQty ??
-      product?.returnedQty ??
-      product?.ReturnedQty
-  )
-  const maxReturnableQtyValue =
-    product?.maxReturnableQty ??
-    product?.MaxReturnableQty ??
-    product?.returnableQty ??
-    product?.ReturnableQty
-  const maxReturnableQty =
-    maxReturnableQtyValue === undefined || maxReturnableQtyValue === null
-      ? Math.max(totalInvoicedQty - totalReturnedQty, 0)
-      : toNumber(maxReturnableQtyValue)
-
-  return {
-    id: String(productId || productSku || productName || ''),
-    productId: String(productId || ''),
-    productSku: String(productSku || ''),
-    productName: String(productName || ''),
-    lastMrp: Number(product?.lastMrp ?? product?.LastMrp ?? product?.mrp ?? product?.Mrp ?? 0),
-    lastDiscountPercent: Number(
-      product?.lastDiscountPercent ??
-        product?.LastDiscountPercent ??
-        product?.discountPercent ??
-        product?.DiscountPercent ??
-        0
-    ),
-    lastInvoiceId: String(
-      product?.lastInvoiceId ??
-        product?.LastInvoiceId ??
-        product?.invoiceId ??
-        product?.InvoiceId ??
-        ''
-    ),
-    lastInvoiceLineId: String(
-      product?.lastInvoiceLineId ??
-        product?.LastInvoiceLineId ??
-        product?.invoiceLineId ??
-        product?.InvoiceLineId ??
-        ''
-    ),
-    lastSoldOn: product?.lastSoldOn ?? product?.LastSoldOn ?? null,
-    totalInvoicedQty,
-    totalReturnedQty,
-    maxReturnableQty,
-  }
-}
-
 export default function NewSalesOrder() {
   const navigate = useNavigate()
   const [orderId, setOrderId] = useState(null)
@@ -224,8 +141,6 @@ export default function NewSalesOrder() {
   const [returnProducts, setReturnProducts] = useState([])
   const [returnDraftLine, setReturnDraftLine] = useState(emptyReturnDraftLine)
   const [returnLines, setReturnLines] = useState([])
-  const [returnCrnId, setReturnCrnId] = useState('')
-  const [returnCrnInvoiceId, setReturnCrnInvoiceId] = useState('')
   const [isLoadingReturnProducts, setIsLoadingReturnProducts] = useState(false)
   const [returnLoadError, setReturnLoadError] = useState('')
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
@@ -285,45 +200,17 @@ export default function NewSalesOrder() {
   }, [customerId, customers])
 
   useEffect(() => {
-    let isCurrent = true
-
     setAddItemMode('sale')
-    setReturnProducts([])
     setReturnDraftLine(emptyReturnDraftLine)
     setReturnLines([])
-    setReturnCrnId('')
-    setReturnCrnInvoiceId('')
     setReturnLoadError('')
-
-    if (!customerId) {
-      setIsLoadingReturnProducts(false)
-      return () => {
-        isCurrent = false
-      }
-    }
-
-    async function loadReturnProducts() {
-      setIsLoadingReturnProducts(true)
-      try {
-        const soldProducts = await salesService.getProductsSoldToCustomer(customerId)
-        if (!isCurrent) return
-
-        setReturnProducts((soldProducts || []).map(normalizeReturnProduct))
-      } catch (error) {
-        if (!isCurrent) return
-        setReturnProducts([])
-        setReturnLoadError(error.message || 'Unable to load products sold to this customer.')
-      } finally {
-        if (isCurrent) setIsLoadingReturnProducts(false)
-      }
-    }
-
-    loadReturnProducts()
-
-    return () => {
-      isCurrent = false
-    }
   }, [customerId])
+
+  useEffect(() => {
+    setReturnProducts(products)
+    setIsLoadingReturnProducts(isLoadingProducts)
+    setReturnLoadError('')
+  }, [products, isLoadingProducts])
 
   useEffect(() => {
     let isCurrent = true
@@ -515,59 +402,30 @@ export default function NewSalesOrder() {
     )
     if (!selected) return
 
-    const soldProduct =
-      returnProductMap.get(productKey) ||
-      returnProductMap.get(String(selected.sku || '')) ||
-      returnProductMap.get(String(selected.productSku || '')) ||
-      null
-
-    let product = selected
     try {
-      product =
-        selected && getProductCategoryId(selected)
-          ? selected
-          : await masterService.getProduct(selected.id || productKey)
-    } catch {
-      product = selected
+      const cachedProduct = products.find((product) => product.id === productKey)
+      const product =
+        cachedProduct && getProductCategoryId(cachedProduct)
+          ? cachedProduct
+          : await masterService.getProduct(productKey)
+      const prices = await inventoryService.getLastPrices(product.id).catch(() => null)
+
+      setReturnDraftLine({
+        productId: String(product.id || selected.id || selected.productId || ''),
+        productName:
+          product.name || product.productName || selected.name || selected.productName || '',
+        productSku: product.sku || product.productSku || selected.sku || selected.productSku || '',
+        mrp: Number(product.mrp || prices?.lastMrp || product.sellingPrice || 0),
+        discountPercent: '',
+        reason: '1',
+        quantity: 1,
+        maxReturnableQty: 0,
+        totalInvoicedQty: 0,
+        totalReturnedQty: 0,
+      })
+    } catch (error) {
+      toast.error(error.message || 'Unable to load product pricing.')
     }
-
-    const prices = await inventoryService.getLastPrices(product.id).catch(() => null)
-
-    if (
-      returnCrnInvoiceId &&
-      selected.lastInvoiceId &&
-      selected.lastInvoiceId !== returnCrnInvoiceId
-    ) {
-      toast.error('Return items must stay within the same invoice.')
-      return
-    }
-
-    const nextInvoiceId = returnCrnInvoiceId || selected.lastInvoiceId || ''
-
-    if (returnCrnId && nextInvoiceId && nextInvoiceId !== returnCrnInvoiceId) {
-      toast.error('Return items must stay within the same invoice.')
-      return
-    }
-
-    if (!returnCrnInvoiceId && selected.lastInvoiceId) {
-      setReturnCrnInvoiceId(selected.lastInvoiceId)
-    }
-
-    setReturnDraftLine({
-      productId: String(product.id || selected.id || selected.productId || ''),
-      productName:
-        product.name || product.productName || selected.name || selected.productName || '',
-      productSku: product.sku || product.productSku || selected.sku || selected.productSku || '',
-      lastInvoiceId: soldProduct?.lastInvoiceId || selected.lastInvoiceId || '',
-      lastInvoiceLineId: soldProduct?.lastInvoiceLineId || selected.lastInvoiceLineId || '',
-      mrp: Number(product.mrp || prices?.lastMrp || product.sellingPrice || 0),
-      discountPercent: '',
-      reason: '1',
-      quantity: 1,
-      maxReturnableQty: 0,
-      totalInvoicedQty: Number(soldProduct?.totalInvoicedQty || 0),
-      totalReturnedQty: Number(soldProduct?.totalReturnedQty || 0),
-    })
   }
 
   function updateReturnDiscountPercent(value) {
@@ -614,51 +472,16 @@ export default function NewSalesOrder() {
 
     setIsSavingReturn(true)
     try {
-      let currentCrnId = returnCrnId
-      const invoiceId = returnCrnInvoiceId || returnDraftLine.lastInvoiceId
-
-      if (!currentCrnId) {
-        if (!invoiceId) {
-          toast.error('Unable to determine the invoice for this return item.')
-          return
-        }
-
-        const created = await salesService.createCrn({
-          customerId: selectedCustomer.id,
-          invoiceId,
-          notes: null,
-        })
-        currentCrnId = getOrderId(created)
-        setReturnCrnId(currentCrnId)
-        setReturnCrnInvoiceId(invoiceId)
-      }
-
-      if (!invoiceId) {
-        toast.error('Unable to determine the invoice for this return item.')
-        return
-      }
-
-      const createdLine = await salesService.addCrnLine(currentCrnId, {
-        productId: returnDraftLine.productId,
-        quantity: toNumber(returnDraftLine.quantity),
-        mrp: toNumber(returnDraftLine.mrp),
-        discountPercent,
-        reason: Number(returnDraftLine.reason),
-        invoiceLineId: returnDraftLine.lastInvoiceLineId || null,
-      })
-
       const returnReason = returnReasonOptions.find(
         (reason) => reason.value === String(returnDraftLine.reason)
       )
       const returnAmounts = getReturnLineAmounts(returnDraftLine)
-      const returnLineId =
-        getReturnLineId(createdLine) || `${Date.now()}-${returnDraftLine.productId}`
+      const returnLineId = `${Date.now()}-${returnDraftLine.productId}`
 
       setReturnLines((current) => [
         ...current,
         {
           id: String(returnLineId),
-          backendLineId: String(returnLineId),
           isReturnLine: true,
           productId: returnDraftLine.productId,
           productName: returnDraftLine.productName || returnDraftLine.productId,
@@ -673,8 +496,6 @@ export default function NewSalesOrder() {
           discountAmount: returnAmounts.discountAmount,
           creditAmount: returnAmounts.creditAmount,
           lineTotal: returnAmounts.creditAmount,
-          lastInvoiceId: returnDraftLine.lastInvoiceId || '',
-          lastInvoiceLineId: returnDraftLine.lastInvoiceLineId || '',
           maxReturnableQty: Number(returnDraftLine.maxReturnableQty || 0),
           totalInvoicedQty: Number(returnDraftLine.totalInvoicedQty || 0),
           totalReturnedQty: Number(returnDraftLine.totalReturnedQty || 0),
@@ -695,10 +516,6 @@ export default function NewSalesOrder() {
 
     setIsSavingReturn(true)
     try {
-      if (returnCrnId && line.backendLineId) {
-        await salesService.removeCrnLine(returnCrnId, line.backendLineId)
-      }
-
       setReturnLines((current) => current.filter((item) => item.id !== line.id))
       toast.success('Return item removed.')
     } catch (error) {
@@ -898,17 +715,6 @@ export default function NewSalesOrder() {
       ? Number(computedSummary.totalSpecialDiscountAmount || 0).toFixed(2)
       : orderSpecialDiscountAmount
   const returnDraftPreview = useMemo(() => getReturnLineAmounts(returnDraftLine), [returnDraftLine])
-  const returnProductMap = useMemo(() => {
-    const map = new Map()
-
-    returnProducts.forEach((product) => {
-      ;[product.productId, product.id, product.productSku]
-        .filter(Boolean)
-        .forEach((key) => map.set(String(key), product))
-    })
-
-    return map
-  }, [returnProducts])
   const displayLines = useMemo(
     () => [
       ...lines.map((line) => ({
@@ -922,10 +728,6 @@ export default function NewSalesOrder() {
     ],
     [lines, returnLines]
   )
-  const selectedReturnProduct =
-    returnProductMap.get(String(returnDraftLine.productId || '')) ||
-    returnProductMap.get(String(returnDraftLine.productSku || '')) ||
-    null
   const returnSectionDisabled =
     isSavingReturn || isLoadingReturnProducts || !selectedCustomer || addItemMode !== 'return'
 
@@ -1029,11 +831,11 @@ export default function NewSalesOrder() {
             <div className="mb-3 flex flex-col gap-1">
               <div>
                 <h2 style={panelTitleStyle}>Add Item</h2>
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                {/* <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
                   {addItemMode === 'return'
                     ? 'Search previously sold products and draft a customer return note.'
                     : 'Select a product, review pricing, then add it to the draft.'}
-                </p>
+                </p> */}
               </div>
             </div>
 
@@ -1115,13 +917,19 @@ export default function NewSalesOrder() {
                       onChange={
                         addItemMode === 'return' ? handleReturnProductSelect : handleProductSelect
                       }
-                      options={products}
+                      options={addItemMode === 'return' ? returnProducts : products}
                       placeholder={
-                        isLoadingProducts
-                          ? 'Loading products...'
-                          : products.length
-                            ? 'Type SKU or product name...'
-                            : 'No products found'
+                        addItemMode === 'return'
+                          ? isLoadingReturnProducts
+                            ? 'Loading products...'
+                            : returnProducts.length
+                              ? 'Type SKU or product name...'
+                              : 'No products found'
+                          : isLoadingProducts
+                            ? 'Loading products...'
+                            : products.length
+                              ? 'Type SKU or product name...'
+                              : 'No products found'
                       }
                       value={
                         addItemMode === 'return' ? returnDraftLine.productId : draftLine.productId
@@ -1167,7 +975,7 @@ export default function NewSalesOrder() {
                     <Field label="Reason">
                       <select
                         className="form-input"
-                        disabled={!selectedReturnProduct}
+                        disabled={!returnDraftLine.productId}
                         value={returnDraftLine.reason}
                         onChange={(event) => updateReturnReason(event.target.value)}
                         style={{ height: 40 }}
