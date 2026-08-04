@@ -107,7 +107,7 @@ function getReturnLineAmounts(line) {
   const discountPercent = toNumber(line.discountPercent)
   const gross = mrp * quantity
   const discountAmount = gross * (discountPercent / 100)
-  const creditAmount = gross - discountAmount
+  const creditAmount = Math.max(0, gross - discountAmount)
 
   return { gross, discountAmount, creditAmount }
 }
@@ -500,14 +500,14 @@ export default function NewSalesOrder() {
     setReturnDraftLine((current) => ({ ...current, [field]: value }))
   }
 
-  function handleReturnProductSelect(productId) {
+  async function handleReturnProductSelect(productId) {
     if (!productId) {
       setReturnDraftLine(emptyReturnDraftLine)
       return
     }
 
     const productKey = String(productId || '')
-    const selected = returnProductOptions.find(
+    const selected = products.find(
       (product) =>
         String(product.id || '') === productKey ||
         String(product.productId || '') === productKey ||
@@ -515,22 +515,23 @@ export default function NewSalesOrder() {
     )
     if (!selected) return
 
-    const soldProduct = returnProducts.find(
-      (product) =>
-        String(product.productId || '') === productKey ||
-        String(product.id || '') === productKey ||
-        String(product.productSku || '') === productKey
-    )
-    const maxReturnableQty =
-      Number(
-        soldProduct?.maxReturnableQty ??
-          selected.maxReturnableQty ??
-          Math.max(
-            Number(soldProduct?.totalInvoicedQty ?? selected.totalInvoicedQty ?? 0) -
-              Number(soldProduct?.totalReturnedQty ?? selected.totalReturnedQty ?? 0),
-            0
-          )
-      ) || 0
+    const soldProduct =
+      returnProductMap.get(productKey) ||
+      returnProductMap.get(String(selected.sku || '')) ||
+      returnProductMap.get(String(selected.productSku || '')) ||
+      null
+
+    let product = selected
+    try {
+      product =
+        selected && getProductCategoryId(selected)
+          ? selected
+          : await masterService.getProduct(selected.id || productKey)
+    } catch {
+      product = selected
+    }
+
+    const prices = await inventoryService.getLastPrices(product.id).catch(() => null)
 
     if (
       returnCrnInvoiceId &&
@@ -553,23 +554,19 @@ export default function NewSalesOrder() {
     }
 
     setReturnDraftLine({
-      productId: selected.productId,
-      productName: selected.productName || '',
-      productSku: selected.productSku || '',
+      productId: String(product.id || selected.id || selected.productId || ''),
+      productName:
+        product.name || product.productName || selected.name || selected.productName || '',
+      productSku: product.sku || product.productSku || selected.sku || selected.productSku || '',
       lastInvoiceId: soldProduct?.lastInvoiceId || selected.lastInvoiceId || '',
       lastInvoiceLineId: soldProduct?.lastInvoiceLineId || selected.lastInvoiceLineId || '',
-      mrp: Number(soldProduct?.lastMrp ?? selected.lastMrp ?? 0),
-      discountPercent: String(
-        Math.min(
-          Number(soldProduct?.lastDiscountPercent ?? selected.lastDiscountPercent ?? 0),
-          DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT
-        )
-      ),
+      mrp: Number(product.mrp || prices?.lastMrp || product.sellingPrice || 0),
+      discountPercent: '',
       reason: '1',
       quantity: 1,
-      maxReturnableQty,
-      totalInvoicedQty: Number(soldProduct?.totalInvoicedQty ?? selected.totalInvoicedQty ?? 0),
-      totalReturnedQty: Number(soldProduct?.totalReturnedQty ?? selected.totalReturnedQty ?? 0),
+      maxReturnableQty: 0,
+      totalInvoicedQty: Number(soldProduct?.totalInvoicedQty || 0),
+      totalReturnedQty: Number(soldProduct?.totalReturnedQty || 0),
     })
   }
 
@@ -602,13 +599,6 @@ export default function NewSalesOrder() {
 
     if (toNumber(returnDraftLine.quantity) <= 0) {
       toast.error('Quantity must be greater than zero.')
-      return
-    }
-
-    if (toNumber(returnDraftLine.quantity) > toNumber(returnDraftLine.maxReturnableQty)) {
-      toast.error(
-        `Quantity exceeds returnable balance (${Number(returnDraftLine.maxReturnableQty || 0).toLocaleString()}).`
-      )
       return
     }
 
@@ -908,45 +898,17 @@ export default function NewSalesOrder() {
       ? Number(computedSummary.totalSpecialDiscountAmount || 0).toFixed(2)
       : orderSpecialDiscountAmount
   const returnDraftPreview = useMemo(() => getReturnLineAmounts(returnDraftLine), [returnDraftLine])
-  const returnProductOptions = useMemo(() => {
-    const soldProductMap = new Map()
+  const returnProductMap = useMemo(() => {
+    const map = new Map()
+
     returnProducts.forEach((product) => {
       ;[product.productId, product.id, product.productSku]
         .filter(Boolean)
-        .forEach((key) => soldProductMap.set(String(key), product))
+        .forEach((key) => map.set(String(key), product))
     })
 
-    return products.map((product) => {
-      const productKey = String(product.id || '')
-      const soldProduct =
-        soldProductMap.get(productKey) ||
-        soldProductMap.get(String(product.sku || '')) ||
-        soldProductMap.get(String(product.productSku || '')) ||
-        null
-
-      return {
-        id: productKey,
-        productId: productKey,
-        productSku: product.sku || product.productSku || productKey,
-        productName: product.name || product.productName || productKey,
-        lastMrp: Number(soldProduct?.lastMrp ?? product.mrp ?? product.sellingPrice ?? 0),
-        lastDiscountPercent: Number(soldProduct?.lastDiscountPercent ?? 0),
-        lastInvoiceId: soldProduct?.lastInvoiceId || '',
-        lastInvoiceLineId: soldProduct?.lastInvoiceLineId || '',
-        lastSoldOn: soldProduct?.lastSoldOn || null,
-        totalInvoicedQty: Number(soldProduct?.totalInvoicedQty || 0),
-        totalReturnedQty: Number(soldProduct?.totalReturnedQty || 0),
-        maxReturnableQty: Number(
-          soldProduct?.maxReturnableQty ??
-            Math.max(
-              Number(soldProduct?.totalInvoicedQty || 0) -
-                Number(soldProduct?.totalReturnedQty || 0),
-              0
-            )
-        ),
-      }
-    })
-  }, [products, returnProducts])
+    return map
+  }, [returnProducts])
   const displayLines = useMemo(
     () => [
       ...lines.map((line) => ({
@@ -961,12 +923,9 @@ export default function NewSalesOrder() {
     [lines, returnLines]
   )
   const selectedReturnProduct =
-    returnProductOptions.find(
-      (product) =>
-        String(product.id || '') === String(returnDraftLine.productId || '') ||
-        String(product.productId || '') === String(returnDraftLine.productId || '') ||
-        String(product.productSku || '') === String(returnDraftLine.productSku || '')
-    ) || null
+    returnProductMap.get(String(returnDraftLine.productId || '')) ||
+    returnProductMap.get(String(returnDraftLine.productSku || '')) ||
+    null
   const returnSectionDisabled =
     isSavingReturn || isLoadingReturnProducts || !selectedCustomer || addItemMode !== 'return'
 
@@ -1133,68 +1092,36 @@ export default function NewSalesOrder() {
                           ? isLoadingReturnProducts || isSavingReturn
                           : isLoadingProducts || isSaving
                       }
-                      emptyLabel={
-                        addItemMode === 'return' ? 'No active products found' : 'No products found'
-                      }
+                      emptyLabel="No products found"
                       getLabel={(product) =>
-                        addItemMode === 'return'
-                          ? [product.productSku, product.productName].filter(Boolean).join(' - ') ||
-                            product.id
-                          : [product.sku, product.name].filter(Boolean).join(' - ') || product.id
+                        [product.sku, product.name].filter(Boolean).join(' - ') || product.id
                       }
                       getMeta={(product) =>
-                        addItemMode === 'return'
-                          ? [
-                              `Sold ${Number(product.totalInvoicedQty || 0).toLocaleString()}`,
-                              `Returned ${Number(product.totalReturnedQty || 0).toLocaleString()}`,
-                              `Returnable ${Number(product.maxReturnableQty || 0).toLocaleString()}`,
-                              product.lastSoldOn
-                                ? dayjs(product.lastSoldOn).format('DD MMM YYYY')
-                                : '',
-                            ]
-                              .filter(Boolean)
-                              .join(' - ')
-                          : [product.uomBase || product.baseUom, product.category?.name]
-                              .filter(Boolean)
-                              .join(' - ')
+                        [product.uomBase || product.baseUom, product.category?.name]
+                          .filter(Boolean)
+                          .join(' - ')
                       }
                       getSearchText={(product) =>
-                        addItemMode === 'return'
-                          ? [
-                              product.productSku,
-                              product.productName,
-                              product.id,
-                              product.lastInvoiceId,
-                              product.lastInvoiceLineId,
-                            ]
-                              .filter(Boolean)
-                              .join(' ')
-                          : [
-                              product.sku,
-                              product.name,
-                              product.barcode,
-                              product.category?.name,
-                              product.id,
-                            ]
-                              .filter(Boolean)
-                              .join(' ')
+                        [
+                          product.sku,
+                          product.name,
+                          product.barcode,
+                          product.category?.name,
+                          product.id,
+                        ]
+                          .filter(Boolean)
+                          .join(' ')
                       }
                       onChange={
                         addItemMode === 'return' ? handleReturnProductSelect : handleProductSelect
                       }
-                      options={addItemMode === 'return' ? returnProductOptions : products}
+                      options={products}
                       placeholder={
-                        addItemMode === 'return'
-                          ? isLoadingReturnProducts
-                            ? 'Loading products...'
-                            : returnProductOptions.length
-                              ? 'Type SKU or product name...'
-                              : 'No active products available'
-                          : isLoadingProducts
-                            ? 'Loading products...'
-                            : products.length
-                              ? 'Type SKU or product name...'
-                              : 'No active products available'
+                        isLoadingProducts
+                          ? 'Loading products...'
+                          : products.length
+                            ? 'Type SKU or product name...'
+                            : 'No products found'
                       }
                       value={
                         addItemMode === 'return' ? returnDraftLine.productId : draftLine.productId
@@ -1226,23 +1153,10 @@ export default function NewSalesOrder() {
                       />
                     </Field>
 
-                    <Field
-                      label="Qty"
-                      labelRight={
-                        returnDraftLine.productId
-                          ? `${Number(returnDraftLine.maxReturnableQty || 0).toLocaleString()} returnable`
-                          : null
-                      }
-                      labelRightColor={
-                        Number(returnDraftLine.maxReturnableQty) <= 0
-                          ? 'var(--color-danger)'
-                          : 'var(--color-teal)'
-                      }
-                    >
+                    <Field label="Qty">
                       <input
                         className="form-input mono"
-                        min="0"
-                        max={returnDraftLine.maxReturnableQty ?? undefined}
+                        min="1"
                         type="number"
                         value={returnDraftLine.quantity}
                         onChange={(event) => updateReturnDraftLine('quantity', event.target.value)}
