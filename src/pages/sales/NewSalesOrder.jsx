@@ -745,19 +745,37 @@ export default function NewSalesOrder() {
               {lines.length ? (
                 <>
                   <div className="hidden flex-1 overflow-auto md:block" style={{ minHeight: 0 }}>
-                    <table className="data-table" style={{ minWidth: 820 }}>
-                      <thead>
-                        <tr>
-                          <th>Product</th>
-                          <th>Unit</th>
-                          <th className="text-right">Qty</th>
-                          <th className="text-right">MRP</th>
-                          <th className="text-right">Cat. Disc %</th>
-                          <th className="text-right">SKU Disc %</th>
-                          <th className="text-right">Total</th>
-                          <th></th>
-                        </tr>
-                      </thead>
+                    <table
+                        className="data-table w-full table-fixed"
+                        style={{
+                          minWidth: 820,
+                          width: '100%',
+                          tableLayout: 'fixed',
+                        }}
+                      >
+                        <colgroup>
+                          <col style={{ width: '17%' }} />
+                          <col style={{ width: '9%' }} />
+                          <col style={{ width: '8%' }} />
+                          <col style={{ width: '14%' }} />
+                          <col style={{ width: '14%' }} />
+                          <col style={{ width: '14%' }} />
+                          <col style={{ width: '16%' }} />
+                          <col style={{ width: '8%' }} />
+                        </colgroup>
+
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: 'left' }}>Product</th>
+                            <th style={{ textAlign: 'left' }}>Unit</th>
+                            <th style={{ textAlign: 'right' }}>Qty</th>
+                            <th style={{ textAlign: 'right' }}>MRP</th>
+                            <th style={{ textAlign: 'right' }}>Cat. Disc %</th>
+                            <th style={{ textAlign: 'right' }}>SKU Disc %</th>
+                            <th style={{ textAlign: 'right' }}>Total</th>
+                            <th aria-label="Actions" />
+                          </tr>
+                        </thead>
                       <tbody>
                         {lines.map((line) => {
                           const product = productById[line.productId]
