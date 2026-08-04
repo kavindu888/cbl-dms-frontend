@@ -101,7 +101,8 @@ export default function NewSalesOrder() {
   })
   const [productById, setProductById] = useState({})
   const [availableQty, setAvailableQty] = useState(null)
-  const [headerSpecialDiscountPercent, setHeaderSpecialDiscountPercent] = useState('')
+  const [orderSkuDiscountAmount, setOrderSkuDiscountAmount] = useState('')
+  const [orderSpecialDiscountAmount, setOrderSpecialDiscountAmount] = useState('')
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -320,17 +321,12 @@ export default function NewSalesOrder() {
     updateDraftLine('skuDiscountPercent', value)
   }
 
-  function updateHeaderSpecialDiscountPercent(value) {
-    const max = toNumber(draftLine.specialDiscountMax)
-    const requested = toNumber(value)
+  function updateOrderSkuDiscountAmount(value) {
+    setOrderSkuDiscountAmount(value)
+  }
 
-    if (value !== '' && max > 0 && requested > max) {
-      toast.error(`Special discount cannot exceed ${max.toFixed(2)}% for this product category.`)
-      setHeaderSpecialDiscountPercent(String(max))
-      return
-    }
-
-    setHeaderSpecialDiscountPercent(value)
+  function updateOrderSpecialDiscountAmount(value) {
+    setOrderSpecialDiscountAmount(value)
   }
 
   async function handleAddLine(event) {
@@ -371,7 +367,12 @@ export default function NewSalesOrder() {
           toNumber(draftLine.skuDiscountMax)
         ),
         specialDiscountPercent: draftLine.specialDiscountAvailable
-          ? Math.min(toNumber(headerSpecialDiscountPercent), toNumber(draftLine.specialDiscountMax))
+          ? Math.min(
+              (toNumber(orderSpecialDiscountAmount) /
+                Math.max(toNumber(draftLine.mrp) * toNumber(draftLine.quantity), 1)) *
+                100,
+              toNumber(draftLine.specialDiscountMax)
+            )
           : 0,
       })
 
@@ -430,13 +431,8 @@ export default function NewSalesOrder() {
           line.categoryDiscountAmount ?? gross * (toNumber(line.categoryDiscountPercent) / 100)
         const skuDiscountAmount =
           line.skuDiscountAmount ?? gross * (toNumber(line.skuDiscountPercent) / 100)
-        const specialPercent =
-          headerSpecialDiscountPercent === ''
-            ? toNumber(line.specialDiscountPercent)
-            : toNumber(line.specialDiscountPercent) > 0
-              ? toNumber(headerSpecialDiscountPercent)
-              : 0
-        const specialDiscountAmount = gross * (specialPercent / 100)
+        const specialDiscountAmount =
+          line.specialDiscountAmount ?? gross * (toNumber(line.specialDiscountPercent) / 100)
 
         return {
           grossAmount: sum.grossAmount + gross,
@@ -452,35 +448,54 @@ export default function NewSalesOrder() {
         totalSpecialDiscountAmount: 0,
       }
     )
-    const discountTotal =
-      totals.totalCategoryDiscountAmount +
-      totals.totalSkuDiscountAmount +
-      totals.totalSpecialDiscountAmount
-    const vatBase = totals.grossAmount - discountTotal
+    const grossAmount = lines.length ? totals.grossAmount : summary.grossAmount
+    const categoryDiscountAmount = lines.length
+      ? totals.totalCategoryDiscountAmount
+      : summary.totalCategoryDiscountAmount
+    const fallbackSkuDiscountAmount = lines.length
+      ? totals.totalSkuDiscountAmount
+      : summary.totalSkuDiscountAmount
+    const fallbackSpecialDiscountAmount = lines.length
+      ? totals.totalSpecialDiscountAmount
+      : summary.totalSpecialDiscountAmount
+    const skuDiscountAmount =
+      orderSkuDiscountAmount === '' ? fallbackSkuDiscountAmount : toNumber(orderSkuDiscountAmount)
+    const specialDiscountAmount =
+      orderSpecialDiscountAmount === ''
+        ? fallbackSpecialDiscountAmount
+        : toNumber(orderSpecialDiscountAmount)
+    const discountTotal = categoryDiscountAmount + skuDiscountAmount + specialDiscountAmount
+    const vatBase = grossAmount - discountTotal
     const vatAmount =
       selectedCustomerDetails?.isVatRegistered || selectedCustomer?.isVatRegistered
         ? Math.round(vatBase * 18) / 100
         : 0
 
     return {
-      grossAmount: lines.length ? totals.grossAmount : summary.grossAmount,
-      totalCategoryDiscountAmount: lines.length
-        ? totals.totalCategoryDiscountAmount
-        : summary.totalCategoryDiscountAmount,
-      totalSkuDiscountAmount: lines.length
-        ? totals.totalSkuDiscountAmount
-        : summary.totalSkuDiscountAmount,
-      totalSpecialDiscountAmount: lines.length
-        ? totals.totalSpecialDiscountAmount
-        : summary.totalSpecialDiscountAmount,
+      grossAmount,
+      totalCategoryDiscountAmount: categoryDiscountAmount,
+      totalSkuDiscountAmount: skuDiscountAmount,
+      totalSpecialDiscountAmount: specialDiscountAmount,
       vatAmount: lines.length ? vatAmount : summary.vatAmount,
       netAmount: lines.length ? vatBase + vatAmount : summary.netAmount,
     }
-  }, [headerSpecialDiscountPercent, lines, selectedCustomer, selectedCustomerDetails, summary])
+  }, [
+    lines,
+    orderSkuDiscountAmount,
+    orderSpecialDiscountAmount,
+    selectedCustomer,
+    selectedCustomerDetails,
+    summary,
+  ])
   const confirmDisabled = isSaving || !orderId || lines.length === 0
-  const hasSpecialDiscountEligibility =
-    draftLine.specialDiscountAvailable ||
-    lines.some((line) => Number(line.specialDiscountPercent || 0) > 0)
+  const skuDiscountInputValue =
+    orderSkuDiscountAmount === ''
+      ? Number(computedSummary.totalSkuDiscountAmount || 0).toFixed(2)
+      : orderSkuDiscountAmount
+  const specialDiscountInputValue =
+    orderSpecialDiscountAmount === ''
+      ? Number(computedSummary.totalSpecialDiscountAmount || 0).toFixed(2)
+      : orderSpecialDiscountAmount
 
   return (
     <div
@@ -501,10 +516,6 @@ export default function NewSalesOrder() {
           Back
         </button>
         <h1 className="mt-2 text-2xl font-extrabold leading-tight">Create Sales Order</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          Draft saves silently when the first item is added.
-        </p>
-
         {loadError ? (
           <div className="panel mt-4 p-4 text-sm" style={{ color: 'var(--color-danger)' }}>
             {loadError}
@@ -586,9 +597,6 @@ export default function NewSalesOrder() {
             <div className="mb-3 flex flex-col gap-1">
               <div>
                 <h2 style={panelTitleStyle}>Add Item</h2>
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  Select a product, review pricing, then add it to the draft.
-                </p>
               </div>
             </div>
 
@@ -725,16 +733,13 @@ export default function NewSalesOrder() {
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <h2 style={panelTitleStyle}>Order Lines ({lines.length})</h2>
-                  <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    Added products for this sales order.
-                  </p>
                 </div>
-                <span
+                {/* <span
                   className="mono hidden text-xs sm:inline"
                   style={{ color: 'var(--color-text-muted)' }}
                 >
                   Preview {money(draftPreview.net)}
-                </span>
+                </span> */}
               </div>
 
               {lines.length ? (
@@ -904,38 +909,20 @@ export default function NewSalesOrder() {
               <h2 style={panelTitleStyle}>Order Summary</h2>
               <div className="mt-4 flex flex-col gap-3 text-sm">
                 <SummaryRow label="Gross" value={money(computedSummary.grossAmount)} />
-                <SummaryRow
+                {/* <SummaryRow
                   label="Category Discount"
                   value={money(computedSummary.totalCategoryDiscountAmount)}
-                />
-                <SummaryRow
+                /> */}
+                <SummaryEditableRow
                   label="SKU Discount"
-                  value={money(computedSummary.totalSkuDiscountAmount)}
+                  value={skuDiscountInputValue}
+                  onChange={updateOrderSkuDiscountAmount}
                 />
 
-                {hasSpecialDiscountEligibility ? (
-                  <Field
-                    label={`Special Discount %${
-                      draftLine.specialDiscountMax ? ` (max ${draftLine.specialDiscountMax}%)` : ''
-                    }`}
-                  >
-                    <input
-                      className="form-input mono"
-                      disabled={!draftLine.specialDiscountAvailable || isSaving}
-                      max={draftLine.specialDiscountMax || 0}
-                      min="0"
-                      step="0.01"
-                      type="number"
-                      value={headerSpecialDiscountPercent}
-                      onChange={(event) => updateHeaderSpecialDiscountPercent(event.target.value)}
-                      style={{ height: 40 }}
-                    />
-                  </Field>
-                ) : null}
-
-                <SummaryRow
+                <SummaryEditableRow
                   label="Special Discount"
-                  value={money(computedSummary.totalSpecialDiscountAmount)}
+                  value={specialDiscountInputValue}
+                  onChange={updateOrderSpecialDiscountAmount}
                 />
                 <SummaryRow label="VAT" value={money(computedSummary.vatAmount)} />
                 <div style={{ borderTop: '1px solid var(--color-border)', margin: '2px 0' }} />
@@ -1068,6 +1055,63 @@ function SummaryRow({ label, value, strong = false }) {
       >
         {value}
       </span>
+    </div>
+  )
+}
+
+function SummaryEditableRow({ label, value, onChange }) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-3">
+      <span
+        className="min-w-0"
+        style={{
+          color: 'var(--color-text-muted)',
+          fontWeight: 500,
+        }}
+      >
+        {label}
+      </span>
+
+      <div
+        className="flex shrink-0 items-center gap-1"
+        style={{
+          border: '1px solid var(--color-border)',
+          borderRadius: 8,
+          background: 'var(--color-bg-surface)',
+          padding: '0 10px',
+          height: 32,
+        }}
+      >
+        <span
+          className="mono shrink-0 whitespace-nowrap tabular-nums"
+          style={{
+            color: 'var(--color-text-muted)',
+            fontWeight: 700,
+          }}
+        >
+          Rs.
+        </span>
+        <input
+          className="mono"
+          inputMode="decimal"
+          min="0"
+          step="0.01"
+          type="number"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          style={{
+            width: 88,
+            border: 'none',
+            outline: 'none',
+            background: 'transparent',
+            boxShadow: 'none',
+            padding: 0,
+            textAlign: 'right',
+            color: 'var(--color-text-primary)',
+            fontWeight: 700,
+          }}
+        />
+      </div>
     </div>
   )
 }
