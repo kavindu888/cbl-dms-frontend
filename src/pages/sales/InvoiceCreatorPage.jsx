@@ -572,7 +572,10 @@ export default function InvoiceCreatorPage() {
   }
 
   function handleSerialNumberChange(value) {
-    setSerialNumber(value)
+  // Allow only English letters and numbers
+    const cleanedValue = value.replace(/[^a-zA-Z0-9]/g, '')
+
+    setSerialNumber(cleanedValue)
     setSerialNumberWarning(false)
     setSerialNumberChecking(false)
 
@@ -580,12 +583,13 @@ export default function InvoiceCreatorPage() {
       clearTimeout(serialCheckTimeout.current)
     }
 
-    if (!value.trim()) return
+    if (!cleanedValue) return
 
     serialCheckTimeout.current = setTimeout(async () => {
       setSerialNumberChecking(true)
+
       try {
-        const result = await salesService.checkSerialNumberExists(value.trim())
+        const result = await salesService.checkSerialNumberExists(cleanedValue)
         setSerialNumberWarning(Boolean(result.exists))
       } catch (error) {
         console.error('Serial number check failed:', error)
@@ -605,8 +609,22 @@ export default function InvoiceCreatorPage() {
   }
 
   function validate(values) {
-    if (!values.customerId) return 'Customer is required.'
-    if (!values.salesRouteId) return 'Selected customer does not have a sales route.'
+  if (!serialNumber.trim()) {
+    return 'Serial Number is required.'
+  }
+
+  if (!/^[a-zA-Z0-9]+$/.test(cleanedSerialNumber)) {
+    return 'Serial Number can contain only letters and numbers.'
+  }
+
+  if (!values.customerId) {
+    return 'Customer is required.'
+  }
+
+  if (!values.salesRouteId) {
+    return 'Selected customer does not have a sales route.'
+  }
+
     const invalidLine = values.lines.find(
       (line) =>
         !line.productId ||
@@ -614,7 +632,8 @@ export default function InvoiceCreatorPage() {
         Number(line.skuDiscountPercent || 0) < 0 ||
         Number(line.skuDiscountPercent || 0) > Number(line.skuDiscountMax || 0) ||
         Number(line.specialDiscountPercent || 0) < 0 ||
-        Number(line.specialDiscountPercent || 0) > Number(line.specialDiscountMax || 0) ||
+        Number(line.specialDiscountPercent || 0) >
+          Number(line.specialDiscountMax || 0) ||
         Number(line.categoryDiscountPercent || 0) +
           Number(line.skuDiscountPercent || 0) +
           Number(line.specialDiscountPercent || 0) >
@@ -622,7 +641,7 @@ export default function InvoiceCreatorPage() {
     )
 
     if (invalidLine) {
-      return `Each line needs a product, quantity, and discounts within their allowed maximums.`
+      return 'Each line needs a product, quantity, and discounts within their allowed maximums.'
     }
 
     return ''
@@ -637,7 +656,7 @@ export default function InvoiceCreatorPage() {
 
     const payload = {
       customerId: values.customerId,
-      serialNumber: serialNumber.trim() || null,
+      serialNumber: serialNumber.trim(),
       invoiceDate: new Date().toISOString(),
       dueDate: null,
       isTaxInvoice: isCustomerVatRegistered,
@@ -655,7 +674,7 @@ export default function InvoiceCreatorPage() {
     try {
       const response = isFromSalesOrder
         ? await salesService.convertSalesOrderToInvoice(orderState.salesOrderId, {
-            serialNumber: serialNumber.trim() || null,
+            serialNumber: serialNumber.trim(),
             notes: null,
           })
         : await salesService.createInvoice(payload)
@@ -1045,12 +1064,15 @@ export default function InvoiceCreatorPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Serial Number
+                  Serial Number *
                 </label>
                 <input
                   className="form-input"
                   type="text"
+                  required
                   maxLength={20}
+                  pattern="[A-Za-z0-9]+"
+                  title="Serial Number can contain only letters and numbers."
                   value={serialNumber}
                   onChange={(event) => handleSerialNumberChange(event.target.value)}
                   placeholder="Enter CBL POS serial number"
@@ -1229,7 +1251,10 @@ export default function InvoiceCreatorPage() {
               <RotateCcw style={{ width: 15, height: 15 }} />
               Clear
             </button>
-            <button className="button-primary" type="submit" disabled={isSaving || isLoadingData}>
+            <button className="button-primary" type="submit" 
+            disabled={isSaving || isLoadingData || serialNumberChecking || !serialNumber.trim()
+              }
+            >
               <Save style={{ width: 15, height: 15 }} />
               {isSaving ? 'Saving...' : 'Save'}
             </button>
