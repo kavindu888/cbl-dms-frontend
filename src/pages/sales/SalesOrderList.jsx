@@ -11,6 +11,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@/services/api/masterService'
@@ -49,7 +50,43 @@ function normalizeStatus(status) {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
 }
 
+function buildInvoiceConversionState(order, productById, salesRouteName) {
+  return {
+    fromSalesOrder: true,
+    salesOrderId: order.id,
+    salesOrderNumber: order.orderNumber,
+    customerId: order.customerId,
+    customerName: order.customerName,
+    salesRouteId: order.salesRouteId,
+    salesRouteName,
+    isVatApplicable: order.isVatApplicable,
+    customerVatTin: order.customerVatTin,
+    deliveryDate: order.deliveryDate,
+    lines: (order.lines || []).map((orderLine) => {
+      const product = productById[orderLine.productId] || null
+
+      return {
+        productId: orderLine.productId,
+        productName: product?.name || product?.productName || '',
+        productSku: product?.sku || product?.productSku || '',
+        unitId: orderLine.unitId || orderLine.smallestUnitCode || '',
+        unitName: orderLine.smallestUnitCode || orderLine.unitName || '',
+        smallestUnitName: orderLine.smallestUnitCode || orderLine.unitName || '',
+        mrp: orderLine.mrp || orderLine.unitPrice || 0,
+        quantity: orderLine.quantity,
+        categoryDiscountPercent: orderLine.categoryDiscountPercent ?? 0,
+        skuDiscountPercent: orderLine.skuDiscountPercent ?? 0,
+        specialDiscountPercent: orderLine.specialDiscountPercent ?? 0,
+        totalDiscountPercent: orderLine.totalDiscountPercent ?? orderLine.discountPercent ?? 0,
+        isReturnLine: Boolean(orderLine.isReturnLine),
+        returnReason: orderLine.returnReason ?? null,
+      }
+    }),
+  }
+}
+
 export default function SalesOrderList() {
+  const navigate = useNavigate()
   const [customers, setCustomers] = useState([])
   const [orders, setOrders] = useState([])
   const [products, setProducts] = useState([])
@@ -301,6 +338,15 @@ export default function SalesOrderList() {
     }
   }
 
+  function convertToInvoice() {
+    if (!selectedOrder) return
+
+    const salesRouteName = selectedOrder.salesRouteName || routeNameById[selectedOrder.salesRouteId] || ''
+    navigate('/sales/invoices/new', {
+      state: buildInvoiceConversionState(selectedOrder, productById, salesRouteName),
+    })
+  }
+
   const hasActiveFilters = Boolean(search.trim() || status || salesRouteId || orderDate)
 
   return (
@@ -425,6 +471,7 @@ export default function SalesOrderList() {
           ) : selectedOrder ? (
             <SalesOrderDetailPanel
               cancelReason={cancelReason}
+              onConvertToInvoice={convertToInvoice}
               isSaving={isSaving}
               onCancel={cancelOrder}
               onCancelReasonChange={setCancelReason}
@@ -444,10 +491,21 @@ export default function SalesOrderList() {
   )
 }
 
-function SalesOrderDetailPanel({ order, productById, salesRouteName, cancelReason, onCancelReasonChange, onCancel, onConfirm, isSaving }) {
+function SalesOrderDetailPanel({
+  order,
+  productById,
+  salesRouteName,
+  cancelReason,
+  onCancelReasonChange,
+  onCancel,
+  onConfirm,
+  onConvertToInvoice,
+  isSaving,
+}) {
   const orderStatus = normalizeStatus(order.status)
   const canConfirm = orderStatus === 'Draft' && (order.lines || []).length > 0
   const canCancel = !['Cancelled', 'Converted'].includes(orderStatus)
+  const canConvertToInvoice = orderStatus === 'Confirmed'
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
@@ -536,6 +594,15 @@ function SalesOrderDetailPanel({ order, productById, salesRouteName, cancelReaso
                 Cancel Order
               </button>
             </form>
+          ) : null}
+          {canConvertToInvoice ? (
+            <section style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 800 }}>Convert To Invoice</h3>
+              <button className="button-primary" type="button" disabled={isSaving} onClick={onConvertToInvoice} style={{ width: '100%' }}>
+                <FileText style={{ width: 15, height: 15 }} />
+                Convert To Invoice
+              </button>
+            </section>
           ) : null}
         </div>
       </div>

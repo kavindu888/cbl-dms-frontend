@@ -415,8 +415,8 @@ export default function InvoiceCreatorPage() {
 
     const prefilledLines = normalLines.map((line) => ({
       productId: line.productId || '',
-      unitId: line.unitId || line.smallestUnitName || '',
-      unitName: line.smallestUnitName || '',
+      unitId: line.unitId || line.smallestUnitCode || line.smallestUnitName || line.unitName || '',
+      unitName: line.smallestUnitName || line.smallestUnitCode || line.unitName || '',
       quantity: Number(line.quantity || 0),
       mrp: Number(line.mrp || 0),
       categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
