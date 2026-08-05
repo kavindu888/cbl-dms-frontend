@@ -806,19 +806,26 @@ export default function InvoiceCreatorPage() {
           </div>
 
           <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'visible', minHeight: 0 }}>
-            <table className="data-table" style={{ minWidth: 960, tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: '26%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '9%' }} />
-                <col style={{ width: '9%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '5%' }} />
-              </colgroup>
+            <table
+                className="data-table"
+                style={{
+                  width: '100%',
+                  minWidth: 1080,
+                  tableLayout: 'fixed',
+                }}
+              >
+                <colgroup>
+                  <col style={{ width: 240 }} /> {/* Product */}
+                  <col style={{ width: 110 }} /> {/* Smallest Unit */}
+                  <col style={{ width: 85 }} />  {/* MRP */}
+                  <col style={{ width: 75 }} />  {/* QTY */}
+                  <col style={{ width: 95 }} />  {/* Cat Discount */}
+                  <col style={{ width: 95 }} />  {/* SKU Discount */}
+                  <col style={{ width: 110 }} /> {/* Special Discount */}
+                  <col style={{ width: 100 }} /> {/* Unit Price */}
+                  <col style={{ width: 120 }} /> {/* Total */}
+                  <col style={{ width: 50 }} />  {/* Delete */}
+                </colgroup>
               <thead>
                 <tr>
                   <th>Product</th>
@@ -894,17 +901,36 @@ export default function InvoiceCreatorPage() {
                         />
                         <input type="hidden" {...register(`lines.${index}.unitId`)} />
                       </td>
-                      <td>
-                        <div className="form-input mono text-right" style={readOnlyDisplayStyle}>
+                      <td style={{ paddingLeft: 8, paddingRight: 8 }}>
+                        <div
+                          className="form-input mono text-right"
+                          style={{
+                            ...readOnlyDisplayStyle,
+                            width: '100%',
+                            minWidth: 0,
+                            boxSizing: 'border-box',
+                            justifyContent: 'flex-end',
+                            padding: '0 8px',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                          }}
+                        >
                           {Number(line.mrp || 0).toFixed(2)}
                         </div>
                       </td>
-                      <td>
+                      <td style={{ paddingLeft: 8, paddingRight: 8 }}>
                         <input
                           className="form-input mono text-right"
                           type="number"
                           step="0.01"
                           {...register(`lines.${index}.quantity`)}
+                          style={{
+                            width: '100%',
+                            minWidth: 0,
+                            boxSizing: 'border-box',
+                            paddingLeft: 8,
+                            paddingRight: 8,
+                          }}
                         />
                       </td>
                       <td>
