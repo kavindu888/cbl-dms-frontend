@@ -829,20 +829,18 @@ export default function InvoiceCreatorPage() {
                 className="data-table"
                 style={{
                   width: '100%',
-                  minWidth: 1080,
+                  minWidth: 980,
                   tableLayout: 'fixed',
                 }}
               >
                 <colgroup>
-                  <col style={{ width: 240 }} /> {/* Product */}
-                  <col style={{ width: 110 }} /> {/* Smallest Unit */}
-                  <col style={{ width: 85 }} />  {/* MRP */}
-                  <col style={{ width: 75 }} />  {/* QTY */}
-                  <col style={{ width: 95 }} />  {/* Cat Discount */}
-                  <col style={{ width: 95 }} />  {/* SKU Discount */}
-                  <col style={{ width: 110 }} /> {/* Special Discount */}
-                  <col style={{ width: 100 }} /> {/* Unit Price */}
-                  <col style={{ width: 120 }} /> {/* Total */}
+                  <col style={{ width: 280 }} /> {/* Product */}
+                  <col style={{ width: 120 }} /> {/* Smallest Unit */}
+                  <col style={{ width: 90 }} />  {/* MRP */}
+                  <col style={{ width: 80 }} />  {/* QTY */}
+                  <col style={{ width: 110 }} /> {/* Category Discount */}
+                  <col style={{ width: 120 }} /> {/* Unit Price */}
+                  <col style={{ width: 130 }} /> {/* Total */}
                   <col style={{ width: 50 }} />  {/* Delete */}
                 </colgroup>
               <thead>
@@ -851,11 +849,17 @@ export default function InvoiceCreatorPage() {
                   <th>Smallest Unit</th>
                   <th className="text-right">MRP</th>
                   <th className="text-right">Qty</th>
-                  <th className="text-right">Cat. Disc %</th>
-                  <th className="text-right">SKU Disc %</th>
-                  <th className="text-right">Special Disc %</th>
-                  <th className="text-right">Unit Price</th>
-                  <th className="text-right">Total</th>
+                  <th style={{ textAlign: 'right', paddingRight: 16 }}>
+                    Cat. Disc %
+                  </th>
+
+                  <th style={{ textAlign: 'right', paddingRight: 16 }}>
+                    Unit Price
+                  </th>
+
+                  <th style={{ textAlign: 'right', paddingRight: 16 }}>
+                    Total
+                  </th>
                   <th></th>
                 </tr>
               </thead>
@@ -952,60 +956,42 @@ export default function InvoiceCreatorPage() {
                           }}
                         />
                       </td>
-                      <td>
+                      <td style={{ textAlign: 'right', paddingRight: 16 }}>
                         <span
                           className="mono"
                           style={{
                             color: 'var(--color-text-muted)',
                             display: 'block',
+                            width: '100%',
                             textAlign: 'right',
+                            whiteSpace: 'nowrap',
                           }}
                         >
                           {Number(line.categoryDiscountPercent || 0).toFixed(2)}%
                         </span>
                       </td>
-                      <td>
-                        {line.skuDiscountAvailable ? (
-                          <input
-                            className="form-input mono text-right"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            max={line.skuDiscountMax || 0}
-                            {...register(`lines.${index}.skuDiscountPercent`)}
-                          />
-                        ) : (
-                          <span
-                            className="mono"
-                            style={{ color: 'var(--color-text-dim)', display: 'block', textAlign: 'right' }}
-                          >
-                            -
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {line.specialDiscountAvailable ? (
-                          <input
-                            className="form-input mono text-right"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            max={line.specialDiscountMax || 0}
-                            {...register(`lines.${index}.specialDiscountPercent`)}
-                          />
-                        ) : (
-                          <span
-                            className="mono"
-                            style={{ color: 'var(--color-text-dim)', display: 'block', textAlign: 'right' }}
-                          >
-                            -
-                          </span>
-                        )}
-                      </td>
-                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>
+                      <td
+                        className="mono"
+                        style={{
+                          color: 'var(--color-text-muted)',
+                          textAlign: 'right',
+                          paddingRight: 16,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {money(unitPrice)}
                       </td>
-                      <td className="mono text-right">{money(lineTotal)}</td>
+
+                      <td
+                        className="mono"
+                        style={{
+                          textAlign: 'right',
+                          paddingRight: 16,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {money(lineTotal)}
+                      </td>
                       <td>
                         <button
                           type="button"
