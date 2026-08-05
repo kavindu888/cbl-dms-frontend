@@ -178,10 +178,12 @@ export default function CollectionSessionsPage() {
                   <tr>
                     <th>Session</th>
                     <th>Route</th>
+                    <th>Sales rep</th>
                     <th>Date</th>
                     <th>Status</th>
                     <th style={{ textAlign: 'right' }}>Cash</th>
                     <th style={{ textAlign: 'right' }}>Cheques</th>
+                    <th style={{ textAlign: 'right' }}>Transfers</th>
                     <th style={{ textAlign: 'right' }}>Total</th>
                     <th></th>
                   </tr>
@@ -197,6 +199,9 @@ export default function CollectionSessionsPage() {
                         {row.sessionNumber}
                       </td>
                       <td>{routeById[row.routeId]?.name || row.routeId}</td>
+                      <td className="mono" style={{ fontSize: 11 }}>
+                        {row.salesRepId || '—'}
+                      </td>
                       <td>
                         <CalendarDays size={13} style={{ display: 'inline', marginRight: 6 }} />
                         {formatDate(row.sessionDate)}
@@ -209,6 +214,12 @@ export default function CollectionSessionsPage() {
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {money(row.totalCheques)}
+                      </td>
+                      <td
+                        className="mono"
+                        style={{ textAlign: 'right', color: 'var(--color-text-dim)' }}
+                      >
+                        —
                       </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                         {money(row.totalAmount)}

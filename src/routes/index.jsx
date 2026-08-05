@@ -3,6 +3,7 @@ import { AppShell } from '@components/layout'
 import { Role } from '@/types/auth.types'
 import LoginPage from '@pages/auth/LoginPage'
 import RegisterPage from '@pages/auth/RegisterPage'
+import BankManagementPage from '@pages/collections/BankManagementPage'
 import ChequesPage from '@pages/collections/ChequesPage'
 import CollectionSessionDetailPage from '@pages/collections/CollectionSessionDetailPage'
 import CollectionSessionsPage from '@pages/collections/CollectionSessionsPage'
@@ -199,17 +200,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'inventory/stock',
-        element: requirePermission(
-          <StockOverviewPage />,
-          PERMISSIONS.inventory.stockRead
-        ),
+        element: requirePermission(<StockOverviewPage />, PERMISSIONS.inventory.stockRead),
       },
       {
         path: 'inventory/return-stock',
-        element: requirePermission(
-          <ReturnStockPage />,
-          PERMISSIONS.inventory.stockRead
-        ),
+        element: requirePermission(<ReturnStockPage />, PERMISSIONS.inventory.stockRead),
       },
       {
         path: 'inventory/in-store-returns',
@@ -234,17 +229,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'inventory/stock-audit',
-        element: requirePermission(
-          <StockAuditPage />,
-          PERMISSIONS.inventory.stockRead
-        ),
+        element: requirePermission(<StockAuditPage />, PERMISSIONS.inventory.stockRead),
       },
       {
         path: 'inventory/stock/batches/:productId',
-        element: requirePermission(
-          <StockBatchesDetailPage />,
-          PERMISSIONS.inventory.stockRead
-        ),
+        element: requirePermission(<StockBatchesDetailPage />, PERMISSIONS.inventory.stockRead),
       },
       {
         path: 'inventory/batches',
@@ -377,30 +366,55 @@ export const router = createBrowserRouter([
       },
       { path: 'collections', element: <Navigate to="/collections/sessions" replace /> },
       { path: 'collections/daily', element: <Navigate to="/collections/sessions" replace /> },
-      { path: 'collections/aging', element: <Navigate to="/collections/customer-accounts" replace /> },
+      {
+        path: 'collections/aging',
+        element: <Navigate to="/collections/customer-accounts" replace />,
+      },
       {
         path: 'collections/sessions',
-        element: requirePermission(<CollectionSessionsPage />, [PERMISSIONS.collections.sessionRead, PERMISSIONS.collections.sessionCreate]),
+        element: requirePermission(<CollectionSessionsPage />, [
+          PERMISSIONS.collections.sessionRead,
+          PERMISSIONS.collections.sessionCreate,
+        ]),
       },
       {
         path: 'collections/sessions/:id',
-        element: requirePermission(<CollectionSessionDetailPage />, [PERMISSIONS.collections.sessionRead, PERMISSIONS.collections.collectionRead]),
+        element: requirePermission(<CollectionSessionDetailPage />, [
+          PERMISSIONS.collections.sessionRead,
+          PERMISSIONS.collections.collectionRead,
+        ]),
       },
       {
         path: 'collections/sessions/:id/reconciliation',
-        element: requirePermission(<ReconciliationPage />, [PERMISSIONS.collections.reconciliationRead, PERMISSIONS.collections.sessionRead]),
+        element: requirePermission(<ReconciliationPage />, [
+          PERMISSIONS.collections.reconciliationRead,
+          PERMISSIONS.collections.sessionRead,
+        ]),
       },
       {
         path: 'collections/cheques',
-        element: requirePermission(<ChequesPage />, [PERMISSIONS.collections.chequeRead, PERMISSIONS.collections.chequeManage]),
+        element: requirePermission(<ChequesPage />, [
+          PERMISSIONS.collections.chequeRead,
+          PERMISSIONS.collections.chequeManage,
+        ]),
       },
       {
         path: 'collections/deposit-batches',
-        element: requirePermission(<DepositBatchesPage />, [PERMISSIONS.collections.depositBatchCreate, PERMISSIONS.collections.depositBatchManage]),
+        element: requirePermission(<DepositBatchesPage />, [
+          PERMISSIONS.collections.depositBatchCreate,
+          PERMISSIONS.collections.depositBatchManage,
+        ]),
       },
       {
         path: 'collections/customer-accounts',
-        element: requirePermission(<CustomerAccountPage />, [PERMISSIONS.collections.customerAccountRead, PERMISSIONS.collections.customerAccountManage]),
+        element: requirePermission(<CustomerAccountPage />, [
+          PERMISSIONS.collections.customerAccountRead,
+          PERMISSIONS.collections.customerAccountManage,
+        ]),
+      },
+      {
+        path: 'collections/banks',
+        element: requirePermission(<BankManagementPage />, PERMISSIONS.collections.bankManage),
       },
       {
         path: 'fleet',
@@ -451,5 +465,3 @@ export const router = createBrowserRouter([
     element: <Navigate to="/" replace />,
   },
 ])
-
-

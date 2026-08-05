@@ -89,6 +89,7 @@
     customerAccountRead: 'collections:customeraccount:read',
     customerAccountManage: 'collections:customeraccount:manage',
     reconciliationRead: 'collections:reconciliation:read',
+    bankManage: 'collections:bank:manage',
   },
   fleet: {
     vehicleRead: 'fleet:vehicle:read',
@@ -149,7 +150,9 @@ function userHasAdminRole(user) {
 
 function hasPermissionToken(user, permission) {
   const userPermissions = getUserPermissions(user)
-  return userHasAdminRole(user) || userPermissions.includes('*') || userPermissions.includes(permission)
+  return (
+    userHasAdminRole(user) || userPermissions.includes('*') || userPermissions.includes(permission)
+  )
 }
 
 export function userHasAnyPermission(user, requiredPermissions) {

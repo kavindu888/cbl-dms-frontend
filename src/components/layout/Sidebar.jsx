@@ -122,16 +122,19 @@ const navGroups = [
         permissions: [PERMISSIONS.collections.chequeRead, PERMISSIONS.collections.chequeManage],
       },
       {
-        label: 'Deposit Batches',
-        to: '/collections/deposit-batches',
-        icon: Landmark,
-        permissions: [PERMISSIONS.collections.depositBatchCreate, PERMISSIONS.collections.depositBatchManage],
-      },
-      {
         label: 'Customer Accounts',
         to: '/collections/customer-accounts',
         icon: Users,
-        permissions: [PERMISSIONS.collections.customerAccountRead, PERMISSIONS.collections.customerAccountManage],
+        permissions: [
+          PERMISSIONS.collections.customerAccountRead,
+          PERMISSIONS.collections.customerAccountManage,
+        ],
+      },
+      {
+        label: 'Banks & Branches',
+        to: '/collections/banks',
+        icon: Landmark,
+        permissions: PERMISSIONS.collections.bankManage,
       },
     ],
   },
@@ -470,12 +473,12 @@ export default function Sidebar() {
   const badgeValues = { pendingReturnApprovals }
   const accessibleNavGroups = navGroups
     .map((group) => {
-      const items = group.items.filter((item) => {
-        if (item.isSubHeader) return true
-        return userMeetsPermissionRequirement(user, item.permissions)
-      }).map((item) => (
-        item.badgeKey ? { ...item, badge: badgeValues[item.badgeKey] } : item
-      ))
+      const items = group.items
+        .filter((item) => {
+          if (item.isSubHeader) return true
+          return userMeetsPermissionRequirement(user, item.permissions)
+        })
+        .map((item) => (item.badgeKey ? { ...item, badge: badgeValues[item.badgeKey] } : item))
 
       const cleanedItems = []
       for (let i = 0; i < items.length; i++) {
@@ -656,4 +659,3 @@ export default function Sidebar() {
     </Tooltip.Provider>
   )
 }
-
