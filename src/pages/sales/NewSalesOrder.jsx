@@ -112,6 +112,16 @@ function getReturnLineAmounts(line) {
   return { gross, discountAmount, creditAmount }
 }
 
+function getDisplayReturnAmount(line) {
+  const quantity = Math.abs(toNumber(line.quantity))
+  const mrp = toNumber(line.mrp || line.unitPrice)
+  const discountPercent = toNumber(line.discountPercent ?? line.totalDiscountPercent ?? 0)
+
+  const calculatedCredit = mrp * quantity * (1 - discountPercent / 100)
+
+  return toNumber(line.creditAmount ?? line.lineTotal ?? calculatedCredit)
+}
+
 export default function NewSalesOrder() {
   const navigate = useNavigate()
   const [orderId, setOrderId] = useState(null)
@@ -278,12 +288,15 @@ export default function NewSalesOrder() {
       totalSpecialDiscountAmount: toNumber(order?.totalSpecialDiscountAmount),
       vatAmount: toNumber(order?.vatAmount),
       netAmount: toNumber(order?.netAmount),
+      returnCreditAmount: toNumber(order?.returnCreditAmount),
     })
   }
 
   async function refreshOrder(currentOrderId) {
     const updated = await salesService.getSalesOrder(currentOrderId)
-    setLines(updated.lines || [])
+    const updatedLines = updated.lines || []
+    setLines(updatedLines.filter(l => !l.isReturnLine))
+    setReturnLines(updatedLines.filter(l => l.isReturnLine))
     setOrderNumber(updated.orderNumber || '')
     updateSummary(updated)
 
@@ -472,36 +485,28 @@ export default function NewSalesOrder() {
 
     setIsSavingReturn(true)
     try {
-      const returnReason = returnReasonOptions.find(
-        (reason) => reason.value === String(returnDraftLine.reason)
-      )
-      const returnAmounts = getReturnLineAmounts(returnDraftLine)
-      const returnLineId = `${Date.now()}-${returnDraftLine.productId}`
+      let currentOrderId = orderId
 
-      setReturnLines((current) => [
-        ...current,
-        {
-          id: String(returnLineId),
-          isReturnLine: true,
-          productId: returnDraftLine.productId,
-          productName: returnDraftLine.productName || returnDraftLine.productId,
-          productSku: returnDraftLine.productSku || returnDraftLine.productId,
-          unitCode: 'RET',
-          quantity: toNumber(returnDraftLine.quantity),
-          mrp: toNumber(returnDraftLine.mrp),
-          discountPercent,
-          reason: returnDraftLine.reason,
-          reasonLabel: returnReason?.label || 'Others',
-          grossAmount: returnAmounts.gross,
-          discountAmount: returnAmounts.discountAmount,
-          creditAmount: returnAmounts.creditAmount,
-          lineTotal: returnAmounts.creditAmount,
-          maxReturnableQty: Number(returnDraftLine.maxReturnableQty || 0),
-          totalInvoicedQty: Number(returnDraftLine.totalInvoicedQty || 0),
-          totalReturnedQty: Number(returnDraftLine.totalReturnedQty || 0),
-        },
-      ])
+      if (!currentOrderId) {
+        const created = await salesService.createSalesOrder({
+          customerId: selectedCustomer.id,
+          deliveryDate: deliveryDate ? dayjs(deliveryDate).toISOString() : null,
+          notes: null,
+        })
+        currentOrderId = getOrderId(created)
+        setOrderId(currentOrderId)
+      }
 
+      await salesService.addSalesOrderLine(currentOrderId, {
+        productId: returnDraftLine.productId,
+        quantity: toNumber(returnDraftLine.quantity),
+        skuDiscountPercent: toNumber(returnDraftLine.discountPercent),
+        specialDiscountPercent: 0,
+        isReturnLine: true,
+        returnReason: Number(returnDraftLine.reason),
+      })
+
+      await refreshOrder(currentOrderId)
       toast.success('Return item saved to draft.')
       setReturnDraftLine(emptyReturnDraftLine)
     } catch (error) {
@@ -512,11 +517,12 @@ export default function NewSalesOrder() {
   }
 
   async function handleRemoveReturnLine(line) {
-    if (!line?.id) return
+    if (!orderId || !line?.id) return
 
     setIsSavingReturn(true)
     try {
-      setReturnLines((current) => current.filter((item) => item.id !== line.id))
+      await salesService.removeSalesOrderLine(orderId, line.id)
+      await refreshOrder(orderId)
       toast.success('Return item removed.')
     } catch (error) {
       toast.error(error.message || 'Unable to remove return item.')
@@ -570,11 +576,11 @@ export default function NewSalesOrder() {
         ),
         specialDiscountPercent: draftLine.specialDiscountAvailable
           ? Math.min(
-              (toNumber(orderSpecialDiscountAmount) /
-                Math.max(toNumber(draftLine.mrp) * toNumber(draftLine.quantity), 1)) *
-                100,
-              toNumber(draftLine.specialDiscountMax)
-            )
+            (toNumber(orderSpecialDiscountAmount) /
+              Math.max(toNumber(draftLine.mrp) * toNumber(draftLine.quantity), 1)) *
+            100,
+            toNumber(draftLine.specialDiscountMax)
+          )
           : 0,
       })
 
@@ -612,6 +618,44 @@ export default function NewSalesOrder() {
 
     setIsSaving(true)
     try {
+      // Persist order-level SKU and Special discount amounts by updating existing sale lines
+      const saleLines = lines.filter((l) => !l.isReturnLine)
+      const grossTotal = saleLines.reduce(
+        (sum, l) => sum + (toNumber(l.grossAmount) || toNumber(l.mrp || l.unitPrice) * toNumber(l.quantity)),
+        0
+      )
+
+      const skuAmount = orderSkuDiscountAmount === '' ? null : Math.max(0, toNumber(orderSkuDiscountAmount))
+      const specialAmount = orderSpecialDiscountAmount === '' ? null : Math.max(0, toNumber(orderSpecialDiscountAmount))
+
+      if (saleLines.length && (skuAmount !== null || specialAmount !== null)) {
+        const skuPercent = skuAmount !== null ? (skuAmount / Math.max(grossTotal, 1)) * 100 : null
+
+        await Promise.all(
+          saleLines.map((line) => {
+            const lineGross = toNumber(line.grossAmount) || toNumber(line.mrp || line.unitPrice) * toNumber(line.quantity)
+            const specialPercent =
+              specialAmount !== null
+                ? Math.min(
+                  (specialAmount / Math.max(lineGross, 1)) * 100,
+                  toNumber(line.specialDiscountMax || 0) || 100
+                )
+                : toNumber(line.specialDiscountPercent || 0)
+
+            const payload = {
+              quantity: toNumber(line.quantity),
+              skuDiscountPercent: skuPercent !== null ? skuPercent : toNumber(line.skuDiscountPercent || 0),
+              specialDiscountPercent: specialPercent,
+            }
+
+            return salesService.updateSalesOrderLine(orderId, line.id, payload)
+          })
+        )
+
+        // Reload order after applying discounts so backend recalculates totals
+        await refreshOrder(orderId)
+      }
+
       await salesService.confirmSalesOrder(orderId)
       toast.success('Order confirmed.')
       navigate('/sales/orders')
@@ -637,11 +681,10 @@ export default function NewSalesOrder() {
     [returnLines]
   )
   const computedSummary = useMemo(() => {
-    const totals = lines.reduce(
+    const saleLines = lines.filter((l) => !l.isReturnLine)
+    const totals = saleLines.reduce(
       (sum, line) => {
-        const gross = toNumber(
-          line.grossAmount || toNumber(line.mrp || line.unitPrice) * line.quantity
-        )
+        const gross = toNumber(line.grossAmount) || toNumber(line.mrp || line.unitPrice) * toNumber(line.quantity)
         const categoryDiscountAmount =
           line.categoryDiscountAmount ?? gross * (toNumber(line.categoryDiscountPercent) / 100)
         const skuDiscountAmount =
@@ -663,41 +706,44 @@ export default function NewSalesOrder() {
         totalSpecialDiscountAmount: 0,
       }
     )
-    const grossAmount = lines.length ? totals.grossAmount : summary.grossAmount
-    const categoryDiscountAmount = lines.length
+
+    const grossAmount = saleLines.length ? totals.grossAmount : summary.grossAmount
+    const categoryDiscountAmount = saleLines.length
       ? totals.totalCategoryDiscountAmount
       : summary.totalCategoryDiscountAmount
-    const fallbackSkuDiscountAmount = lines.length
+    const fallbackSkuDiscountAmount = saleLines.length
       ? totals.totalSkuDiscountAmount
       : summary.totalSkuDiscountAmount
-    const fallbackSpecialDiscountAmount = lines.length
+    const fallbackSpecialDiscountAmount = saleLines.length
       ? totals.totalSpecialDiscountAmount
       : summary.totalSpecialDiscountAmount
-    const skuDiscountAmount =
-      orderSkuDiscountAmount === '' ? fallbackSkuDiscountAmount : toNumber(orderSkuDiscountAmount)
-    const specialDiscountAmount =
-      orderSpecialDiscountAmount === ''
-        ? fallbackSpecialDiscountAmount
-        : toNumber(orderSpecialDiscountAmount)
-    const discountTotal = categoryDiscountAmount + skuDiscountAmount + specialDiscountAmount
-    const vatBase = grossAmount - discountTotal
+
+    const skuDiscountAmountRaw = orderSkuDiscountAmount === '' ? fallbackSkuDiscountAmount : Math.max(0, toNumber(orderSkuDiscountAmount))
+    const specialDiscountAmountRaw = orderSpecialDiscountAmount === '' ? fallbackSpecialDiscountAmount : Math.max(0, toNumber(orderSpecialDiscountAmount))
+
+    const returnAmount = returnLines.reduce((s, l) => s + getDisplayReturnAmount(l), 0)
+
+    const discountedBeforeReturns = grossAmount - categoryDiscountAmount - skuDiscountAmountRaw - specialDiscountAmountRaw
+    const taxableAmount = Math.max(0, discountedBeforeReturns - returnAmount)
     const vatAmount =
       selectedCustomerDetails?.isVatRegistered || selectedCustomer?.isVatRegistered
-        ? Math.round(vatBase * 18) / 100
+        ? Math.round(taxableAmount * 18) / 100
         : 0
-    const returnAmount = returnSummary.totalReturnAmount
+
+    const netAmount = taxableAmount + vatAmount
 
     return {
       grossAmount,
       totalCategoryDiscountAmount: categoryDiscountAmount,
-      totalSkuDiscountAmount: skuDiscountAmount,
-      totalSpecialDiscountAmount: specialDiscountAmount,
+      totalSkuDiscountAmount: skuDiscountAmountRaw,
+      totalSpecialDiscountAmount: specialDiscountAmountRaw,
       totalReturnAmount: returnAmount,
-      vatAmount: lines.length ? vatAmount : summary.vatAmount,
-      netAmount: (lines.length ? vatBase + vatAmount : summary.netAmount) - returnAmount,
+      vatAmount: saleLines.length ? vatAmount : summary.vatAmount,
+      netAmount: saleLines.length ? netAmount : summary.netAmount,
     }
   }, [
     lines,
+    returnLines,
     orderSkuDiscountAmount,
     orderSpecialDiscountAmount,
     selectedCustomer,
@@ -717,14 +763,8 @@ export default function NewSalesOrder() {
   const returnDraftPreview = useMemo(() => getReturnLineAmounts(returnDraftLine), [returnDraftLine])
   const displayLines = useMemo(
     () => [
-      ...lines.map((line) => ({
-        ...line,
-        isReturnLine: false,
-      })),
-      ...returnLines.map((line) => ({
-        ...line,
-        isReturnLine: true,
-      })),
+      ...lines,
+      ...returnLines,
     ],
     [lines, returnLines]
   )
@@ -1153,16 +1193,15 @@ export default function NewSalesOrder() {
                       <tbody>
                         {displayLines.map((line) => {
                           const isReturnLine = Boolean(line.isReturnLine)
-                          const product = isReturnLine ? null : productById[line.productId]
+                          const product = productById[line.productId] || null
                           const name =
                             line.productName ||
                             product?.name ||
                             product?.productName ||
-                            line.productId
-                          const sku = line.productSku || product?.sku || product?.productSku || ''
-                          const lineTotal = isReturnLine
-                            ? (line.lineTotal ?? line.creditAmount ?? 0)
-                            : line.lineTotal
+                            'Unknown Product'
+                          const sku =
+                            line.productSku || product?.sku || product?.productSku || ''
+                          const lineTotal = isReturnLine ? getDisplayReturnAmount(line) : toNumber(line.lineTotal)
 
                           return (
                             <tr key={line.id}>
@@ -1197,7 +1236,7 @@ export default function NewSalesOrder() {
                                   : line.smallestUnitCode || line.unitId || 'PCS'}
                               </td>
                               <td className="mono text-right">
-                                {isReturnLine ? `-${line.quantity}` : line.quantity}
+                                {isReturnLine ? `-${Math.abs(Number(line.quantity || 0))}` : line.quantity}
                               </td>
                               <td className="mono text-right">
                                 {money(line.mrp || line.unitPrice)}
@@ -1209,7 +1248,7 @@ export default function NewSalesOrder() {
                               </td>
                               <td className="mono text-right">
                                 {isReturnLine
-                                  ? `${Number(line.discountPercent || 0).toFixed(2)}%`
+                                  ? `${Number(line.discountPercent ?? line.totalDiscountPercent ?? 0).toFixed(2)}%`
                                   : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`}
                               </td>
                               <td className="mono text-right font-semibold">{money(lineTotal)}</td>
@@ -1238,13 +1277,11 @@ export default function NewSalesOrder() {
                   <div className="grid gap-3 md:hidden">
                     {displayLines.map((line) => {
                       const isReturnLine = Boolean(line.isReturnLine)
-                      const product = isReturnLine ? null : productById[line.productId]
+                      const product = productById[line.productId] || null
                       const name =
-                        line.productName || product?.name || product?.productName || line.productId
+                        line.productName || product?.name || product?.productName || 'Unknown Product'
                       const sku = line.productSku || product?.sku || product?.productSku || ''
-                      const lineTotal = isReturnLine
-                        ? (line.lineTotal ?? line.creditAmount ?? 0)
-                        : line.lineTotal
+                      const lineTotal = isReturnLine ? getDisplayReturnAmount(line) : toNumber(line.lineTotal)
 
                       return (
                         <div
@@ -1304,7 +1341,7 @@ export default function NewSalesOrder() {
                             />
                             <MobileMetric
                               label="Qty"
-                              value={isReturnLine ? `-${line.quantity}` : line.quantity}
+                              value={isReturnLine ? `-${Math.abs(Number(line.quantity || 0))}` : line.quantity}
                             />
                             <MobileMetric label="MRP" value={money(line.mrp || line.unitPrice)} />
                             <MobileMetric
@@ -1319,7 +1356,7 @@ export default function NewSalesOrder() {
                               label="SKU Disc"
                               value={
                                 isReturnLine
-                                  ? `${Number(line.discountPercent || 0).toFixed(2)}%`
+                                  ? `${Number(line.discountPercent ?? line.totalDiscountPercent ?? 0).toFixed(2)}%`
                                   : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`
                               }
                             />
@@ -1382,8 +1419,8 @@ export default function NewSalesOrder() {
                   value={specialDiscountInputValue}
                   onChange={updateOrderSpecialDiscountAmount}
                 />
-                <SummaryRow label="VAT" value={money(computedSummary.vatAmount)} />
                 <SummaryRow label="Returns" value={money(computedSummary.totalReturnAmount)} />
+                <SummaryRow label="VAT" value={money(computedSummary.vatAmount)} />
                 <div style={{ borderTop: '1px solid var(--color-border)', margin: '2px 0' }} />
                 <SummaryRow label="Net" strong value={money(computedSummary.netAmount)} />
               </div>
@@ -1607,12 +1644,12 @@ function SearchablePicker({
     const search = query.trim().toLowerCase()
     const matchedOptions = search
       ? options.filter((option) => {
-          const searchText = getSearchText
-            ? getSearchText(option)
-            : `${getLabel(option)} ${getMeta(option)} ${option.id}`
+        const searchText = getSearchText
+          ? getSearchText(option)
+          : `${getLabel(option)} ${getMeta(option)} ${option.id}`
 
-          return searchText.toLowerCase().includes(search)
-        })
+        return searchText.toLowerCase().includes(search)
+      })
       : options
 
     return matchedOptions.slice(0, 60)

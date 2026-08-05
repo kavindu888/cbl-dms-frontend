@@ -543,22 +543,40 @@ function SalesOrderDetailPanel({
                 const product = productById[line.productId]
                 const sku = product?.sku || product?.productSku || line.productId
                 const name = product?.name || product?.productName || 'Unknown Product'
+                const isReturnLine = Boolean(line.isReturnLine)
 
                 return (
                   <tr key={line.id}>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <span className="mono" style={{ fontSize: 12, color: 'var(--color-accent)' }}>{sku}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span className="mono" style={{ fontSize: 12, color: 'var(--color-accent)' }}>{sku}</span>
+                          {isReturnLine && (
+                            <span
+                              style={{
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                border: '1px solid rgba(32, 212, 191, 0.35)',
+                                background: 'rgba(32, 212, 191, 0.1)',
+                                color: 'var(--color-teal)',
+                                fontSize: 9,
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              RETURN
+                            </span>
+                          )}
+                        </div>
                         <span className="product-info-sub">{name}</span>
                       </div>
                     </td>
-                    <td className="mono">{line.smallestUnitCode || line.unitId || '-'}</td>
-                    <td className="mono text-right">{line.quantity}</td>
+                    <td className="mono">{isReturnLine ? 'RET' : (line.smallestUnitCode || line.unitId || '-')}</td>
+                    <td className="mono text-right">{isReturnLine ? `-${Math.abs(Number(line.quantity))}` : line.quantity}</td>
                     <td className="mono text-right">{formatMoney(line.mrp || line.unitPrice)}</td>
-                    <td className="mono text-right">{Number(line.categoryDiscountPercent || 0).toFixed(2)}%</td>
-                    <td className="mono text-right">{Number(line.skuDiscountPercent || 0).toFixed(2)}%</td>
-                    <td className="mono text-right">{Number(line.specialDiscountPercent || 0).toFixed(2)}%</td>
-                    <td className="mono text-right font-semibold">{formatMoney(line.lineTotal)}</td>
+                    <td className="mono text-right">{isReturnLine ? '-' : `${Number(line.categoryDiscountPercent || 0).toFixed(2)}%`}</td>
+                    <td className="mono text-right">{isReturnLine ? `${Number(line.discountPercent || line.skuDiscountPercent || 0).toFixed(2)}%` : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`}</td>
+                    <td className="mono text-right">{isReturnLine ? '-' : `${Number(line.specialDiscountPercent || 0).toFixed(2)}%`}</td>
+                    <td className="mono text-right font-semibold">{formatMoney(isReturnLine ? (line.lineTotal ?? line.creditAmount) : line.lineTotal)}</td>
                   </tr>
                 )
               })}
@@ -570,7 +588,6 @@ function SalesOrderDetailPanel({
       <div style={detailFooterGridStyle}>
         <div style={summaryPanelStyle}>
           <SummaryRow label="Gross" value={formatMoney(order.grossAmount)} />
-          <SummaryRow label="Category Disc" value={formatMoney(order.totalCategoryDiscountAmount)} />
           <SummaryRow label="SKU Disc" value={formatMoney(order.totalSkuDiscountAmount)} />
           <SummaryRow label="Special Disc" value={formatMoney(order.totalSpecialDiscountAmount)} />
           <SummaryRow label="VAT" value={formatMoney(order.vatAmount)} />

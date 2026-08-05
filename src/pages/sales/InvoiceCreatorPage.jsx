@@ -126,12 +126,12 @@ function SearchablePicker({
     const search = query.trim().toLowerCase()
     const matchedOptions = search
       ? options.filter((option) => {
-          const searchText = getSearchText
-            ? getSearchText(option)
-            : `${getLabel(option)} ${getMeta(option)}`
+        const searchText = getSearchText
+          ? getSearchText(option)
+          : `${getLabel(option)} ${getMeta(option)}`
 
-          return searchText.toLowerCase().includes(search)
-        })
+        return searchText.toLowerCase().includes(search)
+      })
       : options
 
     return matchedOptions.slice(0, 50)
@@ -398,42 +398,55 @@ export default function InvoiceCreatorPage() {
     setSerialNumber('')
     setSerialNumberWarning(false)
     setSerialNumberChecking(false)
-    setSelectedCustomerDetails({
-      id: orderState.customerId,
-      name: orderState.customerName,
-      salesRouteId: orderState.salesRouteId,
-      salesRouteName: orderState.salesRouteName,
-      isVatRegistered: Boolean(orderState.isVatApplicable),
-      taxNumber: orderState.customerVatTin || '',
-    })
-    setSalesRouteName(orderState.salesRouteName || '')
-    const orderLines = orderState.lines || []
-    const normalLines = orderLines.filter((line) => !line.isReturnLine)
-    const orderReturnLines = orderLines.filter((line) => line.isReturnLine)
 
-    setReturnLines(orderReturnLines)
+    async function fetchAndPrefillOrder() {
+      setIsLoadingData(true)
+      try {
+        const order = await salesService.getSalesOrder(orderState.salesOrderId)
+        setSelectedCustomerDetails({
+          id: order.customerId,
+          name: order.customerName,
+          salesRouteId: order.salesRouteId,
+          salesRouteName: order.salesRouteName,
+          isVatRegistered: Boolean(order.isVatApplicable),
+          taxNumber: order.customerVatTin || '',
+        })
+        setSalesRouteName(order.salesRouteName || '')
+        const orderLines = order.lines || []
+        const normalLines = orderLines.filter((line) => !line.isReturnLine)
+        const orderReturnLines = orderLines.filter((line) => line.isReturnLine)
 
-    const prefilledLines = normalLines.map((line) => ({
-      productId: line.productId || '',
-      unitId: line.unitId || line.smallestUnitCode || line.smallestUnitName || line.unitName || '',
-      unitName: line.smallestUnitName || line.smallestUnitCode || line.unitName || '',
-      quantity: Number(line.quantity || 0),
-      mrp: Number(line.mrp || 0),
-      categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
-      skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
-      skuDiscountMax: Number(line.skuDiscountPercent || 0),
-      skuDiscountPercent: Number(line.skuDiscountPercent || 0),
-      specialDiscountAvailable: Number(line.specialDiscountPercent || 0) > 0,
-      specialDiscountMax: Number(line.specialDiscountPercent || 0),
-      specialDiscountPercent: Number(line.specialDiscountPercent || 0),
-    }))
+        setReturnLines(orderReturnLines)
 
-    reset({
-      customerId: orderState.customerId || '',
-      salesRouteId: orderState.salesRouteId || '',
-      lines: prefilledLines.length ? prefilledLines : [{ ...emptyLine }],
-    })
-    setLinePage(1)
+        const prefilledLines = normalLines.map((line) => ({
+          productId: line.productId || '',
+          unitId: line.unitId || line.smallestUnitCode || line.smallestUnitName || line.unitName || '',
+          unitName: line.smallestUnitName || line.smallestUnitCode || line.unitName || '',
+          quantity: Number(line.quantity || 0),
+          mrp: Number(line.mrp || 0),
+          categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
+          skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
+          skuDiscountMax: Number(line.skuDiscountPercent || 0),
+          skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+          specialDiscountAvailable: Number(line.specialDiscountPercent || 0) > 0,
+          specialDiscountMax: Number(line.specialDiscountPercent || 0),
+          specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+        }))
+
+        reset({
+          customerId: order.customerId || '',
+          salesRouteId: order.salesRouteId || '',
+          lines: prefilledLines.length ? prefilledLines : [{ ...emptyLine }],
+        })
+        setLinePage(1)
+      } catch (err) {
+        toast.error('Unable to fetch latest Sales Order detail.')
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+
+    fetchAndPrefillOrder()
   }, [isFromSalesOrder, orderState, reset])
 
   useEffect(() => {
@@ -572,7 +585,7 @@ export default function InvoiceCreatorPage() {
   }
 
   function handleSerialNumberChange(value) {
-  // Allow only English letters and numbers
+    // Allow only English letters and numbers
     const cleanedValue = value.replace(/[^a-zA-Z0-9]/g, '')
 
     setSerialNumber(cleanedValue)
@@ -609,21 +622,22 @@ export default function InvoiceCreatorPage() {
   }
 
   function validate(values) {
-  if (!serialNumber.trim()) {
-    return 'Serial Number is required.'
-  }
+    const cleanedSerialNumber = serialNumber.trim()
+    if (!cleanedSerialNumber) {
+      return 'Serial Number is required.'
+    }
 
-  if (!/^[a-zA-Z0-9]+$/.test(cleanedSerialNumber)) {
-    return 'Serial Number can contain only letters and numbers.'
-  }
+    if (!/^[a-zA-Z0-9]+$/.test(cleanedSerialNumber)) {
+      return 'Serial Number can contain only letters and numbers.'
+    }
 
-  if (!values.customerId) {
-    return 'Customer is required.'
-  }
+    if (!values.customerId) {
+      return 'Customer is required.'
+    }
 
-  if (!values.salesRouteId) {
-    return 'Selected customer does not have a sales route.'
-  }
+    if (!values.salesRouteId) {
+      return 'Selected customer does not have a sales route.'
+    }
 
     const invalidLine = values.lines.find(
       (line) =>
@@ -633,11 +647,11 @@ export default function InvoiceCreatorPage() {
         Number(line.skuDiscountPercent || 0) > Number(line.skuDiscountMax || 0) ||
         Number(line.specialDiscountPercent || 0) < 0 ||
         Number(line.specialDiscountPercent || 0) >
-          Number(line.specialDiscountMax || 0) ||
+        Number(line.specialDiscountMax || 0) ||
         Number(line.categoryDiscountPercent || 0) +
-          Number(line.skuDiscountPercent || 0) +
-          Number(line.specialDiscountPercent || 0) >
-          DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT
+        Number(line.skuDiscountPercent || 0) +
+        Number(line.specialDiscountPercent || 0) >
+        DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT
     )
 
     if (invalidLine) {
@@ -674,9 +688,9 @@ export default function InvoiceCreatorPage() {
     try {
       const response = isFromSalesOrder
         ? await salesService.convertSalesOrderToInvoice(orderState.salesOrderId, {
-            serialNumber: serialNumber.trim(),
-            notes: null,
-          })
+          serialNumber: serialNumber.trim(),
+          notes: null,
+        })
         : await salesService.createInvoice(payload)
       console.log('Create invoice response:', response)
       console.log('Type:', typeof response)
@@ -826,23 +840,23 @@ export default function InvoiceCreatorPage() {
 
           <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'visible', minHeight: 0 }}>
             <table
-                className="data-table"
-                style={{
-                  width: '100%',
-                  minWidth: 980,
-                  tableLayout: 'fixed',
-                }}
-              >
-                <colgroup>
-                  <col style={{ width: 280 }} /> {/* Product */}
-                  <col style={{ width: 120 }} /> {/* Smallest Unit */}
-                  <col style={{ width: 90 }} />  {/* MRP */}
-                  <col style={{ width: 80 }} />  {/* QTY */}
-                  <col style={{ width: 110 }} /> {/* Category Discount */}
-                  <col style={{ width: 120 }} /> {/* Unit Price */}
-                  <col style={{ width: 130 }} /> {/* Total */}
-                  <col style={{ width: 50 }} />  {/* Delete */}
-                </colgroup>
+              className="data-table"
+              style={{
+                width: '100%',
+                minWidth: 980,
+                tableLayout: 'fixed',
+              }}
+            >
+              <colgroup>
+                <col style={{ width: 280 }} /> {/* Product */}
+                <col style={{ width: 120 }} /> {/* Smallest Unit */}
+                <col style={{ width: 90 }} />  {/* MRP */}
+                <col style={{ width: 80 }} />  {/* QTY */}
+                <col style={{ width: 110 }} /> {/* Category Discount */}
+                <col style={{ width: 120 }} /> {/* Unit Price */}
+                <col style={{ width: 130 }} /> {/* Total */}
+                <col style={{ width: 50 }} />  {/* Delete */}
+              </colgroup>
               <thead>
                 <tr>
                   <th>Product</th>
@@ -1003,6 +1017,49 @@ export default function InvoiceCreatorPage() {
                           <Trash2 style={{ width: 14, height: 14 }} />
                         </button>
                       </td>
+                    </tr>
+                  )
+                })}
+                {returnLines.map((line) => {
+                  const product = productById[line.productId]
+                  const sku = product?.sku || product?.productSku || line.productId
+                  const name = product?.name || product?.productName || 'Unknown Product'
+                  const mrp = Number(line.mrp || 0)
+                  const quantity = Number(line.quantity || 0)
+                  const discountPercent = Number(line.totalDiscountPercent ?? line.discountPercent ?? 0)
+                  const unitPrice = mrp * (1 - discountPercent / 100)
+                  const totalCredit = unitPrice * quantity
+
+                  return (
+                    <tr key={line.id} style={{ opacity: 0.85, background: 'rgba(32, 212, 191, 0.03)' }}>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="mono" style={{ fontSize: 12, fontWeight: 'bold' }}>{sku}</span>
+                            <span
+                              style={{
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                border: '1px solid rgba(32, 212, 191, 0.35)',
+                                background: 'rgba(32, 212, 191, 0.1)',
+                                color: 'var(--color-teal)',
+                                fontSize: 9,
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              RETURN
+                            </span>
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{name}</span>
+                        </div>
+                      </td>
+                      <td className="mono" style={{ color: 'var(--color-text-muted)' }}>RET</td>
+                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{mrp.toFixed(2)}</td>
+                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>-{quantity}</td>
+                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{discountPercent.toFixed(2)}%</td>
+                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{unitPrice.toFixed(2)}</td>
+                      <td className="mono text-right font-semibold" style={{ color: 'var(--color-teal)' }}>-{totalCredit.toFixed(2)}</td>
+                      <td></td>
                     </tr>
                   )
                 })}
@@ -1185,21 +1242,13 @@ export default function InvoiceCreatorPage() {
                 <span className="mono">{money(totals.gross)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Category Discount</span>
-                <span className="mono">{money(totals.categoryDiscount)}</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>SKU Discount</span>
+                <span className="mono">{money(totals.skuDiscount)}</span>
               </div>
-              {totals.skuDiscount > 0 ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--color-text-muted)' }}>SKU Discount</span>
-                  <span className="mono">{money(totals.skuDiscount)}</span>
-                </div>
-              ) : null}
-              {totals.specialDiscount > 0 ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--color-text-muted)' }}>Special Discount</span>
-                  <span className="mono">{money(totals.specialDiscount)}</span>
-                </div>
-              ) : null}
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Special Discount</span>
+                <span className="mono">{money(totals.specialDiscount)}</span>
+              </div>
               {totals.returnTotal > 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--color-amber)' }}>Returns</span>
@@ -1237,8 +1286,8 @@ export default function InvoiceCreatorPage() {
               <RotateCcw style={{ width: 15, height: 15 }} />
               Clear
             </button>
-            <button className="button-primary" type="submit" 
-            disabled={isSaving || isLoadingData || serialNumberChecking || !serialNumber.trim()
+            <button className="button-primary" type="submit"
+              disabled={isSaving || isLoadingData || serialNumberChecking || !serialNumber.trim()
               }
             >
               <Save style={{ width: 15, height: 15 }} />
