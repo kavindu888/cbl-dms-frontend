@@ -99,53 +99,136 @@ export function CashTab({ sessionId, routeId, disabled, onRecorded }) {
       <section className="panel" style={{ padding: 16 }}>
         <h3 style={{ fontSize: 14, fontWeight: 800 }}>Cash denominations</h3>
         <div style={{ marginTop: 12, overflowX: 'auto' }}>
-          <table className="data-table" style={{ minWidth: 520 }}>
+          <table
+            className="data-table"
+            style={{
+              width: '100%',
+              minWidth: 1100,
+              tableLayout: 'fixed',
+            }}
+          >
+            <colgroup>
+              <col style={{ width: 110 }} />
+
+              {DENOMINATIONS.map((denomination) => (
+                <col
+                  key={denomination}
+                  style={{ width: 110 }}
+                />
+              ))}
+            </colgroup>
+
             <thead>
               <tr>
-                <th>Denomination</th>
-                <th style={{ textAlign: 'right' }}>Count</th>
-                <th style={{ textAlign: 'right' }}>Total</th>
+                <th style={{ textAlign: 'left' }}>
+                  Denomination
+                </th>
+
+                {DENOMINATIONS.map((denomination) => (
+                  <th
+                    key={denomination}
+                    className="mono"
+                    style={{
+                      textAlign: 'center',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {denomination === 1
+                      ? 'Coins'
+                      : money(denomination)}
+                  </th>
+                ))}
               </tr>
             </thead>
+
             <tbody>
-              {DENOMINATIONS.map((denomination) => (
-                <tr key={denomination}>
-                  <td className="mono">{denomination === 1 ? 'Coins' : money(denomination)}</td>
-                  <td style={{ textAlign: 'right' }}>
+              {/* Count boxes row */}
+              <tr>
+                <td style={{ fontWeight: 800 }}>
+                  Count
+                </td>
+
+                {DENOMINATIONS.map((denomination) => (
+                  <td
+                    key={denomination}
+                    style={{
+                      textAlign: 'center',
+                      padding: '10px 6px',
+                    }}
+                  >
                     <input
                       type="number"
                       min="0"
+                      step="1"
                       className="form-input mono"
                       value={counts[denomination] || ''}
                       onChange={(event) =>
-                        setCounts({
-                          ...counts,
-                          [denomination]: Math.max(0, Number(event.target.value || 0)),
-                        })
+                        setCounts((current) => ({
+                          ...current,
+                          [denomination]: Math.max(
+                            0,
+                            Number(event.target.value || 0)
+                          ),
+                        }))
                       }
+                      disabled={disabled}
                       style={{
-                        width: 90,
-                        height: 32,
-                        textAlign: 'right',
+                        width: 76,
+                        height: 34,
+                        margin: '0 auto',
+                        textAlign: 'center',
                         background: 'var(--color-bg-base)',
                       }}
-                      disabled={disabled}
                     />
                   </td>
-                  <td className="mono" style={{ textAlign: 'right' }}>
-                    {money(denomination * Number(counts[denomination] || 0))}
+                ))}
+              </tr>
+
+              {/* Individual totals row */}
+              <tr>
+                <td style={{ fontWeight: 800 }}>
+                  Total
+                </td>
+
+                {DENOMINATIONS.map((denomination) => (
+                  <td
+                    key={denomination}
+                    className="mono"
+                    style={{
+                      textAlign: 'center',
+                      whiteSpace: 'nowrap',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {money(
+                      denomination *
+                        Number(counts[denomination] || 0)
+                    )}
                   </td>
-                </tr>
-              ))}
+                ))}
+              </tr>
             </tbody>
+
             <tfoot>
               <tr>
-                <td colSpan={2} style={{ fontWeight: 800 }}>
+                <td
+                  colSpan={DENOMINATIONS.length}
+                  style={{
+                    textAlign: 'right',
+                    fontWeight: 800,
+                  }}
+                >
                   Total cash
                 </td>
+
                 <td
                   className="mono"
-                  style={{ textAlign: 'right', color: 'var(--color-amber)', fontWeight: 850 }}
+                  style={{
+                    textAlign: 'center',
+                    color: 'var(--color-amber)',
+                    fontWeight: 900,
+                    whiteSpace: 'nowrap',
+                  }}
                 >
                   {money(total)}
                 </td>
