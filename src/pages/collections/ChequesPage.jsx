@@ -13,6 +13,7 @@ import {
 import { salesService } from '@/services/api/salesService'
 import { formatDate, formatDateTime } from '@/utils'
 import { Blank, Busy, PageTitle, Problem, inputStyle, isPostDated, money } from './collectionsUi'
+import SimplePagination from '@components/ui/SimplePagination'
 
 const STATUSES = ['All', 'Received', 'Deposited', 'Cleared', 'Bounced']
 
@@ -20,6 +21,8 @@ export default function ChequesPage() {
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState('')
+  const [page, setPage] = useState(1)
+  const pageSize = 5
   const [modal, setModal] = useState(null)
   const [reason, setReason] = useState('')
   const [bounceCharge, setBounceCharge] = useState('')
@@ -43,14 +46,42 @@ export default function ChequesPage() {
           .includes(term)
     )
   }, [cheques.data, customerById, search])
-  const selected = rows.find((row) => row.id === selectedId) || rows[0]
+  const totalPages = Math.max(
+  1,
+  Math.ceil(rows.length / pageSize)
+)
+
+const pagedRows = useMemo(() => {
+  const startIndex = (page - 1) * pageSize
+  const endIndex = startIndex + pageSize
+
+  return rows.slice(startIndex, endIndex)
+}, [rows, page])
+  const selected = pagedRows.find((row) => row.id === selectedId) || pagedRows[0]
   const deposit = useDepositCheque()
   const clear = useClearCheque()
   const bounce = useBounceCheque()
   const writeOff = useWriteOffCheque()
   useEffect(() => {
-    if (selectedId && !rows.some((row) => row.id === selectedId)) setSelectedId('')
-  }, [rows, selectedId])
+  if (
+    selectedId &&
+    !pagedRows.some((row) => row.id === selectedId)
+  ) {
+    setSelectedId('')
+  }
+}, [pagedRows, selectedId])
+
+    useEffect(() => {
+    setPage(1)
+    setSelectedId('')
+  }, [search, status])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+      setSelectedId('')
+    }
+  }, [page, totalPages])
 
   async function submitModal(event) {
     event.preventDefault()
@@ -69,7 +100,7 @@ export default function ChequesPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <PageTitle
         title="Cheques"
-        subtitle="Track every cheque through receipt, deposit, clearance, bounce, and permanent write-off."
+        // subtitle="Track every cheque through receipt, deposit, clearance, bounce, and permanent write-off."
       />
       <section
         className="panel"
@@ -123,6 +154,9 @@ export default function ChequesPage() {
             style={{
               borderRight: '1px solid var(--color-border)',
               background: 'var(--color-bg-surface)',
+              display: 'grid',
+              gridTemplateRows: 'auto minmax(0, 1fr) auto',
+              minHeight: 0,
             }}
           >
             <div
@@ -135,9 +169,9 @@ export default function ChequesPage() {
             >
               {rows.length} cheques
             </div>
-            <div style={{ maxHeight: 650, overflowY: 'auto' }}>
-              {rows.length ? (
-                rows.map((cheque) => {
+            <div style={{minHeight: 0, overflowY: 'auto',}}>
+              {pagedRows.length ? (
+                  pagedRows.map((cheque) => {
                   const postDated = isPostDated(cheque.chequeDate)
                   return (
                     <button
@@ -213,6 +247,23 @@ export default function ChequesPage() {
               ) : (
                 <Blank>No cheques match this filter.</Blank>
               )}
+            </div>
+            <div
+              style={{
+                padding: '10px 12px',
+                borderTop: '1px solid var(--color-border)',
+              }}
+            >
+              <SimplePagination
+                page={page}
+                pageSize={pageSize}
+                totalItems={rows.length}
+                itemLabel="cheques"
+                onPageChange={(nextPage) => {
+                  setPage(nextPage)
+                  setSelectedId('')
+                }}
+              />
             </div>
           </aside>
           <main style={{ padding: 20, minWidth: 0, background: 'var(--color-bg-base)' }}>
