@@ -96,6 +96,82 @@ export function CashTab({ sessionId, routeId, disabled, onRecorded }) {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
+      <section
+        className="panel"
+        style={{
+          padding: 16,
+          display: 'grid',
+          gap: 14,
+        }}
+      >
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 800 }}>
+            Allocate to invoices
+          </h3>
+
+          <p
+            style={{
+              marginTop: 4,
+              fontSize: 11,
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            Select a customer and assign cash to their outstanding invoices.
+          </p>
+        </div>
+
+        <label>
+          <span className="form-label">Customer *</span>
+
+          <CustomerSelector
+            value={customer}
+            onChange={(next) => {
+              setCustomer(next)
+              setAllocations([])
+            }}
+            routeId={routeId}
+          />
+        </label>
+
+        {customer ? (
+          <AllocationSection
+            customer={customer}
+            total={total}
+            allocations={allocations}
+            setAllocations={setAllocations}
+          />
+        ) : null}
+
+        <button
+          type="button"
+          className="button-primary"
+          onClick={submit}
+          disabled={
+            disabled ||
+            mutation.isPending ||
+            !customer ||
+            total <= 0 ||
+            !matches ||
+            !allocations.length
+          }
+        >
+          {mutation.isPending
+            ? 'Recording...'
+            : `Record ${money(total)} cash`}
+        </button>
+        
+        {!customer ? (
+          <p
+            style={{
+              textAlign: 'center',
+              fontSize: 11,
+              color: 'var(--color-text-dim)',
+            }}
+          >
+            Select a customer to enable submission.
+          </p>
+        ) : null}
+      </section>
       <section className="panel" style={{ padding: 16 }}>
         <h3 style={{ fontSize: 14, fontWeight: 800 }}>Cash denominations</h3>
         <div style={{ marginTop: 12, overflowX: 'auto' }}>
@@ -237,50 +313,6 @@ export function CashTab({ sessionId, routeId, disabled, onRecorded }) {
           </table>
         </div>
       </section>
-      {total > 0 ? (
-        <section className="panel" style={{ padding: 16, display: 'grid', gap: 14 }}>
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 800 }}>Allocate to invoices</h3>
-            <p style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
-              Select a customer and assign cash to their outstanding invoices.
-            </p>
-          </div>
-          <label>
-            <span className="form-label">Customer *</span>
-            <CustomerSelector
-              value={customer}
-              onChange={(next) => {
-                setCustomer(next)
-                setAllocations([])
-              }}
-              routeId={routeId}
-            />
-          </label>
-          {customer ? (
-            <AllocationSection
-              customer={customer}
-              total={total}
-              allocations={allocations}
-              setAllocations={setAllocations}
-            />
-          ) : null}
-          <button
-            type="button"
-            className="button-primary"
-            onClick={submit}
-            disabled={
-              disabled || mutation.isPending || !customer || !matches || !allocations.length
-            }
-          >
-            {mutation.isPending ? 'Recording...' : `Record ${money(total)} cash`}
-          </button>
-          {!customer ? (
-            <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--color-text-dim)' }}>
-              Select a customer to enable submission.
-            </p>
-          ) : null}
-        </section>
-      ) : null}
     </div>
   )
 }
