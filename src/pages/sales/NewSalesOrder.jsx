@@ -7,6 +7,12 @@ import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
+import {
+  toNumber,
+  getReturnDiscountPercent,
+  getReturnCreditAmount,
+  calculateSalesOrderSummary,
+} from '@/utils/salesOrderCalculations'
 
 const emptyDraftLine = {
   productId: '',
@@ -30,11 +36,6 @@ function money(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`
-}
-
-function toNumber(value) {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : 0
 }
 
 function getOrderId(response) {
@@ -110,16 +111,6 @@ function getReturnLineAmounts(line) {
   const creditAmount = Math.max(0, gross - discountAmount)
 
   return { gross, discountAmount, creditAmount }
-}
-
-function getDisplayReturnAmount(line) {
-  const quantity = Math.abs(toNumber(line.quantity))
-  const mrp = toNumber(line.mrp || line.unitPrice)
-  const discountPercent = toNumber(line.discountPercent ?? line.totalDiscountPercent ?? 0)
-
-  const calculatedCredit = mrp * quantity * (1 - discountPercent / 100)
-
-  return toNumber(line.creditAmount ?? line.lineTotal ?? calculatedCredit)
 }
 
 export default function NewSalesOrder() {
@@ -504,6 +495,13 @@ export default function NewSalesOrder() {
         specialDiscountPercent: 0,
         isReturnLine: true,
         returnReason: Number(returnDraftLine.reason),
+        // PascalCase compatibility
+        ProductId: returnDraftLine.productId,
+        Quantity: toNumber(returnDraftLine.quantity),
+        SkuDiscountPercent: toNumber(returnDraftLine.discountPercent),
+        SpecialDiscountPercent: 0,
+        IsReturnLine: true,
+        ReturnReason: Number(returnDraftLine.reason),
       })
 
       await refreshOrder(currentOrderId)
@@ -582,6 +580,21 @@ export default function NewSalesOrder() {
             toNumber(draftLine.specialDiscountMax)
           )
           : 0,
+        // PascalCase compatibility
+        ProductId: draftLine.productId,
+        Quantity: toNumber(draftLine.quantity),
+        SkuDiscountPercent: Math.min(
+          toNumber(draftLine.skuDiscountPercent),
+          toNumber(draftLine.skuDiscountMax)
+        ),
+        SpecialDiscountPercent: draftLine.specialDiscountAvailable
+          ? Math.min(
+            (toNumber(orderSpecialDiscountAmount) /
+              Math.max(toNumber(draftLine.mrp) * toNumber(draftLine.quantity), 1)) *
+            100,
+            toNumber(draftLine.specialDiscountMax)
+          )
+          : 0,
       })
 
       await refreshOrder(currentOrderId)
@@ -628,11 +641,22 @@ export default function NewSalesOrder() {
       const skuAmount = orderSkuDiscountAmount === '' ? null : Math.max(0, toNumber(orderSkuDiscountAmount))
       const specialAmount = orderSpecialDiscountAmount === '' ? null : Math.max(0, toNumber(orderSpecialDiscountAmount))
 
+      console.log('[Confirm] Start:', {
+        orderId,
+        saleLinesCount: saleLines.length,
+        grossTotal,
+        orderSkuDiscountAmount,
+        orderSpecialDiscountAmount,
+        skuAmount,
+        specialAmount,
+      })
+
       if (saleLines.length && (skuAmount !== null || specialAmount !== null)) {
         const skuPercent = skuAmount !== null ? (skuAmount / Math.max(grossTotal, 1)) * 100 : null
+        console.log('[Confirm] Computed global skuPercent:', skuPercent)
 
         await Promise.all(
-          saleLines.map((line) => {
+          saleLines.map(async (line) => {
             const lineGross = toNumber(line.grossAmount) || toNumber(line.mrp || line.unitPrice) * toNumber(line.quantity)
             const specialPercent =
               specialAmount !== null
@@ -646,20 +670,31 @@ export default function NewSalesOrder() {
               quantity: toNumber(line.quantity),
               skuDiscountPercent: skuPercent !== null ? skuPercent : toNumber(line.skuDiscountPercent || 0),
               specialDiscountPercent: specialPercent,
+              // PascalCase compatibility
+              Quantity: toNumber(line.quantity),
+              SkuDiscountPercent: skuPercent !== null ? skuPercent : toNumber(line.skuDiscountPercent || 0),
+              SpecialDiscountPercent: specialPercent,
             }
 
-            return salesService.updateSalesOrderLine(orderId, line.id, payload)
+            console.log(`[Confirm] Updating line ${line.id} for product ${line.productId} with payload:`, payload)
+            const res = await salesService.updateSalesOrderLine(orderId, line.id, payload)
+            console.log(`[Confirm] Line ${line.id} update response:`, res)
+            return res;
           })
         )
 
         // Reload order after applying discounts so backend recalculates totals
+        console.log('[Confirm] All line updates finished. Refreshing order...')
         await refreshOrder(orderId)
       }
 
+      console.log('[Confirm] Finalizing order confirmation...')
       await salesService.confirmSalesOrder(orderId)
+      console.log('[Confirm] Order confirmed successfully!')
       toast.success('Order confirmed.')
       navigate('/sales/orders')
     } catch (error) {
+      console.error('[Confirm] Error during confirmation flow:', error)
       toast.error(error.message || 'Unable to confirm order.')
     } finally {
       setIsSaving(false)
@@ -721,7 +756,7 @@ export default function NewSalesOrder() {
     const skuDiscountAmountRaw = orderSkuDiscountAmount === '' ? fallbackSkuDiscountAmount : Math.max(0, toNumber(orderSkuDiscountAmount))
     const specialDiscountAmountRaw = orderSpecialDiscountAmount === '' ? fallbackSpecialDiscountAmount : Math.max(0, toNumber(orderSpecialDiscountAmount))
 
-    const returnAmount = returnLines.reduce((s, l) => s + getDisplayReturnAmount(l), 0)
+    const returnAmount = returnLines.reduce((s, l) => s + getReturnCreditAmount(l), 0)
 
     const discountedBeforeReturns = grossAmount - categoryDiscountAmount - skuDiscountAmountRaw - specialDiscountAmountRaw
     const taxableAmount = Math.max(0, discountedBeforeReturns - returnAmount)
@@ -1201,7 +1236,7 @@ export default function NewSalesOrder() {
                             'Unknown Product'
                           const sku =
                             line.productSku || product?.sku || product?.productSku || ''
-                          const lineTotal = isReturnLine ? getDisplayReturnAmount(line) : toNumber(line.lineTotal)
+                          const lineTotal = isReturnLine ? getReturnCreditAmount(line) : toNumber(line.lineTotal)
 
                           return (
                             <tr key={line.id}>
@@ -1248,7 +1283,7 @@ export default function NewSalesOrder() {
                               </td>
                               <td className="mono text-right">
                                 {isReturnLine
-                                  ? `${Number(line.discountPercent ?? line.totalDiscountPercent ?? 0).toFixed(2)}%`
+                                  ? `${Number(getReturnDiscountPercent(line)).toFixed(2)}%`
                                   : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`}
                               </td>
                               <td className="mono text-right font-semibold">{money(lineTotal)}</td>
@@ -1281,7 +1316,7 @@ export default function NewSalesOrder() {
                       const name =
                         line.productName || product?.name || product?.productName || 'Unknown Product'
                       const sku = line.productSku || product?.sku || product?.productSku || ''
-                      const lineTotal = isReturnLine ? getDisplayReturnAmount(line) : toNumber(line.lineTotal)
+                      const lineTotal = isReturnLine ? getReturnCreditAmount(line) : toNumber(line.lineTotal)
 
                       return (
                         <div
@@ -1356,7 +1391,7 @@ export default function NewSalesOrder() {
                               label="SKU Disc"
                               value={
                                 isReturnLine
-                                  ? `${Number(line.discountPercent ?? line.totalDiscountPercent ?? 0).toFixed(2)}%`
+                                  ? `${Number(getReturnDiscountPercent(line)).toFixed(2)}%`
                                   : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`
                               }
                             />

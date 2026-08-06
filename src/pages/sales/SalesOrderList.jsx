@@ -16,6 +16,12 @@ import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
+import {
+  toNumber,
+  getReturnDiscountPercent,
+  getReturnCreditAmount,
+  calculateSalesOrderSummary,
+} from '@/utils/salesOrderCalculations'
 
 const orderPageSize = 5
 
@@ -51,6 +57,7 @@ function normalizeStatus(status) {
 }
 
 function buildInvoiceConversionState(order, productById, salesRouteName) {
+  const summary = calculateSalesOrderSummary(order)
   return {
     fromSalesOrder: true,
     salesOrderId: order.id,
@@ -62,6 +69,7 @@ function buildInvoiceConversionState(order, productById, salesRouteName) {
     isVatApplicable: order.isVatApplicable,
     customerVatTin: order.customerVatTin,
     deliveryDate: order.deliveryDate,
+    summary,
     lines: (order.lines || []).map((orderLine) => {
       const product = productById[orderLine.productId] || null
 
@@ -502,6 +510,11 @@ function SalesOrderDetailPanel({
   onConvertToInvoice,
   isSaving,
 }) {
+  const displaySummary = useMemo(
+    () => calculateSalesOrderSummary(order),
+    [order]
+  )
+
   const orderStatus = normalizeStatus(order.status)
   const canConfirm = orderStatus === 'Draft' && (order.lines || []).length > 0
   const canCancel = !['Cancelled', 'Converted'].includes(orderStatus)
@@ -574,9 +587,9 @@ function SalesOrderDetailPanel({
                     <td className="mono text-right">{isReturnLine ? `-${Math.abs(Number(line.quantity))}` : line.quantity}</td>
                     <td className="mono text-right">{formatMoney(line.mrp || line.unitPrice)}</td>
                     <td className="mono text-right">{isReturnLine ? '-' : `${Number(line.categoryDiscountPercent || 0).toFixed(2)}%`}</td>
-                    <td className="mono text-right">{isReturnLine ? `${Number(line.discountPercent || line.skuDiscountPercent || 0).toFixed(2)}%` : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`}</td>
+                    <td className="mono text-right">{isReturnLine ? `${Number(getReturnDiscountPercent(line)).toFixed(2)}%` : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`}</td>
                     <td className="mono text-right">{isReturnLine ? '-' : `${Number(line.specialDiscountPercent || 0).toFixed(2)}%`}</td>
-                    <td className="mono text-right font-semibold">{formatMoney(isReturnLine ? (line.lineTotal ?? line.creditAmount) : line.lineTotal)}</td>
+                    <td className="mono text-right font-semibold">{formatMoney(isReturnLine ? getReturnCreditAmount(line) : toNumber(line.lineTotal))}</td>
                   </tr>
                 )
               })}
@@ -587,12 +600,12 @@ function SalesOrderDetailPanel({
 
       <div style={detailFooterGridStyle}>
         <div style={summaryPanelStyle}>
-          <SummaryRow label="Gross" value={formatMoney(order.grossAmount)} />
-          <SummaryRow label="SKU Disc" value={formatMoney(order.totalSkuDiscountAmount)} />
-          <SummaryRow label="Special Disc" value={formatMoney(order.totalSpecialDiscountAmount)} />
-          <SummaryRow label="VAT" value={formatMoney(order.vatAmount)} />
+          <SummaryRow label="Gross" value={formatMoney(displaySummary.gross)} />
+          <SummaryRow label="SKU Disc" value={formatMoney(displaySummary.skuDiscount)} />
+          <SummaryRow label="Special Disc" value={formatMoney(displaySummary.specialDiscount)} />
+          <SummaryRow label="VAT" value={formatMoney(displaySummary.vat)} />
           <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 3, paddingTop: 10 }}>
-            <SummaryRow label="Net" value={formatMoney(order.netAmount)} strong />
+            <SummaryRow label="Net" value={formatMoney(displaySummary.net)} strong />
           </div>
         </div>
 

@@ -9,6 +9,12 @@ import { salesService } from '@/services/api/salesService'
 import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { formatDate } from '@/utils'
 import SimplePagination from '@components/ui/SimplePagination'
+import {
+  toNumber,
+  getReturnDiscountPercent,
+  getReturnCreditAmount,
+  calculateSalesOrderSummary,
+} from '@/utils/salesOrderCalculations'
 
 const emptyLine = {
   productId: '',
@@ -286,6 +292,7 @@ export default function InvoiceCreatorPage() {
   const [serialNumberWarning, setSerialNumberWarning] = useState(false)
   const [serialNumberChecking, setSerialNumberChecking] = useState(false)
   const [returnLines, setReturnLines] = useState([])
+  const [sourceOrderSummary, setSourceOrderSummary] = useState(null)
   const serialCheckTimeout = useRef(null)
 
   const {
@@ -330,7 +337,7 @@ export default function InvoiceCreatorPage() {
   }, [products])
 
   const totals = useMemo(() => {
-    const subtotal = lines.reduce(
+    const normalSubtotal = lines.reduce(
       (sum, line) => {
         const amounts = getLineAmounts(line)
 
@@ -345,22 +352,57 @@ export default function InvoiceCreatorPage() {
       { gross: 0, categoryDiscount: 0, skuDiscount: 0, specialDiscount: 0, discount: 0 }
     )
 
-    const returnTotal = returnLines.reduce((sum, line) => {
-      const mrp = Number(line.mrp || line.unitPrice || 0)
-      const discountPercent = Number(line.totalDiscountPercent ?? line.discountPercent ?? 0)
-      const quantity = Number(line.quantity || 0)
-      return sum + mrp * (1 - discountPercent / 100) * quantity
-    }, 0)
-    const netBeforeVat = subtotal.gross - subtotal.discount - returnTotal
-    const vat = isCustomerVatRegistered ? Math.round(netBeforeVat * 18) / 100 : 0
+    const sourceSkuDiscount =
+      sourceOrderSummary?.skuDiscount ??
+      normalSubtotal.skuDiscount
+
+    const sourceSpecialDiscount =
+      sourceOrderSummary?.specialDiscount ??
+      normalSubtotal.specialDiscount
+
+    const returnTotal = returnLines.reduce(
+      (sum, line) => sum + getReturnCreditAmount(line),
+      0
+    )
+
+    const gross =
+      isFromSalesOrder && sourceOrderSummary
+        ? sourceOrderSummary.gross
+        : normalSubtotal.gross
+
+    const calculatedVat = isCustomerVatRegistered
+      ? Math.round(Math.max(0, normalSubtotal.gross - normalSubtotal.categoryDiscount - sourceSkuDiscount - sourceSpecialDiscount - returnTotal) * 18) / 100
+      : 0
+
+    const vat =
+      isFromSalesOrder && sourceOrderSummary
+        ? sourceOrderSummary.vat
+        : calculatedVat
+
+    const net =
+      gross -
+      normalSubtotal.categoryDiscount -
+      sourceSkuDiscount -
+      sourceSpecialDiscount -
+      returnTotal +
+      vat
 
     return {
-      ...subtotal,
+      gross,
+      categoryDiscount: normalSubtotal.categoryDiscount,
+      skuDiscount: sourceSkuDiscount,
+      specialDiscount: sourceSpecialDiscount,
       returnTotal,
       vat,
-      net: netBeforeVat + vat,
+      net,
     }
-  }, [isCustomerVatRegistered, lines, returnLines])
+  }, [
+    lines,
+    returnLines,
+    sourceOrderSummary,
+    isFromSalesOrder,
+    isCustomerVatRegistered,
+  ])
 
   useEffect(() => {
     async function loadData() {
@@ -403,6 +445,9 @@ export default function InvoiceCreatorPage() {
       setIsLoadingData(true)
       try {
         const order = await salesService.getSalesOrder(orderState.salesOrderId)
+        const normalizedSummary = calculateSalesOrderSummary(order)
+        setSourceOrderSummary(normalizedSummary)
+
         setSelectedCustomerDetails({
           id: order.customerId,
           name: order.customerName,
@@ -1020,15 +1065,15 @@ export default function InvoiceCreatorPage() {
                     </tr>
                   )
                 })}
-                {returnLines.map((line) => {
-                  const product = productById[line.productId]
+                 {returnLines.map((line) => {
+                  const product = productById[line.productId] || null
                   const sku = product?.sku || product?.productSku || line.productId
                   const name = product?.name || product?.productName || 'Unknown Product'
-                  const mrp = Number(line.mrp || 0)
-                  const quantity = Number(line.quantity || 0)
-                  const discountPercent = Number(line.totalDiscountPercent ?? line.discountPercent ?? 0)
+                  const mrp = toNumber(line.mrp ?? line.unitPrice ?? 0)
+                  const quantity = Math.abs(toNumber(line.quantity))
+                  const discountPercent = getReturnDiscountPercent(line)
                   const unitPrice = mrp * (1 - discountPercent / 100)
-                  const totalCredit = unitPrice * quantity
+                  const totalCredit = getReturnCreditAmount(line)
 
                   return (
                     <tr key={line.id} style={{ opacity: 0.85, background: 'rgba(32, 212, 191, 0.03)' }}>
