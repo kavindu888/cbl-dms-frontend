@@ -1,4 +1,8 @@
-import { useVehicleUnloading } from '@/hooks/useVehicle'
+import {
+  useApplyVehicleUnloading,
+  useCancelVehicleUnloading,
+  useVehicleUnloading,
+} from '@/hooks/useVehicle'
 import VehicleMovementDetailPage from '../VehicleMovementDetailPage'
 
 export default function VehicleUnloadingDetailPage() {
@@ -7,6 +11,8 @@ export default function VehicleUnloadingDetailPage() {
       kind="Unloading"
       basePath="/inventory/vehicle-unloadings"
       useDetail={useVehicleUnloading}
+      useApply={useApplyVehicleUnloading}
+      useCancel={useCancelVehicleUnloading}
     />
   )
 }

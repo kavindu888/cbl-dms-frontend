@@ -2,9 +2,14 @@ import api, { getOnce } from '@/lib/api'
 
 function getValue(response, fallbackMessage = 'Request failed') {
   const apiResponse = response.data
-  const result = apiResponse?.data
+  const isApiEnvelope = Object.prototype.hasOwnProperty.call(apiResponse ?? {}, 'success')
+  const result = isApiEnvelope ? apiResponse?.data : apiResponse
 
-  if (!apiResponse?.success || result?.isFailure) {
+  if (
+    (isApiEnvelope && !apiResponse?.success) ||
+    result?.isFailure ||
+    result?.isSuccess === false
+  ) {
     const validationMessage = result?.validationErrors?.[0]?.message
     throw new Error(
       validationMessage || result?.errorMessage || apiResponse?.errorMessage || fallbackMessage
