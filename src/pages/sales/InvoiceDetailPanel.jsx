@@ -11,26 +11,22 @@ function amountTone(value) {
   return Number(value || 0) > 0 ? 'var(--color-amber)' : 'var(--color-teal)'
 }
 
-function returnReasonLabel(reason) {
-  const normalized = String(reason ?? '').toLowerCase()
-  if (normalized === '1' || normalized === 'damaged') return 'Damaged'
-  if (normalized === '2' || normalized === 'expired') return 'Expired'
-  if (normalized === '3' || normalized === 'shortexpiry' || normalized === 'short expire') {
-    return 'Short Expiry'
+function billReturnReasonLabel(value) {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (normalized === '1' || normalized === 'damage' || normalized === 'damaged') return 'DAMAGE:'
+  if (normalized === '2' || normalized === 'expiry' || normalized === 'expired') return 'EXPIRY:'
+  if (normalized === '3' || normalized === 'short expiry' || normalized === 'shortexpiry') {
+    return 'SHORT EXPIRY:'
   }
-  if (normalized === '4' || normalized === 'unwanted') return 'Unwanted'
-  return reason ? String(reason) : 'Return'
-}
-
-function returnReasonColor(reason) {
-  const label = returnReasonLabel(reason)
-  if (label === 'Damaged') return '#fdba74'
-  if (label === 'Expired') return '#fca5a5'
-  if (label === 'Short Expiry') return 'var(--color-amber)'
-  return 'var(--color-text-muted)'
+  if (normalized === '4' || normalized === 'overstock' || normalized === 'unwanted') {
+    return 'OVERSTOCK:'
+  }
+  return value ? String(value) : 'RETURNS:'
 }
 
 export default function InvoiceDetailPanel({ invoice, productById }) {
+  const normalLines = (invoice.lines || []).filter((line) => !line.isReturnLine)
+
   return (
     <div
       style={{
@@ -63,10 +59,10 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
         >
           <Package style={{ width: 15, height: 15, color: 'var(--color-teal)' }} />
           <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-            Invoice Lines
+            Ordered Items
           </h3>
           <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-            {invoice.lines?.length || 0} item{invoice.lines?.length === 1 ? '' : 's'}
+            {normalLines.length} item{normalLines.length === 1 ? '' : 's'}
           </span>
         </div>
         <div
@@ -76,105 +72,119 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
           <table className="data-table product-table-compact">
             <thead>
               <tr>
-                <th>Item</th>
-                <th>Unit</th>
-                <th style={{ textAlign: 'right' }}>MRP</th>
-                <th style={{ textAlign: 'right' }}>Qty</th>
-                <th style={{ textAlign: 'right' }}>Disc %</th>
-                <th style={{ textAlign: 'right' }}>Selling Price</th>
-                <th style={{ textAlign: 'right' }}>Total</th>
+                <th>SKU</th>
+                <th>UNIT</th>
+                <th style={{ textAlign: 'right' }}>QTY</th>
+                <th style={{ textAlign: 'right' }}>RATE</th>
+                <th style={{ textAlign: 'right' }}>AMOUNT</th>
               </tr>
             </thead>
             <tbody>
-              {(invoice.lines || []).map((line) => {
+              {normalLines.map((line) => {
                 const product = productById[line.productId]
-                const isReturnLine = Boolean(line.isReturnLine)
+                const productSku = line.productSku || product?.sku || line.productId
+                const productName = line.productName || product?.name || 'Unknown Product'
 
                 return (
-                  <tr
-                    key={line.id}
-                    style={
-                      isReturnLine
-                        ? {
-                            borderTop: '1px solid rgba(245, 158, 11, 0.18)',
-                            background: 'rgba(245, 158, 11, 0.07)',
-                          }
-                        : undefined
-                    }
-                  >
+                  <tr key={line.id}>
                     <td>
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'flex-start',
-                          gap: 3,
-                        }}
-                      >
-                        <span className="product-sku-badge mono">
-                          {product?.sku || line.productId}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <span className="mono" style={{ fontSize: 12, color: 'var(--color-accent)' }}>
+                          {productSku}
                         </span>
-                        <span className="product-info-sub">
-                          {product?.name || 'Unknown Product'}
-                          {isReturnLine ? (
-                            <span
-                              className="mono"
-                              style={{
-                                marginLeft: 7,
-                                padding: '1px 6px',
-                                borderRadius: 999,
-                                border: '1px solid rgba(245, 158, 11, 0.48)',
-                                background: 'rgba(245, 158, 11, 0.14)',
-                                color: 'var(--color-amber)',
-                                fontSize: 10,
-                                fontWeight: 900,
-                              }}
-                            >
-                              RT
-                            </span>
-                          ) : null}
-                          {isReturnLine ? (
-                            <span
-                              style={{
-                                marginLeft: 7,
-                                color: 'var(--color-amber)',
-                                fontSize: 11,
-                                fontWeight: 800,
-                              }}
-                            >
-                              (RT)
-                            </span>
-                          ) : null}
+                        <span className="product-info-sub">{productName}</span>
+                        <span className="mono" style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                          MRP: {formatMoney(line.mrp)}
                         </span>
-                        {isReturnLine ? (
-                          <span
-                            style={{
-                              color: returnReasonColor(line.returnReason),
-                              fontSize: 11,
-                              fontWeight: 800,
-                            }}
-                          >
-                            {returnReasonLabel(line.returnReason)}
-                          </span>
-                        ) : null}
                       </div>
                     </td>
                     <td className="mono">{line.smallestUnitCode || line.unitId || '-'}</td>
-                    <td className="mono text-right">{formatMoney(line.mrp)}</td>
                     <td className="mono text-right">{line.quantity}</td>
-                    <td className="mono text-right">{line.discountPercent}%</td>
                     <td className="mono text-right">{formatMoney(line.unitPrice)}</td>
-                    <td
-                      className="mono text-right font-semibold"
-                      style={isReturnLine ? { color: 'var(--color-amber)', fontWeight: 900 } : undefined}
-                    >
-                      {isReturnLine ? `− ${formatMoney(line.lineTotal)}` : formatMoney(line.lineTotal)}
-                    </td>
+                    <td className="mono text-right font-semibold">{formatMoney(line.lineTotal)}</td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '10px 12px',
+              borderTop: '1px solid var(--color-border)',
+              fontWeight: 800,
+            }}
+          >
+            <span>NET TOTAL B/F RETURN</span>
+            <span className="mono">{formatMoney(invoice.grossAmount)}</span>
+          </div>
+
+          {(invoice.returnSections || []).map((section) => (
+            <div key={section.reasonLabel} style={{ marginTop: 12 }}>
+              <div
+                style={{
+                  padding: '0 12px 6px',
+                  color: 'var(--color-amber)',
+                  fontSize: 13,
+                  fontWeight: 800,
+                }}
+              >
+                {billReturnReasonLabel(section.reasonLabel)}
+              </div>
+              <table className="data-table product-table-compact">
+                <tbody>
+                  {(section.lines || []).map((line, index) => (
+                    <tr
+                      key={`${section.reasonLabel}-${line.productId}-${index}`}
+                      style={{ color: 'var(--color-text-muted)', textDecoration: 'line-through' }}
+                    >
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <span>{line.productName || line.productId}</span>
+                          <span className="mono" style={{ fontSize: 11 }}>
+                            MRP: {formatMoney(line.mrp)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="mono">{line.unitCode || '-'}</td>
+                      <td className="mono text-right">{line.quantity}</td>
+                      <td className="mono text-right">{formatMoney(line.sellingPrice)}</td>
+                      <td className="mono text-right">{formatMoney(line.lineTotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '6px 12px',
+                  color: 'var(--color-amber)',
+                  fontSize: 13,
+                }}
+              >
+                <span>Subtotal</span>
+                <span className="mono">{formatMoney(section.sectionTotal)}</span>
+              </div>
+            </div>
+          ))}
+
+          {Number(invoice.totalReturnAmount || 0) > 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '6px 12px',
+                color: 'var(--color-text-muted)',
+                fontSize: 13,
+              }}
+            >
+              <span>REVERSE GRTS</span>
+              <span className="mono">(0.00)</span>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -190,36 +200,14 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
         }}
       >
         <SummaryRow label="Gross" value={formatMoney(invoice.grossAmount)} />
-        {Number(invoice.totalDiscountAmount || 0) > 0 && (
-          <SummaryRow label="Discount" value={formatMoney(invoice.totalDiscountAmount)} />
-        )}
-        {Number(invoice.totalSupplierDiscountAmount || 0) > 0 && (
-          <SummaryRow
-            label="Supplier Discount"
-            value={formatMoney(invoice.totalSupplierDiscountAmount)}
-          />
-        )}
-        {Number(invoice.totalDistributorDiscountAmount || 0) > 0 && (
-          <SummaryRow
-            label="Distributor Discount"
-            value={formatMoney(invoice.totalDistributorDiscountAmount)}
-          />
-        )}
-        {Number(invoice.vatAmount || 0) > 0 && (
-          <SummaryRow label="VAT" value={formatMoney(invoice.vatAmount)} />
-        )}
-        {Number(invoice.totalReturnAmount || 0) > 0 && (
+        {Number(invoice.totalDiscountAmount || 0) > 0 ? (
+          <SummaryRow label="SkuDiscount" value={formatMoney(invoice.totalDiscountAmount)} />
+        ) : null}
+        {Number(invoice.totalReturnAmount || 0) > 0 ? (
           <SummaryRow label="Returns" value={formatMoney(invoice.totalReturnAmount)} />
-        )}
-        {Number(invoice.returnCreditAmount || 0) > 0 && (
-          <SummaryRow
-            label="Returns Credit"
-            value={`− ${formatMoney(invoice.returnCreditAmount)}`}
-            valueColor="var(--color-amber)"
-          />
-        )}
+        ) : null}
         <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 3, paddingTop: 10 }}>
-          <SummaryRow label="Net" value={formatMoney(invoice.netAmount)} strong />
+          <SummaryRow label="Net(Rs)" value={formatMoney(invoice.netAmount)} strong />
         </div>
         <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 3, paddingTop: 10 }}>
           <SummaryRow label="Paid" value={formatMoney(invoice.paidAmount)} />

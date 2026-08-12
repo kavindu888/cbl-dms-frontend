@@ -23,4 +23,5 @@ export function returnNoteStatusLabel(status) {
     Object.entries(RETURN_NOTE_STATUS_VALUE).find(([, itemValue]) => itemValue === value)?.[0] ||
     'Unknown'
   )
+  // branch: returnNoteStatusLabel
 }

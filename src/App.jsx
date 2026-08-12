@@ -12,6 +12,7 @@ import FleetOverviewPage from './pages/fleet/FleetOverviewPage'
 import VehicleDetailPage from './pages/fleet/VehicleDetailPage'
 import MonthlyAdjustmentPage from './pages/inventory/MonthlyAdjustmentPage'
 import MovementLogPage from './pages/inventory/MovementLogPage'
+import CategoryDiscountList from './pages/master/CategoryDiscounts/CategoryDiscountList'
 import CategoryListPage from './pages/master/CategoryListPage'
 import MasterCustomerListPage from './pages/master/CustomerListPage'
 import Product from './pages/master/Product'
@@ -34,6 +35,8 @@ import CustomerGroupListPage from './pages/sales/CustomerGroupListPage'
 import InvoiceCreatorPage from './pages/sales/InvoiceCreatorPage'
 import InvoiceDetailPage from './pages/sales/InvoiceDetailPage'
 import InvoiceListPage from './pages/sales/InvoiceListPage'
+import NewSalesOrder from './pages/sales/NewSalesOrder'
+import SalesOrderList from './pages/sales/SalesOrderList'
 import SettingsPage from './pages/settings/SettingsPage'
 import RolesPermissionsPage from './pages/users/RolesPermissionsPage'
 import UserListPage from './pages/users/UserListPage'
@@ -160,6 +163,10 @@ export const router = createBrowserRouter([
         element: <CategoryListPage />,
       },
       {
+        path: 'master/category-discounts',
+        element: <CategoryDiscountList />,
+      },
+      {
         path: 'master/brands',
         element: <Navigate to="/master/products" replace />,
       },
@@ -194,6 +201,14 @@ export const router = createBrowserRouter([
       {
         path: 'sales/customers/:id',
         element: <CustomerDetailPage />,
+      },
+      {
+        path: 'sales/orders',
+        element: <SalesOrderList />,
+      },
+      {
+        path: 'sales/orders/new',
+        element: <NewSalesOrder />,
       },
       {
         path: 'sales/invoices',

@@ -15,10 +15,12 @@ import FleetOverviewPage from '@pages/fleet/FleetOverviewPage'
 import VehicleDetailPage from '@pages/fleet/VehicleDetailPage'
 import StockModulePage from '@pages/inventory/StockModulePage'
 import StockBatchesPage from '@pages/inventory/StockBatchesPage'
+import CategoryDiscountList from '@pages/master/CategoryDiscounts/CategoryDiscountList'
 import CategoryListPage from '@pages/master/CategoryListPage'
 import MasterCustomerListPage from '@pages/master/CustomerListPage'
 import Product from '@pages/master/Product'
 import SalesRouteListPage from '@pages/master/SalesRouteListPage'
+import SkuDiscountList from '@pages/master/SkuDiscounts/SkuDiscountList'
 import UnitOfMeasureListPage from '@pages/master/UnitOfMeasureListPage'
 import AllPurchaseOrdersPage from '@pages/purchasing/purchase-orders/AllPurchaseOrdersPage'
 import ApprovedPurchaseOrdersPage from '@pages/purchasing/purchase-orders/ApprovedPurchaseOrdersPage'
@@ -43,7 +45,8 @@ import InvoiceCreatorPage from '@pages/sales/InvoiceCreatorPage'
 import InvoiceDetailPage from '@pages/sales/InvoiceDetailPage'
 import InvoiceListPage from '@pages/sales/InvoiceListPage'
 import InvoicePaymentRecordPage from '@pages/sales/InvoicePaymentRecordPage'
-import SalesOrderModulePage from '@pages/sales/SalesOrderModulePage'
+import NewSalesOrder from '@pages/sales/NewSalesOrder'
+import SalesOrderList from '@pages/sales/SalesOrderList'
 import SettingsPage from '@pages/settings/SettingsPage'
 import RolesPermissionsPage from '@pages/users/RolesPermissionsPage'
 import UserListPage from '@pages/users/UserListPage'
@@ -61,9 +64,12 @@ import VehicleLoadingDetailPage from '@pages/inventory/VehicleLoading/VehicleLoa
 import VehicleUnloadingListPage from '@pages/inventory/VehicleUnloading/VehicleUnloadingListPage'
 import VehicleUnloadingCreatePage from '@pages/inventory/VehicleUnloading/VehicleUnloadingCreatePage'
 import VehicleUnloadingDetailPage from '@pages/inventory/VehicleUnloading/VehicleUnloadingDetailPage'
+import OpeningStockPage from '@pages/inventory/OpeningStock/OpeningStockPage'
 import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
 import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
 import StockAuditPage from '@pages/inventory/StockAudit/StockAuditPage'
+import StockAdjustmentCreatePage from '@pages/inventory/StockAdjustment/StockAdjustmentCreatePage'
+import StockAdjustmentListPage from '@pages/inventory/StockAdjustment/StockAdjustmentListPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { PERMISSIONS } from '@/utils/permissions'
 
@@ -209,6 +215,10 @@ export const router = createBrowserRouter([
         element: requirePermission(<StockOverviewPage />, PERMISSIONS.inventory.stockRead),
       },
       {
+        path: 'inventory/opening-stock',
+        element: requirePermission(<OpeningStockPage />, PERMISSIONS.inventory.openingStock),
+      },
+      {
         path: 'inventory/return-stock',
         element: requirePermission(<ReturnStockPage />, PERMISSIONS.inventory.stockRead),
       },
@@ -264,6 +274,20 @@ export const router = createBrowserRouter([
         element: requirePermission(
           <VehicleUnloadingDetailPage />,
           PERMISSIONS.inventory.vehicleUnload
+        ),
+      },
+      {
+        path: 'inventory/stock-adjustments',
+        element: requirePermission(
+          <StockAdjustmentListPage />,
+          PERMISSIONS.inventory.stockAdjustmentCreate
+        ),
+      },
+      {
+        path: 'inventory/stock-adjustments/new',
+        element: requirePermission(
+          <StockAdjustmentCreatePage />,
+          PERMISSIONS.inventory.stockAdjustmentCreate
         ),
       },
       {
@@ -323,6 +347,14 @@ export const router = createBrowserRouter([
         element: requirePermission(<CategoryListPage />, PERMISSIONS.masterData.categoryManage),
       },
       {
+        path: 'master/category-discounts',
+        element: requirePermission(<CategoryDiscountList />, PERMISSIONS.masterData.categoryManage),
+      },
+      {
+        path: 'master/sku-discounts',
+        element: requirePermission(<SkuDiscountList />, PERMISSIONS.masterData.categoryManage),
+      },
+      {
         path: 'master/brands',
         element: <Navigate to="/master/products" replace />,
       },
@@ -378,10 +410,17 @@ export const router = createBrowserRouter([
       },
       {
         path: 'sales/orders',
-        element: requirePermission(<SalesOrderModulePage />, [
+        element: requirePermission(<SalesOrderList />, [
           PERMISSIONS.salesOrders.view,
           PERMISSIONS.salesOrders.create,
           PERMISSIONS.sales.orderRead,
+          PERMISSIONS.sales.orderCreate,
+        ]),
+      },
+      {
+        path: 'sales/orders/new',
+        element: requirePermission(<NewSalesOrder />, [
+          PERMISSIONS.salesOrders.create,
           PERMISSIONS.sales.orderCreate,
         ]),
       },

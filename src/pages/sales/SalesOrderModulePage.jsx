@@ -33,15 +33,15 @@ const emptyHeader = {
 const emptyLine = {
   productId: '',
   quantity: '',
-  discountPercent: '0',
+  categoryDiscountPercent: '0',
+  skuDiscountAvailable: false,
+  skuDiscountMax: 0,
+  skuDiscountPercent: '0',
+  specialDiscountAvailable: false,
+  specialDiscountMax: 0,
+  specialDiscountPercent: '0',
   isReturnLine: false,
   returnReason: '',
-}
-
-const emptyConversion = {
-  vehicleId: '',
-  dueDate: '',
-  notes: '',
 }
 
 function formatMoney(value) {
@@ -62,6 +62,14 @@ function toIsoDate(value) {
 function toNumber(value) {
   const number = Number(value)
   return Number.isFinite(number) ? number : 0
+}
+
+function getTotalDiscountPercent(line) {
+  return (
+    toNumber(line?.categoryDiscountPercent) +
+    toNumber(line?.skuDiscountPercent) +
+    toNumber(line?.specialDiscountPercent)
+  )
 }
 
 function statusLabel(status) {
@@ -452,6 +460,33 @@ function AmountLine({ label, value, strong = false, tone, negative = false }) {
   )
 }
 
+function ReadOnlyDiscount({ value }) {
+  return (
+    <span className="mono" style={{ color: 'var(--color-text-muted)' }}>
+      {Number(value || 0).toFixed(2)}%
+    </span>
+  )
+}
+
+function EditableDiscount({ value, available, max, onChange }) {
+  if (!available) {
+    return <span className="mono" style={{ color: 'var(--color-text-dim)' }}>-</span>
+  }
+
+  return (
+    <input
+      className="form-input"
+      type="number"
+      min="0"
+      max={max || 0}
+      step="0.01"
+      value={value || ''}
+      onChange={(event) => onChange(event.target.value)}
+      style={{ width: 78, height: 32, textAlign: 'right' }}
+    />
+  )
+}
+
 export default function SalesOrderModulePage() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
@@ -463,7 +498,6 @@ export default function SalesOrderModulePage() {
   const [header, setHeader] = useState(emptyHeader)
   const [line, setLine] = useState(emptyLine)
   const [lineDrafts, setLineDrafts] = useState({})
-  const [conversion, setConversion] = useState(emptyConversion)
   const [cancelReason, setCancelReason] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -588,9 +622,31 @@ export default function SalesOrderModulePage() {
           return sum + (price * qty * distributorDisc) / 100
         }, 0) ?? 0
     )
+  const computedCategoryDiscount = useMemo(() => {
+    return selectedOrder?.lines?.filter((l) => !l.isReturnLine).reduce((sum, l) => {
+      const price = toNumber(l.unitPrice)
+      const qty = toNumber(l.quantity)
+      return sum + (price * qty * toNumber(l.categoryDiscountPercent) / 100)
+    }, 0) ?? 0
   }, [selectedOrder])
 
-  const computedDiscount = computedSupplierDiscount + computedDistributorDiscount
+  const computedSkuDiscount = useMemo(() => {
+    return selectedOrder?.lines?.filter((l) => !l.isReturnLine).reduce((sum, l) => {
+      const price = toNumber(l.unitPrice)
+      const qty = toNumber(l.quantity)
+      return sum + (price * qty * toNumber(l.skuDiscountPercent) / 100)
+    }, 0) ?? 0
+  }, [selectedOrder])
+
+  const computedSpecialDiscount = useMemo(() => {
+    return selectedOrder?.lines?.filter((l) => !l.isReturnLine).reduce((sum, l) => {
+      const price = toNumber(l.unitPrice)
+      const qty = toNumber(l.quantity)
+      return sum + (price * qty * toNumber(l.specialDiscountPercent) / 100)
+    }, 0) ?? 0
+  }, [selectedOrder])
+
+  const computedDiscount = computedCategoryDiscount + computedSkuDiscount + computedSpecialDiscount
 
   const computedVat = useMemo(() => {
     return (
@@ -635,6 +691,16 @@ export default function SalesOrderModulePage() {
     selectedOrder?.totalDistributorDiscountAmount > 0
       ? selectedOrder.totalDistributorDiscountAmount
       : computedDistributorDiscount
+  const categoryDiscount =
+    selectedOrder?.totalCategoryDiscountAmount > 0
+      ? selectedOrder.totalCategoryDiscountAmount
+      : computedCategoryDiscount
+  const skuDiscount =
+    selectedOrder?.totalSkuDiscountAmount > 0 ? selectedOrder.totalSkuDiscountAmount : computedSkuDiscount
+  const specialDiscount =
+    selectedOrder?.totalSpecialDiscountAmount > 0
+      ? selectedOrder.totalSpecialDiscountAmount
+      : computedSpecialDiscount
   const vat = selectedOrder?.vatAmount > 0 ? selectedOrder.vatAmount : computedVat
   const returnCredit =
     selectedOrder?.returnCreditAmount > 0 ? selectedOrder.returnCreditAmount : computedReturnCredit
@@ -680,12 +746,37 @@ export default function SalesOrderModulePage() {
     setIsLoadingDetail(true)
     try {
       const order = await salesService.getSalesOrder(orderId)
+      console.log('Order detail:', order)
+      console.log('Order lines:', order.lines)
+      console.log('Return line fields:', order.lines?.find((item) => item.isReturnLine))
+      console.log('Line fields:', order.lines?.[0] ? Object.keys(order.lines[0]) : 'no lines')
       setSelectedOrder(order)
+      const discountInfo = await Promise.all(
+        (order.lines || []).map(async (item) => ({
+          id: item.id,
+          info: item.isReturnLine ? null : await getDiscountInfoForProduct(item.productId),
+        }))
+      )
+      const discountInfoByLineId = discountInfo.reduce((map, item) => {
+        map[item.id] = item.info
+        return map
+      }, {})
       setLineDrafts(
         (order.lines || []).reduce((map, item) => {
+          const info = discountInfoByLineId[item.id] ?? null
           map[item.id] = {
             quantity: String(item.quantity),
-            discountPercent: String(item.discountPercent),
+            categoryDiscountPercent: String(
+              item.categoryDiscountPercent ?? info?.categoryDiscountPercent ?? 0
+            ),
+            skuDiscountAvailable:
+              info?.skuDiscountAvailable ?? Number(item.skuDiscountPercent || 0) > 0,
+            skuDiscountMax: info?.skuDiscountMax ?? Number(item.skuDiscountPercent || 0),
+            skuDiscountPercent: String(item.skuDiscountPercent ?? 0),
+            specialDiscountAvailable:
+              info?.specialDiscountAvailable ?? Number(item.specialDiscountPercent || 0) > 0,
+            specialDiscountMax: info?.specialDiscountMax ?? Number(item.specialDiscountPercent || 0),
+            specialDiscountPercent: String(item.specialDiscountPercent ?? 0),
           }
           return map
         }, {})
@@ -755,11 +846,62 @@ export default function SalesOrderModulePage() {
     setLine((current) => ({ ...current, [field]: value }))
   }
 
-  function handleProductSelect(productId) {
+  async function getDiscountInfoForProduct(productId) {
+    if (!productId) return null
+
+    try {
+      const cachedProduct = productById[productId]
+      const product = cachedProduct?.categoryId || cachedProduct?.category?.id
+        ? cachedProduct
+        : await masterService.getProduct(productId)
+      const categoryId = product?.categoryId || product?.category?.id || ''
+      const [categoryDiscount, skuDiscountInfo, specialDiscount] = await Promise.all([
+        categoryId ? masterService.getActiveCategoryDiscount(categoryId).catch(() => null) : null,
+        masterService.getSkuDiscountInfo(productId).catch(() => null),
+        categoryId ? masterService.getActiveSpecialDiscount(categoryId).catch(() => null) : null,
+      ])
+
+      return {
+        categoryDiscountPercent: categoryDiscount ?? 0,
+        skuDiscountAvailable: skuDiscountInfo?.hasSkuDiscount ?? false,
+        skuDiscountMax: skuDiscountInfo?.maxSkuDiscountPercent ?? 0,
+        specialDiscountAvailable: specialDiscount !== null,
+        specialDiscountMax: specialDiscount ?? 0,
+      }
+    } catch {
+      return null
+    }
+  }
+
+  async function handleProductSelect(productId) {
+    if (!productId) {
+      setLine((current) => ({
+        ...current,
+        productId: '',
+        quantity: '',
+        categoryDiscountPercent: '0',
+        skuDiscountAvailable: false,
+        skuDiscountMax: 0,
+        skuDiscountPercent: '0',
+        specialDiscountAvailable: false,
+        specialDiscountMax: 0,
+        specialDiscountPercent: '0',
+      }))
+      return
+    }
+
+    const discountInfo = await getDiscountInfoForProduct(productId)
     setLine((current) => ({
       ...current,
       productId,
       quantity: '',
+      categoryDiscountPercent: String(discountInfo?.categoryDiscountPercent ?? 0),
+      skuDiscountAvailable: discountInfo?.skuDiscountAvailable ?? false,
+      skuDiscountMax: discountInfo?.skuDiscountMax ?? 0,
+      skuDiscountPercent: '0',
+      specialDiscountAvailable: discountInfo?.specialDiscountAvailable ?? false,
+      specialDiscountMax: discountInfo?.specialDiscountMax ?? 0,
+      specialDiscountPercent: '0',
     }))
   }
 
@@ -824,7 +966,8 @@ export default function SalesOrderModulePage() {
       await salesService.addSalesOrderLine(selectedOrder.id, {
         productId: line.productId,
         quantity: toNumber(line.quantity),
-        discountPercent: toNumber(line.discountPercent),
+        skuDiscountPercent: line.isReturnLine ? 0 : toNumber(line.skuDiscountPercent),
+        specialDiscountPercent: line.isReturnLine ? 0 : toNumber(line.specialDiscountPercent),
         isReturnLine: Boolean(line.isReturnLine),
         returnReason: line.isReturnLine ? Number(line.returnReason) : null,
       })
@@ -847,7 +990,8 @@ export default function SalesOrderModulePage() {
     try {
       await salesService.updateSalesOrderLine(selectedOrder.id, lineId, {
         quantity: toNumber(draft.quantity),
-        discountPercent: toNumber(draft.discountPercent),
+        skuDiscountPercent: toNumber(draft.skuDiscountPercent),
+        specialDiscountPercent: toNumber(draft.specialDiscountPercent),
       })
       toast.success('Order line updated.')
       await loadOrders()
@@ -909,25 +1053,42 @@ export default function SalesOrderModulePage() {
     }
   }
 
-  async function convertToInvoice(event) {
-    event.preventDefault()
+  function convertToInvoice() {
+    if (!selectedOrder) return
 
-    setIsSaving(true)
-    try {
-      const result = await salesService.convertSalesOrderToInvoice(selectedOrder.id, {
-        vehicleId: conversion.vehicleId.trim() || null,
-        dueDate: toIsoDate(conversion.dueDate),
-        notes: conversion.notes.trim() || null,
-      })
-      toast.success('Sales order converted to invoice.')
-      setConversion(emptyConversion)
-      await loadOrders()
-      if (result.invoiceId) navigate(`/sales/invoices/${result.invoiceId}`)
-    } catch (error) {
-      toast.error(error.message || 'Unable to convert sales order.')
-    } finally {
-      setIsSaving(false)
-    }
+    navigate('/sales/invoices/new', {
+      state: {
+        fromSalesOrder: true,
+        salesOrderId: selectedOrder.id,
+        salesOrderNumber: selectedOrder.orderNumber,
+        customerId: selectedOrder.customerId,
+        customerName: selectedOrder.customerName,
+        salesRouteId: selectedOrder.salesRouteId,
+        salesRouteName,
+        isVatApplicable: selectedOrder.isVatApplicable,
+        customerVatTin: selectedOrder.customerVatTin,
+        deliveryDate: selectedOrder.deliveryDate,
+        lines: (selectedOrder.lines || []).map((orderLine) => {
+          const product = productById[orderLine.productId] || null
+
+          return {
+            productId: orderLine.productId,
+            productName: product?.name || product?.productName || '',
+            productSku: product?.sku || product?.productSku || '',
+            unitId: orderLine.unitId || orderLine.smallestUnitCode || '',
+            smallestUnitName: orderLine.smallestUnitCode || orderLine.unitName || 'PCS',
+            mrp: orderLine.mrp || orderLine.unitPrice || 0,
+            quantity: orderLine.quantity,
+            categoryDiscountPercent: orderLine.categoryDiscountPercent ?? 0,
+            skuDiscountPercent: orderLine.skuDiscountPercent ?? 0,
+            specialDiscountPercent: orderLine.specialDiscountPercent ?? 0,
+            totalDiscountPercent: orderLine.totalDiscountPercent ?? orderLine.discountPercent ?? 0,
+            isReturnLine: Boolean(orderLine.isReturnLine),
+            returnReason: orderLine.returnReason ?? null,
+          }
+        }),
+      },
+    })
   }
 
   return (
@@ -1212,13 +1373,15 @@ export default function SalesOrderModulePage() {
                         <h3 style={{ fontSize: 15, fontWeight: 800 }}>Order Lines</h3>
                       </div>
                       <div className="responsive-table-shell" style={{ overflow: 'auto', flex: 1 }}>
-                        <table className="data-table" style={{ minWidth: 820 }}>
+                        <table className="data-table" style={{ minWidth: 1040 }}>
                           <thead>
                             <tr>
                               <th>Item / Batch</th>
                               <th style={{ textAlign: 'right' }}>Qty</th>
                               <th style={{ textAlign: 'right' }}>Selling Price</th>
-                              <th style={{ textAlign: 'right' }}>Disc %</th>
+                              <th style={{ textAlign: 'right' }}>Cat. Disc %</th>
+                              <th style={{ textAlign: 'right' }}>SKU Disc %</th>
+                              <th style={{ textAlign: 'right' }}>Special Disc %</th>
                               <th style={{ textAlign: 'right' }}>VAT</th>
                               <th style={{ textAlign: 'right' }}>Total</th>
                               {isDraft ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
@@ -1232,9 +1395,7 @@ export default function SalesOrderModulePage() {
                                 const lineTotal =
                                   orderLine.lineTotal > 0
                                     ? orderLine.lineTotal
-                                    : orderLine.quantity *
-                                      orderLine.unitPrice *
-                                      (1 - (orderLine.discountPercent || 0) / 100)
+                                    : orderLine.quantity * orderLine.unitPrice * (1 - getTotalDiscountPercent(orderLine) / 100)
 
                                 if (orderLine.isReturnLine) {
                                   const reasonStyle = returnReasonStyle(orderLine.returnReason)
@@ -1371,6 +1532,9 @@ export default function SalesOrderModulePage() {
                                         )}
                                       </td>
                                       <td className="mono" style={{ textAlign: 'right' }}>
+                                        <ReadOnlyDiscount value={draft.categoryDiscountPercent ?? orderLine.categoryDiscountPercent} />
+                                      </td>
+                                      <td className="mono" style={{ textAlign: 'right' }}>
                                         {isDraft ? (
                                           <input
                                             className="form-input"
@@ -1384,11 +1548,30 @@ export default function SalesOrderModulePage() {
                                                 'discountPercent',
                                                 event.target.value
                                               )
+                                          <EditableDiscount
+                                            available={draft.skuDiscountAvailable}
+                                            max={draft.skuDiscountMax}
+                                            value={draft.skuDiscountPercent}
+                                            onChange={(value) =>
+                                              updateLineDraft(orderLine.id, 'skuDiscountPercent', value)
                                             }
-                                            style={{ width: 78, height: 32, textAlign: 'right' }}
                                           />
                                         ) : (
-                                          `${orderLine.discountPercent}%`
+                                          <ReadOnlyDiscount value={orderLine.skuDiscountPercent} />
+                                        )}
+                                      </td>
+                                      <td className="mono" style={{ textAlign: 'right' }}>
+                                        {isDraft ? (
+                                          <EditableDiscount
+                                            available={draft.specialDiscountAvailable}
+                                            max={draft.specialDiscountMax}
+                                            value={draft.specialDiscountPercent}
+                                            onChange={(value) =>
+                                              updateLineDraft(orderLine.id, 'specialDiscountPercent', value)
+                                            }
+                                          />
+                                        ) : (
+                                          <ReadOnlyDiscount value={orderLine.specialDiscountPercent} />
                                         )}
                                       </td>
                                       <td
@@ -1461,6 +1644,9 @@ export default function SalesOrderModulePage() {
                                               className="product-sku-badge mono"
                                               style={{ fontSize: 10 }}
                                             >
+                                        <td colSpan={8} style={{ padding: '8px 12px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
                                               {product?.sku || orderLine.productId}
                                             </span>
                                             <span
@@ -1488,12 +1674,8 @@ export default function SalesOrderModulePage() {
                                         .slice()
                                         .sort((a, b) => a.pickOrder - b.pickOrder)
                                         .map((pick) => {
-                                          const pickSellingPrice =
-                                            pick.sellingPrice ??
-                                            Math.round(
-                                              pick.mrp * (1 - orderLine.discountPercent / 100) * 100
-                                            ) / 100
-                                          const pickSubtotal = pickSellingPrice * pick.qtyPicked
+                                          const pickSellingPrice = pick.sellingPrice ?? Math.round(pick.mrp * (1 - getTotalDiscountPercent(orderLine) / 100) * 100) / 100;
+                                          const pickSubtotal = pickSellingPrice * pick.qtyPicked;
                                           const pickVat = orderLine.isVatApplicable
                                             ? Math.round(pickSubtotal * 0.18 * 100) / 100
                                             : 0
@@ -1528,7 +1710,13 @@ export default function SalesOrderModulePage() {
                                                 </div>
                                               </td>
                                               <td className="mono" style={{ textAlign: 'right' }}>
-                                                {orderLine.discountPercent}%
+                                                {Number(orderLine.categoryDiscountPercent || 0).toFixed(2)}%
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right' }}>
+                                                {Number(orderLine.skuDiscountPercent || 0).toFixed(2)}%
+                                              </td>
+                                              <td className="mono" style={{ textAlign: 'right' }}>
+                                                {Number(orderLine.specialDiscountPercent || 0).toFixed(2)}%
                                               </td>
                                               <td className="mono" style={{ textAlign: 'right' }}>
                                                 {orderLine.isVatApplicable
@@ -1627,6 +1815,9 @@ export default function SalesOrderModulePage() {
                                       )}
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
+                                      <ReadOnlyDiscount value={draft.categoryDiscountPercent ?? orderLine.categoryDiscountPercent} />
+                                    </td>
+                                    <td className="mono" style={{ textAlign: 'right' }}>
                                       {isDraft ? (
                                         <input
                                           className="form-input"
@@ -1640,11 +1831,30 @@ export default function SalesOrderModulePage() {
                                               'discountPercent',
                                               event.target.value
                                             )
+                                        <EditableDiscount
+                                          available={draft.skuDiscountAvailable}
+                                          max={draft.skuDiscountMax}
+                                          value={draft.skuDiscountPercent}
+                                          onChange={(value) =>
+                                            updateLineDraft(orderLine.id, 'skuDiscountPercent', value)
                                           }
-                                          style={{ width: 78, height: 32, textAlign: 'right' }}
                                         />
                                       ) : (
-                                        `${orderLine.discountPercent}%`
+                                        <ReadOnlyDiscount value={orderLine.skuDiscountPercent} />
+                                      )}
+                                    </td>
+                                    <td className="mono" style={{ textAlign: 'right' }}>
+                                      {isDraft ? (
+                                        <EditableDiscount
+                                          available={draft.specialDiscountAvailable}
+                                          max={draft.specialDiscountMax}
+                                          value={draft.specialDiscountPercent}
+                                          onChange={(value) =>
+                                            updateLineDraft(orderLine.id, 'specialDiscountPercent', value)
+                                          }
+                                        />
+                                      ) : (
+                                        <ReadOnlyDiscount value={orderLine.specialDiscountPercent} />
                                       )}
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
@@ -1656,11 +1866,8 @@ export default function SalesOrderModulePage() {
                                     >
                                       {orderLine.lineTotal > 0
                                         ? formatMoney(orderLine.lineTotal)
-                                        : formatMoney(
-                                            orderLine.quantity *
-                                              orderLine.unitPrice *
-                                              (1 - (orderLine.discountPercent || 0) / 100)
-                                          )}
+                                        : formatMoney(orderLine.quantity * orderLine.unitPrice * (1 - getTotalDiscountPercent(orderLine) / 100))
+                                      }
                                     </td>
                                     {isDraft ? (
                                       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -1689,14 +1896,7 @@ export default function SalesOrderModulePage() {
                               })
                             ) : (
                               <tr>
-                                <td
-                                  colSpan={isDraft ? 7 : 6}
-                                  style={{
-                                    color: 'var(--color-text-muted)',
-                                    textAlign: 'center',
-                                    padding: 24,
-                                  }}
-                                >
+                                <td colSpan={isDraft ? 9 : 8} style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24 }}>
                                   No order lines added yet.
                                 </td>
                               </tr>
@@ -1720,7 +1920,7 @@ export default function SalesOrderModulePage() {
                             style={{
                               display: 'grid',
                               gridTemplateColumns:
-                                'minmax(280px, 1.6fr) minmax(110px, 140px) minmax(110px, 140px) 130px',
+                                'minmax(280px, 1.5fr) minmax(90px, 120px) minmax(90px, 110px) minmax(90px, 110px) minmax(100px, 120px) 130px',
                               gap: 12,
                               alignItems: 'start',
                               overflow: 'visible',
@@ -1750,11 +1950,15 @@ export default function SalesOrderModulePage() {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    setLine((current) => ({
-                                      ...current,
-                                      isReturnLine: !current.isReturnLine,
-                                      returnReason: '',
-                                    }))
+                                    setLine((current) => {
+                                      const isReturnLine = !current.isReturnLine
+
+                                      return {
+                                        ...current,
+                                        isReturnLine,
+                                        returnReason: '',
+                                      }
+                                    })
                                   }
                                   style={{
                                     display: 'inline-flex',
@@ -1883,17 +2087,42 @@ export default function SalesOrderModulePage() {
                               </div>
                             </label>
                             <label>
-                              <span className="form-label">Discount %</span>
-                              <input
-                                className="form-input"
-                                type="number"
-                                min="0"
-                                max="10"
-                                value={line.discountPercent}
-                                onChange={(event) =>
-                                  updateLine('discountPercent', event.target.value)
-                                }
-                              />
+                              <span className="form-label">Cat. Disc %</span>
+                              <div className="form-input mono" style={{ color: 'var(--color-text-muted)' }}>
+                                {Number(line.categoryDiscountPercent || 0).toFixed(2)}%
+                              </div>
+                            </label>
+                            <label>
+                              <span className="form-label">SKU Disc %</span>
+                              {line.skuDiscountAvailable ? (
+                                <input
+                                  className="form-input"
+                                  type="number"
+                                  min="0"
+                                  max={line.skuDiscountMax || 0}
+                                  step="0.01"
+                                  value={line.skuDiscountPercent}
+                                  onChange={(event) => updateLine('skuDiscountPercent', event.target.value)}
+                                />
+                              ) : (
+                                <div className="form-input mono" style={{ color: 'var(--color-text-dim)' }}>-</div>
+                              )}
+                            </label>
+                            <label>
+                              <span className="form-label">Special Disc %</span>
+                              {line.specialDiscountAvailable ? (
+                                <input
+                                  className="form-input"
+                                  type="number"
+                                  min="0"
+                                  max={line.specialDiscountMax || 0}
+                                  step="0.01"
+                                  value={line.specialDiscountPercent}
+                                  onChange={(event) => updateLine('specialDiscountPercent', event.target.value)}
+                                />
+                              ) : (
+                                <div className="form-input mono" style={{ color: 'var(--color-text-dim)' }}>-</div>
+                              )}
                             </label>
                             <button
                               className="button-primary"
@@ -1930,6 +2159,11 @@ export default function SalesOrderModulePage() {
                         <AmountLine label="Discount" value={discount} />
                         <AmountLine label="Supplier Discount" value={supplierDiscount} />
                         <AmountLine label="Distributor Discount" value={distributorDiscount} />
+                        <AmountLine label="Category Discount" value={categoryDiscount} />
+                        {skuDiscount > 0 ? <AmountLine label="SKU Discount" value={skuDiscount} /> : null}
+                        {specialDiscount > 0 ? (
+                          <AmountLine label="Special Discount" value={specialDiscount} />
+                        ) : null}
                         <AmountLine label="VAT" value={vat} />
                         {returnCredit > 0 ? (
                           <AmountLine
@@ -2037,10 +2271,13 @@ export default function SalesOrderModulePage() {
                               disabled={isSaving}
                               style={{ width: '100%' }}
                             >
+                          <section style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                            <h3 style={{ fontSize: 14, fontWeight: 800 }}>Convert To Invoice</h3>
+                            <button className="button-primary" type="button" disabled={isSaving} onClick={convertToInvoice} style={{ width: '100%' }}>
                               <FileText style={{ width: 15, height: 15 }} />
-                              Convert
+                              Convert to Invoice
                             </button>
-                          </form>
+                          </section>
                         ) : null}
                       </section>
                     </aside>

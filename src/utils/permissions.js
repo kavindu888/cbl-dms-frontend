@@ -33,6 +33,7 @@
   inventory: {
     stockRead: 'inventory:stock:read',
     stockAdjust: 'inventory:stock:adjust',
+    openingStock: 'inventory:opening-stock:create',
     warehouseManage: 'inventory:warehouse:manage',
     transferCreate: 'inventory:transfer:create',
     stocktakeManage: 'inventory:stocktake:manage',
@@ -41,6 +42,8 @@
     vehicleLoad: 'inventory:vehicle:load',
     vehicleUnload: 'inventory:vehicle:unload',
     vehicleManage: 'inventory:vehicle:manage',
+    stockAdjustmentCreate: 'inventory:stock-adjustment:create',
+    stockAdjustmentApprove: 'inventory:stock-adjustment:approve',
   },
   sales: {
     orderCreate: 'sales:order:create',

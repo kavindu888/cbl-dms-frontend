@@ -1,0 +1,234 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: calc(100vh - var(--spacing-layout-topbar) - 56px);
+}
+
+.header {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+}
+
+.headerIcon {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-amber) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-amber) 30%, transparent);
+  border-radius: 10px;
+  color: var(--color-amber);
+  display: flex;
+  flex: 0 0 42px;
+  height: 42px;
+  justify-content: center;
+}
+
+.contentGrid {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+}
+
+.mainColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.sectionHeader {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--color-bg-elevated) 45%, transparent);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.formBody {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 16px;
+}
+
+.formGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metaGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.searchWrap {
+  position: relative;
+}
+
+.searchIcon {
+  color: var(--color-text-dim);
+  height: 16px;
+  left: 12px;
+  pointer-events: none;
+  position: absolute;
+  top: 11px;
+  width: 16px;
+}
+
+.searchInput {
+  padding-left: 38px !important;
+}
+
+.searchResults {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-modal);
+  left: 0;
+  max-height: 250px;
+  overflow-y: auto;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px);
+  z-index: 20;
+}
+
+.productResult {
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+  text-align: left;
+  transition: background-color 140ms ease;
+  width: 100%;
+}
+
+.productResult:last-child {
+  border-bottom: 0;
+}
+
+.productResult:hover,
+.productResult:focus-visible {
+  background: var(--color-bg-elevated);
+  outline: none;
+}
+
+.selectedProduct {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-teal) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-teal) 28%, var(--color-border));
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  min-height: 44px;
+  padding: 9px 11px;
+}
+
+.skuBadge {
+  background: color-mix(in srgb, var(--color-teal) 14%, transparent);
+  border-radius: 5px;
+  color: var(--color-teal);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 7px;
+}
+
+.hint {
+  color: var(--color-text-dim);
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+.summaryPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  position: sticky;
+  top: 0;
+}
+
+.summaryRow {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  justify-content: space-between;
+}
+
+.divider {
+  border-top: 1px solid var(--color-border);
+}
+
+.warning {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--color-warning) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 25%, transparent);
+  border-radius: 8px;
+  color: var(--color-warning);
+  display: flex;
+  font-size: 12px;
+  gap: 9px;
+  line-height: 1.55;
+  padding: 11px;
+}
+
+.emptyState {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 210px;
+  padding: 28px;
+  text-align: center;
+}
+
+.removeButton {
+  align-items: center;
+  border-radius: 5px;
+  color: var(--color-text-dim);
+  display: inline-flex;
+  font-size: 20px;
+  height: 30px;
+  justify-content: center;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+  width: 30px;
+}
+
+.removeButton:hover {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  color: var(--color-danger);
+}
+
+@media (max-width: 1100px) {
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .summaryPanel {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .formGrid,
+  .metaGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .headerIcon {
+    display: none;
+  }
+
+  .selectedProduct {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}

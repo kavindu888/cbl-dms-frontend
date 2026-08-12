@@ -58,6 +58,20 @@ export const cancelVehicleUnloading = (id, data) =>
 export const getVehicleUnloading = (id) => inventoryAxios.get(`/vehicle-unloadings/${id}`)
 export const listVehicleUnloadings = (params) =>
   inventoryAxios.get('/vehicle-unloadings', { params })
+// Stock Adjustments
+export const createStockAdjustment = (data) => inventoryAxios.post('/stock-adjustments', data)
+export const addStockAdjustmentLine = (id, data) =>
+  inventoryAxios.post(`/stock-adjustments/${id}/lines`, data)
+export const removeStockAdjustmentLine = (id, lineId) =>
+  inventoryAxios.delete(`/stock-adjustments/${id}/lines/${lineId}`)
+export const submitStockAdjustment = (id) => inventoryAxios.post(`/stock-adjustments/${id}/submit`)
+export const approveStockAdjustment = (id) =>
+  inventoryAxios.post(`/stock-adjustments/${id}/approve`)
+export const applyStockAdjustment = (id) => inventoryAxios.post(`/stock-adjustments/${id}/apply`)
+export const cancelStockAdjustment = (id, data) =>
+  inventoryAxios.post(`/stock-adjustments/${id}/cancel`, data)
+export const getStockAdjustment = (id) => inventoryAxios.get(`/stock-adjustments/${id}`)
+export const listStockAdjustments = (params) => inventoryAxios.get('/stock-adjustments', { params })
 
 // Stock
 export const getStockLevels = (params) => inventoryAxios.get('/stock/levels', { params })
@@ -70,3 +84,6 @@ export const getExpiringBatches = (withinDays = 30) =>
 export const getStockMovements = (params) => inventoryAxios.get('/stock/movements', { params })
 export const getLastBatchCost = (productId) => inventoryAxios.get(`/stock/last-cost/${productId}`)
 export const getLastPrices = (productId) => inventoryAxios.get(`/stock/last-prices/${productId}`)
+
+// Opening Stock
+export const recordOpeningStock = (data) => inventoryAxios.post('/stock/opening-stock', data)

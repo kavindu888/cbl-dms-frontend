@@ -1,10 +1,12 @@
-import { Plus, RotateCcw, Save, Search, Trash2 } from 'lucide-react'
+import { ArrowLeft, Info, Plus, RotateCcw, Save, Search, Trash2, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
+import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { formatDate } from '@/utils'
 import SimplePagination from '@components/ui/SimplePagination'
 
@@ -14,7 +16,13 @@ const emptyLine = {
   unitName: '',
   quantity: 1,
   mrp: 0,
-  discountPercent: 0,
+  categoryDiscountPercent: 0,
+  skuDiscountAvailable: false,
+  skuDiscountMax: 0,
+  skuDiscountPercent: 0,
+  specialDiscountAvailable: false,
+  specialDiscountMax: 0,
+  specialDiscountPercent: 0,
 }
 
 function createDefaultValues() {
@@ -39,17 +47,34 @@ function fieldError(message) {
 function getLineAmounts(line) {
   const mrp = Number(line?.mrp || 0)
   const quantity = Number(line?.quantity || 0)
-  const discountPercent = Number(line?.discountPercent || 0)
-  const discountAmount = mrp * quantity * (discountPercent / 100)
-  const unitPrice = mrp * (1 - discountPercent / 100)
+  const categoryDiscountPercent = Number(line?.categoryDiscountPercent || 0)
+  const skuDiscountPercent = Number(line?.skuDiscountPercent || 0)
+  const specialDiscountPercent = Number(line?.specialDiscountPercent || 0)
+  const totalDiscountPercent =
+    categoryDiscountPercent + skuDiscountPercent + specialDiscountPercent
+  const gross = mrp * quantity
+  const categoryDiscountAmount = gross * (categoryDiscountPercent / 100)
+  const skuDiscountAmount = gross * (skuDiscountPercent / 100)
+  const specialDiscountAmount = gross * (specialDiscountPercent / 100)
+  const discountAmount = categoryDiscountAmount + skuDiscountAmount + specialDiscountAmount
+  const unitPrice = mrp * (1 - totalDiscountPercent / 100)
   const lineTotal = unitPrice * quantity
 
   return {
-    gross: mrp * quantity,
+    gross,
+    categoryDiscountAmount,
+    skuDiscountAmount,
+    specialDiscountAmount,
     discountAmount,
     unitPrice,
     lineTotal,
   }
+}
+
+function getInvoiceId(response) {
+  if (typeof response === 'string' || typeof response === 'number') return String(response)
+
+  return response?.id ?? response?.value ?? response?.data?.id ?? response?.data?.value ?? response?.data
 }
 
 const readOnlyDisplayStyle = {
@@ -245,6 +270,11 @@ function SearchablePicker({
 }
 
 export default function InvoiceCreatorPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const orderState = location.state
+  const isFromSalesOrder = orderState?.fromSalesOrder === true
+  const hasPrefilledFromSalesOrder = useRef(false)
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [isLoadingData, setIsLoadingData] = useState(true)
@@ -252,6 +282,11 @@ export default function InvoiceCreatorPage() {
   const [loadError, setLoadError] = useState('')
   const [salesRouteName, setSalesRouteName] = useState('')
   const [selectedCustomerDetails, setSelectedCustomerDetails] = useState(null)
+  const [serialNumber, setSerialNumber] = useState('')
+  const [serialNumberWarning, setSerialNumberWarning] = useState(false)
+  const [serialNumberChecking, setSerialNumberChecking] = useState(false)
+  const [returnLines, setReturnLines] = useState([])
+  const serialCheckTimeout = useRef(null)
 
   const {
     register,
@@ -301,21 +336,31 @@ export default function InvoiceCreatorPage() {
 
         return {
           gross: sum.gross + amounts.gross,
+          categoryDiscount: sum.categoryDiscount + amounts.categoryDiscountAmount,
+          skuDiscount: sum.skuDiscount + amounts.skuDiscountAmount,
+          specialDiscount: sum.specialDiscount + amounts.specialDiscountAmount,
           discount: sum.discount + amounts.discountAmount,
         }
       },
-      { gross: 0, discount: 0 }
+      { gross: 0, categoryDiscount: 0, skuDiscount: 0, specialDiscount: 0, discount: 0 }
     )
 
-    const netBeforeVat = subtotal.gross - subtotal.discount
+    const returnTotal = returnLines.reduce((sum, line) => {
+      const mrp = Number(line.mrp || line.unitPrice || 0)
+      const discountPercent = Number(line.totalDiscountPercent ?? line.discountPercent ?? 0)
+      const quantity = Number(line.quantity || 0)
+      return sum + mrp * (1 - discountPercent / 100) * quantity
+    }, 0)
+    const netBeforeVat = subtotal.gross - subtotal.discount - returnTotal
     const vat = isCustomerVatRegistered ? Math.round(netBeforeVat * 18) / 100 : 0
 
     return {
       ...subtotal,
+      returnTotal,
       vat,
       net: netBeforeVat + vat,
     }
-  }, [isCustomerVatRegistered, lines])
+  }, [isCustomerVatRegistered, lines, returnLines])
 
   useEffect(() => {
     async function loadData() {
@@ -339,6 +384,57 @@ export default function InvoiceCreatorPage() {
 
     loadData()
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (serialCheckTimeout.current) clearTimeout(serialCheckTimeout.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isFromSalesOrder || !orderState || hasPrefilledFromSalesOrder.current) return
+
+    hasPrefilledFromSalesOrder.current = true
+    setSerialNumber('')
+    setSerialNumberWarning(false)
+    setSerialNumberChecking(false)
+    setSelectedCustomerDetails({
+      id: orderState.customerId,
+      name: orderState.customerName,
+      salesRouteId: orderState.salesRouteId,
+      salesRouteName: orderState.salesRouteName,
+      isVatRegistered: Boolean(orderState.isVatApplicable),
+      taxNumber: orderState.customerVatTin || '',
+    })
+    setSalesRouteName(orderState.salesRouteName || '')
+    const orderLines = orderState.lines || []
+    const normalLines = orderLines.filter((line) => !line.isReturnLine)
+    const orderReturnLines = orderLines.filter((line) => line.isReturnLine)
+
+    setReturnLines(orderReturnLines)
+
+    const prefilledLines = normalLines.map((line) => ({
+      productId: line.productId || '',
+      unitId: line.unitId || line.smallestUnitName || '',
+      unitName: line.smallestUnitName || '',
+      quantity: Number(line.quantity || 0),
+      mrp: Number(line.mrp || 0),
+      categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
+      skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
+      skuDiscountMax: Number(line.skuDiscountPercent || 0),
+      skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+      specialDiscountAvailable: Number(line.specialDiscountPercent || 0) > 0,
+      specialDiscountMax: Number(line.specialDiscountPercent || 0),
+      specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+    }))
+
+    reset({
+      customerId: orderState.customerId || '',
+      salesRouteId: orderState.salesRouteId || '',
+      lines: prefilledLines.length ? prefilledLines : [{ ...emptyLine }],
+    })
+    setLinePage(1)
+  }, [isFromSalesOrder, orderState, reset])
 
   useEffect(() => {
     setValue('salesRouteId', selectedCustomer?.salesRouteId || '')
@@ -406,6 +502,13 @@ export default function InvoiceCreatorPage() {
       setValue(`lines.${index}.unitId`, '', { shouldDirty: true })
       setValue(`lines.${index}.unitName`, '', { shouldDirty: true })
       setValue(`lines.${index}.mrp`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.categoryDiscountPercent`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.skuDiscountAvailable`, false, { shouldDirty: true })
+      setValue(`lines.${index}.skuDiscountMax`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.skuDiscountPercent`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.specialDiscountAvailable`, false, { shouldDirty: true })
+      setValue(`lines.${index}.specialDiscountMax`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.specialDiscountPercent`, 0, { shouldDirty: true })
       return
     }
 
@@ -415,8 +518,12 @@ export default function InvoiceCreatorPage() {
         masterService.getProductUomChain(productId).catch(() => null),
         inventoryService.getLastPrices(productId).catch(() => null),
       ])
-      console.log('Product API response:', product)
-      console.log('Fields:', Object.keys(product || {}))
+      const categoryId = product.categoryId || product.category?.id || ''
+      const [categoryDiscount, skuDiscountInfo, specialDiscount] = await Promise.all([
+        categoryId ? masterService.getActiveCategoryDiscount(categoryId).catch(() => null) : null,
+        masterService.getSkuDiscountInfo(product.id).catch(() => null),
+        categoryId ? masterService.getActiveSpecialDiscount(categoryId).catch(() => null) : null,
+      ])
       const smallestUnit =
         uomChain?.smallestUomCode ||
         product.smallestUnitName ||
@@ -434,6 +541,21 @@ export default function InvoiceCreatorPage() {
           shouldDirty: true,
         }
       )
+      setValue(`lines.${index}.categoryDiscountPercent`, categoryDiscount ?? 0, {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.skuDiscountAvailable`, skuDiscountInfo?.hasSkuDiscount ?? false, {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.skuDiscountMax`, skuDiscountInfo?.maxSkuDiscountPercent ?? 0, {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.skuDiscountPercent`, 0, { shouldDirty: true })
+      setValue(`lines.${index}.specialDiscountAvailable`, specialDiscount !== null, {
+        shouldDirty: true,
+      })
+      setValue(`lines.${index}.specialDiscountMax`, specialDiscount ?? 0, { shouldDirty: true })
+      setValue(`lines.${index}.specialDiscountPercent`, 0, { shouldDirty: true })
     } catch (error) {
       toast.error(error?.message || 'Unable to load product details.')
       const product = productById[productId]
@@ -449,6 +571,39 @@ export default function InvoiceCreatorPage() {
     }
   }
 
+  function handleSerialNumberChange(value) {
+    setSerialNumber(value)
+    setSerialNumberWarning(false)
+    setSerialNumberChecking(false)
+
+    if (serialCheckTimeout.current) {
+      clearTimeout(serialCheckTimeout.current)
+    }
+
+    if (!value.trim()) return
+
+    serialCheckTimeout.current = setTimeout(async () => {
+      setSerialNumberChecking(true)
+      try {
+        const result = await salesService.checkSerialNumberExists(value.trim())
+        setSerialNumberWarning(Boolean(result.exists))
+      } catch (error) {
+        console.error('Serial number check failed:', error)
+      } finally {
+        setSerialNumberChecking(false)
+      }
+    }, 600)
+  }
+
+  function handleClear() {
+    if (serialCheckTimeout.current) clearTimeout(serialCheckTimeout.current)
+    setSerialNumber('')
+    setSerialNumberWarning(false)
+    setSerialNumberChecking(false)
+    reset(createDefaultValues())
+    setReturnLines([])
+  }
+
   function validate(values) {
     if (!values.customerId) return 'Customer is required.'
     if (!values.salesRouteId) return 'Selected customer does not have a sales route.'
@@ -456,12 +611,18 @@ export default function InvoiceCreatorPage() {
       (line) =>
         !line.productId ||
         Number(line.quantity) <= 0 ||
-        Number(line.discountPercent) < 0 ||
-        Number(line.discountPercent) > 10
+        Number(line.skuDiscountPercent || 0) < 0 ||
+        Number(line.skuDiscountPercent || 0) > Number(line.skuDiscountMax || 0) ||
+        Number(line.specialDiscountPercent || 0) < 0 ||
+        Number(line.specialDiscountPercent || 0) > Number(line.specialDiscountMax || 0) ||
+        Number(line.categoryDiscountPercent || 0) +
+          Number(line.skuDiscountPercent || 0) +
+          Number(line.specialDiscountPercent || 0) >
+          DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT
     )
 
     if (invalidLine) {
-      return 'Each line needs a product, quantity, and discount between 0 and 10%.'
+      return `Each line needs a product, quantity, and discounts within their allowed maximums.`
     }
 
     return ''
@@ -476,6 +637,7 @@ export default function InvoiceCreatorPage() {
 
     const payload = {
       customerId: values.customerId,
+      serialNumber: serialNumber.trim() || null,
       invoiceDate: new Date().toISOString(),
       dueDate: null,
       isTaxInvoice: isCustomerVatRegistered,
@@ -484,22 +646,32 @@ export default function InvoiceCreatorPage() {
       lines: values.lines.map((line) => ({
         productId: line.productId,
         quantity: Number(line.quantity),
-        discountPercent: Number(line.discountPercent || 0),
+        skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+        specialDiscountPercent: Number(line.specialDiscountPercent || 0),
       })),
     }
 
     setIsSaving(true)
     try {
-      await salesService.createInvoice(payload)
-      toast.success('Invoice created successfully.')
-      reset({
-        customerId: '',
-        salesRouteId: '',
-        lines: [],
-      })
+      const response = isFromSalesOrder
+        ? await salesService.convertSalesOrderToInvoice(orderState.salesOrderId, {
+            serialNumber: serialNumber.trim() || null,
+            notes: null,
+          })
+        : await salesService.createInvoice(payload)
+      console.log('Create invoice response:', response)
+      console.log('Type:', typeof response)
+      const invoiceId = getInvoiceId(response)
+      handleClear()
       setSelectedCustomerDetails(null)
       setSalesRouteName('')
       setLinePage(1)
+      if (isFromSalesOrder) {
+        toast.success('Sales order converted to invoice.')
+        navigate(invoiceId ? `/sales/invoices/${invoiceId}` : '/sales/invoices/new', { replace: true })
+      } else {
+        toast.success('Invoice created successfully.')
+      }
     } catch (error) {
       toast.error(error?.message || 'Invoice could not be created.')
     } finally {
@@ -519,13 +691,60 @@ export default function InvoiceCreatorPage() {
       }}
     >
       <div>
+        {isFromSalesOrder ? (
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              marginBottom: 10,
+              border: 0,
+              background: 'transparent',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              fontSize: 13,
+              padding: 0,
+            }}
+          >
+            <ArrowLeft style={{ width: 14, height: 14 }} />
+            Back to Sales Order
+          </button>
+        ) : null}
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-          Create Invoice
+          {isFromSalesOrder ? 'Convert to Invoice' : 'Create Invoice'}
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          Backend creates the invoice with today's server date: {formatDate(new Date())}.
+          {isFromSalesOrder
+            ? `Converting Sales Order ${orderState.salesOrderNumber || ''}. You can adjust before saving.`
+            : `Backend creates the invoice with today's server date: ${formatDate(new Date())}.`}
         </p>
       </div>
+
+      {isFromSalesOrder ? (
+        <div
+          className="panel"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+            borderColor: 'rgba(125, 224, 232, 0.3)',
+            background: 'rgba(125, 224, 232, 0.08)',
+            color: 'var(--color-accent)',
+          }}
+        >
+          <Info style={{ width: 16, height: 16, flex: '0 0 auto' }} />
+          <p style={{ margin: 0, fontSize: 13 }}>
+            Pre-filled from Sales Order{' '}
+            <span className="mono" style={{ fontWeight: 800 }}>
+              {orderState.salesOrderNumber}
+            </span>
+            . Review and adjust before saving.
+          </p>
+        </div>
+      ) : null}
 
       {loadError && (
         <div className="panel" style={{ padding: 16, color: 'var(--color-danger)' }}>
@@ -589,12 +808,14 @@ export default function InvoiceCreatorPage() {
           <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'visible', minHeight: 0 }}>
             <table className="data-table" style={{ minWidth: 960, tableLayout: 'fixed' }}>
               <colgroup>
-                <col style={{ width: '30%' }} />
-                <col style={{ width: '16%' }} />
+                <col style={{ width: '26%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '8%' }} />
                 <col style={{ width: '8%' }} />
                 <col style={{ width: '9%' }} />
                 <col style={{ width: '9%' }} />
-                <col style={{ width: '11%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '10%' }} />
                 <col style={{ width: '12%' }} />
                 <col style={{ width: '5%' }} />
               </colgroup>
@@ -604,7 +825,9 @@ export default function InvoiceCreatorPage() {
                   <th>Smallest Unit</th>
                   <th className="text-right">MRP</th>
                   <th className="text-right">Qty</th>
-                  <th className="text-right">Disc %</th>
+                  <th className="text-right">Cat. Disc %</th>
+                  <th className="text-right">SKU Disc %</th>
+                  <th className="text-right">Special Disc %</th>
                   <th className="text-right">Unit Price</th>
                   <th className="text-right">Total</th>
                   <th></th>
@@ -685,13 +908,54 @@ export default function InvoiceCreatorPage() {
                         />
                       </td>
                       <td>
-                        <input
-                          className="form-input mono text-right"
-                          type="number"
-                          step="0.01"
-                          max="10"
-                          {...register(`lines.${index}.discountPercent`)}
-                        />
+                        <span
+                          className="mono"
+                          style={{
+                            color: 'var(--color-text-muted)',
+                            display: 'block',
+                            textAlign: 'right',
+                          }}
+                        >
+                          {Number(line.categoryDiscountPercent || 0).toFixed(2)}%
+                        </span>
+                      </td>
+                      <td>
+                        {line.skuDiscountAvailable ? (
+                          <input
+                            className="form-input mono text-right"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            max={line.skuDiscountMax || 0}
+                            {...register(`lines.${index}.skuDiscountPercent`)}
+                          />
+                        ) : (
+                          <span
+                            className="mono"
+                            style={{ color: 'var(--color-text-dim)', display: 'block', textAlign: 'right' }}
+                          >
+                            -
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {line.specialDiscountAvailable ? (
+                          <input
+                            className="form-input mono text-right"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            max={line.specialDiscountMax || 0}
+                            {...register(`lines.${index}.specialDiscountPercent`)}
+                          />
+                        ) : (
+                          <span
+                            className="mono"
+                            style={{ color: 'var(--color-text-dim)', display: 'block', textAlign: 'right' }}
+                          >
+                            -
+                          </span>
+                        )}
                       </td>
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>
                         {money(unitPrice)}
@@ -753,6 +1017,47 @@ export default function InvoiceCreatorPage() {
               Basic Information
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Serial Number
+                </label>
+                <input
+                  className="form-input"
+                  type="text"
+                  maxLength={20}
+                  value={serialNumber}
+                  onChange={(event) => handleSerialNumberChange(event.target.value)}
+                  placeholder="Enter CBL POS serial number"
+                  disabled={isSaving}
+                  style={{ width: '100%', height: 38, fontSize: 13 }}
+                />
+                {serialNumberWarning ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 6,
+                      marginTop: 6,
+                      color: 'var(--color-amber)',
+                    }}
+                  >
+                    <TriangleAlert
+                      aria-hidden="true"
+                      style={{ width: 13, height: 13, marginTop: 1, flex: '0 0 auto' }}
+                    />
+                    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.35 }}>
+                      Serial number {serialNumber} has already been used on another invoice. You
+                      can still save.
+                    </p>
+                  </div>
+                ) : null}
+                {serialNumberChecking ? (
+                  <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    Checking...
+                  </p>
+                ) : null}
+              </div>
+
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
                   Customer *
@@ -846,9 +1151,29 @@ export default function InvoiceCreatorPage() {
                 <span className="mono">{money(totals.gross)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Discount</span>
-                <span className="mono">{money(totals.discount)}</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>Category Discount</span>
+                <span className="mono">{money(totals.categoryDiscount)}</span>
               </div>
+              {totals.skuDiscount > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--color-text-muted)' }}>SKU Discount</span>
+                  <span className="mono">{money(totals.skuDiscount)}</span>
+                </div>
+              ) : null}
+              {totals.specialDiscount > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--color-text-muted)' }}>Special Discount</span>
+                  <span className="mono">{money(totals.specialDiscount)}</span>
+                </div>
+              ) : null}
+              {totals.returnTotal > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--color-amber)' }}>Returns</span>
+                  <span className="mono" style={{ color: 'var(--color-amber)' }}>
+                    - {money(totals.returnTotal)}
+                  </span>
+                </div>
+              ) : null}
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--color-text-muted)' }}>VAT</span>
                 <span className="mono">{money(totals.vat)}</span>
@@ -873,7 +1198,7 @@ export default function InvoiceCreatorPage() {
             <button
               type="button"
               className="button-secondary"
-              onClick={() => reset(createDefaultValues())}
+              onClick={handleClear}
             >
               <RotateCcw style={{ width: 15, height: 15 }} />
               Clear
