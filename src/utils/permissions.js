@@ -38,6 +38,9 @@
     stocktakeManage: 'inventory:stocktake:manage',
     inStoreReturnCreate: 'inventory:instorereturn:create',
     inStoreReturnApprove: 'inventory:instorereturn:approve',
+    vehicleLoad: 'inventory:vehicle:load',
+    vehicleUnload: 'inventory:vehicle:unload',
+    vehicleManage: 'inventory:vehicle:manage',
   },
   sales: {
     orderCreate: 'sales:order:create',

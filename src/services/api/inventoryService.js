@@ -69,6 +69,12 @@ const inStoreReturnReasonLabels = {
   5: 'Other',
 }
 
+const vehicleMovementStatusLabels = {
+  1: 'Draft',
+  2: 'Applied',
+  3: 'Cancelled',
+}
+
 function enumLabel(value, labels) {
   if (value === null || value === undefined || value === '') return 'Unknown'
   return labels[value] || String(value)
@@ -124,8 +130,19 @@ function formatInStoreReturn(item) {
   }
 }
 
+function formatVehicleMovement(item) {
+  if (!item) return item
+  const lines = Array.isArray(item.lines) ? item.lines : []
+  return {
+    ...item,
+    status: enumLabel(item.status, vehicleMovementStatusLabels),
+    lines,
+    lineCount: item.lineCount ?? lines.length,
+  }
+}
+
 //Inventory service for interacting with the inventory API endpoints
-//Inventory List 
+//Inventory List
 export const inventoryService = {
   async listStockLevels(params = {}) {
     const response = await getOnce('/api/v1/inventory/stock/levels', { params })
@@ -139,8 +156,8 @@ export const inventoryService = {
   },
 
   //Inventory Stock Batches
-  async listStockBatches(productId) {
-    const response = await getOnce(`/api/v1/inventory/stock/batches/${productId}`)
+  async listStockBatches(productId, params = {}) {
+    const response = await getOnce(`/api/v1/inventory/stock/batches/${productId}`, { params })
     return asList(getValue(response, 'Unable to load stock batches.')).map(formatBatch)
   },
 
@@ -306,7 +323,7 @@ export const inventoryService = {
   async listReturnStock(params = {}) {
     const response = await getOnce('/api/v1/inventory/return-stock', { params })
     const data = getValue(response, 'Unable to load return stock staging.')
-    
+
     const returnStockStatusLabels = {
       1: 'Available',
       2: 'Claimed',
@@ -321,12 +338,12 @@ export const inventoryService = {
       4: 'Other',
     }
 
-    const items = asList(data).map(item => ({
+    const items = asList(data).map((item) => ({
       ...item,
       status: returnStockStatusLabels[item.status] || String(item.status),
       reason: returnStockReasonLabels[item.reason] || String(item.reason),
     }))
-    
+
     return {
       items,
       totalItems: data.totalItems ?? items.length,
@@ -339,7 +356,7 @@ export const inventoryService = {
   async getReturnStockByProduct(productId) {
     const response = await getOnce(`/api/v1/inventory/return-stock/by-product/${productId}`)
     const data = getValue(response, 'Unable to load return stock by product.')
-    
+
     const returnStockStatusLabels = {
       1: 'Available',
       2: 'Claimed',
@@ -354,7 +371,7 @@ export const inventoryService = {
       4: 'Other',
     }
 
-    return asList(data).map(item => ({
+    return asList(data).map((item) => ({
       ...item,
       status: returnStockStatusLabels[item.status] || String(item.status),
       reason: returnStockReasonLabels[item.reason] || String(item.reason),
@@ -379,7 +396,8 @@ export const inventoryService = {
       unitCostSmallest: item.unitCostSmallest ?? item.unitCost ?? 0,
       mrp: item.mrp ?? item.MRP ?? 0,
       reason: returnStockReasonLabels[item.reason] || String(item.reason || ''),
-      sourceLabel: item.sourceLabel || item.returnSourceLabel || item.returnSource || item.source || '',
+      sourceLabel:
+        item.sourceLabel || item.returnSourceLabel || item.returnSource || item.source || '',
     }))
   },
 
@@ -427,6 +445,71 @@ export const inventoryService = {
   async cancelInStoreReturn(id, payload) {
     const response = await api.post(`/api/v1/inventory/in-store-returns/${id}/cancel`, payload)
     return getValue(response, 'Unable to cancel in-store return.')
+  },
+
+  async listVehicles(params = {}) {
+    const response = await getOnce('/api/v1/inventory/vehicles', { params })
+    return asList(getValue(response, 'Unable to load vehicles.'))
+  },
+
+  async createVehicleLoading(payload) {
+    const response = await api.post('/api/v1/inventory/vehicle-loadings', payload)
+    return getValue(response, 'Unable to create vehicle loading.')
+  },
+  async addVehicleLoadingLine(id, payload) {
+    const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/lines`, payload)
+    return getValue(response, 'Unable to add vehicle loading line.')
+  },
+  async removeVehicleLoadingLine(id, lineId) {
+    const response = await api.delete(`/api/v1/inventory/vehicle-loadings/${id}/lines/${lineId}`)
+    return getValue(response, 'Unable to remove vehicle loading line.')
+  },
+  async applyVehicleLoading(id) {
+    const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/apply`)
+    return getValue(response, 'Unable to apply vehicle loading.')
+  },
+  async cancelVehicleLoading(id, payload) {
+    const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/cancel`, payload)
+    return getValue(response, 'Unable to cancel vehicle loading.')
+  },
+  async getVehicleLoading(id) {
+    const response = await getOnce(`/api/v1/inventory/vehicle-loadings/${id}`)
+    return formatVehicleMovement(getValue(response, 'Unable to load vehicle loading.'))
+  },
+  async listVehicleLoadings(params = {}) {
+    const response = await getOnce('/api/v1/inventory/vehicle-loadings', { params })
+    return asList(getValue(response, 'Unable to load vehicle loadings.')).map(formatVehicleMovement)
+  },
+
+  async createVehicleUnloading(payload) {
+    const response = await api.post('/api/v1/inventory/vehicle-unloadings', payload)
+    return getValue(response, 'Unable to create vehicle unloading.')
+  },
+  async addVehicleUnloadingLine(id, payload) {
+    const response = await api.post(`/api/v1/inventory/vehicle-unloadings/${id}/lines`, payload)
+    return getValue(response, 'Unable to add vehicle unloading line.')
+  },
+  async removeVehicleUnloadingLine(id, lineId) {
+    const response = await api.delete(`/api/v1/inventory/vehicle-unloadings/${id}/lines/${lineId}`)
+    return getValue(response, 'Unable to remove vehicle unloading line.')
+  },
+  async applyVehicleUnloading(id) {
+    const response = await api.post(`/api/v1/inventory/vehicle-unloadings/${id}/apply`)
+    return getValue(response, 'Unable to apply vehicle unloading.')
+  },
+  async cancelVehicleUnloading(id, payload) {
+    const response = await api.post(`/api/v1/inventory/vehicle-unloadings/${id}/cancel`, payload)
+    return getValue(response, 'Unable to cancel vehicle unloading.')
+  },
+  async getVehicleUnloading(id) {
+    const response = await getOnce(`/api/v1/inventory/vehicle-unloadings/${id}`)
+    return formatVehicleMovement(getValue(response, 'Unable to load vehicle unloading.'))
+  },
+  async listVehicleUnloadings(params = {}) {
+    const response = await getOnce('/api/v1/inventory/vehicle-unloadings', { params })
+    return asList(getValue(response, 'Unable to load vehicle unloadings.')).map(
+      formatVehicleMovement
+    )
   },
 
   async getLastBatchCost(productId) {

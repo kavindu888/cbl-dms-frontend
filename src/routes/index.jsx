@@ -55,6 +55,12 @@ import ReturnStockPage from '@pages/inventory/ReturnStock/ReturnStockPage'
 import InStoreReturnCreatePage from '@pages/inventory/InStoreReturns/InStoreReturnCreatePage'
 import InStoreReturnDetailPage from '@pages/inventory/InStoreReturns/InStoreReturnDetailPage'
 import InStoreReturnListPage from '@pages/inventory/InStoreReturns/InStoreReturnListPage'
+import VehicleLoadingListPage from '@pages/inventory/VehicleLoading/VehicleLoadingListPage'
+import VehicleLoadingCreatePage from '@pages/inventory/VehicleLoading/VehicleLoadingCreatePage'
+import VehicleLoadingDetailPage from '@pages/inventory/VehicleLoading/VehicleLoadingDetailPage'
+import VehicleUnloadingListPage from '@pages/inventory/VehicleUnloading/VehicleUnloadingListPage'
+import VehicleUnloadingCreatePage from '@pages/inventory/VehicleUnloading/VehicleUnloadingCreatePage'
+import VehicleUnloadingDetailPage from '@pages/inventory/VehicleUnloading/VehicleUnloadingDetailPage'
 import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
 import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
 import StockAuditPage from '@pages/inventory/StockAudit/StockAuditPage'
@@ -226,6 +232,39 @@ export const router = createBrowserRouter([
           PERMISSIONS.inventory.inStoreReturnCreate,
           PERMISSIONS.inventory.inStoreReturnApprove,
         ]),
+      },
+      {
+        path: 'inventory/vehicle-loadings',
+        element: requirePermission(<VehicleLoadingListPage />, PERMISSIONS.inventory.vehicleLoad),
+      },
+      {
+        path: 'inventory/vehicle-loadings/new',
+        element: requirePermission(<VehicleLoadingCreatePage />, PERMISSIONS.inventory.vehicleLoad),
+      },
+      {
+        path: 'inventory/vehicle-loadings/:id',
+        element: requirePermission(<VehicleLoadingDetailPage />, PERMISSIONS.inventory.vehicleLoad),
+      },
+      {
+        path: 'inventory/vehicle-unloadings',
+        element: requirePermission(
+          <VehicleUnloadingListPage />,
+          PERMISSIONS.inventory.vehicleUnload
+        ),
+      },
+      {
+        path: 'inventory/vehicle-unloadings/new',
+        element: requirePermission(
+          <VehicleUnloadingCreatePage />,
+          PERMISSIONS.inventory.vehicleUnload
+        ),
+      },
+      {
+        path: 'inventory/vehicle-unloadings/:id',
+        element: requirePermission(
+          <VehicleUnloadingDetailPage />,
+          PERMISSIONS.inventory.vehicleUnload
+        ),
       },
       {
         path: 'inventory/stock-audit',

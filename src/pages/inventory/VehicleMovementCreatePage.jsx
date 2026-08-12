@@ -1,0 +1,712 @@
+import { ArrowLeft, PackageSearch, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { inventoryService } from '@/services/api/inventoryService'
+import { masterService } from '@/services/api/masterService'
+import {
+  useApplyVehicleLoading,
+  useApplyVehicleUnloading,
+  useCreateVehicleLoading,
+  useCreateVehicleUnloading,
+  useVehicles,
+} from '@/hooks/useVehicle'
+import { formatDate } from '@/utils/formatDate'
+import { formatLKR } from '@/utils/formatCurrency'
+import {
+  formatNumber,
+  getMrp,
+  getQtyAvailable,
+  getUnitCost,
+  resultId,
+  returnReasonLabel,
+  unloadingTypeLabel,
+  vehicleLabel,
+} from './vehicleMovementUtils'
+
+export default function VehicleMovementCreatePage({ kind, basePath }) {
+  const isUnloading = kind === 'Unloading'
+  const navigate = useNavigate()
+  const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles()
+  const createLoading = useCreateVehicleLoading()
+  const createUnloading = useCreateVehicleUnloading()
+  const applyLoading = useApplyVehicleLoading()
+  const applyUnloading = useApplyVehicleUnloading()
+
+  const [vehicleId, setVehicleId] = useState('')
+  const [notes, setNotes] = useState('')
+  const [draftId, setDraftId] = useState('')
+  const [lines, setLines] = useState([])
+  const [products, setProducts] = useState([])
+  const [productSearch, setProductSearch] = useState('')
+  const [selectedProductId, setSelectedProductId] = useState('')
+  const [batches, setBatches] = useState([])
+  const [selectedBatchId, setSelectedBatchId] = useState('')
+  const [qty, setQty] = useState('')
+  const [unloadingType, setUnloadingType] = useState(1)
+  const [returnReason, setReturnReason] = useState('')
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+  const [isLoadingBatches, setIsLoadingBatches] = useState(false)
+  const [isAddingLine, setIsAddingLine] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    async function loadProducts() {
+      setIsLoadingProducts(true)
+      try {
+        const items = await masterService.listAllProducts({ pageSize: 100, status: 'Active' })
+        if (active) setProducts(items || [])
+      } catch (error) {
+        if (active) toast.error(error.message || 'Unable to load products.')
+      } finally {
+        if (active) setIsLoadingProducts(false)
+      }
+    }
+    loadProducts()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedProductId || (isUnloading && !vehicleId)) {
+      setBatches([])
+      setSelectedBatchId('')
+      return
+    }
+    let active = true
+    async function loadBatches() {
+      setIsLoadingBatches(true)
+      try {
+        const rows = await inventoryService.listStockBatches(
+          selectedProductId,
+          isUnloading ? { locationId: vehicleId } : {}
+        )
+        if (active) setBatches(rows.filter((batch) => getQtyAvailable(batch) > 0))
+      } catch (error) {
+        if (active) {
+          setBatches([])
+          toast.error(error.message || 'Unable to load batches.')
+        }
+      } finally {
+        if (active) setIsLoadingBatches(false)
+      }
+    }
+    loadBatches()
+    setSelectedBatchId('')
+    setQty('')
+    return () => {
+      active = false
+    }
+  }, [isUnloading, selectedProductId, vehicleId])
+
+  const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId)
+  const selectedProduct = products.find((product) => product.id === selectedProductId)
+  const selectedBatch = batches.find((batch) => batch.id === selectedBatchId)
+  const filteredProducts = useMemo(() => {
+    const term = productSearch.trim().toLowerCase()
+    if (!term) return products.slice(0, 30)
+    return products
+      .filter((product) =>
+        `${product.name} ${product.sku} ${product.barcode || ''}`.toLowerCase().includes(term)
+      )
+      .slice(0, 30)
+  }, [productSearch, products])
+
+  const totalQty = lines.reduce((sum, line) => sum + Number(line.qtySmallest || 0), 0)
+  const normalCount = lines.filter(
+    (line) => unloadingTypeLabel(line.unloadingType) === 'Normal'
+  ).length
+  const labelledCount = lines.length - normalCount
+
+  async function ensureDraft() {
+    if (draftId) return draftId
+    if (!vehicleId) throw new Error('Select a vehicle first.')
+    const result = isUnloading
+      ? await createUnloading.mutateAsync({
+          vehicleLocationId: vehicleId,
+          notes: notes.trim() || null,
+        })
+      : await createLoading.mutateAsync({
+          vehicleLocationId: vehicleId,
+          notes: notes.trim() || null,
+        })
+    const id = resultId(result)
+    if (!id) throw new Error(`Draft saved, but the new ${kind.toLowerCase()} id was not returned.`)
+    setDraftId(id)
+    return id
+  }
+
+  async function handleAddLine() {
+    if (!selectedVehicle || !selectedProduct || !selectedBatch)
+      return toast.error('Select a vehicle, product, and batch first.')
+    const requestedQty = Number(qty)
+    if (requestedQty <= 0) return toast.error('Enter a quantity greater than zero.')
+    if (requestedQty > getQtyAvailable(selectedBatch))
+      return toast.error('Quantity cannot exceed available batch quantity.')
+    if (isUnloading && unloadingType === 2 && !returnReason)
+      return toast.error('Labelled unloading requires a return reason.')
+
+    setIsAddingLine(true)
+    try {
+      const id = await ensureDraft()
+      const payload = {
+        productId: selectedProduct.id,
+        productSku: selectedProduct.sku,
+        sourceBatchId: selectedBatch.id,
+        qtySmallest: requestedQty,
+        ...(isUnloading
+          ? { unloadingType, returnReason: unloadingType === 2 ? Number(returnReason) : null }
+          : {}),
+      }
+      const result = isUnloading
+        ? await inventoryService.addVehicleUnloadingLine(id, payload)
+        : await inventoryService.addVehicleLoadingLine(id, payload)
+      const lineId = resultId(result) || `${selectedBatch.id}-${Date.now()}`
+      setLines((current) => [
+        ...current,
+        {
+          id: lineId,
+          productName: selectedProduct.name,
+          productSku: selectedProduct.sku,
+          sourceBatchNo: selectedBatch.batchNo,
+          qtySmallest: requestedQty,
+          unitCostSmallest: getUnitCost(selectedBatch),
+          mrp: getMrp(selectedBatch),
+          unloadingType,
+          returnReason: unloadingType === 2 ? Number(returnReason) : null,
+        },
+      ])
+      toast.success(isUnloading ? 'Unloading line added.' : 'Stock line added.')
+      setSelectedBatchId('')
+      setQty('')
+      setReturnReason('')
+      setUnloadingType(1)
+    } catch (error) {
+      toast.error(error.message || `Unable to add ${kind.toLowerCase()} line.`)
+    } finally {
+      setIsAddingLine(false)
+    }
+  }
+
+  async function handleRemoveLine(lineId) {
+    try {
+      if (isUnloading) await inventoryService.removeVehicleUnloadingLine(draftId, lineId)
+      else await inventoryService.removeVehicleLoadingLine(draftId, lineId)
+      setLines((current) => current.filter((line) => line.id !== lineId))
+      toast.success('Stock line removed.')
+    } catch (error) {
+      toast.error(error.message || 'Unable to remove stock line.')
+    }
+  }
+
+  async function handleApply() {
+    if (!draftId || !lines.length || !vehicleId) return
+    const message = isUnloading
+      ? 'Unload this stock to main inventory? This inventory movement cannot be undone.'
+      : 'Load this stock to the vehicle? This inventory movement cannot be undone.'
+    if (!window.confirm(message)) return
+    try {
+      if (isUnloading) await applyUnloading.mutateAsync(draftId)
+      else await applyLoading.mutateAsync(draftId)
+      navigate(basePath)
+    } catch {
+      /* Hook shows the error toast. */
+    }
+  }
+
+  const applyPending = applyLoading.isPending || applyUnloading.isPending
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <header>
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={() => navigate(basePath)}
+          style={{ height: 34, marginBottom: 12 }}
+        >
+          <ArrowLeft size={15} /> Back to List
+        </button>
+        <p className="eyebrow">Inventory</p>
+        <h1 style={{ color: 'var(--color-text-primary)', fontSize: 24, fontWeight: 800 }}>
+          New Vehicle {kind}
+        </h1>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: 13, marginTop: 4 }}>
+          {isUnloading
+            ? 'Move selected vehicle batches back to main inventory.'
+            : 'Move selected main inventory batches onto a vehicle.'}
+        </p>
+      </header>
+
+      <div
+        style={{
+          alignItems: 'start',
+          display: 'grid',
+          gap: 16,
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(340px, 380px)',
+        }}
+      >
+        <main style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <section className="panel" style={{ padding: 16 }}>
+            <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
+              Header Details
+            </h2>
+            <div
+              style={{
+                display: 'grid',
+                gap: 14,
+                gridTemplateColumns: 'minmax(240px, 1fr) minmax(240px, 1fr)',
+                marginTop: 14,
+              }}
+            >
+              <label>
+                <span className="form-label">Vehicle *</span>
+                <select
+                  className="form-input"
+                  value={vehicleId}
+                  disabled={lines.length > 0 || isLoadingVehicles}
+                  onChange={(event) => {
+                    setVehicleId(event.target.value)
+                    setSelectedProductId('')
+                    setSelectedBatchId('')
+                  }}
+                >
+                  <option value="">Select vehicle...</option>
+                  {vehicles.map((vehicle) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicleLabel(vehicle)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="form-label">Notes</span>
+                <input
+                  className="form-input"
+                  value={notes}
+                  disabled={Boolean(draftId)}
+                  onChange={(event) => setNotes(event.target.value)}
+                  placeholder="Optional movement notes"
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="panel" style={{ padding: 16 }}>
+            <div>
+              <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
+                {isUnloading ? 'Add Unloading Line' : 'Add Stock Line'}
+              </h2>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 3 }}>
+                Search a product, select an available batch, then enter the quantity.
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}>
+              <label>
+                <span className="form-label">Product</span>
+                <input
+                  className="form-input"
+                  value={productSearch}
+                  disabled={isUnloading && !vehicleId}
+                  onChange={(event) => {
+                    setProductSearch(event.target.value)
+                    setSelectedProductId('')
+                    setSelectedBatchId('')
+                  }}
+                  placeholder={
+                    isUnloading && !vehicleId
+                      ? 'Select a vehicle first'
+                      : 'Search SKU, barcode, or product name'
+                  }
+                />
+              </label>
+              {!selectedProduct && productSearch.trim() ? (
+                <div
+                  style={{
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 8,
+                    maxHeight: 210,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {isLoadingProducts ? (
+                    <div style={{ color: 'var(--color-text-muted)', padding: 14 }}>
+                      Loading products...
+                    </div>
+                  ) : filteredProducts.length ? (
+                    filteredProducts.map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => setSelectedProductId(product.id)}
+                        style={{
+                          alignItems: 'center',
+                          borderBottom: '1px solid var(--color-border)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          padding: '10px 12px',
+                          textAlign: 'left',
+                          width: '100%',
+                        }}
+                      >
+                        <span>
+                          <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
+                            {product.name}
+                          </strong>
+                          <span
+                            className="mono"
+                            style={{ color: 'var(--color-teal)', fontSize: 11 }}
+                          >
+                            {product.sku}
+                          </span>
+                        </span>
+                        <PackageSearch size={16} />
+                      </button>
+                    ))
+                  ) : (
+                    <div style={{ color: 'var(--color-text-muted)', padding: 14 }}>
+                      No products found.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+              {selectedProduct ? (
+                <>
+                  <div
+                    style={{
+                      alignItems: 'center',
+                      background: 'var(--color-bg-hover)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 8,
+                      display: 'flex',
+                      gap: 12,
+                      padding: '10px 12px',
+                    }}
+                  >
+                    <span className="product-sku-badge mono">{selectedProduct.sku}</span>
+                    <strong style={{ color: 'var(--color-text-primary)', flex: 1 }}>
+                      {selectedProduct.name}
+                    </strong>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => {
+                        setSelectedProductId('')
+                        setProductSearch('')
+                        setSelectedBatchId('')
+                      }}
+                      style={{ height: 30 }}
+                    >
+                      Change
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Batch No</th>
+                          <th className="text-right">Available Qty</th>
+                          <th className="text-right">Unit Cost</th>
+                          <th className="text-right">MRP</th>
+                          <th>Expiry</th>
+                          <th className="text-right">Select</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {isLoadingBatches ? (
+                          <tr>
+                            <td colSpan={6}>Loading batches...</td>
+                          </tr>
+                        ) : batches.length ? (
+                          batches.map((batch) => (
+                            <tr
+                              key={batch.id}
+                              style={{
+                                boxShadow:
+                                  selectedBatchId === batch.id
+                                    ? 'inset 3px 0 var(--color-teal)'
+                                    : 'none',
+                              }}
+                            >
+                              <td className="mono">{batch.batchNo || '—'}</td>
+                              <td className="mono text-right">
+                                {formatNumber(getQtyAvailable(batch))}
+                              </td>
+                              <td className="mono text-right">{formatLKR(getUnitCost(batch))}</td>
+                              <td className="mono text-right">{formatLKR(getMrp(batch))}</td>
+                              <td className="mono">{formatDate(batch.expiryDate)}</td>
+                              <td className="text-right">
+                                <button
+                                  type="button"
+                                  className={
+                                    selectedBatchId === batch.id
+                                      ? 'button-primary'
+                                      : 'button-secondary'
+                                  }
+                                  onClick={() => setSelectedBatchId(batch.id)}
+                                  style={{ height: 30 }}
+                                >
+                                  Select
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={6}>
+                              No available {isUnloading ? 'vehicle' : 'main stock'} batches found.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : null}
+              {selectedBatch ? (
+                <div
+                  style={{
+                    borderTop: '1px solid var(--color-border)',
+                    display: 'grid',
+                    gap: 12,
+                    gridTemplateColumns: isUnloading
+                      ? '150px minmax(250px, 1fr) auto'
+                      : '180px auto',
+                    paddingTop: 14,
+                  }}
+                >
+                  <label>
+                    <span className="form-label">Quantity *</span>
+                    <input
+                      className="form-input mono text-right"
+                      type="number"
+                      min="0.0001"
+                      step="0.0001"
+                      max={getQtyAvailable(selectedBatch)}
+                      value={qty}
+                      onChange={(event) => setQty(event.target.value)}
+                    />
+                    <small className="mono" style={{ color: 'var(--color-text-muted)' }}>
+                      Max: {formatNumber(getQtyAvailable(selectedBatch))}
+                    </small>
+                  </label>
+                  {isUnloading ? (
+                    <div>
+                      <span className="form-label">Unloading Type *</span>
+                      <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr' }}>
+                        <button
+                          type="button"
+                          className={unloadingType === 1 ? 'button-primary' : 'button-secondary'}
+                          onClick={() => {
+                            setUnloadingType(1)
+                            setReturnReason('')
+                          }}
+                        >
+                          ✓ Normal
+                        </button>
+                        <button
+                          type="button"
+                          className={unloadingType === 2 ? 'button-primary' : 'button-secondary'}
+                          onClick={() => setUnloadingType(2)}
+                        >
+                          ⚠ Labelled
+                        </button>
+                      </div>
+                      {unloadingType === 2 ? (
+                        <select
+                          className="form-input"
+                          value={returnReason}
+                          onChange={(event) => setReturnReason(event.target.value)}
+                          style={{ marginTop: 8 }}
+                        >
+                          <option value="">Select return reason...</option>
+                          <option value="3">Short Expiry</option>
+                          <option value="4">Unwanted</option>
+                        </select>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="button-primary"
+                    disabled={
+                      !qty ||
+                      Number(qty) <= 0 ||
+                      isAddingLine ||
+                      (isUnloading && unloadingType === 2 && !returnReason)
+                    }
+                    onClick={handleAddLine}
+                    style={{ alignSelf: 'start', height: 38, marginTop: 20 }}
+                  >
+                    {isAddingLine ? 'Adding...' : 'Add Line'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          <section className="panel" style={{ overflow: 'hidden', padding: 0 }}>
+            <div style={{ borderBottom: '1px solid var(--color-border)', padding: '14px 16px' }}>
+              <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
+                {isUnloading ? 'Unloading Lines' : 'Stock Lines'}
+              </h2>
+            </div>
+            {lines.length ? (
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Source Batch</th>
+                      <th className="text-right">Qty</th>
+                      {isUnloading ? (
+                        <>
+                          <th>Type</th>
+                          <th>Reason</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="text-right">Unit Cost</th>
+                          <th className="text-right">MRP</th>
+                        </>
+                      )}
+                      <th className="text-right">Remove</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((line) => (
+                      <tr key={line.id}>
+                        <td>
+                          <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
+                            {line.productName}
+                          </strong>
+                          <span className="product-sku-badge mono">{line.productSku}</span>
+                        </td>
+                        <td className="mono">{line.sourceBatchNo || '—'}</td>
+                        <td className="mono text-right">{formatNumber(line.qtySmallest)}</td>
+                        {isUnloading ? (
+                          <>
+                            <td>
+                              <span
+                                className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
+                              >
+                                {unloadingTypeLabel(line.unloadingType).toUpperCase()}
+                              </span>
+                            </td>
+                            <td>{returnReasonLabel(line.returnReason)}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="mono text-right">{formatLKR(line.unitCostSmallest)}</td>
+                            <td className="mono text-right">{formatLKR(line.mrp)}</td>
+                          </>
+                        )}
+                        <td className="text-right">
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            onClick={() => handleRemoveLine(line.id)}
+                            style={{ height: 30 }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ color: 'var(--color-text-muted)', padding: 30, textAlign: 'center' }}>
+                No stock lines added yet.
+              </div>
+            )}
+          </section>
+        </main>
+
+        <aside
+          className="panel"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            padding: 16,
+            position: 'sticky',
+            top: 16,
+          }}
+        >
+          <div>
+            <h2 style={{ color: 'var(--color-text-primary)', fontSize: 17, fontWeight: 800 }}>
+              Summary
+            </h2>
+          </div>
+          <SummaryRow
+            label="Vehicle"
+            value={selectedVehicle ? vehicleLabel(selectedVehicle) : 'Not selected'}
+          />
+          <SummaryRow label="Lines" value={lines.length} mono />
+          {isUnloading ? (
+            <>
+              <SummaryRow label="Normal" value={normalCount} mono />
+              <SummaryRow label="Labelled" value={labelledCount} mono />
+            </>
+          ) : (
+            <SummaryRow label="Total Qty" value={formatNumber(totalQty)} mono />
+          )}
+          <div
+            style={{
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              borderRadius: 8,
+              color: 'var(--color-amber)',
+              fontSize: 12,
+              lineHeight: 1.5,
+              padding: 12,
+            }}
+          >
+            {isUnloading
+              ? 'Labelled items will be flagged in main inventory. All stock moves from vehicle to main.'
+              : 'Stock will permanently move from main inventory to vehicle on apply. Cannot be undone.'}
+          </div>
+          <button
+            type="button"
+            className="button-primary"
+            disabled={!vehicleId || !lines.length || applyPending}
+            onClick={handleApply}
+            style={{ height: 42, marginTop: 'auto', width: '100%' }}
+          >
+            {applyPending
+              ? 'Applying...'
+              : isUnloading
+                ? 'Unload to Main Inventory'
+                : 'Load to Vehicle'}
+          </button>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function SummaryRow({ label, value, mono = false }) {
+  return (
+    <div
+      style={{
+        alignItems: 'center',
+        borderTop: '1px solid var(--color-border)',
+        display: 'flex',
+        fontSize: 12,
+        justifyContent: 'space-between',
+        paddingTop: 12,
+      }}
+    >
+      <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+      <span
+        className={mono ? 'mono' : ''}
+        style={{ color: 'var(--color-text-primary)', fontWeight: 700, textAlign: 'right' }}
+      >
+        {value}
+      </span>
+    </div>
+  )
+}

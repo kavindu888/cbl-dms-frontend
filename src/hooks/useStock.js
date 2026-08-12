@@ -28,11 +28,11 @@ export function useStockAvailability(productId) {
   })
 }
 
-export function useStockBatches(productId) {
+export function useStockBatches(productId, params = {}) {
   return useQuery({
-    queryKey: ['inventory', 'stock', 'batches', productId],
+    queryKey: ['inventory', 'stock', 'batches', productId, params],
     queryFn: async () => {
-      return inventoryService.listStockBatches(productId)
+      return inventoryService.listStockBatches(productId, params)
     },
     enabled: Boolean(productId),
   })

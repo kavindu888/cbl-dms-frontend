@@ -1,4 +1,4 @@
-import { RefreshCw, Search } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
@@ -41,7 +41,14 @@ const pageTitles = {
   },
 }
 
-const emptyLocationForm = { businessUnitId: '', code: '', name: '', address: '' }
+const emptyLocationForm = {
+  businessUnitId: '',
+  code: '',
+  name: '',
+  address: '',
+  isVehicle: false,
+  isReturnLocation: false,
+}
 const emptyTransferForm = { sourceLocationId: '', destinationLocationId: '', notes: '' }
 const emptyTransferLineForm = {
   transferId: '',
@@ -409,7 +416,12 @@ export default function StockModulePage({ initialTab = 'levels' }) {
   }
 
   function setLocationField(field, value) {
-    setLocationForm((current) => ({ ...current, [field]: value }))
+    setLocationForm((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === 'isVehicle' && value ? { isReturnLocation: false } : {}),
+      ...(field === 'isReturnLocation' && value ? { isVehicle: false } : {}),
+    }))
   }
 
   function setTransferField(field, value) {
@@ -448,6 +460,8 @@ export default function StockModulePage({ initialTab = 'levels' }) {
       code: location.code || '',
       name: location.name || '',
       address: location.address || '',
+      isVehicle: Boolean(location.isVehicle),
+      isReturnLocation: Boolean(location.isReturnLocation),
     })
   }
 
@@ -470,6 +484,8 @@ export default function StockModulePage({ initialTab = 'levels' }) {
         await inventoryService.updateStockLocation(editingLocation.id, {
           name: locationForm.name.trim(),
           address: locationForm.address.trim() || null,
+          isVehicle: locationForm.isVehicle,
+          isReturnLocation: locationForm.isReturnLocation,
         })
         toast.success('Stock location updated.')
       } else {
@@ -478,6 +494,8 @@ export default function StockModulePage({ initialTab = 'levels' }) {
           code: locationForm.code.trim().toUpperCase(),
           name: locationForm.name.trim(),
           address: locationForm.address.trim() || null,
+          isVehicle: locationForm.isVehicle,
+          isReturnLocation: locationForm.isReturnLocation,
         })
         toast.success('Stock location created.')
       }
@@ -1229,7 +1247,50 @@ export default function StockModulePage({ initialTab = 'levels' }) {
                             {location.code}
                           </span>
                         </td>
-                        <td>{location.name}</td>
+                        <td>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <span>{location.name}</span>
+                            {location.isVehicle ? (
+                              <span
+                                className="mono"
+                                style={{
+                                  background: 'rgba(34, 211, 238, 0.12)',
+                                  border: '1px solid rgba(34, 211, 238, 0.35)',
+                                  borderRadius: 999,
+                                  color: 'var(--color-cyan)',
+                                  fontSize: 9,
+                                  fontWeight: 800,
+                                  padding: '2px 6px',
+                                }}
+                              >
+                                VEHICLE
+                              </span>
+                            ) : null}
+                            {location.isReturnLocation ? (
+                              <span
+                                className="mono"
+                                style={{
+                                  background: 'rgba(245, 158, 11, 0.12)',
+                                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                                  borderRadius: 999,
+                                  color: 'var(--color-amber)',
+                                  fontSize: 9,
+                                  fontWeight: 800,
+                                  padding: '2px 6px',
+                                }}
+                              >
+                                RETURN
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
                         <td className="mono">{location.businessUnitId}</td>
                         <td>{businessUnitName(location.businessUnitId)}</td>
                         <td>{formatBoolean(location.isActive)}</td>
@@ -1317,6 +1378,54 @@ export default function StockModulePage({ initialTab = 'levels' }) {
                 onChange={(event) => setLocationField('address', event.target.value)}
                 style={{ flex: 1, minHeight: 90, paddingTop: 10, resize: 'none' }}
               />
+            </Field>
+            <Field label="Is Vehicle">
+              <label
+                style={{
+                  alignItems: 'flex-start',
+                  color: 'var(--color-text-muted)',
+                  display: 'flex',
+                  fontSize: 13,
+                  gap: 8,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={locationForm.isVehicle}
+                  onChange={(event) => setLocationField('isVehicle', event.target.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  Mark this location as a vehicle (lorry/truck)
+                  <small style={{ color: 'var(--color-text-dim)', display: 'block', marginTop: 3 }}>
+                    When checked: stock loads from main to this location
+                  </small>
+                </span>
+              </label>
+            </Field>
+            <Field label="Is Return Location">
+              <label
+                style={{
+                  alignItems: 'flex-start',
+                  color: 'var(--color-text-muted)',
+                  display: 'flex',
+                  fontSize: 13,
+                  gap: 8,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={locationForm.isReturnLocation}
+                  onChange={(event) => setLocationField('isReturnLocation', event.target.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  Mark this location as a return stock holding area
+                  <small style={{ color: 'var(--color-text-dim)', display: 'block', marginTop: 3 }}>
+                    When checked: damaged/expired returns come here
+                  </small>
+                </span>
+              </label>
             </Field>
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button
