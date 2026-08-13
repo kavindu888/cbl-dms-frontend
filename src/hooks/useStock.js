@@ -14,6 +14,7 @@ export function useStockLevels(params = {}) {
     queryFn: async () => {
       return inventoryService.listStockLevels(params)
     },
+    refetchOnMount: 'always',
   })
 }
 

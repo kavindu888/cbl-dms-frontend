@@ -80,17 +80,13 @@ function MetricCard({ label, value, helper, icon: Icon, tone }) {
 export default function StockOverviewPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [lowStockOnly, setLowStockOnly] = useState(false)
   const [page, setPage] = useState(1)
   const [products, setProducts] = useState([])
   const [flagProduct, setFlagProduct] = useState(null)
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+  const [sortMode, setSortMode] = useState('newest')
 
-  const {
-    data: rawLevels,
-    isLoading: isLoadingLevels,
-    refetch: refetchLevels,
-  } = useStockLevels()
+  const { data: rawLevels, isLoading: isLoadingLevels, refetch: refetchLevels } = useStockLevels()
   const { data: expiringBatches, refetch: refetchExpiring } = useExpiringBatches(30)
 
   useEffect(() => {
@@ -194,19 +190,34 @@ export default function StockOverviewPage() {
     return stockRows
       .filter((row) => {
         if (!term) return true
+
         return (
           row.productSku?.toLowerCase().includes(term) ||
           row.product?.name?.toLowerCase().includes(term) ||
           row.product?.barcode?.toLowerCase().includes(term)
         )
       })
-      .filter((row) => !lowStockOnly || row.sellable <= 0)
-      .sort((a, b) => (a.product?.name || a.productSku).localeCompare(b.product?.name || b.productSku))
-  }, [lowStockOnly, search, stockRows])
+      .sort((a, b) => {
+        if (sortMode === 'az') {
+          const nameA = a.product?.name || a.productSku || ''
+          const nameB = b.product?.name || b.productSku || ''
+          return nameA.localeCompare(nameB)
+        }
+
+        const movementDifference =
+          dayjs(b.lastMovementAt).valueOf() - dayjs(a.lastMovementAt).valueOf()
+
+        if (movementDifference !== 0) return movementDifference
+
+        return (a.product?.name || a.productSku || '').localeCompare(
+          b.product?.name || b.productSku || ''
+        )
+      })
+  }, [search, sortMode, stockRows])
 
   useEffect(() => {
     setPage(1)
-  }, [search, lowStockOnly])
+  }, [search, sortMode])
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
@@ -244,9 +255,6 @@ export default function StockOverviewPage() {
               </span>
             ) : null}
           </div>
-          <p style={{ marginTop: 3, fontSize: 13, color: 'var(--color-text-muted)' }}>
-            Live inventory position consolidated across all stock locations.
-          </p>
         </div>
         <button
           type="button"
@@ -292,16 +300,16 @@ export default function StockOverviewPage() {
 
       <section className="panel" style={{ overflow: 'hidden' }}>
         <div
-          className="responsive-filter-bar"
           style={{
-            padding: 12,
+            padding: '12px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
+            gap: 10,
+            flex: 1,
             borderBottom: '1px solid var(--color-border)',
           }}
         >
+          {/* Search */}
           <div style={{ position: 'relative', width: 'min(100%, 480px)' }}>
             <Search
               size={15}
@@ -321,17 +329,22 @@ export default function StockOverviewPage() {
               style={{ height: 36, paddingLeft: 36, background: 'var(--color-bg-base)' }}
             />
           </div>
-
-          <button
-            type="button"
-            className={lowStockOnly ? 'button-primary' : 'button-secondary'}
-            onClick={() => setLowStockOnly((current) => !current)}
-            style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+          {/* Sort */}
+          <select
+            className="form-input"
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value)}
+            style={{
+              height: 36,
+              width: 150,
+              cursor: 'pointer',
+              background: 'var(--color-bg-base)',
+            }}
           >
-            <AlertTriangle size={13} /> Critical stock only
-          </button>
+            <option value="newest">Newest Added</option>
+            <option value="az">Product A - Z</option>
+          </select>
         </div>
-
         <div
           style={{
             padding: '10px 12px',
@@ -374,8 +387,12 @@ export default function StockOverviewPage() {
               <tbody>
                 {pagedRows.map((row) => {
                   const productName = row.product?.name || 'Product name unavailable'
-                  const uom = row.product?.uomBase || ''
-                  const status = row.sellable <= 0 ? 'Critical' : row.totalReserved > 0 ? 'Allocated' : 'Available'
+                  const status =
+                    row.sellable <= 0
+                      ? 'Critical'
+                      : row.totalReserved > 0
+                        ? 'Allocated'
+                        : 'Available'
 
                   return (
                     <tr key={row.productId}>
@@ -398,15 +415,22 @@ export default function StockOverviewPage() {
                           </div>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontWeight: 700 }}>{productName}</div>
-                            <div className="mono" style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}>
+                            <div
+                              className="mono"
+                              style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}
+                            >
                               {row.productSku}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td><StatusBadge status={status} /></td>
                       <td>
-                        <span className="mono" style={{ fontWeight: 700 }}>{row.locationCount}</span>{' '}
+                        <StatusBadge status={status} />
+                      </td>
+                      <td>
+                        <span className="mono" style={{ fontWeight: 700 }}>
+                          {row.locationCount}
+                        </span>{' '}
                         <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
                           location{row.locationCount === 1 ? '' : 's'}
                         </span>
@@ -417,24 +441,40 @@ export default function StockOverviewPage() {
                           {row.smallestUnitCode || 'PCS'}
                         </small>
                       </td>
-                      <td className="mono" style={{ textAlign: 'right', color: row.totalReserved ? 'var(--color-amber)' : 'var(--color-text-muted)' }}>
+                      <td
+                        className="mono"
+                        style={{
+                          textAlign: 'right',
+                          color: row.totalReserved
+                            ? 'var(--color-amber)'
+                            : 'var(--color-text-muted)',
+                        }}
+                      >
                         {formatNumber(row.totalReserved)}{' '}
                         <small style={{ color: 'var(--color-text-dim)' }}>
                           {row.smallestUnitCode || 'PCS'}
                         </small>
                       </td>
-                      <td className="mono" style={{ textAlign: 'right', fontWeight: 800, color: row.sellable <= 0 ? 'var(--color-danger)' : 'var(--color-teal)' }}>
+                      <td
+                        className="mono"
+                        style={{
+                          textAlign: 'right',
+                          fontWeight: 800,
+                          color: row.sellable <= 0 ? 'var(--color-danger)' : 'var(--color-teal)',
+                        }}
+                      >
                         {formatNumber(row.sellable)}{' '}
                         <small style={{ color: 'var(--color-text-dim)' }}>
                           {row.smallestUnitCode || 'PCS'}
                         </small>
                       </td>
                       <td>
-                        <div style={{ fontSize: 12 }}>
-                          {formatDate(row.lastMovementAt)}
-                        </div>
+                        <div style={{ fontSize: 12 }}>{formatDate(row.lastMovementAt)}</div>
                         {row.lastMovementAt ? (
-                          <div className="mono" style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}>
+                          <div
+                            className="mono"
+                            style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}
+                          >
                             {formatTime(row.lastMovementAt)}
                           </div>
                         ) : null}
@@ -444,7 +484,13 @@ export default function StockOverviewPage() {
                           <button
                             type="button"
                             className="button-ghost"
-                            onClick={() => setFlagProduct({ id: row.productId, sku: row.productSku, name: productName })}
+                            onClick={() =>
+                              setFlagProduct({
+                                id: row.productId,
+                                sku: row.productSku,
+                                name: productName,
+                              })
+                            }
                             style={{ height: 30, padding: '0 9px', fontSize: 11 }}
                           >
                             <Flag size={12} /> Flag return
