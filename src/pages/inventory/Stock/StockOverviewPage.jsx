@@ -20,7 +20,7 @@ import { masterService } from '@/services/api/masterService'
 import FlagStockForReturnModal from '@/pages/inventory/ReturnStock/FlagStockForReturnModal'
 import { formatDate, formatTime } from '@/utils'
 
-const pageSize = 12
+const pageSize = 9
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString('en-LK', { maximumFractionDigits: 2 })
