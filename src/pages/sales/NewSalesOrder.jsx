@@ -726,9 +726,13 @@ export default function NewSalesOrder() {
           line.skuDiscountAmount ?? gross * (toNumber(line.skuDiscountPercent) / 100)
         const specialDiscountAmount =
           line.specialDiscountAmount ?? gross * (toNumber(line.specialDiscountPercent) / 100)
+        const lineTotalAmount =
+          toNumber(line.lineTotal) ||
+          gross - categoryDiscountAmount - skuDiscountAmount - specialDiscountAmount
 
         return {
           grossAmount: sum.grossAmount + gross,
+          lineTotalAmount: sum.lineTotalAmount + lineTotalAmount,
           totalCategoryDiscountAmount: sum.totalCategoryDiscountAmount + categoryDiscountAmount,
           totalSkuDiscountAmount: sum.totalSkuDiscountAmount + skuDiscountAmount,
           totalSpecialDiscountAmount: sum.totalSpecialDiscountAmount + specialDiscountAmount,
@@ -736,6 +740,7 @@ export default function NewSalesOrder() {
       },
       {
         grossAmount: 0,
+        lineTotalAmount: 0,
         totalCategoryDiscountAmount: 0,
         totalSkuDiscountAmount: 0,
         totalSpecialDiscountAmount: 0,
@@ -743,6 +748,7 @@ export default function NewSalesOrder() {
     )
 
     const grossAmount = saleLines.length ? totals.grossAmount : summary.grossAmount
+    const lineTotalAmount = saleLines.length ? totals.lineTotalAmount : summary.grossAmount
     const categoryDiscountAmount = saleLines.length
       ? totals.totalCategoryDiscountAmount
       : summary.totalCategoryDiscountAmount
@@ -769,6 +775,7 @@ export default function NewSalesOrder() {
 
     return {
       grossAmount,
+      lineTotalAmount,
       totalCategoryDiscountAmount: categoryDiscountAmount,
       totalSkuDiscountAmount: skuDiscountAmountRaw,
       totalSpecialDiscountAmount: specialDiscountAmountRaw,
@@ -1438,7 +1445,7 @@ export default function NewSalesOrder() {
             >
               <h2 style={panelTitleStyle}>Order Summary</h2>
               <div className="mt-4 flex flex-col gap-3 text-sm">
-                <SummaryRow label="Gross" value={money(computedSummary.grossAmount)} />
+                <SummaryRow label="Gross" value={money(computedSummary.lineTotalAmount)} />
                 {/* <SummaryRow
                   label="Category Discount"
                   value={money(computedSummary.totalCategoryDiscountAmount)}
