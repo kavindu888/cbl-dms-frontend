@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useExpiringBatches, useStockLevels } from '@/hooks/useStock'
+import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import FlagStockForReturnModal from '@/pages/inventory/ReturnStock/FlagStockForReturnModal'
 import { formatDate, formatTime } from '@/utils'
@@ -82,8 +83,9 @@ export default function StockOverviewPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [products, setProducts] = useState([])
+  const [stockLocations, setStockLocations] = useState([])
   const [flagProduct, setFlagProduct] = useState(null)
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+  const [isLoadingReferenceData, setIsLoadingReferenceData] = useState(false)
   const [sortMode, setSortMode] = useState('newest')
 
   const { data: rawLevels, isLoading: isLoadingLevels, refetch: refetchLevels } = useStockLevels()
@@ -92,34 +94,45 @@ export default function StockOverviewPage() {
   useEffect(() => {
     let active = true
 
-    async function loadProducts() {
-      setIsLoadingProducts(true)
+    async function loadReferenceData() {
+      setIsLoadingReferenceData(true)
       try {
-        const firstPage = await masterService.listProducts({ page: 1, pageSize: 100 })
-        const allProducts = [...(firstPage.items || [])]
-        const totalPages = Number(firstPage.totalPages || 1)
+        const [allProducts, firstLocationPage] = await Promise.all([
+          masterService.listAllProducts({ pageSize: 100 }),
+          inventoryService.listStockLocations({ page: 1, pageSize: 100 }),
+        ])
+        const allLocations = [...(firstLocationPage.items || [])]
+        const locationTotalPages = Number(
+          firstLocationPage.totalPages ??
+            Math.ceil(Number(firstLocationPage.totalItems || allLocations.length) / 100) ??
+            1
+        )
 
-        if (totalPages > 1) {
+        if (locationTotalPages > 1) {
           const remaining = await Promise.all(
-            Array.from({ length: totalPages - 1 }, (_, index) =>
-              masterService.listProducts({ page: index + 2, pageSize: 100 })
+            Array.from({ length: locationTotalPages - 1 }, (_, index) =>
+              inventoryService.listStockLocations({ page: index + 2, pageSize: 100 })
             )
           )
-          remaining.forEach((result) => allProducts.push(...(result.items || [])))
+          remaining.forEach((result) => allLocations.push(...(result.items || [])))
         }
 
-        if (active) setProducts(allProducts)
+        if (active) {
+          setProducts(allProducts)
+          setStockLocations(allLocations)
+        }
       } catch (error) {
         if (active) {
           setProducts([])
-          toast.error(error.message || 'Unable to load product names.')
+          setStockLocations([])
+          toast.error(error.message || 'Unable to load product and stock location details.')
         }
       } finally {
-        if (active) setIsLoadingProducts(false)
+        if (active) setIsLoadingReferenceData(false)
       }
     }
 
-    loadProducts()
+    loadReferenceData()
     return () => {
       active = false
     }
@@ -132,6 +145,15 @@ export default function StockOverviewPage() {
         return map
       }, {}),
     [products]
+  )
+
+  const locationNameById = useMemo(
+    () =>
+      stockLocations.reduce((map, location) => {
+        map[location.id] = location.name || location.code || 'Location unavailable'
+        return map
+      }, {}),
+    [stockLocations]
   )
 
   const stockRows = useMemo(() => {
@@ -165,9 +187,12 @@ export default function StockOverviewPage() {
       ...row,
       sellable: row.totalAvailable - row.totalReserved,
       locationCount: row.locationIds.size,
+      locationNames: [...row.locationIds].map(
+        (locationId) => locationNameById[locationId] || 'Location unavailable'
+      ),
       product: productById[row.productId] || null,
     }))
-  }, [productById, rawLevels])
+  }, [locationNameById, productById, rawLevels])
 
   const kpis = useMemo(() => {
     const available = stockRows.reduce((sum, row) => sum + row.totalAvailable, 0)
@@ -234,7 +259,7 @@ export default function StockOverviewPage() {
     refetchExpiring()
   }
 
-  const isLoading = isLoadingLevels || isLoadingProducts
+  const isLoading = isLoadingLevels || isLoadingReferenceData
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -428,11 +453,11 @@ export default function StockOverviewPage() {
                         <StatusBadge status={status} />
                       </td>
                       <td>
-                        <span className="mono" style={{ fontWeight: 700 }}>
-                          {row.locationCount}
-                        </span>{' '}
-                        <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-                          location{row.locationCount === 1 ? '' : 's'}
+                        <span
+                          title={row.locationNames.join(', ')}
+                          style={{ fontSize: 12, fontWeight: 650 }}
+                        >
+                          {row.locationNames.join(', ')}
                         </span>
                       </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
