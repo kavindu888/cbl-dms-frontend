@@ -25,7 +25,7 @@ import { masterService } from '@/services/api/masterService'
 import FlagStockForReturnModal from '@/pages/inventory/ReturnStock/FlagStockForReturnModal'
 import { formatDate, formatTime } from '@/utils'
 
-const pageSize = 12
+const pageSize = 9
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString('en-LK', { maximumFractionDigits: 2 })
@@ -250,7 +250,6 @@ function StockByLocationPanel({ productName, rows, unitCode }) {
 export default function StockOverviewPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [lowStockOnly, setLowStockOnly] = useState(false)
   const [page, setPage] = useState(1)
   const [products, setProducts] = useState([])
   const [stockLocations, setStockLocations] = useState([])
@@ -461,6 +460,7 @@ export default function StockOverviewPage() {
     return stockRows
       .filter((row) => {
         if (!term) return true
+
         return (
           row.productSku?.toLowerCase().includes(term) ||
           row.product?.name?.toLowerCase().includes(term) ||
@@ -475,7 +475,7 @@ export default function StockOverviewPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, lowStockOnly])
+  }, [search, sortMode])
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
@@ -513,9 +513,6 @@ export default function StockOverviewPage() {
               </span>
             ) : null}
           </div>
-          <p style={{ marginTop: 3, fontSize: 13, color: 'var(--color-text-muted)' }}>
-            Live inventory position consolidated across all stock locations.
-          </p>
         </div>
         <button
           type="button"
@@ -585,16 +582,16 @@ export default function StockOverviewPage() {
 
       <section className="panel" style={{ overflow: 'hidden' }}>
         <div
-          className="responsive-filter-bar"
           style={{
-            padding: 12,
+            padding: '12px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
+            gap: 10,
+            flex: 1,
             borderBottom: '1px solid var(--color-border)',
           }}
         >
+          {/* Search */}
           <div style={{ position: 'relative', width: 'min(100%, 480px)' }}>
             <Search
               size={15}
@@ -614,17 +611,22 @@ export default function StockOverviewPage() {
               style={{ height: 36, paddingLeft: 36, background: 'var(--color-bg-base)' }}
             />
           </div>
-
-          <button
-            type="button"
-            className={lowStockOnly ? 'button-primary' : 'button-secondary'}
-            onClick={() => setLowStockOnly((current) => !current)}
-            style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+          {/* Sort */}
+          <select
+            className="form-input"
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value)}
+            style={{
+              height: 36,
+              width: 150,
+              cursor: 'pointer',
+              background: 'var(--color-bg-base)',
+            }}
           >
-            <AlertTriangle size={13} /> Critical stock only
-          </button>
+            <option value="newest">Newest Added</option>
+            <option value="az">Product A - Z</option>
+          </select>
         </div>
-
         <div
           style={{
             padding: '10px 12px',
