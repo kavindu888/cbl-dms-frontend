@@ -1,19 +1,16 @@
 import dayjs from 'dayjs'
 import {
   AlertTriangle,
-  ArchiveX,
   Banknote,
   Boxes,
   ChevronDown,
   ChevronRight,
-  CircleAlert,
   Flag,
   MapPin,
   Package,
   RefreshCw,
   RotateCcw,
   Search,
-  ShieldCheck,
   Truck,
   Warehouse,
 } from 'lucide-react'
@@ -540,16 +537,20 @@ export default function StockOverviewPage() {
           row.product?.barcode?.toLowerCase().includes(term)
         )
       })
-      .filter((row) => !lowStockOnly || row.sellable <= 0)
+      .filter((row) => !lowStockOnly || row.totalAvailable <= 0)
       .sort((a, b) => {
         const nameCompare = (a.product?.name || a.productSku).localeCompare(
           b.product?.name || b.productSku
         )
+        const aLastActivity = a.lastMovementAt ? dayjs(a.lastMovementAt).valueOf() : 0
+        const bLastActivity = b.lastMovementAt ? dayjs(b.lastMovementAt).valueOf() : 0
 
         if (sortBy === 'stockValueDesc') return b.stockValue - a.stockValue || nameCompare
         if (sortBy === 'stockValueAsc') return a.stockValue - b.stockValue || nameCompare
-        if (sortBy === 'sellableAsc') return a.sellable - b.sellable || nameCompare
-        if (sortBy === 'sellableDesc') return b.sellable - a.sellable || nameCompare
+        if (sortBy === 'availableDesc') return b.totalAvailable - a.totalAvailable || nameCompare
+        if (sortBy === 'availableAsc') return a.totalAvailable - b.totalAvailable || nameCompare
+        if (sortBy === 'newest') return bLastActivity - aLastActivity || nameCompare
+        if (sortBy === 'oldest') return aLastActivity - bLastActivity || nameCompare
         return nameCompare
       })
   }, [lowStockOnly, search, sortBy, stockRows])
@@ -723,8 +724,10 @@ export default function StockOverviewPage() {
               <option value="name">Sort by product name</option>
               <option value="stockValueDesc">Stock value high to low</option>
               <option value="stockValueAsc">Stock value low to high</option>
-              <option value="sellableAsc">Sellable low to high</option>
-              <option value="sellableDesc">Sellable high to low</option>
+              <option value="newest">Newest updated first</option>
+              <option value="oldest">Oldest updated first</option>
+              <option value="availableDesc">Available qty high to low</option>
+              <option value="availableAsc">Available qty low to high</option>
             </select>
 
             <button
@@ -764,15 +767,13 @@ export default function StockOverviewPage() {
           </div>
         ) : filteredRows.length ? (
           <div style={{ overflowX: 'auto' }}>
-            <table className="data-table product-table-compact" style={{ minWidth: 1190 }}>
+            <table className="data-table product-table-compact" style={{ minWidth: 1040 }}>
               <thead>
                 <tr>
                   <th style={{ minWidth: 280 }}>Product</th>
                   <th>Status</th>
                   <th>Locations</th>
                   <th style={{ textAlign: 'right' }}>Available</th>
-                  <th style={{ textAlign: 'right' }}>Reserved</th>
-                  <th style={{ textAlign: 'right' }}>Sellable</th>
                   <th style={{ textAlign: 'right' }}>Stock value</th>
                   <th>Last activity</th>
                   <th style={{ width: 250 }}></th>
@@ -782,12 +783,7 @@ export default function StockOverviewPage() {
                 {pagedRows.map((row) => {
                   const productName = row.product?.name || 'Product name unavailable'
                   const uom = row.product?.uomBase || ''
-                  const status =
-                    row.sellable <= 0
-                      ? 'Critical'
-                      : row.totalReserved > 0
-                        ? 'Allocated'
-                        : 'Available'
+                  const status = row.totalAvailable <= 0 ? 'Critical' : 'Available'
 
                   return (
                     <Fragment key={row.productId}>
@@ -837,33 +833,6 @@ export default function StockOverviewPage() {
                         </td>
                         <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
                           {formatNumber(row.totalAvailable)}{' '}
-                          <small style={{ color: 'var(--color-text-dim)' }}>
-                            {row.smallestUnitCode || 'PCS'}
-                          </small>
-                        </td>
-                        <td
-                          className="mono"
-                          style={{
-                            textAlign: 'right',
-                            color: row.totalReserved
-                              ? 'var(--color-amber)'
-                              : 'var(--color-text-muted)',
-                          }}
-                        >
-                          {formatNumber(row.totalReserved)}{' '}
-                          <small style={{ color: 'var(--color-text-dim)' }}>
-                            {row.smallestUnitCode || 'PCS'}
-                          </small>
-                        </td>
-                        <td
-                          className="mono"
-                          style={{
-                            textAlign: 'right',
-                            fontWeight: 800,
-                            color: row.sellable <= 0 ? 'var(--color-danger)' : 'var(--color-teal)',
-                          }}
-                        >
-                          {formatNumber(row.sellable)}{' '}
                           <small style={{ color: 'var(--color-text-dim)' }}>
                             {row.smallestUnitCode || 'PCS'}
                           </small>
@@ -934,7 +903,7 @@ export default function StockOverviewPage() {
                       {expandedProductId === row.productId ? (
                         <tr>
                           <td
-                            colSpan={9}
+                            colSpan={7}
                             style={{ padding: 0, background: 'var(--color-bg-surface)' }}
                           >
                             <StockByLocationPanel
