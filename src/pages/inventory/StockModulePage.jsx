@@ -1222,10 +1222,8 @@ export default function StockModulePage({ initialTab = 'levels' }) {
             <table className="data-table master-table-compact">
               <thead>
                 <tr>
-                  <th>ID</th>
                   <th>Code</th>
                   <th>Name</th>
-                  <th>Business Unit ID</th>
                   <th>Business Unit</th>
                   <th>Active</th>
                   <th>Status</th>
@@ -1233,15 +1231,14 @@ export default function StockModulePage({ initialTab = 'levels' }) {
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? <LoadingRow colSpan={8} message="Loading stock locations..." /> : null}
-                {!isLoading && error ? <ErrorRow colSpan={8} message={error} /> : null}
+                {isLoading ? <LoadingRow colSpan={6} message="Loading stock locations..." /> : null}
+                {!isLoading && error ? <ErrorRow colSpan={6} message={error} /> : null}
                 {!isLoading && !error && locations.length === 0 ? (
-                  <EmptyRow colSpan={8} message="No stock locations found." />
+                  <EmptyRow colSpan={6} message="No stock locations found." />
                 ) : null}
                 {!isLoading && !error
                   ? pagedLocations.map((location) => (
                       <tr key={location.id}>
-                        <td className="mono">{location.id}</td>
                         <td>
                           <span className="mono" style={{ color: 'var(--color-amber)' }}>
                             {location.code}
@@ -1291,7 +1288,6 @@ export default function StockModulePage({ initialTab = 'levels' }) {
                             ) : null}
                           </div>
                         </td>
-                        <td className="mono">{location.businessUnitId}</td>
                         <td>{businessUnitName(location.businessUnitId)}</td>
                         <td>{formatBoolean(location.isActive)}</td>
                         <td>
