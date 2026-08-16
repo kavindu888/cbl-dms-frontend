@@ -26,6 +26,14 @@ import {
   vehicleLabel,
 } from './vehicleMovementUtils'
 
+function todayInputValue() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function VehicleMovementCreatePage({ kind, basePath }) {
   const isUnloading = kind === 'Unloading'
   const navigate = useNavigate()
@@ -36,6 +44,9 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const applyUnloading = useApplyVehicleUnloading()
 
   const [vehicleId, setVehicleId] = useState('')
+  const [deliveryRunId, setDeliveryRunId] = useState('')
+  const [loadingDate, setLoadingDate] = useState(todayInputValue())
+  const [unloadingDate, setUnloadingDate] = useState(todayInputValue())
   const [notes, setNotes] = useState('')
   const [draftId, setDraftId] = useState('')
   const [lines, setLines] = useState([])
@@ -50,6 +61,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [isLoadingBatches, setIsLoadingBatches] = useState(false)
   const [isAddingLine, setIsAddingLine] = useState(false)
+  const [deliveryRuns, setDeliveryRuns] = useState([])
 
   useEffect(() => {
     let active = true
@@ -69,6 +81,25 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    if (isUnloading) return undefined
+
+    let active = true
+    async function loadDeliveryRuns() {
+      try {
+        const items = await masterService.listAllDeliveryRuns({ activeOnly: true, pageSize: 100 })
+        if (active) setDeliveryRuns(items || [])
+      } catch (error) {
+        if (active) toast.error(error.message || 'Unable to load delivery runs.')
+      }
+    }
+    loadDeliveryRuns()
+
+    return () => {
+      active = false
+    }
+  }, [isUnloading])
 
   useEffect(() => {
     if (!selectedProductId || (isUnloading && !vehicleId)) {
@@ -103,6 +134,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   }, [isUnloading, selectedProductId, vehicleId])
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId)
+  const selectedDeliveryRun = deliveryRuns.find((run) => run.id === deliveryRunId)
   const selectedProduct = products.find((product) => product.id === selectedProductId)
   const selectedBatch = batches.find((batch) => batch.id === selectedBatchId)
   const filteredProducts = useMemo(() => {
@@ -124,13 +156,19 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   async function ensureDraft() {
     if (draftId) return draftId
     if (!vehicleId) throw new Error('Select a vehicle first.')
+    if (!isUnloading && !deliveryRunId) throw new Error('Select a delivery run first.')
+    if (!isUnloading && !loadingDate) throw new Error('Select a loading date first.')
+    if (isUnloading && !unloadingDate) throw new Error('Select an unloading date first.')
     const result = isUnloading
       ? await createUnloading.mutateAsync({
           vehicleLocationId: vehicleId,
+          unloadingDate: `${unloadingDate}T00:00:00Z`,
           notes: notes.trim() || null,
         })
       : await createLoading.mutateAsync({
           vehicleLocationId: vehicleId,
+          deliveryRunId,
+          loadingDate: `${loadingDate}T00:00:00Z`,
           notes: notes.trim() || null,
         })
     const id = resultId(result)
@@ -282,6 +320,47 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                   ))}
                 </select>
               </label>
+              {!isUnloading ? (
+                <>
+                  <label>
+                    <span className="form-label">Delivery Run *</span>
+                    <select
+                      className="form-input"
+                      value={deliveryRunId}
+                      disabled={lines.length > 0 || Boolean(draftId)}
+                      onChange={(event) => setDeliveryRunId(event.target.value)}
+                    >
+                      <option value="">Select delivery run...</option>
+                      {deliveryRuns.map((run) => (
+                        <option key={run.id} value={run.id}>
+                          {run.code} - {run.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className="form-label">Loading Date *</span>
+                    <input
+                      className="form-input"
+                      type="date"
+                      value={loadingDate}
+                      disabled={lines.length > 0 || Boolean(draftId)}
+                      onChange={(event) => setLoadingDate(event.target.value)}
+                    />
+                  </label>
+                </>
+              ) : (
+                <label>
+                  <span className="form-label">Unloading Date *</span>
+                  <input
+                    className="form-input"
+                    type="date"
+                    value={unloadingDate}
+                    disabled={lines.length > 0 || Boolean(draftId)}
+                    onChange={(event) => setUnloadingDate(event.target.value)}
+                  />
+                </label>
+              )}
               <label>
                 <span className="form-label">Notes</span>
                 <input
@@ -678,6 +757,17 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
             label="Vehicle"
             value={selectedVehicle ? vehicleLabel(selectedVehicle) : 'Not selected'}
           />
+          {!isUnloading ? (
+            <>
+              <SummaryRow
+                label="Delivery Run"
+                value={selectedDeliveryRun ? `${selectedDeliveryRun.code} - ${selectedDeliveryRun.name}` : 'Not selected'}
+              />
+              <SummaryRow label="Loading Date" value={loadingDate || 'Not selected'} mono />
+            </>
+          ) : (
+            <SummaryRow label="Unloading Date" value={unloadingDate || 'Not selected'} mono />
+          )}
           <SummaryRow label="Lines" value={lines.length} mono />
           {isUnloading ? (
             <>
@@ -705,7 +795,13 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
           <button
             type="button"
             className="button-primary"
-            disabled={!vehicleId || !lines.length || applyPending}
+            disabled={
+              !vehicleId ||
+              (!isUnloading && (!deliveryRunId || !loadingDate)) ||
+              (isUnloading && !unloadingDate) ||
+              !lines.length ||
+              applyPending
+            }
             onClick={handleApply}
             style={{ height: 42, marginTop: 'auto', width: '100%' }}
           >

@@ -1,11 +1,12 @@
 import { ArrowLeft, CheckCircle2, PackageX, XCircle } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import EmptyState from '@components/ui/EmptyState'
 import Modal from '@components/ui/Modal'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useVehicles } from '@/hooks/useVehicle'
+import { masterService } from '@/services/api/masterService'
 import { formatDateTime } from '@/utils/formatDate'
 import { formatLKR } from '@/utils/formatCurrency'
 import {
@@ -64,12 +65,36 @@ export default function VehicleMovementDetailPage({
   const { data: vehicles = [] } = useVehicles()
   const applyMovement = useApply()
   const cancelMovement = useCancel()
+  const [deliveryRuns, setDeliveryRuns] = useState([])
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false)
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const vehicle = vehicles.find((item) => item.id === movement?.vehicleLocationId)
   const status = movementStatusLabel(movement?.status)
   const isUnloading = kind === 'Unloading'
+  const deliveryRunById = useMemo(
+    () => Object.fromEntries(deliveryRuns.map((run) => [run.id, run])),
+    [deliveryRuns]
+  )
+  const deliveryRun = movement?.deliveryRunId ? deliveryRunById[movement.deliveryRunId] : null
+
+  useEffect(() => {
+    if (isUnloading) return undefined
+    let active = true
+
+    masterService
+      .listAllDeliveryRuns({ pageSize: 100 })
+      .then((items) => {
+        if (active) setDeliveryRuns(items || [])
+      })
+      .catch(() => {
+        if (active) setDeliveryRuns([])
+      })
+
+    return () => {
+      active = false
+    }
+  }, [isUnloading])
 
   async function handleApply(event) {
     event.preventDefault()
@@ -259,6 +284,16 @@ export default function VehicleMovementDetailPage({
             label="Vehicle"
             value={vehicle ? vehicleLabel(vehicle) : movement.vehicleLocationId}
           />
+          {!isUnloading ? (
+            <InfoTile
+              label="Delivery Run"
+              value={
+                deliveryRun
+                  ? `${deliveryRun.code} - ${deliveryRun.name}`
+                  : movement.deliveryRunId || 'Not assigned'
+              }
+            />
+          ) : null}
           <InfoTile label={`${kind} Date`} value={formatDateTime(movementDate)} mono />
           <InfoTile label="Created By" value={formatUserId(movement.createdByUserId)} mono />
           <InfoTile label="Applied On" value={formatDateTime(movement.appliedOn)} mono />

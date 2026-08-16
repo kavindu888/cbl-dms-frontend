@@ -464,11 +464,16 @@ export const salesService = {
       isTaxInvoice: Boolean(payload.isTaxInvoice),
       customerVatTin: payload.customerVatTin ?? null,
       notes: payload.notes ?? null,
+      vehicleLocationId: payload.vehicleLocationId ?? null,
+      manualSkuDiscountAmount: Number(payload.manualSkuDiscountAmount || 0),
+      manualSpecialDiscountAmount: Number(payload.manualSpecialDiscountAmount || 0),
       lines: (payload.lines || []).map((line) => ({
         productId: line.productId,
         quantity: Number(line.quantity),
         skuDiscountPercent: Number(line.skuDiscountPercent || 0),
         specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+        isReturnLine: Boolean(line.isReturnLine),
+        returnReason: line.returnReason ?? null,
       })),
     })
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data

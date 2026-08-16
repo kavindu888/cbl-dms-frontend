@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatDate } from '@/utils/formatDate'
 import { useVehicles } from '@/hooks/useVehicle'
+import { masterService } from '@/services/api/masterService'
+import { useEffect } from 'react'
 import {
   VEHICLE_MOVEMENT_STATUSES,
   movementStatusLabel,
@@ -30,20 +32,45 @@ export default function VehicleMovementListPage({
   const params = useMemo(() => (status ? { status: Number(status) } : {}), [status])
   const { data: rows = [], isLoading, isFetching, refetch } = useList(params)
   const { data: vehicles = [] } = useVehicles()
+  const [deliveryRuns, setDeliveryRuns] = useState([])
   const vehicleById = useMemo(
     () => Object.fromEntries(vehicles.map((vehicle) => [vehicle.id, vehicle])),
     [vehicles]
   )
+  const deliveryRunById = useMemo(
+    () => Object.fromEntries(deliveryRuns.map((run) => [run.id, run])),
+    [deliveryRuns]
+  )
+
+  useEffect(() => {
+    if (kind !== 'Loading') return undefined
+    let active = true
+
+    masterService
+      .listAllDeliveryRuns({ pageSize: 100 })
+      .then((items) => {
+        if (active) setDeliveryRuns(items || [])
+      })
+      .catch(() => {
+        if (active) setDeliveryRuns([])
+      })
+
+    return () => {
+      active = false
+    }
+  }, [kind])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
     if (!term) return rows
     return rows.filter((row) =>
-      `${row[numberField] || row.id} ${row.vehicleName || row.vehicleLocationId} ${movementStatusLabel(row.status)}`
+      `${row[numberField] || row.id} ${row.vehicleName || row.vehicleLocationId} ${
+        row.deliveryRunId ? deliveryRunById[row.deliveryRunId]?.name || row.deliveryRunId : ''
+      } ${movementStatusLabel(row.status)}`
         .toLowerCase()
         .includes(term)
     )
-  }, [numberField, rows, search])
+  }, [deliveryRunById, numberField, rows, search])
 
   return (
     <div className="responsive-page" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -123,6 +150,7 @@ export default function VehicleMovementListPage({
                 <th>{kind.toUpperCase()} #</th>
                 <th>Date</th>
                 <th>Vehicle</th>
+                {kind === 'Loading' ? <th>Delivery Run</th> : null}
                 <th className="text-right">Lines</th>
                 <th>Status</th>
                 <th className="text-right">Action</th>
@@ -131,7 +159,7 @@ export default function VehicleMovementListPage({
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={6}>Loading {title.toLowerCase()}...</td>
+                  <td colSpan={kind === 'Loading' ? 7 : 6}>Loading {title.toLowerCase()}...</td>
                 </tr>
               ) : filteredRows.length ? (
                 filteredRows.map((row) => {
@@ -152,6 +180,17 @@ export default function VehicleMovementListPage({
                             ? vehicleLabel(vehicleById[row.vehicleLocationId])
                             : row.vehicleLocationId)}
                       </td>
+                      {kind === 'Loading' ? (
+                        <td>
+                          {row.deliveryRunId
+                            ? deliveryRunById[row.deliveryRunId]
+                              ? `${deliveryRunById[row.deliveryRunId].code} - ${
+                                  deliveryRunById[row.deliveryRunId].name
+                                }`
+                              : row.deliveryRunId
+                            : '-'}
+                        </td>
+                      ) : null}
                       <td className="mono text-right">{row.lineCount ?? row.lines?.length ?? 0}</td>
                       <td>
                         <span
@@ -178,7 +217,7 @@ export default function VehicleMovementListPage({
                 })
               ) : (
                 <tr>
-                  <td colSpan={6}>No {title.toLowerCase()} found.</td>
+                  <td colSpan={kind === 'Loading' ? 7 : 6}>No {title.toLowerCase()} found.</td>
                 </tr>
               )}
             </tbody>

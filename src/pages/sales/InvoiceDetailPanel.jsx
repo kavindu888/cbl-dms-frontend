@@ -26,6 +26,12 @@ function billReturnReasonLabel(value) {
 
 export default function InvoiceDetailPanel({ invoice, productById }) {
   const normalLines = (invoice.lines || []).filter((line) => !line.isReturnLine)
+  const saleNetBeforeReturn = normalLines.reduce(
+    (sum, line) => sum + Number(line.lineTotal || 0),
+    0
+  )
+  const returnDeduction =
+    Number(invoice.totalReturnAmount || 0) + Number(invoice.returnCreditAmount || 0)
 
   return (
     <div
@@ -118,7 +124,7 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
             }}
           >
             <span>NET TOTAL B/F RETURN</span>
-            <span className="mono">{formatMoney(invoice.grossAmount)}</span>
+            <span className="mono">{formatMoney(saleNetBeforeReturn)}</span>
           </div>
 
           {(invoice.returnSections || []).map((section) => (
@@ -200,11 +206,32 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
         }}
       >
         <SummaryRow label="Gross" value={formatMoney(invoice.grossAmount)} />
-        {Number(invoice.totalDiscountAmount || 0) > 0 ? (
-          <SummaryRow label="SkuDiscount" value={formatMoney(invoice.totalDiscountAmount)} />
+        {Number(invoice.totalCategoryDiscountAmount || 0) > 0 ? (
+          <SummaryRow
+            label="Category Discount"
+            value={formatMoney(invoice.totalCategoryDiscountAmount)}
+          />
         ) : null}
-        {Number(invoice.totalReturnAmount || 0) > 0 ? (
-          <SummaryRow label="Returns" value={formatMoney(invoice.totalReturnAmount)} />
+        <SummaryRow
+          label="Subtotal"
+          value={formatMoney(
+            Number(invoice.grossAmount || 0) - Number(invoice.totalCategoryDiscountAmount || 0)
+          )}
+        />
+        {Number(invoice.totalSkuDiscountAmount || 0) > 0 ? (
+          <SummaryRow label="SKU Discount" value={formatMoney(invoice.totalSkuDiscountAmount)} />
+        ) : null}
+        {Number(invoice.totalSpecialDiscountAmount || 0) > 0 ? (
+          <SummaryRow
+            label="Special Discount"
+            value={formatMoney(invoice.totalSpecialDiscountAmount)}
+          />
+        ) : null}
+        {returnDeduction > 0 ? (
+          <SummaryRow label="Returns" value={formatMoney(returnDeduction)} />
+        ) : null}
+        {Number(invoice.vatAmount || 0) > 0 ? (
+          <SummaryRow label="VAT" value={formatMoney(invoice.vatAmount)} />
         ) : null}
         <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 3, paddingTop: 10 }}>
           <SummaryRow label="Net(Rs)" value={formatMoney(invoice.netAmount)} strong />
