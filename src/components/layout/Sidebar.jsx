@@ -290,6 +290,12 @@ const navGroups = [
         icon: Route,
         permissions: PERMISSIONS.masterData.salesRouteManage,
       },
+      {
+        label: 'Delivery Runs',
+        to: '/master/delivery-runs',
+        icon: Truck,
+        permissions: PERMISSIONS.masterData.salesRouteManage,
+      },
     ],
   },
   {

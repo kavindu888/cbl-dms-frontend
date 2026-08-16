@@ -23,7 +23,13 @@ export const formatNumber = (value, digits = 2) =>
   })
 
 export const getQtyAvailable = (batch) =>
-  Number(batch?.sellableQty ?? batch?.qtyAvailable ?? batch?.availableQty ?? 0)
+  Number(batch?.qtyAvailable ?? batch?.availableQty ?? batch?.available ?? 0)
+
+export const getQtyReserved = (batch) =>
+  Number(batch?.qtyReserved ?? batch?.reservedQty ?? batch?.reserved ?? 0)
+
+export const getQtyFree = (batch) =>
+  Number(batch?.sellableQty ?? Math.max(0, getQtyAvailable(batch) - getQtyReserved(batch)))
 
 export const getUnitCost = (batch) => Number(batch?.unitCostSmallest ?? batch?.unitCost ?? 0)
 export const getMrp = (batch) => Number(batch?.mrp ?? batch?.MRP ?? 0)

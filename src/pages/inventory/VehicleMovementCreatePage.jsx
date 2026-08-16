@@ -17,6 +17,8 @@ import {
   formatNumber,
   getMrp,
   getQtyAvailable,
+  getQtyFree,
+  getQtyReserved,
   getUnitCost,
   resultId,
   returnReasonLabel,
@@ -406,7 +408,15 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       <thead>
                         <tr>
                           <th>Batch No</th>
-                          <th className="text-right">Available Qty</th>
+                          <th className="text-right">
+                            {isUnloading ? 'Available Qty' : 'Physical Qty'}
+                          </th>
+                          {!isUnloading ? (
+                            <>
+                              <th className="text-right">Reserved Qty</th>
+                              <th className="text-right">Free Qty</th>
+                            </>
+                          ) : null}
                           <th className="text-right">Unit Cost</th>
                           <th className="text-right">MRP</th>
                           <th>Expiry</th>
@@ -416,7 +426,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       <tbody>
                         {isLoadingBatches ? (
                           <tr>
-                            <td colSpan={6}>Loading batches...</td>
+                            <td colSpan={isUnloading ? 6 : 8}>Loading batches...</td>
                           </tr>
                         ) : batches.length ? (
                           batches.map((batch) => (
@@ -433,6 +443,26 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                               <td className="mono text-right">
                                 {formatNumber(getQtyAvailable(batch))}
                               </td>
+                              {!isUnloading ? (
+                                <>
+                                  <td
+                                    className="mono text-right"
+                                    style={{
+                                      color: getQtyReserved(batch)
+                                        ? 'var(--color-amber)'
+                                        : 'var(--color-text-muted)',
+                                    }}
+                                  >
+                                    {formatNumber(getQtyReserved(batch))}
+                                  </td>
+                                  <td
+                                    className="mono text-right"
+                                    style={{ color: 'var(--color-teal)' }}
+                                  >
+                                    {formatNumber(getQtyFree(batch))}
+                                  </td>
+                                </>
+                              ) : null}
                               <td className="mono text-right">{formatLKR(getUnitCost(batch))}</td>
                               <td className="mono text-right">{formatLKR(getMrp(batch))}</td>
                               <td className="mono">{formatDate(batch.expiryDate)}</td>
@@ -454,7 +484,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={6}>
+                            <td colSpan={isUnloading ? 6 : 8}>
                               No available {isUnloading ? 'vehicle' : 'main stock'} batches found.
                             </td>
                           </tr>
@@ -488,7 +518,10 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       onChange={(event) => setQty(event.target.value)}
                     />
                     <small className="mono" style={{ color: 'var(--color-text-muted)' }}>
-                      Max: {formatNumber(getQtyAvailable(selectedBatch))}
+                      Max physical: {formatNumber(getQtyAvailable(selectedBatch))}
+                      {!isUnloading
+                        ? ` | Reserved: ${formatNumber(getQtyReserved(selectedBatch))} | Free: ${formatNumber(getQtyFree(selectedBatch))}`
+                        : ''}
                     </small>
                   </label>
                   {isUnloading ? (

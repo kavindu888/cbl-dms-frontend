@@ -287,6 +287,7 @@ export default function InvoiceCreatorPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [salesRouteName, setSalesRouteName] = useState('')
+  const [deliveryRunName, setDeliveryRunName] = useState('')
   const [selectedCustomerDetails, setSelectedCustomerDetails] = useState(null)
   const [serialNumber, setSerialNumber] = useState('')
   const [serialNumberWarning, setSerialNumberWarning] = useState(false)
@@ -530,21 +531,28 @@ export default function InvoiceCreatorPage() {
     async function loadSalesRouteName() {
       if (!selectedSalesRouteId) {
         setSalesRouteName('')
+        setDeliveryRunName('')
         return
       }
 
       setSalesRouteName('')
+      setDeliveryRunName('')
 
       try {
         if (selectedCustomerDetails?.salesRouteName) {
           if (isCurrent) setSalesRouteName(selectedCustomerDetails.salesRouteName)
-          return
         }
 
         const route = await masterService.getSalesRoute(selectedSalesRouteId)
-        if (isCurrent) setSalesRouteName(route?.name || '')
+        if (isCurrent) {
+          setSalesRouteName(selectedCustomerDetails?.salesRouteName || route?.name || '')
+          setDeliveryRunName(route?.defaultDeliveryRunName || '')
+        }
       } catch {
-        if (isCurrent) setSalesRouteName('')
+        if (isCurrent) {
+          setSalesRouteName('')
+          setDeliveryRunName('')
+        }
       }
     }
 
@@ -1273,6 +1281,26 @@ export default function InvoiceCreatorPage() {
                     (selectedSalesRouteId ? 'Loading route...' : 'Select a customer first')}
                 </div>
                 <input type="hidden" {...register('salesRouteId')} />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Delivery Run
+                </label>
+                <div
+                  className="form-input"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    minHeight: 38,
+                    color: deliveryRunName
+                      ? 'var(--color-text-primary)'
+                      : 'var(--color-text-muted)',
+                  }}
+                >
+                  {deliveryRunName ||
+                    (selectedSalesRouteId ? 'Not assigned to route' : 'Select a customer first')}
+                </div>
               </div>
             </div>
           </div>

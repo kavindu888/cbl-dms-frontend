@@ -15,6 +15,7 @@ import MovementLogPage from './pages/inventory/MovementLogPage'
 import CategoryDiscountList from './pages/master/CategoryDiscounts/CategoryDiscountList'
 import CategoryListPage from './pages/master/CategoryListPage'
 import MasterCustomerListPage from './pages/master/CustomerListPage'
+import DeliveryRunListPage from './pages/master/DeliveryRunListPage'
 import Product from './pages/master/Product'
 import SalesRouteListPage from './pages/master/SalesRouteListPage'
 import UnitOfMeasureListPage from './pages/master/UnitOfMeasureListPage'
@@ -177,6 +178,10 @@ export const router = createBrowserRouter([
       {
         path: 'master/sales-routes',
         element: <SalesRouteListPage />,
+      },
+      {
+        path: 'master/delivery-runs',
+        element: <DeliveryRunListPage />,
       },
       {
         path: 'inventory/categories',

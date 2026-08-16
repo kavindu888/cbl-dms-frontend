@@ -68,10 +68,26 @@ function formatSalesRoute(route) {
     code: route.code ?? '',
     name: route.name ?? '',
     defaultEmployeeId: route.defaultEmployeeId ?? '',
+    defaultDeliveryRunId: route.defaultDeliveryRunId ?? '',
+    defaultDeliveryRunName: route.defaultDeliveryRunName ?? '',
     isActive: Boolean(route.isActive),
     status: route.isActive ? 'Active' : 'Inactive',
     createdAt: route.createdAt,
     updatedAt: route.updatedAt,
+  }
+}
+
+function formatDeliveryRun(run) {
+  if (!run) return null
+  return {
+    id: run.id,
+    code: run.code ?? '',
+    name: run.name ?? '',
+    description: run.description ?? '',
+    isActive: Boolean(run.isActive),
+    status: run.isActive ? 'Active' : 'Inactive',
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
   }
 }
 
@@ -423,6 +439,58 @@ export const masterService = {
   async deactivateSalesRoute(id) {
     const response = await api.delete(`/api/v1/master/sales-routes/${id}`)
     return getValue(response, 'Unable to deactivate sales route.')
+  },
+
+  async listDeliveryRuns(params = {}) {
+    const response = await getOnce('/api/v1/master/delivery-runs', { params })
+    const page = getValue(response, 'Unable to load delivery runs.')
+
+    return {
+      ...page,
+      items: (page?.items || []).map(formatDeliveryRun),
+    }
+  },
+
+  async listAllDeliveryRuns(params = {}) {
+    const pageSize = Math.min(Number(params.pageSize || 100), 100)
+    const firstPage = await this.listDeliveryRuns({ ...params, page: 1, pageSize })
+    const items = [...(firstPage.items || [])]
+    const fallbackTotalPages =
+      Math.ceil(Number(firstPage.totalItems || items.length) / pageSize) || 1
+    const totalPages = Number(firstPage.totalPages ?? fallbackTotalPages)
+
+    if (totalPages <= 1) return items
+
+    const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2)
+    const remainingResults = await Promise.all(
+      remainingPages.map((page) => this.listDeliveryRuns({ ...params, page, pageSize }))
+    )
+
+    remainingResults.forEach((page) => {
+      items.push(...(page.items || []))
+    })
+
+    return items
+  },
+
+  async getDeliveryRun(id) {
+    const response = await getOnce(`/api/v1/master/delivery-runs/${id}`)
+    return formatDeliveryRun(getValue(response, 'Unable to load delivery run.'))
+  },
+
+  async createDeliveryRun(payload) {
+    const response = await api.post('/api/v1/master/delivery-runs', payload)
+    return { id: response.data }
+  },
+
+  async updateDeliveryRun(id, payload) {
+    const response = await api.put(`/api/v1/master/delivery-runs/${id}`, payload)
+    return getValue(response, 'Unable to update delivery run.')
+  },
+
+  async deactivateDeliveryRun(id) {
+    const response = await api.delete(`/api/v1/master/delivery-runs/${id}`)
+    return getValue(response, 'Unable to deactivate delivery run.')
   },
 
   // Payment Terms List, Get, Create, Update, Deactivate

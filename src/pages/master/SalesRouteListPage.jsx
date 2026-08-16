@@ -8,6 +8,7 @@ const emptyForm = {
   code: '',
   name: '',
   defaultEmployeeId: '',
+  defaultDeliveryRunId: '',
 }
 
 const pageSize = 8
@@ -25,11 +26,13 @@ function buildPayload(form) {
     code: toRouteCode(form.code),
     name: form.name.trim(),
     defaultEmployeeId: form.defaultEmployeeId.trim() || null,
+    defaultDeliveryRunId: form.defaultDeliveryRunId || null,
   }
 }
 
 export default function SalesRouteListPage() {
   const [territories, setTerritories] = useState([])
+  const [deliveryRuns, setDeliveryRuns] = useState([])
   const [selectedTerritoryId, setSelectedTerritoryId] = useState('')
   const [routes, setRoutes] = useState([])
   const [search, setSearch] = useState('')
@@ -72,6 +75,15 @@ export default function SalesRouteListPage() {
     }
   }, [])
 
+  const loadDeliveryRuns = useCallback(async () => {
+    try {
+      const items = await masterService.listAllDeliveryRuns({ activeOnly: true, pageSize: 100 })
+      setDeliveryRuns(items)
+    } catch (loadError) {
+      toast.error(getErrorMessage(loadError, 'Unable to load delivery runs.'))
+    }
+  }, [])
+
   const loadRoutes = useCallback(async () => {
     if (!selectedTerritoryId) {
       setRoutes([])
@@ -106,6 +118,10 @@ export default function SalesRouteListPage() {
   }, [loadTerritories])
 
   useEffect(() => {
+    loadDeliveryRuns()
+  }, [loadDeliveryRuns])
+
+  useEffect(() => {
     loadRoutes()
   }, [loadRoutes])
 
@@ -138,6 +154,7 @@ export default function SalesRouteListPage() {
       code: route.code,
       name: route.name,
       defaultEmployeeId: route.defaultEmployeeId || '',
+      defaultDeliveryRunId: route.defaultDeliveryRunId || '',
     })
   }
 
@@ -328,6 +345,7 @@ export default function SalesRouteListPage() {
                   <th>Code</th>
                   <th>Name</th>
                   <th>Territory</th>
+                  <th>Delivery Run</th>
                   <th>Default Employee</th>
                   <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
@@ -336,19 +354,19 @@ export default function SalesRouteListPage() {
               <tbody>
                 {isLoadingRoutes ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-sm text-text-muted">
+                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
                       Loading sales routes...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-sm text-danger">
+                    <td colSpan={7} className="py-12 text-center text-sm text-danger">
                       {error}
                     </td>
                   </tr>
                 ) : !selectedTerritoryId ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-sm text-text-muted">
+                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
                       Select a territory to view sales routes.
                     </td>
                   </tr>
@@ -371,6 +389,9 @@ export default function SalesRouteListPage() {
                       </td>
                       <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
                         {selectedTerritory?.name || route.territoryId}
+                      </td>
+                      <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                        {route.defaultDeliveryRunName || '-'}
                       </td>
                       <td className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
                         {route.defaultEmployeeId || '-'}
@@ -403,7 +424,7 @@ export default function SalesRouteListPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-sm text-text-muted">
+                    <td colSpan={7} className="py-12 text-center text-sm text-text-muted">
                       No sales routes found.
                     </td>
                   </tr>
@@ -546,6 +567,25 @@ export default function SalesRouteListPage() {
               onChange={(event) => updateField('name', event.target.value)}
               style={{ height: 38 }}
             />
+          </div>
+
+          <div>
+            <label className="form-label" style={{ fontSize: 10 }}>
+              DEFAULT DELIVERY RUN
+            </label>
+            <select
+              className="form-input"
+              value={form.defaultDeliveryRunId}
+              onChange={(event) => updateField('defaultDeliveryRunId', event.target.value)}
+              style={{ height: 38 }}
+            >
+              <option value="">Not assigned</option>
+              {deliveryRuns.map((run) => (
+                <option key={run.id} value={run.id}>
+                  {run.code} - {run.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
