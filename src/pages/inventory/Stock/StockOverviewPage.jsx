@@ -443,24 +443,50 @@ export default function StockOverviewPage() {
 
   const locationTypeKpis = useMemo(() => {
     const result = {
-      Main: { available: 0, products: new Set(), locations: new Set() },
-      Vehicle: { available: 0, products: new Set(), locations: new Set() },
-      Return: { available: 0, products: new Set(), locations: new Set() },
+      Main: { available: 0, value: 0, products: new Set(), locations: new Set() },
+      Vehicle: { available: 0, value: 0, products: new Set(), locations: new Set() },
+      Return: { available: 0, value: 0, products: new Set(), locations: new Set() },
+      vehicles: new Map(),
     }
 
-    for (const level of rawLevels || []) {
-      const available = Number(level.totalAvailable || 0)
-      const reserved = Number(level.totalReserved || 0)
-      if (available <= 0 && reserved <= 0) continue
+    for (const batch of activeBatches || []) {
+      const available = Number(batch.qtyAvailable || 0)
+      if (available <= 0) continue
 
-      const type = getLocationType(locationById[level.stockLocationId])
+      const location = locationById[batch.stockLocationId]
+      const type = getLocationType(location)
+      const value = available * Number(batch.unitCostSmallest || 0)
       result[type].available += available
-      result[type].products.add(level.productId)
-      result[type].locations.add(level.stockLocationId)
+      result[type].value += value
+      result[type].products.add(batch.productId)
+      result[type].locations.add(batch.stockLocationId)
+
+      if (type === 'Vehicle') {
+        const vehicle = result.vehicles.get(batch.stockLocationId) || {
+          id: batch.stockLocationId,
+          code: location?.code || '',
+          name: location?.name || batch.stockLocationId,
+          available: 0,
+          value: 0,
+          products: new Set(),
+        }
+        vehicle.available += available
+        vehicle.value += value
+        vehicle.products.add(batch.productId)
+        result.vehicles.set(batch.stockLocationId, vehicle)
+      }
     }
 
     return result
-  }, [locationById, rawLevels])
+  }, [activeBatches, locationById])
+
+  const vehicleStockCards = useMemo(
+    () =>
+      [...locationTypeKpis.vehicles.values()].sort(
+        (a, b) => b.value - a.value || a.name.localeCompare(b.name)
+      ),
+    [locationTypeKpis]
+  )
 
   const kpis = useMemo(() => {
     const available = stockRows.reduce((sum, row) => sum + row.totalAvailable, 0)
@@ -584,97 +610,75 @@ export default function StockOverviewPage() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <MetricCard
           label="Products in stock"
-          value={formatNumber(kpis.productsWithStock)}
-          helper={`${kpis.locations} active stock location${kpis.locations === 1 ? '' : 's'}`}
+          value={formatNumber(locationTypeKpis.Main.products.size)}
+          helper="Products available in main stock"
           icon={Boxes}
           tone="var(--color-blue)"
         />
         <MetricCard
-          label="Available units"
-          value={formatNumber(kpis.available)}
-          helper="Physical quantity on hand"
-          icon={Package}
+          label="Available units in main stock"
+          value={formatNumber(locationTypeKpis.Main.available)}
+          helper={`${locationTypeKpis.Main.locations.size} main stock location${locationTypeKpis.Main.locations.size === 1 ? '' : 's'}`}
+          icon={Warehouse}
           tone="var(--color-teal)"
         />
         <MetricCard
-          label="Sellable units"
-          value={formatNumber(kpis.sellable)}
-          helper={`${formatNumber(kpis.reserved)} currently reserved`}
-          icon={ShieldCheck}
-          tone="var(--color-amber)"
-        />
-        <MetricCard
-          label="Reserved units"
-          value={formatNumber(kpis.reserved)}
-          helper="Committed to orders"
-          icon={CircleAlert}
-          tone={kpis.reserved ? 'var(--color-amber)' : 'var(--color-text-muted)'}
-        />
-        <MetricCard
-          label="Expiring within 30 days"
-          value={formatNumber(kpis.expiring)}
-          helper={kpis.expiring ? 'Review affected batches' : 'No batches need attention'}
-          icon={AlertTriangle}
-          tone={kpis.expiring ? 'var(--color-danger)' : 'var(--color-text-muted)'}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Critical stock"
-          value={formatNumber(kpis.criticalProducts)}
-          helper="Below configured reorder level"
-          icon={AlertTriangle}
-          tone={kpis.criticalProducts ? 'var(--color-danger)' : 'var(--color-text-muted)'}
-        />
-        <MetricCard
-          label="Out of stock"
-          value={formatNumber(kpis.outOfStockProducts)}
-          helper="Active products with zero sellable stock"
-          icon={ArchiveX}
-          tone={kpis.outOfStockProducts ? 'var(--color-danger)' : 'var(--color-text-muted)'}
-        />
-        <MetricCard
-          label="Stock value"
-          value={formatLKRShort(kpis.stockValue)}
-          helper="Available stock at batch cost"
+          label="Main stock value"
+          value={formatLKRShort(locationTypeKpis.Main.value)}
+          helper="Main stock at batch cost"
           icon={Banknote}
           tone="var(--color-teal)"
-        />
-        <MetricCard
-          label="Near expiry value"
-          value={formatLKRShort(kpis.nearExpiryValue)}
-          helper="Cost value expiring within 30 days"
-          icon={Banknote}
-          tone={kpis.nearExpiryValue ? 'var(--color-danger)' : 'var(--color-text-muted)'}
         />
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <MetricCard
-          label="Main inventory"
-          value={`${formatNumber(locationTypeKpis.Main.available)} units`}
-          helper={`Across ${locationTypeKpis.Main.products.size} product${locationTypeKpis.Main.products.size === 1 ? '' : 's'}`}
-          icon={Warehouse}
-          tone="var(--color-text-muted)"
-        />
-        <MetricCard
-          label="Vehicle stock"
-          value={`${formatNumber(locationTypeKpis.Vehicle.available)} units`}
-          helper={`Across ${locationTypeKpis.Vehicle.locations.size} vehicle${locationTypeKpis.Vehicle.locations.size === 1 ? '' : 's'}`}
-          icon={Truck}
-          tone="#22d3ee"
-        />
-        <MetricCard
-          label="Return stock"
-          value={`${formatNumber(locationTypeKpis.Return.available)} units`}
-          helper={`${locationTypeKpis.Return.products.size} product${locationTypeKpis.Return.products.size === 1 ? '' : 's'} awaiting return`}
+          label="Return in stock"
+          value={formatNumber(locationTypeKpis.Return.products.size)}
+          helper="Products held in return stock"
           icon={RotateCcw}
           tone="var(--color-amber)"
         />
+        <MetricCard
+          label="Available units in return"
+          value={formatNumber(locationTypeKpis.Return.available)}
+          helper={`${locationTypeKpis.Return.locations.size} return stock location${locationTypeKpis.Return.locations.size === 1 ? '' : 's'}`}
+          icon={Package}
+          tone="var(--color-teal)"
+        />
+        <MetricCard
+          label="Return stock value"
+          value={formatLKRShort(locationTypeKpis.Return.value)}
+          helper="Return stock at batch cost"
+          icon={Banknote}
+          tone="var(--color-amber)"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {vehicleStockCards.length ? (
+          vehicleStockCards.map((vehicle) => (
+            <MetricCard
+              key={vehicle.id}
+              label={`${vehicle.code || 'Vehicle'} stock`}
+              value={`${formatNumber(vehicle.available)} units`}
+              helper={`${vehicle.name}${vehicle.value ? ` | ${formatLKRShort(vehicle.value)}` : ''}`}
+              icon={Truck}
+              tone="#22d3ee"
+            />
+          ))
+        ) : (
+          <MetricCard
+            label="Vehicle stock"
+            value="0 units"
+            helper="No vehicle stock available"
+            icon={Truck}
+            tone="#22d3ee"
+          />
+        )}
       </div>
 
       <section className="panel" style={{ overflow: 'hidden' }}>
