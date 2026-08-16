@@ -174,8 +174,12 @@ export default function GrnApproveRejectPage() {
 
   // Load GRN details when selected
   useEffect(() => {
+    let active = true
+
     if (!selectedGrnId) {
       setSelectedGrnDetail(null)
+      setRemarks('')
+      setIsLoadingDetail(false)
       return
     }
 
@@ -183,17 +187,23 @@ export default function GrnApproveRejectPage() {
       setIsLoadingDetail(true)
       try {
         const detail = await purchasingService.getGoodsReceipt(selectedGrnId)
+        if (!active) return
         setSelectedGrnDetail(detail)
         setRemarks('') // Reset remarks
       } catch (err) {
+        if (!active) return
         toast.error(`Unable to load goods receipt details: ${err.message}`)
         setSelectedGrnDetail(null)
       } finally {
-        setIsLoadingDetail(false)
+        if (active) setIsLoadingDetail(false)
       }
     }
 
     loadGrnDetail()
+
+    return () => {
+      active = false
+    }
   }, [selectedGrnId])
 
   useEffect(() => {
@@ -210,12 +220,15 @@ export default function GrnApproveRejectPage() {
 
   async function handleVerify() {
     if (!selectedGrnDetail) return
+    const verifiedGrn = selectedGrnDetail
     setIsActionProcessing(true)
     try {
-      await purchasingService.verifyGoodsReceipt(selectedGrnDetail.id)
-      toast.success(`GRN ${selectedGrnDetail.grNumber} Verified successfully.`)
+      await purchasingService.verifyGoodsReceipt(verifiedGrn.id)
+      toast.success(`GRN ${verifiedGrn.grNumber} Verified successfully.`)
+      setRawReceipts((current) => current.filter((receipt) => receipt.id !== verifiedGrn.id))
       setSelectedGrnId(null)
       setSelectedGrnDetail(null)
+      setRemarks('')
       await loadReceipts()
     } catch (err) {
       toast.error(`Verification failed: ${err.message}`)
@@ -230,10 +243,13 @@ export default function GrnApproveRejectPage() {
       toast.error('Please enter a remark for rejection.')
       return
     }
+    const rejectedGrn = selectedGrnDetail
+    const rejectionReason = remarks.trim()
     setIsActionProcessing(true)
     try {
-      await purchasingService.rejectGoodsReceipt(selectedGrnDetail.id, remarks.trim())
-      toast.success(`GRN ${selectedGrnDetail.grNumber} Rejected successfully.`)
+      await purchasingService.rejectGoodsReceipt(rejectedGrn.id, rejectionReason)
+      toast.success(`GRN ${rejectedGrn.grNumber} Rejected successfully.`)
+      setRawReceipts((current) => current.filter((receipt) => receipt.id !== rejectedGrn.id))
       setSelectedGrnId(null)
       setSelectedGrnDetail(null)
       setRemarks('')
@@ -574,7 +590,7 @@ export default function GrnApproveRejectPage() {
             <div className="h-full flex items-center justify-center text-text-muted">
               Loading goods receipt details...
             </div>
-          ) : selectedGrnDetail ? (
+          ) : selectedGrnId && selectedGrnDetail?.id === selectedGrnId ? (
             <div
               style={{
                 height: '100%',

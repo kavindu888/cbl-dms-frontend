@@ -430,6 +430,13 @@ export const salesService = {
     await api.put(`/api/sales/orders/${id}/lines/${lineId}`, payload)
   },
 
+  async updateSalesOrderDiscounts(id, payload) {
+    await api.put(`/api/sales/orders/${id}/discounts`, {
+      skuDiscountAmount: Number(payload.skuDiscountAmount || 0),
+      specialDiscountAmount: Number(payload.specialDiscountAmount || 0),
+    })
+  },
+
   async removeSalesOrderLine(id, lineId) {
     await api.delete(`/api/sales/orders/${id}/lines/${lineId}`)
   },

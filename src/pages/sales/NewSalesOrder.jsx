@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { ArrowLeft, CheckCircle2, PackagePlus, Search, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { inventoryService } from '@/services/api/inventoryService'
@@ -9,9 +9,7 @@ import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import {
   toNumber,
-  getReturnDiscountPercent,
   getReturnCreditAmount,
-  calculateSalesOrderSummary,
 } from '@/utils/salesOrderCalculations'
 
 const emptyDraftLine = {
@@ -113,10 +111,21 @@ function getReturnLineAmounts(line) {
   return { gross, discountAmount, creditAmount }
 }
 
+function getDisplayUnitPrice(line, isReturnLine = false) {
+  if (line.unitPrice !== null && line.unitPrice !== undefined) return toNumber(line.unitPrice)
+
+  const quantity = Math.max(Math.abs(toNumber(line.quantity)), 1)
+  if (isReturnLine) return getReturnCreditAmount(line) / quantity
+
+  return getLineAmounts(line).unitPrice
+}
+
 export default function NewSalesOrder() {
   const navigate = useNavigate()
+  const { id: editOrderId } = useParams()
+  const isEditMode = Boolean(editOrderId)
   const [orderId, setOrderId] = useState(null)
-  const [, setOrderNumber] = useState('')
+  const [orderNumber, setOrderNumber] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [selectedCustomerDetails, setSelectedCustomerDetails] = useState(null)
@@ -146,6 +155,7 @@ export default function NewSalesOrder() {
   const [returnLoadError, setReturnLoadError] = useState('')
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
+  const [isLoadingDraft, setIsLoadingDraft] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [isSavingReturn, setIsSavingReturn] = useState(false)
@@ -201,11 +211,13 @@ export default function NewSalesOrder() {
   }, [customerId, customers])
 
   useEffect(() => {
+    if (orderId) return
+
     setAddItemMode('sale')
     setReturnDraftLine(emptyReturnDraftLine)
     setReturnLines([])
     setReturnLoadError('')
-  }, [customerId])
+  }, [customerId, orderId])
 
   useEffect(() => {
     setReturnProducts(products)
@@ -283,13 +295,17 @@ export default function NewSalesOrder() {
     })
   }
 
-  async function refreshOrder(currentOrderId) {
+  async function refreshOrder(currentOrderId, options = {}) {
     const updated = await salesService.getSalesOrder(currentOrderId)
     const updatedLines = updated.lines || []
     setLines(updatedLines.filter(l => !l.isReturnLine))
     setReturnLines(updatedLines.filter(l => l.isReturnLine))
     setOrderNumber(updated.orderNumber || '')
     updateSummary(updated)
+    if (options.syncDiscountInputs) {
+      setOrderSkuDiscountAmount(Number(updated.totalSkuDiscountAmount || 0).toFixed(2))
+      setOrderSpecialDiscountAmount(Number(updated.totalSpecialDiscountAmount || 0).toFixed(2))
+    }
 
     const productIds = Array.from(
       new Set((updated.lines || []).map((line) => line.productId).filter(Boolean))
@@ -329,10 +345,8 @@ export default function NewSalesOrder() {
       const unitId = getProductUnitId(product)
       const unitCode = getProductUnitCode(product)
 
-      const [categoryDiscount, skuInfo, specialMax, stock, prices] = await Promise.all([
+      const [categoryDiscount, stock, prices] = await Promise.all([
         categoryId ? masterService.getActiveCategoryDiscount(categoryId).catch(() => null) : null,
-        masterService.getSkuDiscountInfo(product.id).catch(() => null),
-        categoryId ? masterService.getActiveSpecialDiscount(categoryId).catch(() => null) : null,
         unitId
           ? salesService.checkSalesOrderStock({ productId: product.id, unitId }).catch(() => null)
           : null,
@@ -349,34 +363,88 @@ export default function NewSalesOrder() {
         unitCode,
         mrp: Number(product.mrp || prices?.lastMrp || product.sellingPrice || 0),
         categoryDiscountPercent: categoryDiscount ?? 0,
-        skuDiscountAvailable: skuInfo?.hasSkuDiscount ?? false,
-        skuDiscountMax: skuInfo?.maxSkuDiscountPercent ?? 0,
+        skuDiscountAvailable: false,
+        skuDiscountMax: 0,
         skuDiscountPercent: '',
-        specialDiscountAvailable: specialMax !== null,
-        specialDiscountMax: specialMax ?? 0,
+        specialDiscountAvailable: false,
+        specialDiscountMax: 0,
         specialDiscountPercent: '',
         quantity: 1,
       })
     } catch (error) {
-      toast.error(error.message || 'Unable to load product discounts.')
+      toast.error(error.message || 'Unable to load product pricing.')
     }
   }
+
+  useEffect(() => {
+    if (!editOrderId) return undefined
+
+    let isCurrent = true
+
+    async function loadDraftOrder() {
+      setIsLoadingDraft(true)
+      setLoadError('')
+
+      try {
+        const order = await salesService.getSalesOrder(editOrderId)
+        if (!isCurrent) return
+
+        if (String(order.status || '').toLowerCase() !== 'draft') {
+          toast.error('Only draft sales orders can be edited.')
+          navigate('/sales/orders')
+          return
+        }
+
+        setOrderId(order.id)
+        setOrderNumber(order.orderNumber || '')
+        setCustomerId(order.customerId || '')
+        setDeliveryDate(
+          order.deliveryDate
+            ? dayjs(order.deliveryDate).format('YYYY-MM-DD')
+            : dayjs().format('YYYY-MM-DD')
+        )
+        updateSummary(order)
+        setOrderSkuDiscountAmount(Number(order.totalSkuDiscountAmount || 0).toFixed(2))
+        setOrderSpecialDiscountAmount(Number(order.totalSpecialDiscountAmount || 0).toFixed(2))
+        setLines((order.lines || []).filter((line) => !line.isReturnLine))
+        setReturnLines((order.lines || []).filter((line) => line.isReturnLine))
+
+        const productIds = Array.from(
+          new Set((order.lines || []).map((line) => line.productId).filter(Boolean))
+        )
+        if (productIds.length) {
+          const responses = await Promise.allSettled(
+            productIds.map((productId) => masterService.getProduct(productId))
+          )
+          if (!isCurrent) return
+          const loadedProducts = responses.flatMap((response) =>
+            response.status === 'fulfilled' && response.value ? [response.value] : []
+          )
+          setProductById((current) => ({
+            ...current,
+            ...loadedProducts.reduce((map, product) => {
+              map[product.id] = product
+              return map
+            }, {}),
+          }))
+        }
+      } catch (error) {
+        if (!isCurrent) return
+        setLoadError(error.message || 'Unable to load draft sales order.')
+      } finally {
+        if (isCurrent) setIsLoadingDraft(false)
+      }
+    }
+
+    loadDraftOrder()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [editOrderId, navigate])
 
   function updateDraftLine(field, value) {
     setDraftLine((current) => ({ ...current, [field]: value }))
-  }
-
-  function updateSkuDiscountPercent(value) {
-    const max = toNumber(draftLine.skuDiscountMax)
-    const requested = toNumber(value)
-
-    if (value !== '' && requested > max) {
-      toast.error(`SKU discount cannot exceed ${max.toFixed(2)}% for this product.`)
-      setDraftLine((current) => ({ ...current, skuDiscountPercent: String(max) }))
-      return
-    }
-
-    updateDraftLine('skuDiscountPercent', value)
   }
 
   function updateOrderSkuDiscountAmount(value) {
@@ -568,33 +636,13 @@ export default function NewSalesOrder() {
       await salesService.addSalesOrderLine(currentOrderId, {
         productId: draftLine.productId,
         quantity: toNumber(draftLine.quantity),
-        skuDiscountPercent: Math.min(
-          toNumber(draftLine.skuDiscountPercent),
-          toNumber(draftLine.skuDiscountMax)
-        ),
-        specialDiscountPercent: draftLine.specialDiscountAvailable
-          ? Math.min(
-            (toNumber(orderSpecialDiscountAmount) /
-              Math.max(toNumber(draftLine.mrp) * toNumber(draftLine.quantity), 1)) *
-            100,
-            toNumber(draftLine.specialDiscountMax)
-          )
-          : 0,
+        skuDiscountPercent: 0,
+        specialDiscountPercent: 0,
         // PascalCase compatibility
         ProductId: draftLine.productId,
         Quantity: toNumber(draftLine.quantity),
-        SkuDiscountPercent: Math.min(
-          toNumber(draftLine.skuDiscountPercent),
-          toNumber(draftLine.skuDiscountMax)
-        ),
-        SpecialDiscountPercent: draftLine.specialDiscountAvailable
-          ? Math.min(
-            (toNumber(orderSpecialDiscountAmount) /
-              Math.max(toNumber(draftLine.mrp) * toNumber(draftLine.quantity), 1)) *
-            100,
-            toNumber(draftLine.specialDiscountMax)
-          )
-          : 0,
+        SkuDiscountPercent: 0,
+        SpecialDiscountPercent: 0,
       })
 
       await refreshOrder(currentOrderId)
@@ -631,70 +679,14 @@ export default function NewSalesOrder() {
 
     setIsSaving(true)
     try {
-      // Persist order-level SKU and Special discount amounts by updating existing sale lines
-      const saleLines = lines.filter((l) => !l.isReturnLine)
-      const grossTotal = saleLines.reduce(
-        (sum, l) => sum + (toNumber(l.grossAmount) || toNumber(l.mrp || l.unitPrice) * toNumber(l.quantity)),
-        0
-      )
-
-      const skuAmount = orderSkuDiscountAmount === '' ? null : Math.max(0, toNumber(orderSkuDiscountAmount))
-      const specialAmount = orderSpecialDiscountAmount === '' ? null : Math.max(0, toNumber(orderSpecialDiscountAmount))
-
-      console.log('[Confirm] Start:', {
-        orderId,
-        saleLinesCount: saleLines.length,
-        grossTotal,
-        orderSkuDiscountAmount,
-        orderSpecialDiscountAmount,
-        skuAmount,
-        specialAmount,
+      await salesService.updateSalesOrderDiscounts(orderId, {
+        skuDiscountAmount: Math.max(0, toNumber(orderSkuDiscountAmount)),
+        specialDiscountAmount: Math.max(0, toNumber(orderSpecialDiscountAmount)),
       })
-
-      if (saleLines.length && (skuAmount !== null || specialAmount !== null)) {
-        const skuPercent = skuAmount !== null ? (skuAmount / Math.max(grossTotal, 1)) * 100 : null
-        console.log('[Confirm] Computed global skuPercent:', skuPercent)
-
-        await Promise.all(
-          saleLines.map(async (line) => {
-            const lineGross = toNumber(line.grossAmount) || toNumber(line.mrp || line.unitPrice) * toNumber(line.quantity)
-            const specialPercent =
-              specialAmount !== null
-                ? Math.min(
-                  (specialAmount / Math.max(lineGross, 1)) * 100,
-                  toNumber(line.specialDiscountMax || 0) || 100
-                )
-                : toNumber(line.specialDiscountPercent || 0)
-
-            const payload = {
-              quantity: toNumber(line.quantity),
-              skuDiscountPercent: skuPercent !== null ? skuPercent : toNumber(line.skuDiscountPercent || 0),
-              specialDiscountPercent: specialPercent,
-              // PascalCase compatibility
-              Quantity: toNumber(line.quantity),
-              SkuDiscountPercent: skuPercent !== null ? skuPercent : toNumber(line.skuDiscountPercent || 0),
-              SpecialDiscountPercent: specialPercent,
-            }
-
-            console.log(`[Confirm] Updating line ${line.id} for product ${line.productId} with payload:`, payload)
-            const res = await salesService.updateSalesOrderLine(orderId, line.id, payload)
-            console.log(`[Confirm] Line ${line.id} update response:`, res)
-            return res;
-          })
-        )
-
-        // Reload order after applying discounts so backend recalculates totals
-        console.log('[Confirm] All line updates finished. Refreshing order...')
-        await refreshOrder(orderId)
-      }
-
-      console.log('[Confirm] Finalizing order confirmation...')
       await salesService.confirmSalesOrder(orderId)
-      console.log('[Confirm] Order confirmed successfully!')
       toast.success('Order confirmed.')
       navigate('/sales/orders')
     } catch (error) {
-      console.error('[Confirm] Error during confirmation flow:', error)
       toast.error(error.message || 'Unable to confirm order.')
     } finally {
       setIsSaving(false)
@@ -831,7 +823,14 @@ export default function NewSalesOrder() {
           <ArrowLeft style={{ width: 15, height: 15 }} />
           Back
         </button>
-        <h1 className="mt-2 text-2xl font-extrabold leading-tight">Create Sales Order</h1>
+        <h1 className="mt-2 text-2xl font-extrabold leading-tight">
+          {isEditMode ? `Edit Sales Order${orderNumber ? ` ${orderNumber}` : ''}` : 'Create Sales Order'}
+        </h1>
+        {isLoadingDraft ? (
+          <div className="panel mt-4 p-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            Loading draft sales order...
+          </div>
+        ) : null}
         {loadError ? (
           <div className="panel mt-4 p-4 text-sm" style={{ color: 'var(--color-danger)' }}>
             {loadError}
@@ -926,7 +925,7 @@ export default function NewSalesOrder() {
                 className={
                   addItemMode === 'return'
                     ? 'grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-[minmax(280px,2.15fr)_minmax(96px,0.62fr)_minmax(96px,0.62fr)_minmax(82px,0.52fr)_minmax(120px,0.8fr)_104px]'
-                    : 'grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-[minmax(280px,2.15fr)_minmax(82px,0.5fr)_minmax(96px,0.62fr)_minmax(78px,0.4fr)_minmax(96px,0.62fr)_minmax(82px,0.52fr)_minmax(78px,0.4fr)_104px]'
+                    : 'grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-[minmax(280px,2.15fr)_minmax(82px,0.5fr)_minmax(96px,0.62fr)_minmax(78px,0.4fr)_minmax(96px,0.62fr)_minmax(82px,0.52fr)_104px]'
                 }
               >
                 <div className="min-w-0 sm:col-span-2 md:col-span-3 xl:col-span-1">
@@ -1023,7 +1022,7 @@ export default function NewSalesOrder() {
                 {addItemMode === 'return' ? (
                   <>
                     <Field label="MRP">
-                      <ReadOnlyDisplay>
+                      <ReadOnlyDisplay align="right">
                         <span className="mono tabular-nums">
                           {Number(returnDraftLine.mrp || 0).toFixed(2)}
                         </span>
@@ -1039,7 +1038,7 @@ export default function NewSalesOrder() {
                         type="number"
                         value={returnDraftLine.discountPercent}
                         onChange={(event) => updateReturnDiscountPercent(event.target.value)}
-                        style={{ height: 40 }}
+                        style={{ height: 40, textAlign: 'right' }}
                       />
                     </Field>
 
@@ -1050,7 +1049,7 @@ export default function NewSalesOrder() {
                         type="number"
                         value={returnDraftLine.quantity}
                         onChange={(event) => updateReturnDraftLine('quantity', event.target.value)}
-                        style={{ height: 40 }}
+                        style={{ height: 40, textAlign: 'right' }}
                       />
                     </Field>
 
@@ -1071,7 +1070,7 @@ export default function NewSalesOrder() {
                     </Field>
 
                     <Field label="Credit">
-                      <ReadOnlyDisplay>
+                      <ReadOnlyDisplay align="right">
                         <span className="mono tabular-nums">
                           {money(returnDraftPreview.creditAmount)}
                         </span>
@@ -1097,7 +1096,7 @@ export default function NewSalesOrder() {
                     </Field>
 
                     <Field label="MRP">
-                      <ReadOnlyDisplay>
+                      <ReadOnlyDisplay align="right">
                         <span className="mono tabular-nums">
                           {Number(draftLine.mrp || 0).toFixed(2)}
                         </span>
@@ -1105,7 +1104,7 @@ export default function NewSalesOrder() {
                     </Field>
 
                     <Field label="Cat. Disc %">
-                      <ReadOnlyDisplay>
+                      <ReadOnlyDisplay align="right">
                         <span className="mono tabular-nums">
                           {Number(draftLine.categoryDiscountPercent || 0).toFixed(2)}%
                         </span>
@@ -1113,7 +1112,7 @@ export default function NewSalesOrder() {
                     </Field>
 
                     <Field label="Unit Price">
-                      <ReadOnlyDisplay>
+                      <ReadOnlyDisplay align="right">
                         <span className="mono tabular-nums">
                           {Number(draftPreview.unitPrice || 0).toFixed(2)}
                         </span>
@@ -1138,26 +1137,10 @@ export default function NewSalesOrder() {
                         type="number"
                         value={draftLine.quantity}
                         onChange={(event) => updateDraftLine('quantity', event.target.value)}
-                        style={{ height: 40 }}
+                        style={{ height: 40, textAlign: 'right' }}
                       />
                     </Field>
 
-                    <Field label="SKU Disc %">
-                      {draftLine.skuDiscountAvailable ? (
-                        <input
-                          className="form-input mono"
-                          max={draftLine.skuDiscountMax || 0}
-                          min="0"
-                          step="0.01"
-                          type="number"
-                          value={draftLine.skuDiscountPercent}
-                          onChange={(event) => updateSkuDiscountPercent(event.target.value)}
-                          style={{ height: 40 }}
-                        />
-                      ) : (
-                        <ReadOnlyDisplay>-</ReadOnlyDisplay>
-                      )}
-                    </Field>
                     <button
                       type="submit"
                       className="button-secondary w-full sm:col-span-2 md:col-span-3 xl:col-span-1"
@@ -1210,24 +1193,24 @@ export default function NewSalesOrder() {
                       }}
                     >
                       <colgroup>
-                        <col style={{ width: '17%' }} />
+                        <col style={{ width: '20%' }} />
+                        <col style={{ width: '13%' }} />
+                        <col style={{ width: '13%' }} />
                         <col style={{ width: '9%' }} />
                         <col style={{ width: '8%' }} />
+                        <col style={{ width: '15%' }} />
                         <col style={{ width: '14%' }} />
-                        <col style={{ width: '14%' }} />
-                        <col style={{ width: '14%' }} />
-                        <col style={{ width: '16%' }} />
                         <col style={{ width: '8%' }} />
                       </colgroup>
 
                       <thead>
                         <tr>
                           <th style={{ textAlign: 'left' }}>Product</th>
-                          <th style={{ textAlign: 'left' }}>Unit</th>
-                          <th style={{ textAlign: 'right' }}>Qty</th>
                           <th style={{ textAlign: 'right' }}>MRP</th>
                           <th style={{ textAlign: 'right' }}>Cat. Disc %</th>
-                          <th style={{ textAlign: 'right' }}>SKU Disc %</th>
+                          <th style={{ textAlign: 'left' }}>Unit</th>
+                          <th style={{ textAlign: 'right' }}>Qty</th>
+                          <th style={{ textAlign: 'right' }}>Unit Price</th>
                           <th style={{ textAlign: 'right' }}>Total</th>
                           <th aria-label="Actions" />
                         </tr>
@@ -1244,6 +1227,7 @@ export default function NewSalesOrder() {
                           const sku =
                             line.productSku || product?.sku || product?.productSku || ''
                           const lineTotal = isReturnLine ? getReturnCreditAmount(line) : toNumber(line.lineTotal)
+                          const unitPrice = getDisplayUnitPrice(line, isReturnLine)
 
                           return (
                             <tr key={line.id}>
@@ -1272,14 +1256,6 @@ export default function NewSalesOrder() {
                                   ) : null}
                                 </div>
                               </td>
-                              <td className="mono">
-                                {isReturnLine
-                                  ? line.unitCode || 'RET'
-                                  : line.smallestUnitCode || line.unitId || 'PCS'}
-                              </td>
-                              <td className="mono text-right">
-                                {isReturnLine ? `-${Math.abs(Number(line.quantity || 0))}` : line.quantity}
-                              </td>
                               <td className="mono text-right">
                                 {money(line.mrp || line.unitPrice)}
                               </td>
@@ -1288,11 +1264,15 @@ export default function NewSalesOrder() {
                                   ? '-'
                                   : `${Number(line.categoryDiscountPercent || 0).toFixed(2)}%`}
                               </td>
-                              <td className="mono text-right">
+                              <td className="mono">
                                 {isReturnLine
-                                  ? `${Number(getReturnDiscountPercent(line)).toFixed(2)}%`
-                                  : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`}
+                                  ? line.unitCode || 'RET'
+                                  : line.smallestUnitCode || line.unitId || 'PCS'}
                               </td>
+                              <td className="mono text-right">
+                                {isReturnLine ? `-${Math.abs(Number(line.quantity || 0))}` : line.quantity}
+                              </td>
+                              <td className="mono text-right">{money(unitPrice)}</td>
                               <td className="mono text-right font-semibold">{money(lineTotal)}</td>
                               <td className="text-right">
                                 <button
@@ -1324,6 +1304,7 @@ export default function NewSalesOrder() {
                         line.productName || product?.name || product?.productName || 'Unknown Product'
                       const sku = line.productSku || product?.sku || product?.productSku || ''
                       const lineTotal = isReturnLine ? getReturnCreditAmount(line) : toNumber(line.lineTotal)
+                      const unitPrice = getDisplayUnitPrice(line, isReturnLine)
 
                       return (
                         <div
@@ -1373,6 +1354,15 @@ export default function NewSalesOrder() {
                             </button>
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            <MobileMetric label="MRP" value={money(line.mrp || line.unitPrice)} />
+                            <MobileMetric
+                              label="Cat. Disc"
+                              value={
+                                isReturnLine
+                                  ? '-'
+                                  : `${Number(line.categoryDiscountPercent || 0).toFixed(2)}%`
+                              }
+                            />
                             <MobileMetric
                               label="Unit"
                               value={
@@ -1385,23 +1375,7 @@ export default function NewSalesOrder() {
                               label="Qty"
                               value={isReturnLine ? `-${Math.abs(Number(line.quantity || 0))}` : line.quantity}
                             />
-                            <MobileMetric label="MRP" value={money(line.mrp || line.unitPrice)} />
-                            <MobileMetric
-                              label="Cat. Disc"
-                              value={
-                                isReturnLine
-                                  ? '-'
-                                  : `${Number(line.categoryDiscountPercent || 0).toFixed(2)}%`
-                              }
-                            />
-                            <MobileMetric
-                              label="SKU Disc"
-                              value={
-                                isReturnLine
-                                  ? `${Number(getReturnDiscountPercent(line)).toFixed(2)}%`
-                                  : `${Number(line.skuDiscountPercent || 0).toFixed(2)}%`
-                              }
-                            />
+                            <MobileMetric label="Unit Price" value={money(unitPrice)} />
                             <MobileMetric label="Total" strong value={money(lineTotal)} />
                           </div>
                         </div>
@@ -1559,9 +1533,16 @@ function Field({ label, labelRight, labelRightColor = 'var(--color-teal)', child
   )
 }
 
-function ReadOnlyDisplay({ children }) {
+function ReadOnlyDisplay({ children, align = 'left' }) {
   return (
-    <div className="form-input w-full min-w-0" style={readOnlyDisplayStyle}>
+    <div
+      className="form-input w-full min-w-0"
+      style={{
+        ...readOnlyDisplayStyle,
+        justifyContent: align === 'right' ? 'flex-end' : 'flex-start',
+        textAlign: align,
+      }}
+    >
       {children}
     </div>
   )

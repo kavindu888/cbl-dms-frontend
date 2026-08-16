@@ -279,12 +279,6 @@ const navGroups = [
         permissions: PERMISSIONS.masterData.categoryManage,
       },
       {
-        label: 'SKU Discounts',
-        to: '/master/sku-discounts',
-        icon: Percent,
-        permissions: PERMISSIONS.masterData.categoryManage,
-      },
-      {
         label: 'UOM',
         to: '/master/units-of-measure',
         icon: Ruler,

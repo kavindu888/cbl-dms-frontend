@@ -211,6 +211,10 @@ export const router = createBrowserRouter([
         element: <NewSalesOrder />,
       },
       {
+        path: 'sales/orders/:id/edit',
+        element: <NewSalesOrder />,
+      },
+      {
         path: 'sales/invoices',
         element: <InvoiceListPage />,
       },

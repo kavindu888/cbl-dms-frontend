@@ -1,9 +1,12 @@
 import dayjs from 'dayjs'
 import {
   AlertTriangle,
+  ArchiveX,
+  Banknote,
   Boxes,
   ChevronDown,
   ChevronRight,
+  CircleAlert,
   Flag,
   MapPin,
   Package,
@@ -19,11 +22,12 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
-import { useExpiringBatches, useStockLevels } from '@/hooks/useStock'
+import { useActiveStockBatches, useExpiringBatches, useStockLevels } from '@/hooks/useStock'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import FlagStockForReturnModal from '@/pages/inventory/ReturnStock/FlagStockForReturnModal'
 import { formatDate, formatTime } from '@/utils'
+import { formatLKR, formatLKRShort } from '@/utils/formatCurrency'
 
 const pageSize = 12
 
@@ -251,6 +255,7 @@ export default function StockOverviewPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [lowStockOnly, setLowStockOnly] = useState(false)
+  const [sortBy, setSortBy] = useState('name')
   const [page, setPage] = useState(1)
   const [products, setProducts] = useState([])
   const [stockLocations, setStockLocations] = useState([])
@@ -261,6 +266,11 @@ export default function StockOverviewPage() {
 
   const { data: rawLevels, isLoading: isLoadingLevels, refetch: refetchLevels } = useStockLevels()
   const { data: expiringBatches, refetch: refetchExpiring } = useExpiringBatches(30)
+  const {
+    data: activeBatches,
+    isLoading: isLoadingActiveBatches,
+    refetch: refetchActiveBatches,
+  } = useActiveStockBatches()
 
   useEffect(() => {
     let active = true
@@ -352,6 +362,17 @@ export default function StockOverviewPage() {
     [stockLocations]
   )
 
+  const stockValueByProductId = useMemo(() => {
+    const result = new Map()
+
+    for (const batch of activeBatches || []) {
+      const stockValue = Number(batch.qtyAvailable || 0) * Number(batch.unitCostSmallest || 0)
+      result.set(batch.productId, Number(result.get(batch.productId) || 0) + stockValue)
+    }
+
+    return result
+  }, [activeBatches])
+
   const stockRows = useMemo(() => {
     const grouped = new Map()
 
@@ -412,12 +433,13 @@ export default function StockOverviewPage() {
       return {
         ...row,
         sellable: row.totalAvailable - row.totalReserved,
+        stockValue: Number(stockValueByProductId.get(row.productId) || 0),
         locationCount: locationRows.length,
         locationRows,
         product: productById[row.productId] || null,
       }
     })
-  }, [locationById, productById, rawLevels])
+  }, [locationById, productById, rawLevels, stockValueByProductId])
 
   const locationTypeKpis = useMemo(() => {
     const result = {
@@ -444,6 +466,27 @@ export default function StockOverviewPage() {
     const available = stockRows.reduce((sum, row) => sum + row.totalAvailable, 0)
     const reserved = stockRows.reduce((sum, row) => sum + row.totalReserved, 0)
     const locationIds = new Set(stockRows.flatMap((row) => [...row.locationIds]))
+    const sellableByProductId = new Map(stockRows.map((row) => [row.productId, row.sellable]))
+    const activeProducts = products.filter((product) => product.status !== 'Inactive')
+    const outOfStockProducts = activeProducts.filter(
+      (product) => Number(sellableByProductId.get(product.id) || 0) <= 0
+    ).length
+    const criticalProducts = activeProducts.filter((product) => {
+      const reorderLevel = Number(product.minValue || 0)
+      if (reorderLevel <= 0) return false
+      const sellable = Number(sellableByProductId.get(product.id) || 0)
+      return sellable > 0 && sellable <= reorderLevel
+    }).length
+    const stockValue = (activeBatches || []).reduce(
+      (sum, batch) =>
+        sum + Number(batch.qtyAvailable || 0) * Number(batch.unitCostSmallest || 0),
+      0
+    )
+    const nearExpiryValue = (expiringBatches || []).reduce(
+      (sum, batch) =>
+        sum + Number(batch.qtyAvailable || 0) * Number(batch.unitCostSmallest || 0),
+      0
+    )
 
     return {
       productsWithStock: stockRows.filter((row) => row.totalAvailable > 0).length,
@@ -452,8 +495,12 @@ export default function StockOverviewPage() {
       sellable: available - reserved,
       locations: locationIds.size,
       expiring: (expiringBatches || []).length,
+      criticalProducts,
+      outOfStockProducts,
+      stockValue,
+      nearExpiryValue,
     }
-  }, [expiringBatches, stockRows])
+  }, [activeBatches, expiringBatches, products, stockRows])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -468,14 +515,22 @@ export default function StockOverviewPage() {
         )
       })
       .filter((row) => !lowStockOnly || row.sellable <= 0)
-      .sort((a, b) =>
-        (a.product?.name || a.productSku).localeCompare(b.product?.name || b.productSku)
-      )
-  }, [lowStockOnly, search, stockRows])
+      .sort((a, b) => {
+        const nameCompare = (a.product?.name || a.productSku).localeCompare(
+          b.product?.name || b.productSku
+        )
+
+        if (sortBy === 'stockValueDesc') return b.stockValue - a.stockValue || nameCompare
+        if (sortBy === 'stockValueAsc') return a.stockValue - b.stockValue || nameCompare
+        if (sortBy === 'sellableAsc') return a.sellable - b.sellable || nameCompare
+        if (sortBy === 'sellableDesc') return b.sellable - a.sellable || nameCompare
+        return nameCompare
+      })
+  }, [lowStockOnly, search, sortBy, stockRows])
 
   useEffect(() => {
     setPage(1)
-  }, [search, lowStockOnly])
+  }, [search, lowStockOnly, sortBy])
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
@@ -490,9 +545,10 @@ export default function StockOverviewPage() {
   function handleRefresh() {
     refetchLevels()
     refetchExpiring()
+    refetchActiveBatches()
   }
 
-  const isLoading = isLoadingLevels || isLoadingProducts || isLoadingLocations
+  const isLoading = isLoadingLevels || isLoadingProducts || isLoadingLocations || isLoadingActiveBatches
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -528,7 +584,7 @@ export default function StockOverviewPage() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard
           label="Products in stock"
           value={formatNumber(kpis.productsWithStock)}
@@ -551,11 +607,49 @@ export default function StockOverviewPage() {
           tone="var(--color-amber)"
         />
         <MetricCard
+          label="Reserved units"
+          value={formatNumber(kpis.reserved)}
+          helper="Committed to orders"
+          icon={CircleAlert}
+          tone={kpis.reserved ? 'var(--color-amber)' : 'var(--color-text-muted)'}
+        />
+        <MetricCard
           label="Expiring within 30 days"
           value={formatNumber(kpis.expiring)}
           helper={kpis.expiring ? 'Review affected batches' : 'No batches need attention'}
           icon={AlertTriangle}
           tone={kpis.expiring ? 'var(--color-danger)' : 'var(--color-text-muted)'}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Critical stock"
+          value={formatNumber(kpis.criticalProducts)}
+          helper="Below configured reorder level"
+          icon={AlertTriangle}
+          tone={kpis.criticalProducts ? 'var(--color-danger)' : 'var(--color-text-muted)'}
+        />
+        <MetricCard
+          label="Out of stock"
+          value={formatNumber(kpis.outOfStockProducts)}
+          helper="Active products with zero sellable stock"
+          icon={ArchiveX}
+          tone={kpis.outOfStockProducts ? 'var(--color-danger)' : 'var(--color-text-muted)'}
+        />
+        <MetricCard
+          label="Stock value"
+          value={formatLKRShort(kpis.stockValue)}
+          helper="Available stock at batch cost"
+          icon={Banknote}
+          tone="var(--color-teal)"
+        />
+        <MetricCard
+          label="Near expiry value"
+          value={formatLKRShort(kpis.nearExpiryValue)}
+          helper="Cost value expiring within 30 days"
+          icon={Banknote}
+          tone={kpis.nearExpiryValue ? 'var(--color-danger)' : 'var(--color-text-muted)'}
         />
       </div>
 
@@ -615,14 +709,29 @@ export default function StockOverviewPage() {
             />
           </div>
 
-          <button
-            type="button"
-            className={lowStockOnly ? 'button-primary' : 'button-secondary'}
-            onClick={() => setLowStockOnly((current) => !current)}
-            style={{ height: 34, padding: '0 12px', fontSize: 12 }}
-          >
-            <AlertTriangle size={13} /> Critical stock only
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <select
+              className="form-select"
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              style={{ height: 34, width: 210, fontSize: 12 }}
+            >
+              <option value="name">Sort by product name</option>
+              <option value="stockValueDesc">Stock value high to low</option>
+              <option value="stockValueAsc">Stock value low to high</option>
+              <option value="sellableAsc">Sellable low to high</option>
+              <option value="sellableDesc">Sellable high to low</option>
+            </select>
+
+            <button
+              type="button"
+              className={lowStockOnly ? 'button-primary' : 'button-secondary'}
+              onClick={() => setLowStockOnly((current) => !current)}
+              style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+            >
+              <AlertTriangle size={13} /> Critical stock only
+            </button>
+          </div>
         </div>
 
         <div
@@ -651,7 +760,7 @@ export default function StockOverviewPage() {
           </div>
         ) : filteredRows.length ? (
           <div style={{ overflowX: 'auto' }}>
-            <table className="data-table product-table-compact" style={{ minWidth: 1080 }}>
+            <table className="data-table product-table-compact" style={{ minWidth: 1190 }}>
               <thead>
                 <tr>
                   <th style={{ minWidth: 280 }}>Product</th>
@@ -660,6 +769,7 @@ export default function StockOverviewPage() {
                   <th style={{ textAlign: 'right' }}>Available</th>
                   <th style={{ textAlign: 'right' }}>Reserved</th>
                   <th style={{ textAlign: 'right' }}>Sellable</th>
+                  <th style={{ textAlign: 'right' }}>Stock value</th>
                   <th>Last activity</th>
                   <th style={{ width: 250 }}></th>
                 </tr>
@@ -754,6 +864,9 @@ export default function StockOverviewPage() {
                             {row.smallestUnitCode || 'PCS'}
                           </small>
                         </td>
+                        <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                          {formatLKR(row.stockValue)}
+                        </td>
                         <td>
                           <div style={{ fontSize: 12 }}>{formatDate(row.lastMovementAt)}</div>
                           {row.lastMovementAt ? (
@@ -817,7 +930,7 @@ export default function StockOverviewPage() {
                       {expandedProductId === row.productId ? (
                         <tr>
                           <td
-                            colSpan={8}
+                            colSpan={9}
                             style={{ padding: 0, background: 'var(--color-bg-surface)' }}
                           >
                             <StockByLocationPanel

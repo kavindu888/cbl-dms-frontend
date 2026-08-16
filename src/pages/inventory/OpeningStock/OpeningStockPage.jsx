@@ -188,7 +188,7 @@ export default function OpeningStockPage() {
         unitCostSmallest: line.unitCostSmallest,
         mrp: line.mrp,
         batchNo: line.batchNo,
-        expiryDate: line.expiryDate ? `${line.expiryDate}T00:00:00+05:30` : null,
+        expiryDate: line.expiryDate ? `${line.expiryDate}T00:00:00Z` : null,
       })),
     })
   }

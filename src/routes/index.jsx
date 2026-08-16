@@ -20,7 +20,6 @@ import CategoryListPage from '@pages/master/CategoryListPage'
 import MasterCustomerListPage from '@pages/master/CustomerListPage'
 import Product from '@pages/master/Product'
 import SalesRouteListPage from '@pages/master/SalesRouteListPage'
-import SkuDiscountList from '@pages/master/SkuDiscounts/SkuDiscountList'
 import UnitOfMeasureListPage from '@pages/master/UnitOfMeasureListPage'
 import AllPurchaseOrdersPage from '@pages/purchasing/purchase-orders/AllPurchaseOrdersPage'
 import ApprovedPurchaseOrdersPage from '@pages/purchasing/purchase-orders/ApprovedPurchaseOrdersPage'
@@ -352,7 +351,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'master/sku-discounts',
-        element: requirePermission(<SkuDiscountList />, PERMISSIONS.masterData.categoryManage),
+        element: <Navigate to="/master/category-discounts" replace />,
       },
       {
         path: 'master/brands',
@@ -419,6 +418,13 @@ export const router = createBrowserRouter([
       },
       {
         path: 'sales/orders/new',
+        element: requirePermission(<NewSalesOrder />, [
+          PERMISSIONS.salesOrders.create,
+          PERMISSIONS.sales.orderCreate,
+        ]),
+      },
+      {
+        path: 'sales/orders/:id/edit',
         element: requirePermission(<NewSalesOrder />, [
           PERMISSIONS.salesOrders.create,
           PERMISSIONS.sales.orderCreate,

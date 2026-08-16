@@ -166,6 +166,12 @@ export const inventoryService = {
     return asList(getValue(response, 'Unable to load stock batches.')).map(formatBatch)
   },
 
+  //Inventory Active Stock Batches
+  async listActiveStockBatches(params = {}) {
+    const response = await getOnce('/api/v1/inventory/stock/batches', { params })
+    return asList(getValue(response, 'Unable to load active stock batches.')).map(formatBatch)
+  },
+
   //Inventory Expiring Batches
   async listExpiringBatches(params = {}) {
     const response = await getOnce('/api/v1/inventory/stock/batches/expiring', { params })
