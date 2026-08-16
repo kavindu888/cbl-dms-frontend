@@ -18,7 +18,6 @@ import {
   PackageX,
   PackageOpen,
   Percent,
-  PlusCircle,
   // ArrowLeftRight,
   Warehouse,
   Ruler,
@@ -66,24 +65,6 @@ const navGroups = [
         to: '/sales/customer-groups',
         icon: Users,
         permissions: PERMISSIONS.sales.customerManage,
-      },
-      {
-        label: 'Sales Orders',
-        to: '/sales/orders',
-        icon: ClipboardList,
-        end: true,
-        permissions: [
-          PERMISSIONS.salesOrders.view,
-          PERMISSIONS.salesOrders.create,
-          PERMISSIONS.sales.orderRead,
-          PERMISSIONS.sales.orderCreate,
-        ],
-      },
-      {
-        label: 'New Order',
-        to: '/sales/orders/new',
-        icon: PlusCircle,
-        permissions: [PERMISSIONS.salesOrders.create, PERMISSIONS.sales.orderCreate],
       },
       {
         label: 'Invoices',
