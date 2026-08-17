@@ -7,6 +7,7 @@ import Modal from '@components/ui/Modal'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useVehicles } from '@/hooks/useVehicle'
 import { masterService } from '@/services/api/masterService'
+import { usersService } from '@/services/api/usersService'
 import { formatDateTime } from '@/utils/formatDate'
 import { formatLKR } from '@/utils/formatCurrency'
 import {
@@ -66,6 +67,7 @@ export default function VehicleMovementDetailPage({
   const applyMovement = useApply()
   const cancelMovement = useCancel()
   const [deliveryRuns, setDeliveryRuns] = useState([])
+  const [createdByName, setCreatedByName] = useState('')
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false)
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
@@ -76,10 +78,7 @@ export default function VehicleMovementDetailPage({
     () => Object.fromEntries(deliveryRuns.map((run) => [run.id, run])),
     [deliveryRuns]
   )
-  const deliveryRun = movement?.deliveryRunId ? deliveryRunById[movement.deliveryRunId] : null
-
   useEffect(() => {
-    if (isUnloading) return undefined
     let active = true
 
     masterService
@@ -94,7 +93,31 @@ export default function VehicleMovementDetailPage({
     return () => {
       active = false
     }
-  }, [isUnloading])
+  }, [])
+
+  useEffect(() => {
+    const createdByUserId = movement?.createdByUserId
+    if (!createdByUserId) {
+      setCreatedByName('')
+      return undefined
+    }
+
+    let active = true
+    setCreatedByName('')
+
+    usersService
+      .getUser(createdByUserId)
+      .then((user) => {
+        if (active) setCreatedByName(user?.username || '')
+      })
+      .catch(() => {
+        if (active) setCreatedByName('')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [movement?.createdByUserId])
 
   async function handleApply(event) {
     event.preventDefault()
@@ -137,10 +160,18 @@ export default function VehicleMovementDetailPage({
 
   const number = movement[isUnloading ? 'unloadingNo' : 'loadingNo'] || movement.id
   const movementDate = movement[isUnloading ? 'unloadingDate' : 'loadingDate']
+  const deliveryRun = movement?.deliveryRunId ? deliveryRunById[movement.deliveryRunId] : null
+  const deliveryRunLabel = deliveryRun
+    ? `${deliveryRun.code} - ${deliveryRun.name}`
+    : movement.deliveryRunId || 'Not assigned'
   const isDraft = status === 'Draft'
   const actionPending = applyMovement.isPending || cancelMovement.isPending
   const totalQty = (movement.lines || []).reduce(
     (sum, line) => sum + Number(line.qtySmallest || 0),
+    0
+  )
+  const totalValue = (movement.lines || []).reduce(
+    (sum, line) => sum + Number(line.qtySmallest || 0) * Number(line.unitCostSmallest || 0),
     0
   )
 
@@ -284,20 +315,23 @@ export default function VehicleMovementDetailPage({
             label="Vehicle"
             value={vehicle ? vehicleLabel(vehicle) : movement.vehicleLocationId}
           />
-          {!isUnloading ? (
+          {isUnloading ? (
             <InfoTile
-              label="Delivery Run"
-              value={
-                deliveryRun
-                  ? `${deliveryRun.code} - ${deliveryRun.name}`
-                  : movement.deliveryRunId || 'Not assigned'
-              }
+              label="Applied Loading"
+              value={movement.vehicleLoadingNo || movement.vehicleLoadingId || 'Not assigned'}
+              mono
             />
           ) : null}
+          <InfoTile label="Delivery Run" value={deliveryRunLabel} />
           <InfoTile label={`${kind} Date`} value={formatDateTime(movementDate)} mono />
-          <InfoTile label="Created By" value={formatUserId(movement.createdByUserId)} mono />
+          <InfoTile
+            label="Created By"
+            value={createdByName || formatUserId(movement.createdByUserId)}
+            mono={!createdByName}
+          />
           <InfoTile label="Applied On" value={formatDateTime(movement.appliedOn)} mono />
           <InfoTile label="Total Lines" value={movement.lines?.length ?? 0} mono />
+          <InfoTile label="Total Value" value={formatLKR(totalValue)} mono />
         </div>
         <div
           style={{
