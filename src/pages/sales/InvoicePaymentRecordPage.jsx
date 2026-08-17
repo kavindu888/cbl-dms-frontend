@@ -98,13 +98,14 @@ export default function InvoicePaymentRecordPage() {
   const [isLoadingInvoiceDetail, setIsLoadingInvoiceDetail] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
-  
+
   // Custom states for view layout and detail metadata
   const [viewDetail, setViewDetail] = useState(false)
   const [salesRouteName, setSalesRouteName] = useState('')
   const [salesPersonName, setSalesPersonName] = useState('')
 
-  const selectedInvoiceSummary = invoices.find((invoice) => invoice.id === selectedInvoiceId) || null
+  const selectedInvoiceSummary =
+    invoices.find((invoice) => invoice.id === selectedInvoiceId) || null
   const selectedInvoice =
     selectedInvoiceDetail?.id === selectedInvoiceId ? selectedInvoiceDetail : selectedInvoiceSummary
   const customerNameById = useMemo(() => {
@@ -163,8 +164,9 @@ export default function InvoicePaymentRecordPage() {
 
       // Resolve sales route name
       if (invoiceDetail.salesRouteId) {
-        masterService.getSalesRoute(invoiceDetail.salesRouteId)
-          .then(r => setSalesRouteName(r?.name || ''))
+        masterService
+          .getSalesRoute(invoiceDetail.salesRouteId)
+          .then((r) => setSalesRouteName(r?.name || ''))
           .catch(() => setSalesRouteName(''))
       } else {
         setSalesRouteName('')
@@ -172,8 +174,9 @@ export default function InvoicePaymentRecordPage() {
 
       // Resolve sales person name
       if (invoiceDetail.salesPersonId) {
-        usersService.getUser(invoiceDetail.salesPersonId)
-          .then(u => setSalesPersonName(u?.username || u?.email || ''))
+        usersService
+          .getUser(invoiceDetail.salesPersonId)
+          .then((u) => setSalesPersonName(u?.username || u?.email || ''))
           .catch(() => setSalesPersonName(''))
       } else {
         setSalesPersonName('')
@@ -208,23 +211,20 @@ export default function InvoicePaymentRecordPage() {
     setError('')
 
     try {
-      const activeCustomers = await salesService.listAllCustomers({
-        pageSize: 100,
-        isActive: true,
-      })
+      // Load invoices once for the organisation. The previous implementation issued one
+      // outstanding-invoice request per customer, which exhausted the global rate limit.
+      const [activeCustomers, organisationInvoices] = await Promise.all([
+        salesService.listAllCustomers({
+          pageSize: 100,
+          isActive: true,
+        }),
+        salesService.listInvoices({ page: 1, pageSize: 1000 }),
+      ])
 
-      const invoiceResults = await Promise.all(
-        activeCustomers.map(async (customer) => {
-          try {
-            return await salesService.listOutstandingInvoicesByCustomer(customer.id)
-          } catch {
-            return []
-          }
-        })
-      )
-      const outstandingInvoices = invoiceResults
-        .flat()
-        .filter((invoice) => Number(invoice.outstandingAmount) > 0 && invoice.status !== 'Cancelled')
+      const outstandingInvoices = organisationInvoices
+        .filter(
+          (invoice) => Number(invoice.outstandingAmount) > 0 && invoice.status !== 'Cancelled'
+        )
         .sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate))
 
       setCustomers(activeCustomers)
@@ -398,7 +398,10 @@ export default function InvoicePaymentRecordPage() {
                   </span>
                 </div>
 
-                <div className="responsive-table-shell" style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
+                <div
+                  className="responsive-table-shell"
+                  style={{ overflow: 'auto', flex: 1, minHeight: 0 }}
+                >
                   {isLoading ? (
                     <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>
                       Loading invoices...
@@ -443,7 +446,9 @@ export default function InvoicePaymentRecordPage() {
                               <td>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   <span style={{ fontWeight: 700 }}>
-                                    {customerNameById[invoice.customerId] || invoice.customerId || '-'}
+                                    {customerNameById[invoice.customerId] ||
+                                      invoice.customerId ||
+                                      '-'}
                                   </span>
                                   {customerNameById[invoice.customerId] ? (
                                     <span
@@ -496,24 +501,57 @@ export default function InvoicePaymentRecordPage() {
             <>
               {selectedInvoice ? (
                 <>
-                  <section className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, flexShrink: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <section
+                    className="panel"
+                    style={{
+                      padding: 16,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 16,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 12,
+                        flexWrap: 'wrap',
+                      }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <button
                           onClick={() => setViewDetail(false)}
                           className="button-secondary"
-                          style={{ height: 34, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                          style={{
+                            height: 34,
+                            padding: '0 10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            fontWeight: 600,
+                          }}
                         >
                           <ArrowLeft size={15} /> Back
                         </button>
                         <h2 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>
-                          Invoice Details: <span className="mono" style={{ color: 'var(--color-amber)' }}>{selectedInvoice.invoiceNumber}</span>
+                          Invoice Details:{' '}
+                          <span className="mono" style={{ color: 'var(--color-amber)' }}>
+                            {selectedInvoice.invoiceNumber}
+                          </span>
                         </h2>
                       </div>
                       <StatusBadge status={invoiceStatusLabel(selectedInvoice.status)} />
                     </div>
 
-                    <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)', margin: 0 }} />
+                    <hr
+                      style={{
+                        border: 'none',
+                        borderBottom: '1px solid var(--color-border)',
+                        margin: 0,
+                      }}
+                    />
 
                     <div
                       className="responsive-field-grid"
@@ -526,13 +564,24 @@ export default function InvoicePaymentRecordPage() {
                       <DetailItem label="Invoice No" value={selectedInvoice.invoiceNumber} />
                       <DetailItem
                         label="Customer"
-                        value={customerNameById[selectedInvoice.customerId] || selectedInvoice.customerId}
+                        value={
+                          customerNameById[selectedInvoice.customerId] || selectedInvoice.customerId
+                        }
                       />
-                      <DetailItem label="Invoice Date" value={formatDate(selectedInvoice.invoiceDate)} />
+                      <DetailItem
+                        label="Invoice Date"
+                        value={formatDate(selectedInvoice.invoiceDate)}
+                      />
                       <DetailItem label="Due Date" value={formatDate(selectedInvoice.dueDate)} />
-                      <DetailItem label="Sales Route" value={salesRouteName || selectedInvoice.salesRouteId} />
+                      <DetailItem
+                        label="Sales Route"
+                        value={salesRouteName || selectedInvoice.salesRouteId}
+                      />
                       <DetailItem label="Vehicle" value={selectedInvoice.vehicleId} />
-                      <DetailItem label="Sales Person" value={salesPersonName || selectedInvoice.salesPersonId} />
+                      <DetailItem
+                        label="Sales Person"
+                        value={salesPersonName || selectedInvoice.salesPersonId}
+                      />
                       <DetailItem label="Tax Invoice No" value={selectedInvoice.taxInvoiceNumber} />
                     </div>
                   </section>
@@ -555,7 +604,7 @@ export default function InvoicePaymentRecordPage() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: 8,
-                        flexShrink: 0
+                        flexShrink: 0,
                       }}
                     >
                       <FileText size={16} color="var(--color-teal)" />
@@ -578,7 +627,14 @@ export default function InvoicePaymentRecordPage() {
                         <tbody>
                           {isLoadingInvoiceDetail ? (
                             <tr>
-                              <td colSpan={8} style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24 }}>
+                              <td
+                                colSpan={8}
+                                style={{
+                                  color: 'var(--color-text-muted)',
+                                  textAlign: 'center',
+                                  padding: 24,
+                                }}
+                              >
                                 Loading invoice lines...
                               </td>
                             </tr>
@@ -599,7 +655,10 @@ export default function InvoicePaymentRecordPage() {
                                         alignItems: 'flex-start',
                                       }}
                                     >
-                                      <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                      <span
+                                        className="product-sku-badge mono"
+                                        style={{ fontSize: 10 }}
+                                      >
                                         {productSku}
                                       </span>
                                       <span style={{ fontSize: 13, fontWeight: 700 }}>
@@ -607,30 +666,58 @@ export default function InvoicePaymentRecordPage() {
                                       </span>
                                     </div>
                                   </td>
-                                   <td className="mono text-xs text-cyan-600" style={{ textAlign: 'left', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                                     {line.batchNo}
-                                   </td>
-                                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                  <td
+                                    className="mono text-xs text-cyan-600"
+                                    style={{
+                                      textAlign: 'left',
+                                      verticalAlign: 'middle',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    {line.batchNo}
+                                  </td>
+                                  <td
+                                    className="mono"
+                                    style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
+                                  >
                                     {line.quantity}{' '}
-                                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                                    <span
+                                      style={{ fontSize: 11, color: 'var(--color-text-muted)' }}
+                                    >
                                       {line.smallestUnitCode || line.unitId}
                                     </span>
                                   </td>
-                                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                  <td
+                                    className="mono"
+                                    style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
+                                  >
                                     {formatMoney(line.unitPrice)}
                                   </td>
-                                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                  <td
+                                    className="mono"
+                                    style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
+                                  >
                                     {formatMoney(line.mrp)}
                                   </td>
-                                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                  <td
+                                    className="mono"
+                                    style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
+                                  >
                                     {line.discountPercent}%
                                   </td>
-                                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                  <td
+                                    className="mono"
+                                    style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
+                                  >
                                     {formatMoney(line.vatAmount)}
                                   </td>
                                   <td
                                     className="mono"
-                                    style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 800 }}
+                                    style={{
+                                      textAlign: 'right',
+                                      whiteSpace: 'nowrap',
+                                      fontWeight: 800,
+                                    }}
                                   >
                                     {formatMoney(line.lineTotal)}
                                   </td>
@@ -639,7 +726,14 @@ export default function InvoicePaymentRecordPage() {
                             })
                           ) : (
                             <tr>
-                              <td colSpan={7} style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24 }}>
+                              <td
+                                colSpan={7}
+                                style={{
+                                  color: 'var(--color-text-muted)',
+                                  textAlign: 'center',
+                                  padding: 24,
+                                }}
+                              >
                                 No invoice lines found for this invoice.
                               </td>
                             </tr>

@@ -1,67 +1,58 @@
 # Collections frontend discovery
 
-## HTTP client pattern
+## HTTP client and response shape
 
-- `src/api/salesApi.js` defines a module-local `salesAxios` wrapper around the default `api` export from `@/lib/api`, prefixing requests with `/api/sales`.
-- `src/api/inventoryApi.js` defines a module-local `inventoryAxios` wrapper around the same `api` client, prefixing requests with `/api/v1/inventory`.
-- Collections therefore uses a module-local `collectionsAxios` wrapper around `api`, with the confirmed backend prefix `/api/collections`.
-- Successful Collections responses are `ApiResponse<Result<T>>`; the usable value is `response.data.data.value`. Failure details are found in `response.data.data.errorMessage`/validation errors. The shared interceptor converts HTTP failures to `Error`, so UI error handling uses `error.message`.
+- The shared Axios client is the default `api` export from `src/lib/api.js`.
+- `src/api/collectionsApi.js` uses a module-local exported `collectionsAxios` wrapper for `/api/collections` and a private `collectionsV1Axios` wrapper for `/api/v1/collections` because the backend currently exposes both route groups.
+- Collections controllers return `ApiResponse<Result<T>>`. Successful data is normally `response.data.data.value`; command failures expose `errorMessage` and `validationErrors` under `response.data.data`. `unwrapCollectionsResponse` handles both the envelope and unwrapped responses.
 
-## TanStack Query pattern
+## Confirmed controller endpoints
 
-- Existing hooks use array keys ordered from module to resource to identifier/filter, for example `['inventory', 'stock', 'levels', params]` and `['inventory', 'stock', 'batches', productId]`.
-- Collections keys follow the requested resource-first convention: `['collection-sessions', params]`, `['collection-session', id]`, `['cheques', params]`, `['deposit-batches', params]`, `['deposit-batch', id]`, `['customer-accounts', params]`, `['customer-account', customerId]`, and `['outstanding-invoices', customerId]`.
+| Resource | Method and URL |
+| --- | --- |
+| Banks | `GET /api/v1/collections/banks`, `POST /api/v1/collections/banks`, `DELETE /api/v1/collections/banks/{id}` |
+| Bank branches | `GET /api/v1/collections/banks/{id}/branches`, `POST /api/v1/collections/banks/{id}/branches` |
+| Sessions | `GET/POST /api/collections/sessions`, `GET /api/collections/sessions/{id}`, `POST /api/collections/sessions/{id}/close`, `POST /api/collections/sessions/{id}/verify` |
+| Legacy session entry | `POST /api/collections/sessions/{id}/cash`, `POST /api/collections/sessions/{id}/cheque` |
+| Allocated payments | `POST /api/v1/collections/payments/cash`, `POST /api/v1/collections/payments/cheque`, `POST /api/v1/collections/payments/bank-transfer` |
+| Outstanding invoices | `GET /api/v1/collections/outstanding-invoices?customerId=...` and legacy `GET /api/collections/customer-accounts/{customerId}/outstanding-invoices` |
+| Cheques | `GET /api/v1/collections/cheques`, `POST /api/v1/collections/cheques/{id}/deposit`, `/clear`, `/bounce`, `/cancel`, `/write-off`, and `/deposit-batch` |
+| Deposit batches | `GET/POST /api/collections/deposit-batches`, `GET /api/collections/deposit-batches/{id}`, `POST .../{id}/submit`, `POST .../{id}/confirm` |
+| Customer accounts | `GET/POST /api/collections/customer-accounts`, `GET /api/collections/customer-accounts/{customerId}`, `PUT .../{customerId}/credit-limit`, `POST .../{customerId}/hold`, `POST .../{customerId}/reinstate` |
 
-## Existing shared UI components
+There is no cheque-by-id endpoint, standalone customer ledger endpoint, aging endpoint, or reconciliation endpoint. The frontend selects cheque detail from the list DTO, reads `recentLedger` and `aging` from account detail, and derives reconciliation from session detail. Deposit batches are not named `cheque-deposit-batches` in the live controller.
 
-All are available through `@components/ui` (the barrel at `src/components/ui/index.js`) except `SimplePagination`, `UserAvatarIcon`, `GlobalConfirmDialog`, and `FormKeyboardManager`, which are imported directly.
+## DTO fields returned by the API
 
-- `AmountDisplay` — `@components/ui/AmountDisplay`
-- `ConfirmDialog` — `@components/ui/ConfirmDialog`
-- `CreditBar` — `@components/ui/CreditBar`
-- `DataTable` — `@components/ui/DataTable`
-- `EmptyState` — `@components/ui/EmptyState`
-- `FilterBar` — `@components/ui/FilterBar`
-- `KPICard` — `@components/ui/KPICard`
-- `LoadingSkeleton` — `@components/ui/LoadingSkeleton`
-- `Modal` — `@components/ui/Modal`
-- `PageHeader` — `@components/ui/PageHeader`
-- `RoleBadge` — `@components/ui/RoleBadge`
-- `SlideDrawer` — `@components/ui/SlideDrawer`
-- `StatusBadge` — `@components/ui/StatusBadge`
-- `SimplePagination` — `@components/ui/SimplePagination`
-- `UserAvatarIcon` — `@components/ui/UserAvatarIcon`
-- `GlobalConfirmDialog` — `@components/ui/GlobalConfirmDialog`
-- `FormKeyboardManager` — `@components/ui/FormKeyboardManager`
+ASP.NET JSON serialization returns these record properties in camelCase:
 
-## Route registration
+- `CollectionSessionDto`: `id`, `sessionNumber`, `salesRepId`, `routeId`, `sessionDate`, `status`, `totalCash`, `totalCheques`, `totalAmount`, `collectionCount`, `closedOn`, `verifiedOn`, `verifiedByUserId`, `closureNotes`, `collections`.
+- `CollectionSessionListItemDto`: `id`, `sessionNumber`, `salesRepId`, `routeId`, `sessionDate`, `status`, `totalCash`, `totalCheques`, `totalAmount`, `collectionCount`, `closedOn`.
+- `CollectionDto`: `id`, `sessionId`, `customerId`, `invoiceId`, `method`, `amount`, `notes`, `collectedOn`, `collectedByUserId`, `chequeId`, `denominations`.
+- `CashDenominationDto`: `denomination`, `count`, `total`.
+- `ChequeDto`: `id`, `organizationId`, `customerId`, `collectionId`, `chequeNumber`, `bankName`, `branchName`, `drawerName`, `amount`, `chequeDate`, `status`, `receivedAt`, `depositedAt`, `clearedAt`, `bouncedAt`, `cancelledAt`, `depositBatchId`, `bounceReason`, `bounceChargeAmount`, `cancelReason`, `bounceCount`, `isPermanentlyBounced`, `bankId`, `bankBranchId`.
+- `ChequeDepositBatchDto`: `id`, `batchNumber`, `bankName`, `branchName`, `depositDate`, `totalAmount`, `chequeCount`, `status`, `notes`, `confirmedAt`, `cheques`.
+- `ChequeDepositBatchListItemDto`: `id`, `batchNumber`, `bankName`, `depositDate`, `totalAmount`, `chequeCount`, `status`.
+- `CustomerAccountDto`: `id`, `customerId`, `creditLimit`, `currentBalance`, `availableCredit`, `paymentTermsDays`, `status`.
+- `CustomerAccountDetailDto`: the account fields above plus `aging` and `recentLedger`.
+- `AgingDto`: `current`, `days1To7`, `days8To14`, `days15To21`, `days21Plus`.
+- `CustomerLedgerEntryDto`: `id`, `type`, `debit`, `credit`, `runningBalance`, `referenceId`, `referenceText`, `transactionDate`.
+- `OutstandingInvoiceDto`: `invoiceId`, `invoiceNumber`, `netAmount`, `amountPaid`, `outstandingAmount`, `status`, `invoiceDate`, `dueDate`, `daysOverdue`.
+- `BankDto`: `id`, `name`, `swiftCode`. `BankBranchDto`: `id`, `bankId`, `name`, `branchCode`.
 
-- The live entry point (`src/main.jsx`) imports `router` from `src/routes/index.jsx`; `src/App.jsx` contains a legacy duplicate router and is not mounted.
-- `src/routes/index.jsx` uses `createBrowserRouter`. Authenticated pages are relative child route objects below the `/` `AppShell` route.
-- Authorization is registered as `element: requirePermission(<Page />, PERMISSIONS....)`; multi-permission alternatives use an array and required conjunctions use `{ all: [...] }`.
+Confirmed request bodies: open session `{ routeId, sessionDate }`; cash payment `{ sessionId, customerId, totalAmount, allocations, denominations: [{ denomination, count }] }`; cheque payment `{ sessionId, customerId, totalAmount, chequeNumber, drawerName, chequeDate, allocations, bankId, bankBranchId, bankName, branchName, notes }`; transfer `{ sessionId, customerId, bankId, bankBranchId, referenceNumber, totalAmount, transferDate, allocations, notes }`; branch `{ branchName, branchCode }`.
 
-## Sidebar navigation
+## Existing frontend and reused patterns
 
-- `src/components/layout/Sidebar.jsx` declares `navGroups` as `{ label: 'SECTION', items: [...] }`.
-- A normal item is `{ label, to, icon, end?, permissions? }`.
-- `permissions` accepts a string, an array (any permission), or `{ all: [...] }`. Items are filtered with `userMeetsPermissionRequirement` before rendering.
-- Collections is added as a group after `SALES` and before `PURCHASING`.
+- Existing collection pages discovered: `AgingAnalysisPage.jsx`, `ChequesPage.jsx`, `CollectionSessionDetailPage.jsx`, `CollectionSessionsPage.jsx`, `CustomerAccountPage.jsx`, `DailyEntryPage.jsx`, `DepositBatchesPage.jsx`, `ReconciliationPage.jsx`, and `collectionsUi.jsx`.
+- Existing collection components discovered: `AgingBadge.jsx` and `ChequeStatusBadge.jsx`. This implementation adds `CustomerSelector.jsx`, `InvoiceAllocationTable.jsx`, and `PaymentTabs.jsx`.
+- The requested `src/pages/sales/Invoices/InvoiceDetailPage.jsx` does not exist. The active equivalent is `src/pages/sales/InvoiceDetailPage.jsx` and its panel/table/amount patterns were followed.
+- `src/api/salesApi.js` does not expose invoice/customer search functions. The active `salesService` exposes `listCustomers`, `listAllCustomers`, `listInvoices`, and `getInvoicesByCustomer`; Collections uses `salesService.listCustomers` for customer search.
+- The purchasing split-pane reference and inventory form reference use panel containers, `form-input`, responsive grid helpers, explicit loading/error states, and mutation-backed submit controls; the collection pages follow those conventions.
 
-## Date and timezone helpers
+## Router, sidebar, dates, and auth
 
-- `src/utils/formatDate.js` uses `dayjs`, `utc`, and `timezone` with `SRI_LANKA_TZ = 'Asia/Colombo'`.
-- Existing exported helpers are `formatDate`, `formatDateTime`, `formatShortDateTime`, `formatTime`, `formatMonthYear`, `isOverdue`, and `daysOverdue`.
-
-## Auth identity availability
-
-- The app uses Zustand through `useAuthStore` (with the small `useAuth` wrapper also available).
-- Identity is nested under `user`: `user.id` is the user ID and `user.orgId` is the organization ID. There are no top-level `userId` or `organizationId` fields in the store.
-- Collections command controllers derive both values from JWT claims, so the frontend must not send them in request bodies.
-
-## Confirmed backend differences from the request examples
-
-- Sessions are `/api/collections/sessions`; cash and cheque entry are nested under a session.
-- Cheque assignment is `POST /api/collections/cheques/{id}/deposit-batch`.
-- Deposit batches are `/api/collections/deposit-batches`.
-- Account detail already includes `aging` and `recentLedger`; there are no separate ledger/aging endpoints.
-- No reconciliation endpoint is registered. The reconciliation page derives its report from the session detail returned by the supported session endpoint.
+- The mounted router is `src/routes/index.jsx`, using relative child route objects beneath the authenticated `AppShell`: `{ path: 'collections/banks', element: requirePermission(<BankManagementPage />, PERMISSIONS.collections.bankManage) }`.
+- Sidebar groups are `{ label: 'COLLECTIONS', items: [...] }`; items are `{ label, to, icon, permissions }`. Permission requirements may be a string, an any-of array, or `{ all: [...] }`.
+- `src/utils/formatDate.js` configures Day.js for `Asia/Colombo` and exports `formatDate`, `formatDateTime`, `formatShortDateTime`, `formatTime`, `formatMonthYear`, `isOverdue`, and `daysOverdue`.
+- Auth is Zustand-backed. `useAuth()` returns `useAuthStore()` and identity is accessed as `user?.id`. Collections controllers derive user and organization IDs from JWT claims, so the frontend does not send either field.

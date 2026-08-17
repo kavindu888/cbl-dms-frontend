@@ -31,6 +31,33 @@ export const cancelInStoreReturn = (id, data) =>
 export const getInStoreReturn = (id) => inventoryAxios.get(`/in-store-returns/${id}`)
 export const listInStoreReturns = (params) => inventoryAxios.get('/in-store-returns', { params })
 
+// Vehicles
+export const listVehicles = (params) => inventoryAxios.get('/vehicles', { params })
+
+// Vehicle Loading
+export const createVehicleLoading = (data) => inventoryAxios.post('/vehicle-loadings', data)
+export const addVehicleLoadingLine = (id, data) =>
+  inventoryAxios.post(`/vehicle-loadings/${id}/lines`, data)
+export const removeVehicleLoadingLine = (id, lineId) =>
+  inventoryAxios.delete(`/vehicle-loadings/${id}/lines/${lineId}`)
+export const applyVehicleLoading = (id) => inventoryAxios.post(`/vehicle-loadings/${id}/apply`)
+export const cancelVehicleLoading = (id, data) =>
+  inventoryAxios.post(`/vehicle-loadings/${id}/cancel`, data)
+export const getVehicleLoading = (id) => inventoryAxios.get(`/vehicle-loadings/${id}`)
+export const listVehicleLoadings = (params) => inventoryAxios.get('/vehicle-loadings', { params })
+
+// Vehicle Unloading
+export const createVehicleUnloading = (data) => inventoryAxios.post('/vehicle-unloadings', data)
+export const addVehicleUnloadingLine = (id, data) =>
+  inventoryAxios.post(`/vehicle-unloadings/${id}/lines`, data)
+export const removeVehicleUnloadingLine = (id, lineId) =>
+  inventoryAxios.delete(`/vehicle-unloadings/${id}/lines/${lineId}`)
+export const applyVehicleUnloading = (id) => inventoryAxios.post(`/vehicle-unloadings/${id}/apply`)
+export const cancelVehicleUnloading = (id, data) =>
+  inventoryAxios.post(`/vehicle-unloadings/${id}/cancel`, data)
+export const getVehicleUnloading = (id) => inventoryAxios.get(`/vehicle-unloadings/${id}`)
+export const listVehicleUnloadings = (params) =>
+  inventoryAxios.get('/vehicle-unloadings', { params })
 // Stock Adjustments
 export const createStockAdjustment = (data) => inventoryAxios.post('/stock-adjustments', data)
 export const addStockAdjustmentLine = (id, data) =>
@@ -50,7 +77,8 @@ export const listStockAdjustments = (params) => inventoryAxios.get('/stock-adjus
 export const getStockLevels = (params) => inventoryAxios.get('/stock/levels', { params })
 export const getStockAvailability = (productId) =>
   inventoryAxios.get(`/stock/availability/${productId}`)
-export const getStockBatches = (productId) => inventoryAxios.get(`/stock/batches/${productId}`)
+export const getStockBatches = (productId, params) =>
+  inventoryAxios.get(`/stock/batches/${productId}`, { params })
 export const getExpiringBatches = (withinDays = 30) =>
   inventoryAxios.get('/stock/batches/expiring', { params: { withinDays } })
 export const getStockMovements = (params) => inventoryAxios.get('/stock/movements', { params })

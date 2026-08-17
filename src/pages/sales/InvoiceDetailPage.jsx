@@ -136,6 +136,14 @@ export default function InvoiceDetailPage() {
     return (invoice?.lines || []).filter((line) => !line.isReturnLine)
   }, [invoice])
 
+  const saleNetBeforeReturn = useMemo(() => {
+    return normalInvoiceLines.reduce((sum, line) => sum + Number(line.lineTotal || 0), 0)
+  }, [normalInvoiceLines])
+
+  const returnDeduction = useMemo(() => {
+    return Number(invoice?.totalReturnAmount || 0) + Number(invoice?.returnCreditAmount || 0)
+  }, [invoice])
+
   async function loadInvoice() {
     setIsLoading(true)
     setError('')
@@ -356,7 +364,7 @@ export default function InvoiceDetailPage() {
                 }}
               >
                 <span>NET TOTAL B/F RETURN</span>
-                <span className="mono">{money(invoice.grossAmount)}</span>
+                <span className="mono">{money(saleNetBeforeReturn)}</span>
               </div>
 
               {(invoice.returnSections || []).map((section) => (
@@ -454,11 +462,27 @@ export default function InvoiceDetailPage() {
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
               <AmountRow label="Gross" value={invoice.grossAmount} />
-              {Number(invoice.totalDiscountAmount || 0) > 0 ? (
-                <AmountRow label="SkuDiscount" value={invoice.totalDiscountAmount} />
+              {Number(invoice.totalCategoryDiscountAmount || 0) > 0 ? (
+                <AmountRow label="Category Discount" value={invoice.totalCategoryDiscountAmount} />
               ) : null}
-              {Number(invoice.totalReturnAmount || 0) > 0 ? (
-                <AmountRow label="Returns" value={invoice.totalReturnAmount} />
+              <AmountRow
+                label="Subtotal"
+                value={
+                  Number(invoice.grossAmount || 0) -
+                  Number(invoice.totalCategoryDiscountAmount || 0)
+                }
+              />
+              {Number(invoice.totalSkuDiscountAmount || 0) > 0 ? (
+                <AmountRow label="SKU Discount" value={invoice.totalSkuDiscountAmount} />
+              ) : null}
+              {Number(invoice.totalSpecialDiscountAmount || 0) > 0 ? (
+                <AmountRow label="Special Discount" value={invoice.totalSpecialDiscountAmount} />
+              ) : null}
+              {returnDeduction > 0 ? (
+                <AmountRow label="Returns" value={returnDeduction} />
+              ) : null}
+              {Number(invoice.vatAmount || 0) > 0 ? (
+                <AmountRow label="VAT" value={invoice.vatAmount} />
               ) : null}
               <div style={{ borderTop: '1px solid var(--color-border)', margin: '3px 0' }} />
               <AmountRow label="Net(Rs)" value={invoice.netAmount} strong />

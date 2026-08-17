@@ -1,11 +1,21 @@
 import dayjs from 'dayjs'
-import { ArrowLeft, CheckCircle2, FileText, PackagePlus, RefreshCw, Search, Trash2, XCircle } from 'lucide-react'
+import {
+  ArrowLeft,
+  CheckCircle2,
+  FileText,
+  PackagePlus,
+  RefreshCw,
+  Search,
+  Trash2,
+  XCircle,
+} from 'lucide-react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useStockAvailability, useStockBatches } from '@/hooks/useStock'
+import { useVehicles } from '@/hooks/useVehicle'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import { usersService } from '@/services/api/usersService'
@@ -17,6 +27,7 @@ const emptyHeader = {
   customerId: '',
   deliveryDate: '',
   notes: '',
+  vehicleLocationId: '',
 }
 
 const emptyLine = {
@@ -414,7 +425,9 @@ function SearchableSelect({
               )
             })
           ) : (
-            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 12 }}>{emptyLabel}</div>
+            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 12 }}>
+              {emptyLabel}
+            </div>
           )}
         </div>
       ) : null}
@@ -424,21 +437,23 @@ function SearchableSelect({
 
 function AmountLine({ label, value, strong = false, tone, negative = false }) {
   const color =
-    tone === 'warning'
-      ? 'var(--color-amber)'
-      : strong
-        ? 'var(--color-amber)'
-        : undefined
+    tone === 'warning' ? 'var(--color-amber)' : strong ? 'var(--color-amber)' : undefined
 
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-      <span style={{ color: tone === 'warning' ? 'rgba(245, 158, 11, 0.82)' : strong ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+      <span
+        style={{
+          color:
+            tone === 'warning'
+              ? 'rgba(245, 158, 11, 0.82)'
+              : strong
+                ? 'var(--color-text-primary)'
+                : 'var(--color-text-muted)',
+        }}
+      >
         {label}
       </span>
-      <span
-        className="mono"
-        style={{ fontWeight: strong ? 800 : 600, color }}
-      >
+      <span className="mono" style={{ fontWeight: strong ? 800 : 600, color }}>
         {negative ? `− ${formatMoney(value)}` : formatMoney(value)}
       </span>
     </div>
@@ -491,6 +506,14 @@ export default function SalesOrderModulePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [salesRouteName, setSalesRouteName] = useState('')
   const [salesPersonName, setSalesPersonName] = useState('')
+  const { data: vehicles = [] } = useVehicles()
+
+  const vehicleById = useMemo(() => {
+    return vehicles.reduce((map, vehicle) => {
+      map[vehicle.id] = vehicle
+      return map
+    }, {})
+  }, [vehicles])
 
   const customerById = useMemo(() => {
     return customers.reduce((map, customer) => {
@@ -530,10 +553,9 @@ export default function SalesOrderModulePage() {
   const isDraft = selectedOrder?.status === 'Draft'
   const isConfirmed = selectedOrder?.status === 'Confirmed'
   const selectedLineProduct = productById[line.productId] || null
-  const {
-    data: availabilityData,
-    isLoading: loadingAvailability,
-  } = useStockAvailability(line.productId)
+  const { data: availabilityData, isLoading: loadingAvailability } = useStockAvailability(
+    line.productId
+  )
   const { data: selectedProductBatches = [] } = useStockBatches(line.productId)
   const inventoryUnitCode =
     availabilityData?.smallestUnitCode ||
@@ -554,16 +576,52 @@ export default function SalesOrderModulePage() {
   const lineQtyNumber = toNumber(line.quantity)
   const hasAvailabilityData = Boolean(availabilityData)
   const qtyExceedsSellable =
-    !line.isReturnLine && hasAvailabilityData && Boolean(line.quantity) && lineQtyNumber > sellableQty && sellableQty > 0
+    !line.isReturnLine &&
+    hasAvailabilityData &&
+    Boolean(line.quantity) &&
+    lineQtyNumber > sellableQty &&
+    sellableQty > 0
   const noSellableStock =
-    !line.isReturnLine && hasAvailabilityData && Boolean(line.quantity) && sellableQty <= 0 && Boolean(line.productId)
+    !line.isReturnLine &&
+    hasAvailabilityData &&
+    Boolean(line.quantity) &&
+    sellableQty <= 0 &&
+    Boolean(line.productId)
 
   const computedGross = useMemo(() => {
-    return selectedOrder?.lines
-      ?.filter((l) => !l.isReturnLine)
-      .reduce((sum, l) => sum + (toNumber(l.quantity) * toNumber(l.unitPrice)), 0) ?? 0
+    return (
+      selectedOrder?.lines
+        ?.filter((l) => !l.isReturnLine)
+        .reduce((sum, l) => sum + toNumber(l.quantity) * toNumber(l.unitPrice), 0) ?? 0
+    )
   }, [selectedOrder])
 
+  const computedSupplierDiscount = useMemo(() => {
+    return (
+      selectedOrder?.lines
+        ?.filter((l) => !l.isReturnLine)
+        .reduce((sum, l) => {
+          const price = toNumber(l.unitPrice)
+          const qty = toNumber(l.quantity)
+          const disc = toNumber(l.discountPercent)
+          const supplierDisc = Math.min(disc, 8)
+          return sum + (price * qty * supplierDisc) / 100
+        }, 0) ?? 0
+    )
+  }, [selectedOrder])
+
+  const computedDistributorDiscount = useMemo(() => {
+    return (
+      selectedOrder?.lines
+        ?.filter((l) => !l.isReturnLine)
+        .reduce((sum, l) => {
+          const price = toNumber(l.unitPrice)
+          const qty = toNumber(l.quantity)
+          const disc = toNumber(l.discountPercent)
+          const distributorDisc = Math.max(0, disc - 8)
+          return sum + (price * qty * distributorDisc) / 100
+        }, 0) ?? 0
+    )
   const computedCategoryDiscount = useMemo(() => {
     return selectedOrder?.lines?.filter((l) => !l.isReturnLine).reduce((sum, l) => {
       const price = toNumber(l.unitPrice)
@@ -591,29 +649,48 @@ export default function SalesOrderModulePage() {
   const computedDiscount = computedCategoryDiscount + computedSkuDiscount + computedSpecialDiscount
 
   const computedVat = useMemo(() => {
-    return selectedOrder?.lines?.filter((l) => !l.isReturnLine).reduce((sum, l) => {
-      if (!l.isVatApplicable) return sum
-      const price = toNumber(l.unitPrice)
-      const qty = toNumber(l.quantity)
-      const disc = getTotalDiscountPercent(l)
-      const afterDiscount = (price * qty) - (price * qty * disc / 100)
-      return sum + Math.round(afterDiscount * 0.18 * 100) / 100
-    }, 0) ?? 0
+    return (
+      selectedOrder?.lines
+        ?.filter((l) => !l.isReturnLine)
+        .reduce((sum, l) => {
+          if (!l.isVatApplicable) return sum
+          const price = toNumber(l.unitPrice)
+          const qty = toNumber(l.quantity)
+          const disc = toNumber(l.discountPercent)
+          const afterDiscount = price * qty - (price * qty * disc) / 100
+          return sum + Math.round(afterDiscount * 0.18 * 100) / 100
+        }, 0) ?? 0
+    )
   }, [selectedOrder])
 
   const computedReturnCredit = useMemo(() => {
-    return selectedOrder?.lines
-      ?.filter((l) => l.isReturnLine)
-      .reduce((sum, l) => {
-        const lineTotal = toNumber(l.lineTotal)
-        if (lineTotal > 0) return sum + lineTotal
-        return sum + (toNumber(l.quantity) * toNumber(l.unitPrice) * (1 - getTotalDiscountPercent(l) / 100))
-      }, 0) ?? 0
+    return (
+      selectedOrder?.lines
+        ?.filter((l) => l.isReturnLine)
+        .reduce((sum, l) => {
+          const lineTotal = toNumber(l.lineTotal)
+          if (lineTotal > 0) return sum + lineTotal
+          return (
+            sum +
+            toNumber(l.quantity) * toNumber(l.unitPrice) * (1 - toNumber(l.discountPercent) / 100)
+          )
+        }, 0) ?? 0
+    )
   }, [selectedOrder])
 
   const computedNet = computedGross - computedDiscount - computedReturnCredit + computedVat
 
   const gross = selectedOrder?.grossAmount > 0 ? selectedOrder.grossAmount : computedGross
+  const discount =
+    selectedOrder?.totalDiscountAmount > 0 ? selectedOrder.totalDiscountAmount : computedDiscount
+  const supplierDiscount =
+    selectedOrder?.totalSupplierDiscountAmount > 0
+      ? selectedOrder.totalSupplierDiscountAmount
+      : computedSupplierDiscount
+  const distributorDiscount =
+    selectedOrder?.totalDistributorDiscountAmount > 0
+      ? selectedOrder.totalDistributorDiscountAmount
+      : computedDistributorDiscount
   const categoryDiscount =
     selectedOrder?.totalCategoryDiscountAmount > 0
       ? selectedOrder.totalCategoryDiscountAmount
@@ -625,7 +702,8 @@ export default function SalesOrderModulePage() {
       ? selectedOrder.totalSpecialDiscountAmount
       : computedSpecialDiscount
   const vat = selectedOrder?.vatAmount > 0 ? selectedOrder.vatAmount : computedVat
-  const returnCredit = selectedOrder?.returnCreditAmount > 0 ? selectedOrder.returnCreditAmount : computedReturnCredit
+  const returnCredit =
+    selectedOrder?.returnCreditAmount > 0 ? selectedOrder.returnCreditAmount : computedReturnCredit
   const net = selectedOrder?.netAmount > 0 ? selectedOrder.netAmount : computedNet
 
   async function loadReferenceData() {
@@ -706,8 +784,9 @@ export default function SalesOrderModulePage() {
 
       // Fetch sales route name
       if (order.salesRouteId) {
-        masterService.getSalesRoute(order.salesRouteId)
-          .then(r => setSalesRouteName(r?.name || ''))
+        masterService
+          .getSalesRoute(order.salesRouteId)
+          .then((r) => setSalesRouteName(r?.name || ''))
           .catch(() => setSalesRouteName(''))
       } else {
         setSalesRouteName('')
@@ -715,8 +794,9 @@ export default function SalesOrderModulePage() {
 
       // Fetch sales person name
       if (order.salesPersonId) {
-        usersService.getUser(order.salesPersonId)
-          .then(u => setSalesPersonName(u?.username || u?.email || ''))
+        usersService
+          .getUser(order.salesPersonId)
+          .then((u) => setSalesPersonName(u?.username || u?.email || ''))
           .catch(() => setSalesPersonName(''))
       } else {
         setSalesPersonName('')
@@ -849,6 +929,7 @@ export default function SalesOrderModulePage() {
         customerId: header.customerId,
         deliveryDate: toIsoDate(header.deliveryDate),
         notes: header.notes.trim() || null,
+        vehicleLocationId: header.vehicleLocationId || null,
       })
       toast.success('Sales order created.')
       setHeader(emptyHeader)
@@ -1083,9 +1164,14 @@ export default function SalesOrderModulePage() {
                   </span>
                 </div>
 
-                <div className="responsive-table-shell" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                <div
+                  className="responsive-table-shell"
+                  style={{ flex: 1, overflow: 'auto', minHeight: 0 }}
+                >
                   {isLoading ? (
-                    <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>Loading orders...</div>
+                    <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>
+                      Loading orders...
+                    </div>
                   ) : filteredOrders.length ? (
                     <table className="data-table product-table-compact" style={{ minWidth: 760 }}>
                       <thead>
@@ -1122,7 +1208,9 @@ export default function SalesOrderModulePage() {
                                 </span>
                               </div>
                             </td>
-                            <td>{order.customerName || customerById[order.customerId]?.name || '-'}</td>
+                            <td>
+                              {order.customerName || customerById[order.customerId]?.name || '-'}
+                            </td>
                             <td>
                               <StatusBadge status={statusLabel(order.status)} />
                             </td>
@@ -1134,7 +1222,9 @@ export default function SalesOrderModulePage() {
                       </tbody>
                     </table>
                   ) : (
-                    <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>No sales orders found.</div>
+                    <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>
+                      No sales orders found.
+                    </div>
                   )}
                 </div>
 
@@ -1159,8 +1249,25 @@ export default function SalesOrderModulePage() {
                 </div>
               ) : selectedOrder ? (
                 <>
-                  <section className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, flexShrink: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <section
+                    className="panel"
+                    style={{
+                      padding: 16,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 16,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 12,
+                        flexWrap: 'wrap',
+                      }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <button
                           onClick={() => {
@@ -1168,31 +1275,67 @@ export default function SalesOrderModulePage() {
                             setSelectedOrderId('')
                           }}
                           className="button-secondary"
-                          style={{ height: 34, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                          style={{
+                            height: 34,
+                            padding: '0 10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            fontWeight: 600,
+                          }}
                         >
                           <ArrowLeft size={15} /> Back
                         </button>
                         <h2 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>
-                          Sales Order: <span className="mono" style={{ color: 'var(--color-amber)' }}>{selectedOrder.orderNumber}</span>
+                          Sales Order:{' '}
+                          <span className="mono" style={{ color: 'var(--color-amber)' }}>
+                            {selectedOrder.orderNumber}
+                          </span>
                         </h2>
                       </div>
                       <StatusBadge status={statusLabel(selectedOrder.status)} />
                     </div>
 
-                    <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)', margin: 0 }} />
+                    <hr
+                      style={{
+                        border: 'none',
+                        borderBottom: '1px solid var(--color-border)',
+                        margin: 0,
+                      }}
+                    />
 
                     <div
                       className="responsive-field-grid"
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                        gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
                         gap: 10,
                       }}
                     >
-                      <DetailItem label="Customer" value={selectedOrder.customerName || selectedOrder.customerId} />
-                      <DetailItem label="Sales Route" value={salesRouteName || selectedOrder.salesRouteId} />
-                      <DetailItem label="Sales Person" value={salesPersonName || selectedOrder.salesPersonId} />
-                      <DetailItem label="Delivery Date" value={formatDate(selectedOrder.deliveryDate)} />
+                      <DetailItem
+                        label="Customer"
+                        value={selectedOrder.customerName || selectedOrder.customerId}
+                      />
+                      <DetailItem
+                        label="Sales Route"
+                        value={salesRouteName || selectedOrder.salesRouteId}
+                      />
+                      <DetailItem
+                        label="Sales Person"
+                        value={salesPersonName || selectedOrder.salesPersonId}
+                      />
+                      <DetailItem
+                        label="Delivery Date"
+                        value={formatDate(selectedOrder.deliveryDate)}
+                      />
+                      <DetailItem
+                        label="Vehicle"
+                        value={
+                          selectedOrder.vehicleLocationId
+                            ? `${vehicleById[selectedOrder.vehicleLocationId]?.vehicleCode || selectedOrder.vehicleLocationId}${vehicleById[selectedOrder.vehicleLocationId]?.name ? ` — ${vehicleById[selectedOrder.vehicleLocationId].name}` : ''}`
+                            : 'Main inventory'
+                        }
+                      />
                     </div>
                   </section>
 
@@ -1216,7 +1359,16 @@ export default function SalesOrderModulePage() {
                         overflow: 'hidden',
                       }}
                     >
-                      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <div
+                        style={{
+                          padding: '10px 12px',
+                          borderBottom: '1px solid var(--color-border)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flexShrink: 0,
+                        }}
+                      >
                         <FileText size={16} color="var(--color-teal)" />
                         <h3 style={{ fontSize: 15, fontWeight: 800 }}>Order Lines</h3>
                       </div>
@@ -1257,7 +1409,13 @@ export default function SalesOrderModulePage() {
                                       }}
                                     >
                                       <td>
-                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                        <div
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'flex-start',
+                                            gap: 8,
+                                          }}
+                                        >
                                           <span
                                             className="mono"
                                             style={{
@@ -1276,11 +1434,25 @@ export default function SalesOrderModulePage() {
                                           >
                                             RT
                                           </span>
-                                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                            <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                          <div
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'column',
+                                              gap: 4,
+                                            }}
+                                          >
+                                            <span
+                                              className="product-sku-badge mono"
+                                              style={{ fontSize: 10 }}
+                                            >
                                               {product?.sku || orderLine.productId}
                                             </span>
-                                            <span style={{ fontWeight: 800, color: 'var(--color-text-primary)' }}>
+                                            <span
+                                              style={{
+                                                fontWeight: 800,
+                                                color: 'var(--color-text-primary)',
+                                              }}
+                                            >
                                               {product?.name || 'Unknown Product'}
                                             </span>
                                             <span
@@ -1303,14 +1475,25 @@ export default function SalesOrderModulePage() {
                                       </td>
                                       <td className="mono" style={{ textAlign: 'right' }}>
                                         {isDraft ? (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                                          <div
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: 6,
+                                              justifyContent: 'flex-end',
+                                            }}
+                                          >
                                             <input
                                               className="form-input"
                                               type="number"
                                               min="0"
                                               value={draft.quantity || ''}
                                               onChange={(event) =>
-                                                updateLineDraft(orderLine.id, 'quantity', event.target.value)
+                                                updateLineDraft(
+                                                  orderLine.id,
+                                                  'quantity',
+                                                  event.target.value
+                                                )
                                               }
                                               style={{ width: 90, height: 32, textAlign: 'right' }}
                                             />
@@ -1330,7 +1513,10 @@ export default function SalesOrderModulePage() {
                                       <td className="mono" style={{ textAlign: 'right' }}>
                                         {orderLine.unitPrice > 0 ? (
                                           <>
-                                            <div className="font-mono" style={{ color: 'var(--color-amber)' }}>
+                                            <div
+                                              className="font-mono"
+                                              style={{ color: 'var(--color-amber)' }}
+                                            >
                                               {formatMoney(orderLine.unitPrice)}
                                             </div>
                                             {orderLine.mrp > 0 ? (
@@ -1340,7 +1526,9 @@ export default function SalesOrderModulePage() {
                                             ) : null}
                                           </>
                                         ) : (
-                                          <span className="text-gray-500 text-xs">Pending confirm</span>
+                                          <span className="text-gray-500 text-xs">
+                                            Pending confirm
+                                          </span>
                                         )}
                                       </td>
                                       <td className="mono" style={{ textAlign: 'right' }}>
@@ -1348,6 +1536,18 @@ export default function SalesOrderModulePage() {
                                       </td>
                                       <td className="mono" style={{ textAlign: 'right' }}>
                                         {isDraft ? (
+                                          <input
+                                            className="form-input"
+                                            type="number"
+                                            min="0"
+                                            max="10"
+                                            value={draft.discountPercent || ''}
+                                            onChange={(event) =>
+                                              updateLineDraft(
+                                                orderLine.id,
+                                                'discountPercent',
+                                                event.target.value
+                                              )
                                           <EditableDiscount
                                             available={draft.skuDiscountAvailable}
                                             max={draft.skuDiscountMax}
@@ -1374,7 +1574,13 @@ export default function SalesOrderModulePage() {
                                           <ReadOnlyDiscount value={orderLine.specialDiscountPercent} />
                                         )}
                                       </td>
-                                      <td className="mono" style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                                      <td
+                                        className="mono"
+                                        style={{
+                                          textAlign: 'right',
+                                          color: 'var(--color-text-muted)',
+                                        }}
+                                      >
                                         —
                                       </td>
                                       <td
@@ -1394,7 +1600,11 @@ export default function SalesOrderModulePage() {
                                             type="button"
                                             disabled={isSaving}
                                             onClick={() => updateOrderLine(orderLine.id)}
-                                            style={{ height: 30, paddingInline: 10, marginRight: 6 }}
+                                            style={{
+                                              height: 30,
+                                              paddingInline: 10,
+                                              marginRight: 6,
+                                            }}
                                           >
                                             Save
                                           </button>
@@ -1413,21 +1623,49 @@ export default function SalesOrderModulePage() {
                                   )
                                 }
 
-                                if (!isDraft && orderLine.isPicked && orderLine.batchPicks?.length > 0) {
+                                if (
+                                  !isDraft &&
+                                  orderLine.isPicked &&
+                                  orderLine.batchPicks?.length > 0
+                                ) {
                                   return (
                                     <React.Fragment key={orderLine.id}>
                                       {/* Header row for product name */}
                                       <tr style={{ background: 'rgba(255, 255, 255, 0.03)' }}>
+                                        <td colSpan={6} style={{ padding: '8px 12px' }}>
+                                          <div
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: 8,
+                                            }}
+                                          >
+                                            <span
+                                              className="product-sku-badge mono"
+                                              style={{ fontSize: 10 }}
+                                            >
                                         <td colSpan={8} style={{ padding: '8px 12px' }}>
                                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
                                               {product?.sku || orderLine.productId}
                                             </span>
-                                            <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                                            <span
+                                              style={{
+                                                fontWeight: 700,
+                                                color: 'var(--color-text-primary)',
+                                              }}
+                                            >
                                               {product?.name || 'Unknown Product'}
                                             </span>
-                                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
-                                              ({orderLine.quantitySmallest} {orderLine.smallestUnitCode || 'PCS'} total)
+                                            <span
+                                              style={{
+                                                fontSize: 11,
+                                                color: 'rgba(255,255,255,0.4)',
+                                                marginLeft: 8,
+                                              }}
+                                            >
+                                              ({orderLine.quantitySmallest}{' '}
+                                              {orderLine.smallestUnitCode || 'PCS'} total)
                                             </span>
                                           </div>
                                         </td>
@@ -1440,18 +1678,30 @@ export default function SalesOrderModulePage() {
                                           const pickSubtotal = pickSellingPrice * pick.qtyPicked;
                                           const pickVat = orderLine.isVatApplicable
                                             ? Math.round(pickSubtotal * 0.18 * 100) / 100
-                                            : 0;
-                                          const pickTotal = pickSubtotal + pickVat;
+                                            : 0
+                                          const pickTotal = pickSubtotal + pickVat
 
                                           return (
-                                            <tr key={pick.batchId} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.1)' }}>
+                                            <tr
+                                              key={pick.batchId}
+                                              style={{
+                                                borderTop: '1px solid rgba(255,255,255,0.05)',
+                                                background: 'rgba(0,0,0,0.1)',
+                                              }}
+                                            >
                                               <td style={{ paddingLeft: 24 }}>
-                                                <span className="mono text-cyan-600" style={{ fontSize: 11 }}>
+                                                <span
+                                                  className="mono text-cyan-600"
+                                                  style={{ fontSize: 11 }}
+                                                >
                                                   {pick.batchNo || 'No Batch'}
                                                 </span>
                                               </td>
                                               <td className="mono" style={{ textAlign: 'right' }}>
-                                                {pick.qtyPicked} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
+                                                {pick.qtyPicked}{' '}
+                                                <span className="font-mono text-xs text-gray-300">
+                                                  {orderLine.smallestUnitCode || 'PCS'}
+                                                </span>
                                               </td>
                                               <td className="mono" style={{ textAlign: 'right' }}>
                                                 <div>{formatMoney(pickSellingPrice)}</div>
@@ -1469,23 +1719,33 @@ export default function SalesOrderModulePage() {
                                                 {Number(orderLine.specialDiscountPercent || 0).toFixed(2)}%
                                               </td>
                                               <td className="mono" style={{ textAlign: 'right' }}>
-                                                {orderLine.isVatApplicable ? formatMoney(pickVat) : '—'}
+                                                {orderLine.isVatApplicable
+                                                  ? formatMoney(pickVat)
+                                                  : '—'}
                                               </td>
-                                              <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                                              <td
+                                                className="mono"
+                                                style={{ textAlign: 'right', fontWeight: 700 }}
+                                              >
                                                 {formatMoney(pickTotal)}
                                               </td>
                                             </tr>
-                                          );
+                                          )
                                         })}
                                     </React.Fragment>
-                                  );
+                                  )
                                 }
 
                                 return (
                                   <tr key={orderLine.id}>
                                     <td>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                        <span className="product-sku-badge mono" style={{ fontSize: 10 }}>
+                                      <div
+                                        style={{ display: 'flex', flexDirection: 'column', gap: 3 }}
+                                      >
+                                        <span
+                                          className="product-sku-badge mono"
+                                          style={{ fontSize: 10 }}
+                                        >
                                           {product?.sku || orderLine.productId}
                                         </span>
                                         <span style={{ fontWeight: 700 }}>
@@ -1495,14 +1755,25 @@ export default function SalesOrderModulePage() {
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
                                       {isDraft ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                                        <div
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            justifyContent: 'flex-end',
+                                          }}
+                                        >
                                           <input
                                             className="form-input"
                                             type="number"
                                             min="0"
                                             value={draft.quantity || ''}
                                             onChange={(event) =>
-                                              updateLineDraft(orderLine.id, 'quantity', event.target.value)
+                                              updateLineDraft(
+                                                orderLine.id,
+                                                'quantity',
+                                                event.target.value
+                                              )
                                             }
                                             style={{ width: 90, height: 32, textAlign: 'right' }}
                                           />
@@ -1512,14 +1783,19 @@ export default function SalesOrderModulePage() {
                                         </div>
                                       ) : (
                                         <div>
-                                          {orderLine.quantity} <span className="font-mono text-xs text-gray-300">{orderLine.smallestUnitCode || 'PCS'}</span>
+                                          {orderLine.quantity}{' '}
+                                          <span className="font-mono text-xs text-gray-300">
+                                            {orderLine.smallestUnitCode || 'PCS'}
+                                          </span>
                                         </div>
                                       )}
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
                                       {orderLine.unitPrice > 0 ? (
                                         <>
-                                          <div className="font-mono text-white">{formatMoney(orderLine.unitPrice)}</div>
+                                          <div className="font-mono text-white">
+                                            {formatMoney(orderLine.unitPrice)}
+                                          </div>
                                           {isDraft ? (
                                             <div className="text-xs text-gray-500 font-mono">
                                               Draft — final price after confirmation
@@ -1533,7 +1809,9 @@ export default function SalesOrderModulePage() {
                                           )}
                                         </>
                                       ) : (
-                                        <span className="text-gray-500 text-xs">Pending confirm</span>
+                                        <span className="text-gray-500 text-xs">
+                                          Pending confirm
+                                        </span>
                                       )}
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
@@ -1541,6 +1819,18 @@ export default function SalesOrderModulePage() {
                                     </td>
                                     <td className="mono" style={{ textAlign: 'right' }}>
                                       {isDraft ? (
+                                        <input
+                                          className="form-input"
+                                          type="number"
+                                          min="0"
+                                          max="10"
+                                          value={draft.discountPercent || ''}
+                                          onChange={(event) =>
+                                            updateLineDraft(
+                                              orderLine.id,
+                                              'discountPercent',
+                                              event.target.value
+                                            )
                                         <EditableDiscount
                                           available={draft.skuDiscountAvailable}
                                           max={draft.skuDiscountMax}
@@ -1570,7 +1860,10 @@ export default function SalesOrderModulePage() {
                                     <td className="mono" style={{ textAlign: 'right' }}>
                                       {isDraft ? '—' : formatMoney(orderLine.vatAmount)}
                                     </td>
-                                    <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                                    <td
+                                      className="mono"
+                                      style={{ textAlign: 'right', fontWeight: 800 }}
+                                    >
                                       {orderLine.lineTotal > 0
                                         ? formatMoney(orderLine.lineTotal)
                                         : formatMoney(orderLine.quantity * orderLine.unitPrice * (1 - getTotalDiscountPercent(orderLine) / 100))
@@ -1599,7 +1892,7 @@ export default function SalesOrderModulePage() {
                                       </td>
                                     ) : null}
                                   </tr>
-                                );
+                                )
                               })
                             ) : (
                               <tr>
@@ -1613,7 +1906,14 @@ export default function SalesOrderModulePage() {
                       </div>
 
                       {isDraft ? (
-                        <div style={{ padding: 12, borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', flexShrink: 0 }}>
+                        <div
+                          style={{
+                            padding: 12,
+                            borderTop: '1px solid var(--color-border)',
+                            background: 'var(--color-bg-surface)',
+                            flexShrink: 0,
+                          }}
+                        >
                           <form
                             onSubmit={addLine}
                             className="responsive-field-grid"
@@ -1624,11 +1924,16 @@ export default function SalesOrderModulePage() {
                               gap: 12,
                               alignItems: 'start',
                               overflow: 'visible',
-                              border: line.isReturnLine ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent',
+                              border: line.isReturnLine
+                                ? '1px solid rgba(245, 158, 11, 0.35)'
+                                : '1px solid transparent',
                               borderRadius: 12,
-                              background: line.isReturnLine ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                              background: line.isReturnLine
+                                ? 'rgba(245, 158, 11, 0.08)'
+                                : 'transparent',
                               padding: line.isReturnLine ? 10 : 0,
-                              transition: 'background 160ms ease, border-color 160ms ease, padding 160ms ease',
+                              transition:
+                                'background 160ms ease, border-color 160ms ease, padding 160ms ease',
                             }}
                           >
                             <label style={{ minWidth: 0 }}>
@@ -1668,7 +1973,9 @@ export default function SalesOrderModulePage() {
                                     background: line.isReturnLine
                                       ? 'rgba(245, 158, 11, 0.18)'
                                       : 'var(--color-bg-base)',
-                                    color: line.isReturnLine ? 'var(--color-amber)' : 'var(--color-text-muted)',
+                                    color: line.isReturnLine
+                                      ? 'var(--color-amber)'
+                                      : 'var(--color-text-muted)',
                                     fontSize: 11,
                                     fontWeight: 900,
                                     letterSpacing: '0.04em',
@@ -1735,7 +2042,9 @@ export default function SalesOrderModulePage() {
                                   <select
                                     className="form-input"
                                     value={line.returnReason}
-                                    onChange={(event) => updateLine('returnReason', event.target.value)}
+                                    onChange={(event) =>
+                                      updateLine('returnReason', event.target.value)
+                                    }
                                     style={{
                                       height: 38,
                                       borderColor: 'rgba(245, 158, 11, 0.45)',
@@ -1847,6 +2156,9 @@ export default function SalesOrderModulePage() {
                       >
                         <h3 style={{ fontSize: 15, fontWeight: 800 }}>Totals</h3>
                         <AmountLine label="Gross" value={gross} />
+                        <AmountLine label="Discount" value={discount} />
+                        <AmountLine label="Supplier Discount" value={supplierDiscount} />
+                        <AmountLine label="Distributor Discount" value={distributorDiscount} />
                         <AmountLine label="Category Discount" value={categoryDiscount} />
                         {skuDiscount > 0 ? <AmountLine label="SKU Discount" value={skuDiscount} /> : null}
                         {specialDiscount > 0 ? (
@@ -1861,11 +2173,16 @@ export default function SalesOrderModulePage() {
                             negative
                           />
                         ) : null}
-                        <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+                        <div
+                          style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }}
+                        />
                         <AmountLine label="Net" value={net} strong />
                       </section>
 
-                      <section className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <section
+                        className="panel"
+                        style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}
+                      >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           {isDraft ? (
                             <button
@@ -1881,14 +2198,22 @@ export default function SalesOrderModulePage() {
                           ) : null}
 
                           {!['Cancelled', 'Converted'].includes(selectedOrder.status) ? (
-                            <form onSubmit={cancelOrder} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <form
+                              onSubmit={cancelOrder}
+                              style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                            >
                               <input
                                 className="form-input"
                                 value={cancelReason}
                                 onChange={(event) => setCancelReason(event.target.value)}
                                 placeholder="Cancel reason"
                               />
-                              <button className="button-secondary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
+                              <button
+                                className="button-secondary"
+                                type="submit"
+                                disabled={isSaving}
+                                style={{ width: '100%' }}
+                              >
                                 <XCircle style={{ width: 15, height: 15 }} />
                                 Cancel Order
                               </button>
@@ -1897,6 +2222,55 @@ export default function SalesOrderModulePage() {
                         </div>
 
                         {isConfirmed ? (
+                          <form
+                            onSubmit={convertToInvoice}
+                            style={{
+                              display: 'grid',
+                              gap: 8,
+                              borderTop: '1px solid var(--color-border)',
+                              paddingTop: 12,
+                            }}
+                          >
+                            <h3 style={{ fontSize: 14, fontWeight: 800 }}>Convert To Invoice</h3>
+                            <input
+                              className="form-input"
+                              value={conversion.vehicleId}
+                              onChange={(event) =>
+                                setConversion((current) => ({
+                                  ...current,
+                                  vehicleId: event.target.value,
+                                }))
+                              }
+                              placeholder="Vehicle ID"
+                            />
+                            <input
+                              className="form-input"
+                              type="date"
+                              value={conversion.dueDate}
+                              onChange={(event) =>
+                                setConversion((current) => ({
+                                  ...current,
+                                  dueDate: event.target.value,
+                                }))
+                              }
+                            />
+                            <input
+                              className="form-input"
+                              value={conversion.notes}
+                              onChange={(event) =>
+                                setConversion((current) => ({
+                                  ...current,
+                                  notes: event.target.value,
+                                }))
+                              }
+                              placeholder="Invoice notes"
+                            />
+                            <button
+                              className="button-primary"
+                              type="submit"
+                              disabled={isSaving}
+                              style={{ width: '100%' }}
+                            >
                           <section style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
                             <h3 style={{ fontSize: 14, fontWeight: 800 }}>Convert To Invoice</h3>
                             <button className="button-primary" type="button" disabled={isSaving} onClick={convertToInvoice} style={{ width: '100%' }}>
@@ -1910,7 +2284,10 @@ export default function SalesOrderModulePage() {
                   </div>
                 </>
               ) : (
-                <div className="panel" style={{ padding: 24, color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                <div
+                  className="panel"
+                  style={{ padding: 24, color: 'var(--color-text-muted)', textAlign: 'center' }}
+                >
                   Select or create a sales order to view details.
                 </div>
               )}
@@ -1920,10 +2297,22 @@ export default function SalesOrderModulePage() {
 
         {!viewDetail && (
           <aside style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
-            <section className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <section
+              className="panel"
+              style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}
+            >
               <div>
-                <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)' }}>Sales Orders</h1>
-                <p style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 13, lineHeight: 1.4 }}>
+                <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text-primary)' }}>
+                  Sales Orders
+                </h1>
+                <p
+                  style={{
+                    marginTop: 4,
+                    color: 'var(--color-text-muted)',
+                    fontSize: 13,
+                    lineHeight: 1.4,
+                  }}
+                >
                   Create draft orders, manage lines, and convert confirmed orders to invoices.
                 </p>
               </div>
@@ -1952,7 +2341,12 @@ export default function SalesOrderModulePage() {
                       ''
                     }
                     getMeta={(customer) =>
-                      [customer.primaryContactPhone, customer.phone, customer.routeName, customer.salesRouteName]
+                      [
+                        customer.primaryContactPhone,
+                        customer.phone,
+                        customer.routeName,
+                        customer.salesRouteName,
+                      ]
                         .filter(Boolean)
                         .join(' ')
                     }
@@ -1968,6 +2362,33 @@ export default function SalesOrderModulePage() {
                   />
                 </label>
                 <label>
+                  <span className="form-label">Vehicle (optional)</span>
+                  <select
+                    className="form-input"
+                    value={header.vehicleLocationId}
+                    onChange={(event) => updateHeader('vehicleLocationId', event.target.value)}
+                  >
+                    <option value="">No vehicle — use main inventory</option>
+                    {vehicles.map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {vehicle.vehicleCode || vehicle.code || vehicle.id} — {vehicle.name}
+                      </option>
+                    ))}
+                  </select>
+                  {header.vehicleLocationId ? (
+                    <span
+                      style={{
+                        color: 'var(--color-teal)',
+                        display: 'block',
+                        fontSize: 11,
+                        marginTop: 5,
+                      }}
+                    >
+                      FEFO will pick from this vehicle&apos;s stock
+                    </span>
+                  ) : null}
+                </label>
+                <label>
                   <span className="form-label">Notes</span>
                   <input
                     className="form-input"
@@ -1976,7 +2397,12 @@ export default function SalesOrderModulePage() {
                     placeholder="Optional order notes"
                   />
                 </label>
-                <button className="button-primary" type="submit" disabled={isSaving} style={{ width: '100%' }}>
+                <button
+                  className="button-primary"
+                  type="submit"
+                  disabled={isSaving}
+                  style={{ width: '100%' }}
+                >
                   <PackagePlus style={{ width: 15, height: 15 }} />
                   Create Draft Order
                 </button>

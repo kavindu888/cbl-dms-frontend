@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Boxes, CheckCircle2, LoaderCircle, PackagePlus, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { getLastPrices, recordOpeningStock } from '@/api/inventoryApi'
@@ -32,6 +32,7 @@ function makeTempId() {
 }
 
 export default function OpeningStockPage() {
+  const queryClient = useQueryClient()
   const [productSearch, setProductSearch] = useState('')
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [qty, setQty] = useState('')
@@ -114,8 +115,11 @@ export default function OpeningStockPage() {
 
   const submitMutation = useMutation({
     mutationFn: recordOpeningStock,
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       const result = resultValue(response) ?? {}
+
+      await queryClient.invalidateQueries({ queryKey: ['inventory', 'stock'] })
+
       toast.success(
         `Opening stock recorded — ${result.linesProcessed ?? stockLines.length} lines, ` +
           `${result.batchesCreated ?? stockLines.length} batches created.`
@@ -184,7 +188,7 @@ export default function OpeningStockPage() {
         unitCostSmallest: line.unitCostSmallest,
         mrp: line.mrp,
         batchNo: line.batchNo,
-        expiryDate: line.expiryDate ? `${line.expiryDate}T00:00:00+05:30` : null,
+        expiryDate: line.expiryDate ? `${line.expiryDate}T00:00:00Z` : null,
       })),
     })
   }

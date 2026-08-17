@@ -5,6 +5,7 @@ import { inventoryService } from '@/services/api/inventoryService'
 // ['inventory', 'stock', 'levels', params]
 // ['inventory', 'stock', 'availability', productId]
 // ['inventory', 'stock', 'batches', productId]
+// ['inventory', 'stock', 'batches', 'active', params]
 // ['inventory', 'stock', 'batches', 'expiring', withinDays]
 // ['inventory', 'stock', 'movements', params]
 
@@ -14,6 +15,7 @@ export function useStockLevels(params = {}) {
     queryFn: async () => {
       return inventoryService.listStockLevels(params)
     },
+    refetchOnMount: 'always',
   })
 }
 
@@ -28,13 +30,22 @@ export function useStockAvailability(productId) {
   })
 }
 
-export function useStockBatches(productId) {
+export function useStockBatches(productId, params = {}) {
   return useQuery({
-    queryKey: ['inventory', 'stock', 'batches', productId],
+    queryKey: ['inventory', 'stock', 'batches', productId, params],
     queryFn: async () => {
-      return inventoryService.listStockBatches(productId)
+      return inventoryService.listStockBatches(productId, params)
     },
     enabled: Boolean(productId),
+  })
+}
+
+export function useActiveStockBatches(params = {}) {
+  return useQuery({
+    queryKey: ['inventory', 'stock', 'batches', 'active', params],
+    queryFn: async () => {
+      return inventoryService.listActiveStockBatches(params)
+    },
   })
 }
 

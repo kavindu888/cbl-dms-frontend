@@ -11,10 +11,16 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
+import {
+  toNumber,
+  getReturnCreditAmount,
+  calculateSalesOrderSummary,
+} from '@/utils/salesOrderCalculations'
 
 const orderPageSize = 5
 
@@ -49,7 +55,98 @@ function normalizeStatus(status) {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
 }
 
+function buildDetailSummary(order) {
+  const saleLines = (order.lines || []).filter((line) => !line.isReturnLine)
+  const returnLines = (order.lines || []).filter((line) => line.isReturnLine)
+
+  const calculated = saleLines.reduce(
+    (sum, line) => {
+      const quantity = Math.abs(toNumber(line.quantity))
+      const mrp = toNumber(line.mrp || line.unitPrice)
+      const lineGross =
+        line.grossAmount !== null && line.grossAmount !== undefined
+          ? toNumber(line.grossAmount)
+          : mrp * quantity
+      const categoryDiscount =
+        line.categoryDiscountAmount !== null && line.categoryDiscountAmount !== undefined
+          ? toNumber(line.categoryDiscountAmount)
+          : lineGross * (toNumber(line.categoryDiscountPercent) / 100)
+
+      return {
+        gross: sum.gross + lineGross,
+        categoryDiscount: sum.categoryDiscount + categoryDiscount,
+      }
+    },
+    { gross: 0, categoryDiscount: 0 }
+  )
+
+  const grossBeforeCategory =
+    order.grossAmount !== null && order.grossAmount !== undefined
+      ? toNumber(order.grossAmount)
+      : calculated.gross
+  const categoryDiscount =
+    order.totalCategoryDiscountAmount !== null && order.totalCategoryDiscountAmount !== undefined
+      ? toNumber(order.totalCategoryDiscountAmount)
+      : calculated.categoryDiscount
+  const gross = Math.max(0, grossBeforeCategory - categoryDiscount)
+  const skuDiscount = toNumber(order.totalSkuDiscountAmount)
+  const specialDiscount = toNumber(order.totalSpecialDiscountAmount)
+  const returnAmount =
+    order.returnCreditAmount !== null && order.returnCreditAmount !== undefined
+      ? toNumber(order.returnCreditAmount)
+      : returnLines.reduce((sum, line) => sum + getReturnCreditAmount(line), 0)
+  const vat = toNumber(order.vatAmount)
+  const net = gross - skuDiscount - specialDiscount - returnAmount + vat
+
+  return {
+    gross,
+    skuDiscount,
+    specialDiscount,
+    returnAmount,
+    vat,
+    net,
+  }
+}
+
+function buildInvoiceConversionState(order, productById, salesRouteName) {
+  const summary = calculateSalesOrderSummary(order)
+  return {
+    fromSalesOrder: true,
+    salesOrderId: order.id,
+    salesOrderNumber: order.orderNumber,
+    customerId: order.customerId,
+    customerName: order.customerName,
+    salesRouteId: order.salesRouteId,
+    salesRouteName,
+    isVatApplicable: order.isVatApplicable,
+    customerVatTin: order.customerVatTin,
+    deliveryDate: order.deliveryDate,
+    summary,
+    lines: (order.lines || []).map((orderLine) => {
+      const product = productById[orderLine.productId] || null
+
+      return {
+        productId: orderLine.productId,
+        productName: product?.name || product?.productName || '',
+        productSku: product?.sku || product?.productSku || '',
+        unitId: orderLine.unitId || orderLine.smallestUnitCode || '',
+        unitName: orderLine.smallestUnitCode || orderLine.unitName || '',
+        smallestUnitName: orderLine.smallestUnitCode || orderLine.unitName || '',
+        mrp: orderLine.mrp || orderLine.unitPrice || 0,
+        quantity: orderLine.quantity,
+        categoryDiscountPercent: orderLine.categoryDiscountPercent ?? 0,
+        skuDiscountPercent: orderLine.skuDiscountPercent ?? 0,
+        specialDiscountPercent: orderLine.specialDiscountPercent ?? 0,
+        totalDiscountPercent: orderLine.totalDiscountPercent ?? orderLine.discountPercent ?? 0,
+        isReturnLine: Boolean(orderLine.isReturnLine),
+        returnReason: orderLine.returnReason ?? null,
+      }
+    }),
+  }
+}
+
 export default function SalesOrderList() {
+  const navigate = useNavigate()
   const [customers, setCustomers] = useState([])
   const [orders, setOrders] = useState([])
   const [products, setProducts] = useState([])
@@ -301,6 +398,20 @@ export default function SalesOrderList() {
     }
   }
 
+  function convertToInvoice() {
+    if (!selectedOrder) return
+
+    const salesRouteName = selectedOrder.salesRouteName || routeNameById[selectedOrder.salesRouteId] || ''
+    navigate('/sales/invoices/new', {
+      state: buildInvoiceConversionState(selectedOrder, productById, salesRouteName),
+    })
+  }
+
+  function editDraftOrder() {
+    if (!selectedOrder) return
+    navigate(`/sales/orders/${selectedOrder.id}/edit`)
+  }
+
   const hasActiveFilters = Boolean(search.trim() || status || salesRouteId || orderDate)
 
   return (
@@ -425,10 +536,12 @@ export default function SalesOrderList() {
           ) : selectedOrder ? (
             <SalesOrderDetailPanel
               cancelReason={cancelReason}
+              onConvertToInvoice={convertToInvoice}
               isSaving={isSaving}
               onCancel={cancelOrder}
               onCancelReasonChange={setCancelReason}
               onConfirm={confirmOrder}
+              onEdit={editDraftOrder}
               order={selectedOrder}
               productById={productById}
               salesRouteName={selectedOrder.salesRouteName || routeNameById[selectedOrder.salesRouteId]}
@@ -444,10 +557,27 @@ export default function SalesOrderList() {
   )
 }
 
-function SalesOrderDetailPanel({ order, productById, salesRouteName, cancelReason, onCancelReasonChange, onCancel, onConfirm, isSaving }) {
+function SalesOrderDetailPanel({
+  order,
+  productById,
+  salesRouteName,
+  cancelReason,
+  onCancelReasonChange,
+  onCancel,
+  onConfirm,
+  onEdit,
+  onConvertToInvoice,
+  isSaving,
+}) {
+  const displaySummary = useMemo(
+    () => buildDetailSummary(order),
+    [order]
+  )
+
   const orderStatus = normalizeStatus(order.status)
   const canConfirm = orderStatus === 'Draft' && (order.lines || []).length > 0
-  const canCancel = !['Cancelled', 'Converted'].includes(orderStatus)
+  const canCancel = orderStatus === 'Confirmed'
+  const canConvertToInvoice = orderStatus === 'Confirmed'
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
@@ -467,7 +597,7 @@ function SalesOrderDetailPanel({ order, productById, salesRouteName, cancelReaso
           <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>{(order.lines || []).length} item{(order.lines || []).length === 1 ? '' : 's'}</span>
         </div>
         <div className="responsive-table-shell" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          <table className="data-table product-table-compact" style={{ minWidth: 980 }}>
+          <table className="data-table product-table-compact" style={{ minWidth: 820 }}>
             <thead>
               <tr>
                 <th>SKU</th>
@@ -475,8 +605,6 @@ function SalesOrderDetailPanel({ order, productById, salesRouteName, cancelReaso
                 <th style={{ textAlign: 'right' }}>QTY</th>
                 <th style={{ textAlign: 'right' }}>MRP</th>
                 <th style={{ textAlign: 'right' }}>CAT.DISC%</th>
-                <th style={{ textAlign: 'right' }}>SKU DISC%</th>
-                <th style={{ textAlign: 'right' }}>SPECIAL DISC%</th>
                 <th style={{ textAlign: 'right' }}>TOTAL</th>
               </tr>
             </thead>
@@ -485,22 +613,38 @@ function SalesOrderDetailPanel({ order, productById, salesRouteName, cancelReaso
                 const product = productById[line.productId]
                 const sku = product?.sku || product?.productSku || line.productId
                 const name = product?.name || product?.productName || 'Unknown Product'
+                const isReturnLine = Boolean(line.isReturnLine)
 
                 return (
                   <tr key={line.id}>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <span className="mono" style={{ fontSize: 12, color: 'var(--color-accent)' }}>{sku}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span className="mono" style={{ fontSize: 12, color: 'var(--color-accent)' }}>{sku}</span>
+                          {isReturnLine && (
+                            <span
+                              style={{
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                border: '1px solid rgba(32, 212, 191, 0.35)',
+                                background: 'rgba(32, 212, 191, 0.1)',
+                                color: 'var(--color-teal)',
+                                fontSize: 9,
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              RETURN
+                            </span>
+                          )}
+                        </div>
                         <span className="product-info-sub">{name}</span>
                       </div>
                     </td>
-                    <td className="mono">{line.smallestUnitCode || line.unitId || '-'}</td>
-                    <td className="mono text-right">{line.quantity}</td>
+                    <td className="mono">{isReturnLine ? 'RET' : (line.smallestUnitCode || line.unitId || '-')}</td>
+                    <td className="mono text-right">{isReturnLine ? `-${Math.abs(Number(line.quantity))}` : line.quantity}</td>
                     <td className="mono text-right">{formatMoney(line.mrp || line.unitPrice)}</td>
-                    <td className="mono text-right">{Number(line.categoryDiscountPercent || 0).toFixed(2)}%</td>
-                    <td className="mono text-right">{Number(line.skuDiscountPercent || 0).toFixed(2)}%</td>
-                    <td className="mono text-right">{Number(line.specialDiscountPercent || 0).toFixed(2)}%</td>
-                    <td className="mono text-right font-semibold">{formatMoney(line.lineTotal)}</td>
+                    <td className="mono text-right">{isReturnLine ? '-' : `${Number(line.categoryDiscountPercent || 0).toFixed(2)}%`}</td>
+                    <td className="mono text-right font-semibold">{formatMoney(isReturnLine ? getReturnCreditAmount(line) : toNumber(line.lineTotal))}</td>
                   </tr>
                 )
               })}
@@ -511,19 +655,24 @@ function SalesOrderDetailPanel({ order, productById, salesRouteName, cancelReaso
 
       <div style={detailFooterGridStyle}>
         <div style={summaryPanelStyle}>
-          <SummaryRow label="Gross" value={formatMoney(order.grossAmount)} />
-          <SummaryRow label="Category Disc" value={formatMoney(order.totalCategoryDiscountAmount)} />
-          <SummaryRow label="SKU Disc" value={formatMoney(order.totalSkuDiscountAmount)} />
-          <SummaryRow label="Special Disc" value={formatMoney(order.totalSpecialDiscountAmount)} />
-          <SummaryRow label="VAT" value={formatMoney(order.vatAmount)} />
+          <SummaryRow label="Gross" value={formatMoney(displaySummary.gross)} />
+          <SummaryRow label="SKU Disc" value={formatMoney(displaySummary.skuDiscount)} />
+          <SummaryRow label="Special Disc" value={formatMoney(displaySummary.specialDiscount)} />
+          <SummaryRow label="VAT" value={formatMoney(displaySummary.vat)} />
           <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 3, paddingTop: 10 }}>
-            <SummaryRow label="Net" value={formatMoney(order.netAmount)} strong />
+            <SummaryRow label="Net" value={formatMoney(displaySummary.net)} strong />
           </div>
         </div>
 
         <div style={actionsPanelStyle}>
           {canConfirm ? (
-            <button className="button-primary" type="button" disabled={isSaving} onClick={onConfirm} style={{ width: '100%' }}>
+            <button className="button-primary" type="button" disabled={isSaving} onClick={onEdit} style={{ width: '100%' }}>
+              <FileText style={{ width: 15, height: 15 }} />
+              Edit Order
+            </button>
+          ) : null}
+          {canConfirm ? (
+            <button className="button-secondary" type="button" disabled={isSaving} onClick={onConfirm} style={{ width: '100%' }}>
               <CheckCircle2 style={{ width: 15, height: 15 }} />
               Confirm Order
             </button>
@@ -536,6 +685,15 @@ function SalesOrderDetailPanel({ order, productById, salesRouteName, cancelReaso
                 Cancel Order
               </button>
             </form>
+          ) : null}
+          {canConvertToInvoice ? (
+            <section style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 800 }}>Convert To Invoice</h3>
+              <button className="button-primary" type="button" disabled={isSaving} onClick={onConvertToInvoice} style={{ width: '100%' }}>
+                <FileText style={{ width: 15, height: 15 }} />
+                Convert To Invoice
+              </button>
+            </section>
           ) : null}
         </div>
       </div>

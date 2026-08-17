@@ -84,6 +84,18 @@ export default function InvoiceListPage() {
     }, {})
   }, [products])
 
+  const productByLookup = useMemo(() => {
+    return products.reduce((map, product) => {
+      ;[product.id, product.sku, product.barcode].forEach((key) => {
+        const normalized = String(key || '')
+          .trim()
+          .toLowerCase()
+        if (normalized) map[normalized] = product
+      })
+      return map
+    }, {})
+  }, [products])
+
   const loadInvoices = useCallback(async () => {
     setIsLoading(true)
     setError('')
@@ -201,18 +213,39 @@ export default function InvoiceListPage() {
           )
         }
 
+        const returnLines = (invoice.returnSections || []).flatMap((section) => section.lines || [])
         const productIds = Array.from(
-          new Set((invoice.lines || []).map((line) => line.productId).filter(Boolean))
+          new Set(
+            [
+              ...(invoice.lines || []).map((line) => line.productId),
+              ...returnLines.map((line) => line.productId),
+            ].filter(Boolean)
+          )
         )
 
-        if (productIds.length) {
+        if (productIds.length || returnLines.length) {
           detailRequests.push(
-            Promise.allSettled(productIds.map((productId) => masterService.getProduct(productId)))
-              .then((responses) => {
+            Promise.all([
+              Promise.allSettled(
+                productIds.map((productId) => masterService.getProduct(productId))
+              ),
+              returnLines.length
+                ? masterService
+                    .listAllProducts({ pageSize: 1000, status: 'Active' })
+                    .catch(() => [])
+                : Promise.resolve([]),
+            ])
+              .then(([directResponses, catalogProducts]) => {
                 if (!isCurrent) return
-                setProducts(
-                  responses.flatMap((response) =>
+                const resolvedProducts = [
+                  ...directResponses.flatMap((response) =>
                     response.status === 'fulfilled' && response.value ? [response.value] : []
+                  ),
+                  ...(catalogProducts || []),
+                ]
+                setProducts(
+                  Array.from(
+                    new Map(resolvedProducts.map((product) => [product.id, product])).values()
                   )
                 )
               })
@@ -303,6 +336,37 @@ export default function InvoiceListPage() {
   }
 
   const hasActiveFilters = Boolean(search.trim() || status || salesRouteId || invoiceDate)
+  const displayInvoice = useMemo(() => {
+    if (!selectedInvoice) return null
+
+    return {
+      ...selectedInvoice,
+      returnSections: (selectedInvoice.returnSections || []).map((section) => ({
+        ...section,
+        lines: (section.lines || []).map((line) => {
+          const lookupKeys = [line.productId, line.productSku, line.productName]
+            .map((value) =>
+              String(value || '')
+                .trim()
+                .toLowerCase()
+            )
+            .filter(Boolean)
+          const product = lookupKeys.map((key) => productByLookup[key]).find(Boolean)
+          const productCode = line.productSku || product?.sku || line.productId || line.productName
+          const rawProductName = String(line.productName || '').trim()
+          const productName =
+            rawProductName && rawProductName !== productCode && rawProductName !== product?.sku
+              ? rawProductName
+              : product?.name || ''
+
+          return {
+            ...line,
+            productName: <ReturnProductLabel code={productCode} name={productName} />,
+          }
+        }),
+      })),
+    }
+  }, [productByLookup, selectedInvoice])
 
   return (
     <div
@@ -665,7 +729,7 @@ export default function InvoiceListPage() {
           ) : selectedInvoice ? (
             <InvoiceDetailPanel
               customerName={selectedCustomerName || customerNameById[selectedInvoice.customerId]}
-              invoice={selectedInvoice}
+              invoice={displayInvoice}
               productById={productById}
               salesRouteName={
                 selectedSalesRouteName ||
@@ -735,6 +799,17 @@ function QueueMessage({ children }) {
     >
       {children}
     </div>
+  )
+}
+
+function ReturnProductLabel({ code, name }) {
+  return (
+    <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span className="mono" style={{ fontSize: 12, color: 'var(--color-accent)' }}>
+        {code || '-'}
+      </span>
+      {name ? <span className="product-info-sub">{name}</span> : null}
+    </span>
   )
 }
 

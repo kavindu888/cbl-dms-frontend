@@ -9,6 +9,12 @@ import { salesService } from '@/services/api/salesService'
 import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { formatDate } from '@/utils'
 import SimplePagination from '@components/ui/SimplePagination'
+import {
+  toNumber,
+  getReturnDiscountPercent,
+  getReturnCreditAmount,
+  calculateSalesOrderSummary,
+} from '@/utils/salesOrderCalculations'
 
 const emptyLine = {
   productId: '',
@@ -87,6 +93,28 @@ const readOnlyDisplayStyle = {
   userSelect: 'none',
 }
 
+const returnReasonOptions = [
+  { value: 1, label: 'Damaged' },
+  { value: 2, label: 'Expired' },
+  { value: 3, label: 'Short Expiry' },
+  { value: 4, label: 'Unwanted' },
+]
+
+function todayInputDate() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function toColomboDateTimeOffset(dateValue) {
+  return new Date(`${dateValue || todayInputDate()}T00:00:00+05:30`).toISOString()
+}
+
+function toInputDate(value) {
+  if (!value) return ''
+  const text = String(value)
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10)
+  return new Date(value).toISOString().slice(0, 10)
+}
+
 function SearchablePicker({
   value,
   onChange,
@@ -126,12 +154,12 @@ function SearchablePicker({
     const search = query.trim().toLowerCase()
     const matchedOptions = search
       ? options.filter((option) => {
-          const searchText = getSearchText
-            ? getSearchText(option)
-            : `${getLabel(option)} ${getMeta(option)}`
+        const searchText = getSearchText
+          ? getSearchText(option)
+          : `${getLabel(option)} ${getMeta(option)}`
 
-          return searchText.toLowerCase().includes(search)
-        })
+        return searchText.toLowerCase().includes(search)
+      })
       : options
 
     return matchedOptions.slice(0, 50)
@@ -281,11 +309,25 @@ export default function InvoiceCreatorPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [salesRouteName, setSalesRouteName] = useState('')
+  const [deliveryRunId, setDeliveryRunId] = useState('')
+  const [deliveryRunName, setDeliveryRunName] = useState('')
   const [selectedCustomerDetails, setSelectedCustomerDetails] = useState(null)
   const [serialNumber, setSerialNumber] = useState('')
+  const [invoiceDate, setInvoiceDate] = useState(todayInputDate())
   const [serialNumberWarning, setSerialNumberWarning] = useState(false)
   const [serialNumberChecking, setSerialNumberChecking] = useState(false)
   const [returnLines, setReturnLines] = useState([])
+  const [returnDraftLine, setReturnDraftLine] = useState({
+    productId: '',
+    quantity: 1,
+    reason: 4,
+    mrp: 0,
+    categoryDiscountPercent: 0,
+    discountPercent: 0,
+  })
+  const [manualSkuDiscountAmount, setManualSkuDiscountAmount] = useState('')
+  const [manualSpecialDiscountAmount, setManualSpecialDiscountAmount] = useState('')
+  const [sourceOrderSummary, setSourceOrderSummary] = useState(null)
   const serialCheckTimeout = useRef(null)
 
   const {
@@ -330,7 +372,7 @@ export default function InvoiceCreatorPage() {
   }, [products])
 
   const totals = useMemo(() => {
-    const subtotal = lines.reduce(
+    const normalSubtotal = lines.reduce(
       (sum, line) => {
         const amounts = getLineAmounts(line)
 
@@ -345,22 +387,63 @@ export default function InvoiceCreatorPage() {
       { gross: 0, categoryDiscount: 0, skuDiscount: 0, specialDiscount: 0, discount: 0 }
     )
 
-    const returnTotal = returnLines.reduce((sum, line) => {
-      const mrp = Number(line.mrp || line.unitPrice || 0)
-      const discountPercent = Number(line.totalDiscountPercent ?? line.discountPercent ?? 0)
-      const quantity = Number(line.quantity || 0)
-      return sum + mrp * (1 - discountPercent / 100) * quantity
-    }, 0)
-    const netBeforeVat = subtotal.gross - subtotal.discount - returnTotal
-    const vat = isCustomerVatRegistered ? Math.round(netBeforeVat * 18) / 100 : 0
+    const sourceSkuDiscount =
+      sourceOrderSummary?.skuDiscount ??
+      (manualSkuDiscountAmount === ''
+        ? normalSubtotal.skuDiscount
+        : Math.max(0, Number(manualSkuDiscountAmount || 0)))
+
+    const sourceSpecialDiscount =
+      sourceOrderSummary?.specialDiscount ??
+      (manualSpecialDiscountAmount === ''
+        ? normalSubtotal.specialDiscount
+        : Math.max(0, Number(manualSpecialDiscountAmount || 0)))
+
+    const returnTotal = returnLines.reduce(
+      (sum, line) => sum + getReturnCreditAmount(line),
+      0
+    )
+
+    const gross =
+      isFromSalesOrder && sourceOrderSummary
+        ? sourceOrderSummary.gross
+        : normalSubtotal.gross
+
+    const calculatedVat = isCustomerVatRegistered
+      ? Math.round(Math.max(0, normalSubtotal.gross - normalSubtotal.categoryDiscount - sourceSkuDiscount - sourceSpecialDiscount - returnTotal) * 18) / 100
+      : 0
+
+    const vat =
+      isFromSalesOrder && sourceOrderSummary
+        ? sourceOrderSummary.vat
+        : calculatedVat
+
+    const net =
+      gross -
+      normalSubtotal.categoryDiscount -
+      sourceSkuDiscount -
+      sourceSpecialDiscount -
+      returnTotal +
+      vat
 
     return {
-      ...subtotal,
+      gross,
+      categoryDiscount: normalSubtotal.categoryDiscount,
+      skuDiscount: sourceSkuDiscount,
+      specialDiscount: sourceSpecialDiscount,
       returnTotal,
       vat,
-      net: netBeforeVat + vat,
+      net,
     }
-  }, [isCustomerVatRegistered, lines, returnLines])
+  }, [
+    lines,
+    returnLines,
+    sourceOrderSummary,
+    isFromSalesOrder,
+    isCustomerVatRegistered,
+    manualSkuDiscountAmount,
+    manualSpecialDiscountAmount,
+  ])
 
   useEffect(() => {
     async function loadData() {
@@ -398,42 +481,58 @@ export default function InvoiceCreatorPage() {
     setSerialNumber('')
     setSerialNumberWarning(false)
     setSerialNumberChecking(false)
-    setSelectedCustomerDetails({
-      id: orderState.customerId,
-      name: orderState.customerName,
-      salesRouteId: orderState.salesRouteId,
-      salesRouteName: orderState.salesRouteName,
-      isVatRegistered: Boolean(orderState.isVatApplicable),
-      taxNumber: orderState.customerVatTin || '',
-    })
-    setSalesRouteName(orderState.salesRouteName || '')
-    const orderLines = orderState.lines || []
-    const normalLines = orderLines.filter((line) => !line.isReturnLine)
-    const orderReturnLines = orderLines.filter((line) => line.isReturnLine)
 
-    setReturnLines(orderReturnLines)
+    async function fetchAndPrefillOrder() {
+      setIsLoadingData(true)
+      try {
+        const order = await salesService.getSalesOrder(orderState.salesOrderId)
+        const normalizedSummary = calculateSalesOrderSummary(order)
+        setSourceOrderSummary(normalizedSummary)
 
-    const prefilledLines = normalLines.map((line) => ({
-      productId: line.productId || '',
-      unitId: line.unitId || line.smallestUnitName || '',
-      unitName: line.smallestUnitName || '',
-      quantity: Number(line.quantity || 0),
-      mrp: Number(line.mrp || 0),
-      categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
-      skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
-      skuDiscountMax: Number(line.skuDiscountPercent || 0),
-      skuDiscountPercent: Number(line.skuDiscountPercent || 0),
-      specialDiscountAvailable: Number(line.specialDiscountPercent || 0) > 0,
-      specialDiscountMax: Number(line.specialDiscountPercent || 0),
-      specialDiscountPercent: Number(line.specialDiscountPercent || 0),
-    }))
+        setSelectedCustomerDetails({
+          id: order.customerId,
+          name: order.customerName,
+          salesRouteId: order.salesRouteId,
+          salesRouteName: order.salesRouteName,
+          isVatRegistered: Boolean(order.isVatApplicable),
+          taxNumber: order.customerVatTin || '',
+        })
+        setSalesRouteName(order.salesRouteName || '')
+        const orderLines = order.lines || []
+        const normalLines = orderLines.filter((line) => !line.isReturnLine)
+        const orderReturnLines = orderLines.filter((line) => line.isReturnLine)
 
-    reset({
-      customerId: orderState.customerId || '',
-      salesRouteId: orderState.salesRouteId || '',
-      lines: prefilledLines.length ? prefilledLines : [{ ...emptyLine }],
-    })
-    setLinePage(1)
+        setReturnLines(orderReturnLines)
+
+        const prefilledLines = normalLines.map((line) => ({
+          productId: line.productId || '',
+          unitId: line.unitId || line.smallestUnitCode || line.smallestUnitName || line.unitName || '',
+          unitName: line.smallestUnitName || line.smallestUnitCode || line.unitName || '',
+          quantity: Number(line.quantity || 0),
+          mrp: Number(line.mrp || 0),
+          categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
+          skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
+          skuDiscountMax: Number(line.skuDiscountPercent || 0),
+          skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+          specialDiscountAvailable: Number(line.specialDiscountPercent || 0) > 0,
+          specialDiscountMax: Number(line.specialDiscountPercent || 0),
+          specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+        }))
+
+        reset({
+          customerId: order.customerId || '',
+          salesRouteId: order.salesRouteId || '',
+          lines: prefilledLines.length ? prefilledLines : [{ ...emptyLine }],
+        })
+        setLinePage(1)
+      } catch (err) {
+        toast.error('Unable to fetch latest Sales Order detail.')
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+
+    fetchAndPrefillOrder()
   }, [isFromSalesOrder, orderState, reset])
 
   useEffect(() => {
@@ -472,21 +571,32 @@ export default function InvoiceCreatorPage() {
     async function loadSalesRouteName() {
       if (!selectedSalesRouteId) {
         setSalesRouteName('')
+        setDeliveryRunId('')
+        setDeliveryRunName('')
         return
       }
 
       setSalesRouteName('')
+      setDeliveryRunId('')
+      setDeliveryRunName('')
 
       try {
         if (selectedCustomerDetails?.salesRouteName) {
           if (isCurrent) setSalesRouteName(selectedCustomerDetails.salesRouteName)
-          return
         }
 
         const route = await masterService.getSalesRoute(selectedSalesRouteId)
-        if (isCurrent) setSalesRouteName(route?.name || '')
+        if (isCurrent) {
+          setSalesRouteName(selectedCustomerDetails?.salesRouteName || route?.name || '')
+          setDeliveryRunId(route?.defaultDeliveryRunId || '')
+          setDeliveryRunName(route?.defaultDeliveryRunName || '')
+        }
       } catch {
-        if (isCurrent) setSalesRouteName('')
+        if (isCurrent) {
+          setSalesRouteName('')
+          setDeliveryRunId('')
+          setDeliveryRunName('')
+        }
       }
     }
 
@@ -571,8 +681,89 @@ export default function InvoiceCreatorPage() {
     }
   }
 
+  async function handleReturnProductChange(productId) {
+    if (!productId) {
+      setReturnDraftLine({
+        productId: '',
+        quantity: 1,
+        reason: 4,
+        mrp: 0,
+        categoryDiscountPercent: 0,
+        discountPercent: 0,
+      })
+      return
+    }
+
+    try {
+      const [product, prices] = await Promise.all([
+        masterService.getProduct(productId),
+        inventoryService.getLastPrices(productId).catch(() => null),
+      ])
+      const categoryId = product.categoryId || product.category?.id || ''
+      const categoryDiscount = categoryId
+        ? await masterService.getActiveCategoryDiscount(categoryId).catch(() => null)
+        : null
+
+      setReturnDraftLine((current) => ({
+        ...current,
+        productId,
+        mrp: Number(product.mrp || prices?.lastMrp || product.sellingPrice || 0),
+        categoryDiscountPercent: Number(categoryDiscount || 0),
+        discountPercent: Number(categoryDiscount || 0),
+      }))
+    } catch (error) {
+      toast.error(error?.message || 'Unable to load return product details.')
+      const product = productById[productId]
+      setReturnDraftLine((current) => ({
+        ...current,
+        productId,
+        mrp: Number(product?.mrp || product?.sellingPrice || 0),
+        categoryDiscountPercent: 0,
+        discountPercent: 0,
+      }))
+    }
+  }
+
+  function handleAddReturnLine() {
+    if (!returnDraftLine.productId) {
+      toast.error('Return product is required.')
+      return
+    }
+
+    if (Number(returnDraftLine.quantity) <= 0) {
+      toast.error('Return quantity must be greater than zero.')
+      return
+    }
+
+    const returnLine = {
+      id: `return-${Date.now()}`,
+      productId: returnDraftLine.productId,
+      quantity: Number(returnDraftLine.quantity),
+      mrp: Number(returnDraftLine.mrp || 0),
+      categoryDiscountPercent: Number(returnDraftLine.categoryDiscountPercent || 0),
+      discountPercent: Number(returnDraftLine.categoryDiscountPercent || 0),
+      skuDiscountPercent: 0,
+      specialDiscountPercent: 0,
+      isReturnLine: true,
+      returnReason: Number(returnDraftLine.reason || 4),
+    }
+
+    setReturnLines((current) => [...current, returnLine])
+    setReturnDraftLine({
+      productId: '',
+      quantity: 1,
+      reason: 4,
+      mrp: 0,
+      categoryDiscountPercent: 0,
+      discountPercent: 0,
+    })
+  }
+
   function handleSerialNumberChange(value) {
-    setSerialNumber(value)
+    // Allow only English letters and numbers
+    const cleanedValue = value.replace(/[^a-zA-Z0-9]/g, '')
+
+    setSerialNumber(cleanedValue)
     setSerialNumberWarning(false)
     setSerialNumberChecking(false)
 
@@ -580,12 +771,13 @@ export default function InvoiceCreatorPage() {
       clearTimeout(serialCheckTimeout.current)
     }
 
-    if (!value.trim()) return
+    if (!cleanedValue) return
 
     serialCheckTimeout.current = setTimeout(async () => {
       setSerialNumberChecking(true)
+
       try {
-        const result = await salesService.checkSerialNumberExists(value.trim())
+        const result = await salesService.checkSerialNumberExists(cleanedValue)
         setSerialNumberWarning(Boolean(result.exists))
       } catch (error) {
         console.error('Serial number check failed:', error)
@@ -598,15 +790,47 @@ export default function InvoiceCreatorPage() {
   function handleClear() {
     if (serialCheckTimeout.current) clearTimeout(serialCheckTimeout.current)
     setSerialNumber('')
+    setInvoiceDate(todayInputDate())
     setSerialNumberWarning(false)
     setSerialNumberChecking(false)
     reset(createDefaultValues())
     setReturnLines([])
+    setDeliveryRunId('')
+    setDeliveryRunName('')
+    setReturnDraftLine({
+      productId: '',
+      quantity: 1,
+      reason: 4,
+      mrp: 0,
+      categoryDiscountPercent: 0,
+      discountPercent: 0,
+    })
+    setManualSkuDiscountAmount('')
+    setManualSpecialDiscountAmount('')
   }
 
   function validate(values) {
-    if (!values.customerId) return 'Customer is required.'
-    if (!values.salesRouteId) return 'Selected customer does not have a sales route.'
+    const cleanedSerialNumber = serialNumber.trim()
+    if (!cleanedSerialNumber) {
+      return 'Serial Number is required.'
+    }
+
+    if (!/^[a-zA-Z0-9]+$/.test(cleanedSerialNumber)) {
+      return 'Serial Number can contain only letters and numbers.'
+    }
+
+    if (!values.customerId) {
+      return 'Customer is required.'
+    }
+
+    if (!values.salesRouteId) {
+      return 'Selected customer does not have a sales route.'
+    }
+
+    if (!invoiceDate) {
+      return 'Invoice date is required.'
+    }
+
     const invalidLine = values.lines.find(
       (line) =>
         !line.productId ||
@@ -614,18 +838,57 @@ export default function InvoiceCreatorPage() {
         Number(line.skuDiscountPercent || 0) < 0 ||
         Number(line.skuDiscountPercent || 0) > Number(line.skuDiscountMax || 0) ||
         Number(line.specialDiscountPercent || 0) < 0 ||
-        Number(line.specialDiscountPercent || 0) > Number(line.specialDiscountMax || 0) ||
+        Number(line.specialDiscountPercent || 0) >
+        Number(line.specialDiscountMax || 0) ||
         Number(line.categoryDiscountPercent || 0) +
-          Number(line.skuDiscountPercent || 0) +
-          Number(line.specialDiscountPercent || 0) >
-          DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT
+        Number(line.skuDiscountPercent || 0) +
+        Number(line.specialDiscountPercent || 0) >
+        DISCOUNT_POLICY.MAX_DISCOUNT_PERCENT
     )
 
     if (invalidLine) {
-      return `Each line needs a product, quantity, and discounts within their allowed maximums.`
+      return 'Each line needs a product, quantity, and discounts within their allowed maximums.'
+    }
+
+    const maxManualDiscount = Math.max(0, totals.gross - totals.categoryDiscount)
+    if (totals.skuDiscount + totals.specialDiscount > maxManualDiscount) {
+      return 'SKU discount and special discount cannot exceed the gross amount after category discount.'
     }
 
     return ''
+  }
+
+  async function resolveVehicleLocationForDirectInvoice() {
+    if (isFromSalesOrder) return null
+
+    if (!deliveryRunId) {
+      throw new Error('Selected route does not have a delivery run assigned.')
+    }
+
+    const appliedLoadings = await inventoryService.listVehicleLoadings({ status: 2 })
+    const matchingLoadings = appliedLoadings.filter(
+      (loading) =>
+        loading.deliveryRunId === deliveryRunId &&
+        toInputDate(loading.loadingDate) === invoiceDate
+    )
+
+    if (matchingLoadings.length === 0) {
+      throw new Error(
+        `No applied vehicle loading found for ${deliveryRunName || 'this delivery run'} on ${invoiceDate}.`
+      )
+    }
+
+    const vehicleLocationIds = Array.from(
+      new Set(matchingLoadings.map((loading) => loading.vehicleLocationId).filter(Boolean))
+    )
+
+    if (vehicleLocationIds.length !== 1) {
+      throw new Error(
+        `Multiple vehicles are loaded for ${deliveryRunName || 'this delivery run'} on ${invoiceDate}. Select the correct vehicle before invoicing.`
+      )
+    }
+
+    return vehicleLocationIds[0]
   }
 
   async function onSubmit(values) {
@@ -635,29 +898,50 @@ export default function InvoiceCreatorPage() {
       return
     }
 
+    let vehicleLocationId = null
+    try {
+      vehicleLocationId = await resolveVehicleLocationForDirectInvoice()
+    } catch (error) {
+      toast.error(error.message)
+      return
+    }
+
     const payload = {
       customerId: values.customerId,
-      serialNumber: serialNumber.trim() || null,
-      invoiceDate: new Date().toISOString(),
+      serialNumber: serialNumber.trim(),
+      invoiceDate: toColomboDateTimeOffset(invoiceDate),
       dueDate: null,
       isTaxInvoice: isCustomerVatRegistered,
       customerVatTin: selectedCustomerDetails?.taxNumber || null,
       notes: null,
-      lines: values.lines.map((line) => ({
-        productId: line.productId,
-        quantity: Number(line.quantity),
-        skuDiscountPercent: Number(line.skuDiscountPercent || 0),
-        specialDiscountPercent: Number(line.specialDiscountPercent || 0),
-      })),
+      vehicleLocationId,
+      manualSkuDiscountAmount: totals.skuDiscount,
+      manualSpecialDiscountAmount: totals.specialDiscount,
+      lines: [
+        ...values.lines.map((line) => ({
+          productId: line.productId,
+          quantity: Number(line.quantity),
+          skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+          specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+        })),
+        ...returnLines.map((line) => ({
+          productId: line.productId,
+          quantity: Math.abs(Number(line.quantity || 0)),
+          skuDiscountPercent: 0,
+          specialDiscountPercent: 0,
+          isReturnLine: true,
+          returnReason: Number(line.returnReason || 4),
+        })),
+      ],
     }
 
     setIsSaving(true)
     try {
       const response = isFromSalesOrder
         ? await salesService.convertSalesOrderToInvoice(orderState.salesOrderId, {
-            serialNumber: serialNumber.trim() || null,
-            notes: null,
-          })
+          serialNumber: serialNumber.trim(),
+          notes: null,
+        })
         : await salesService.createInvoice(payload)
       console.log('Create invoice response:', response)
       console.log('Type:', typeof response)
@@ -805,19 +1089,129 @@ export default function InvoiceCreatorPage() {
             </button>
           </div>
 
+          {!isFromSalesOrder ? (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(240px, 1fr) 90px 130px 130px 120px',
+                gap: 10,
+                alignItems: 'end',
+                marginBottom: 14,
+                padding: 12,
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                background: 'rgba(32, 212, 191, 0.04)',
+              }}
+            >
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Return Product
+                </label>
+                <SearchablePicker
+                  value={returnDraftLine.productId}
+                  onChange={handleReturnProductChange}
+                  options={products}
+                  getLabel={(product) =>
+                    [product.sku, product.name].filter(Boolean).join(' - ') ||
+                    product.id ||
+                    ''
+                  }
+                  getMeta={(product) =>
+                    [product.baseUom || product.uomBase, product.category?.name]
+                      .filter(Boolean)
+                      .join(' - ')
+                  }
+                  placeholder="Type SKU or product name..."
+                  emptyLabel="No matching active products"
+                  disabled={isLoadingData || isSaving}
+                />
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Qty
+                </label>
+                <input
+                  className="form-input mono text-right"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={returnDraftLine.quantity}
+                  onChange={(event) =>
+                    setReturnDraftLine((current) => ({
+                      ...current,
+                      quantity: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Reason
+                </label>
+                <select
+                  className="form-input"
+                  value={returnDraftLine.reason}
+                  onChange={(event) =>
+                    setReturnDraftLine((current) => ({
+                      ...current,
+                      reason: Number(event.target.value),
+                    }))
+                  }
+                  style={{ height: 38 }}
+                >
+                  {returnReasonOptions.map((reason) => (
+                    <option key={reason.value} value={reason.value}>
+                      {reason.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Credit
+                </label>
+                <div
+                  className="form-input mono text-right"
+                  style={{
+                    ...readOnlyDisplayStyle,
+                    justifyContent: 'flex-end',
+                    padding: '0 10px',
+                  }}
+                >
+                  {money(getReturnCreditAmount(returnDraftLine))}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={handleAddReturnLine}
+                disabled={isSaving || !returnDraftLine.productId}
+                style={{ height: 38 }}
+              >
+                <Plus style={{ width: 14, height: 14 }} />
+                Return
+              </button>
+            </div>
+          ) : null}
+
           <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'visible', minHeight: 0 }}>
-            <table className="data-table" style={{ minWidth: 960, tableLayout: 'fixed' }}>
+            <table
+              className="data-table"
+              style={{
+                width: '100%',
+                minWidth: 980,
+                tableLayout: 'fixed',
+              }}
+            >
               <colgroup>
-                <col style={{ width: '26%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '9%' }} />
-                <col style={{ width: '9%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '5%' }} />
+                <col style={{ width: 280 }} /> {/* Product */}
+                <col style={{ width: 120 }} /> {/* Smallest Unit */}
+                <col style={{ width: 90 }} />  {/* MRP */}
+                <col style={{ width: 80 }} />  {/* QTY */}
+                <col style={{ width: 110 }} /> {/* Category Discount */}
+                <col style={{ width: 120 }} /> {/* Unit Price */}
+                <col style={{ width: 130 }} /> {/* Total */}
+                <col style={{ width: 50 }} />  {/* Delete */}
               </colgroup>
               <thead>
                 <tr>
@@ -825,11 +1219,17 @@ export default function InvoiceCreatorPage() {
                   <th>Smallest Unit</th>
                   <th className="text-right">MRP</th>
                   <th className="text-right">Qty</th>
-                  <th className="text-right">Cat. Disc %</th>
-                  <th className="text-right">SKU Disc %</th>
-                  <th className="text-right">Special Disc %</th>
-                  <th className="text-right">Unit Price</th>
-                  <th className="text-right">Total</th>
+                  <th style={{ textAlign: 'right', paddingRight: 16 }}>
+                    Cat. Disc %
+                  </th>
+
+                  <th style={{ textAlign: 'right', paddingRight: 16 }}>
+                    Unit Price
+                  </th>
+
+                  <th style={{ textAlign: 'right', paddingRight: 16 }}>
+                    Total
+                  </th>
                   <th></th>
                 </tr>
               </thead>
@@ -894,79 +1294,137 @@ export default function InvoiceCreatorPage() {
                         />
                         <input type="hidden" {...register(`lines.${index}.unitId`)} />
                       </td>
-                      <td>
-                        <div className="form-input mono text-right" style={readOnlyDisplayStyle}>
+                      <td style={{ paddingLeft: 8, paddingRight: 8 }}>
+                        <div
+                          className="form-input mono text-right"
+                          style={{
+                            ...readOnlyDisplayStyle,
+                            width: '100%',
+                            minWidth: 0,
+                            boxSizing: 'border-box',
+                            justifyContent: 'flex-end',
+                            padding: '0 8px',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                          }}
+                        >
                           {Number(line.mrp || 0).toFixed(2)}
                         </div>
                       </td>
-                      <td>
+                      <td style={{ paddingLeft: 8, paddingRight: 8 }}>
                         <input
                           className="form-input mono text-right"
                           type="number"
                           step="0.01"
                           {...register(`lines.${index}.quantity`)}
+                          style={{
+                            width: '100%',
+                            minWidth: 0,
+                            boxSizing: 'border-box',
+                            paddingLeft: 8,
+                            paddingRight: 8,
+                          }}
                         />
                       </td>
-                      <td>
+                      <td style={{ textAlign: 'right', paddingRight: 16 }}>
                         <span
                           className="mono"
                           style={{
                             color: 'var(--color-text-muted)',
                             display: 'block',
+                            width: '100%',
                             textAlign: 'right',
+                            whiteSpace: 'nowrap',
                           }}
                         >
                           {Number(line.categoryDiscountPercent || 0).toFixed(2)}%
                         </span>
                       </td>
-                      <td>
-                        {line.skuDiscountAvailable ? (
-                          <input
-                            className="form-input mono text-right"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            max={line.skuDiscountMax || 0}
-                            {...register(`lines.${index}.skuDiscountPercent`)}
-                          />
-                        ) : (
-                          <span
-                            className="mono"
-                            style={{ color: 'var(--color-text-dim)', display: 'block', textAlign: 'right' }}
-                          >
-                            -
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {line.specialDiscountAvailable ? (
-                          <input
-                            className="form-input mono text-right"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            max={line.specialDiscountMax || 0}
-                            {...register(`lines.${index}.specialDiscountPercent`)}
-                          />
-                        ) : (
-                          <span
-                            className="mono"
-                            style={{ color: 'var(--color-text-dim)', display: 'block', textAlign: 'right' }}
-                          >
-                            -
-                          </span>
-                        )}
-                      </td>
-                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>
+                      <td
+                        className="mono"
+                        style={{
+                          color: 'var(--color-text-muted)',
+                          textAlign: 'right',
+                          paddingRight: 16,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {money(unitPrice)}
                       </td>
-                      <td className="mono text-right">{money(lineTotal)}</td>
+
+                      <td
+                        className="mono"
+                        style={{
+                          textAlign: 'right',
+                          paddingRight: 16,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {money(lineTotal)}
+                      </td>
                       <td>
                         <button
                           type="button"
                           className="icon-button"
                           onClick={() => remove(index)}
                           disabled={fields.length === 1}
+                          style={{ width: 32, height: 32 }}
+                        >
+                          <Trash2 style={{ width: 14, height: 14 }} />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+                 {returnLines.map((line) => {
+                  const product = productById[line.productId] || null
+                  const sku = product?.sku || product?.productSku || line.productId
+                  const name = product?.name || product?.productName || 'Unknown Product'
+                  const mrp = toNumber(line.mrp ?? line.unitPrice ?? 0)
+                  const quantity = Math.abs(toNumber(line.quantity))
+                  const discountPercent = getReturnDiscountPercent(line)
+                  const unitPrice = mrp * (1 - discountPercent / 100)
+                  const totalCredit = getReturnCreditAmount(line)
+
+                  return (
+                    <tr key={line.id} style={{ opacity: 0.85, background: 'rgba(32, 212, 191, 0.03)' }}>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="mono" style={{ fontSize: 12, fontWeight: 'bold' }}>{sku}</span>
+                            <span
+                              style={{
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                border: '1px solid rgba(32, 212, 191, 0.35)',
+                                background: 'rgba(32, 212, 191, 0.1)',
+                                color: 'var(--color-teal)',
+                                fontSize: 9,
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              RETURN
+                            </span>
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{name}</span>
+                        </div>
+                      </td>
+                      <td className="mono" style={{ color: 'var(--color-text-muted)' }}>RET</td>
+                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{mrp.toFixed(2)}</td>
+                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>-{quantity}</td>
+                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{discountPercent.toFixed(2)}%</td>
+                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{unitPrice.toFixed(2)}</td>
+                      <td className="mono text-right font-semibold" style={{ color: 'var(--color-teal)' }}>-{totalCredit.toFixed(2)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() =>
+                            setReturnLines((current) =>
+                              current.filter((item) => item.id !== line.id)
+                            )
+                          }
+                          disabled={isSaving}
                           style={{ width: 32, height: 32 }}
                         >
                           <Trash2 style={{ width: 14, height: 14 }} />
@@ -1019,12 +1477,15 @@ export default function InvoiceCreatorPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Serial Number
+                  Serial Number *
                 </label>
                 <input
                   className="form-input"
                   type="text"
+                  required
                   maxLength={20}
+                  pattern="[A-Za-z0-9]+"
+                  title="Serial Number can contain only letters and numbers."
                   value={serialNumber}
                   onChange={(event) => handleSerialNumberChange(event.target.value)}
                   placeholder="Enter CBL POS serial number"
@@ -1056,6 +1517,21 @@ export default function InvoiceCreatorPage() {
                     Checking...
                   </p>
                 ) : null}
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Invoice Date *
+                </label>
+                <input
+                  className="form-input"
+                  type="date"
+                  required
+                  value={invoiceDate}
+                  onChange={(event) => setInvoiceDate(event.target.value)}
+                  disabled={isSaving || isFromSalesOrder}
+                  style={{ width: '100%', height: 38, fontSize: 13 }}
+                />
               </div>
 
               <div>
@@ -1138,6 +1614,26 @@ export default function InvoiceCreatorPage() {
                 </div>
                 <input type="hidden" {...register('salesRouteId')} />
               </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Delivery Run
+                </label>
+                <div
+                  className="form-input"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    minHeight: 38,
+                    color: deliveryRunName
+                      ? 'var(--color-text-primary)'
+                      : 'var(--color-text-muted)',
+                  }}
+                >
+                  {deliveryRunName ||
+                    (selectedSalesRouteId ? 'Not assigned to route' : 'Select a customer first')}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1154,18 +1650,46 @@ export default function InvoiceCreatorPage() {
                 <span style={{ color: 'var(--color-text-muted)' }}>Category Discount</span>
                 <span className="mono">{money(totals.categoryDiscount)}</span>
               </div>
-              {totals.skuDiscount > 0 ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--color-text-muted)' }}>SKU Discount</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Subtotal</span>
+                <span className="mono">
+                  {money(totals.gross - totals.categoryDiscount)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>SKU Discount</span>
+                {isFromSalesOrder ? (
                   <span className="mono">{money(totals.skuDiscount)}</span>
-                </div>
-              ) : null}
-              {totals.specialDiscount > 0 ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--color-text-muted)' }}>Special Discount</span>
+                ) : (
+                  <input
+                    className="form-input mono text-right"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={manualSkuDiscountAmount}
+                    onChange={(event) => setManualSkuDiscountAmount(event.target.value)}
+                    placeholder="0.00"
+                    style={{ width: 140, height: 32 }}
+                  />
+                )}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Special Discount</span>
+                {isFromSalesOrder ? (
                   <span className="mono">{money(totals.specialDiscount)}</span>
-                </div>
-              ) : null}
+                ) : (
+                  <input
+                    className="form-input mono text-right"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={manualSpecialDiscountAmount}
+                    onChange={(event) => setManualSpecialDiscountAmount(event.target.value)}
+                    placeholder="0.00"
+                    style={{ width: 140, height: 32 }}
+                  />
+                )}
+              </div>
               {totals.returnTotal > 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--color-amber)' }}>Returns</span>
@@ -1203,7 +1727,10 @@ export default function InvoiceCreatorPage() {
               <RotateCcw style={{ width: 15, height: 15 }} />
               Clear
             </button>
-            <button className="button-primary" type="submit" disabled={isSaving || isLoadingData}>
+            <button className="button-primary" type="submit"
+              disabled={isSaving || isLoadingData || serialNumberChecking || !serialNumber.trim()
+              }
+            >
               <Save style={{ width: 15, height: 15 }} />
               {isSaving ? 'Saving...' : 'Save'}
             </button>

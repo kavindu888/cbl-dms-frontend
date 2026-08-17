@@ -6,7 +6,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   FileText,
-  // FileCheck2,
+  FileCheck2,
   LayoutDashboard,
   LogOut,
   BadgeCheck,
@@ -16,8 +16,8 @@ import {
   PackageCheck,
   PackagePlus,
   PackageX,
+  PackageOpen,
   Percent,
-  PlusCircle,
   // ArrowLeftRight,
   Warehouse,
   Ruler,
@@ -28,9 +28,9 @@ import {
   ShoppingCart,
   // Store,
   Tags,
-  // Truck,
+  Truck,
   Route,
-  // Landmark,
+  Landmark,
   User,
   UserCog,
   Users,
@@ -67,24 +67,6 @@ const navGroups = [
         permissions: PERMISSIONS.sales.customerManage,
       },
       {
-        label: 'Sales Orders',
-        to: '/sales/orders',
-        icon: ClipboardList,
-        end: true,
-        permissions: [
-          PERMISSIONS.salesOrders.view,
-          PERMISSIONS.salesOrders.create,
-          PERMISSIONS.sales.orderRead,
-          PERMISSIONS.sales.orderCreate,
-        ],
-      },
-      {
-        label: 'New Order',
-        to: '/sales/orders/new',
-        icon: PlusCircle,
-        permissions: [PERMISSIONS.salesOrders.create, PERMISSIONS.sales.orderCreate],
-      },
-      {
         label: 'Invoices',
         to: '/sales/invoices',
         icon: FileText,
@@ -117,35 +99,38 @@ const navGroups = [
       },
     ],
   },
-  // {
-  //   label: 'COLLECTIONS',
-  //   items: [
-  //     {
-  //       label: 'Daily Sessions',
-  //       to: '/collections/sessions',
-  //       icon: ClipboardList,
-  //       permissions: [PERMISSIONS.collections.sessionRead, PERMISSIONS.collections.sessionCreate],
-  //     },
-  //     {
-  //       label: 'Cheques',
-  //       to: '/collections/cheques',
-  //       icon: FileCheck2,
-  //       permissions: [PERMISSIONS.collections.chequeRead, PERMISSIONS.collections.chequeManage],
-  //     },
-  //     {
-  //       label: 'Deposit Batches',
-  //       to: '/collections/deposit-batches',
-  //       icon: Landmark,
-  //       permissions: [PERMISSIONS.collections.depositBatchCreate, PERMISSIONS.collections.depositBatchManage],
-  //     },
-  //     {
-  //       label: 'Customer Accounts',
-  //       to: '/collections/customer-accounts',
-  //       icon: Users,
-  //       permissions: [PERMISSIONS.collections.customerAccountRead, PERMISSIONS.collections.customerAccountManage],
-  //     },
-  //   ],
-  // },
+  {
+    label: 'COLLECTIONS',
+    items: [
+      {
+        label: 'Daily Sessions',
+        to: '/collections/sessions',
+        icon: ClipboardList,
+        permissions: [PERMISSIONS.collections.sessionRead, PERMISSIONS.collections.sessionCreate],
+      },
+      {
+        label: 'Cheques',
+        to: '/collections/cheques',
+        icon: FileCheck2,
+        permissions: [PERMISSIONS.collections.chequeRead, PERMISSIONS.collections.chequeManage],
+      },
+      {
+        label: 'Customer Accounts',
+        to: '/collections/customer-accounts',
+        icon: Users,
+        permissions: [
+          PERMISSIONS.collections.customerAccountRead,
+          PERMISSIONS.collections.customerAccountManage,
+        ],
+      },
+      {
+        label: 'Banks & Branches',
+        to: '/collections/banks',
+        icon: Landmark,
+        permissions: PERMISSIONS.collections.bankManage,
+      },
+    ],
+  },
   {
     label: 'PURCHASING',
     items: [
@@ -275,12 +260,6 @@ const navGroups = [
         permissions: PERMISSIONS.masterData.categoryManage,
       },
       {
-        label: 'SKU Discounts',
-        to: '/master/sku-discounts',
-        icon: Percent,
-        permissions: PERMISSIONS.masterData.categoryManage,
-      },
-      {
         label: 'UOM',
         to: '/master/units-of-measure',
         icon: Ruler,
@@ -290,6 +269,12 @@ const navGroups = [
         label: 'Sales Routes',
         to: '/master/sales-routes',
         icon: Route,
+        permissions: PERMISSIONS.masterData.salesRouteManage,
+      },
+      {
+        label: 'Delivery Runs',
+        to: '/master/delivery-runs',
+        icon: Truck,
         permissions: PERMISSIONS.masterData.salesRouteManage,
       },
     ],
@@ -342,6 +327,18 @@ const navGroups = [
         to: '/inventory/batches',
         icon: PackageCheck,
         permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'Vehicle Loading',
+        to: '/inventory/vehicle-loadings',
+        icon: Truck,
+        permissions: PERMISSIONS.inventory.vehicleLoad,
+      },
+      {
+        label: 'Vehicle Unloading',
+        to: '/inventory/vehicle-unloadings',
+        icon: PackageOpen,
+        permissions: PERMISSIONS.inventory.vehicleUnload,
       },
       {
         label: 'Stock Locations',
