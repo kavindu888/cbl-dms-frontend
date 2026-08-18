@@ -79,6 +79,8 @@ export const getStockAvailability = (productId) =>
   inventoryAxios.get(`/stock/availability/${productId}`)
 export const getStockBatches = (productId, params) =>
   inventoryAxios.get(`/stock/batches/${productId}`, { params })
+export const updateStockBatchPricing = (batchId, data) =>
+  inventoryAxios.put(`/stock/batches/${batchId}/pricing`, data)
 export const getExpiringBatches = (withinDays = 30) =>
   inventoryAxios.get('/stock/batches/expiring', { params: { withinDays } })
 export const getStockMovements = (params) => inventoryAxios.get('/stock/movements', { params })
