@@ -1,27 +1,32 @@
 import dayjs from 'dayjs'
 import {
   AlertTriangle,
+  Banknote,
   Boxes,
+  ChevronDown,
   ChevronRight,
   Flag,
+  MapPin,
   Package,
   RefreshCw,
+  RotateCcw,
   Search,
-  ShieldCheck,
+  Truck,
   Warehouse,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
-import { useExpiringBatches, useStockLevels } from '@/hooks/useStock'
+import { useActiveStockBatches, useExpiringBatches, useStockLevels } from '@/hooks/useStock'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import FlagStockForReturnModal from '@/pages/inventory/ReturnStock/FlagStockForReturnModal'
 import { formatDate, formatTime } from '@/utils'
+import { formatLKR, formatLKRShort } from '@/utils/formatCurrency'
 
-const pageSize = 9
+const pageSize = 12
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString('en-LK', { maximumFractionDigits: 2 })
@@ -78,18 +83,191 @@ function MetricCard({ label, value, helper, icon: Icon, tone }) {
   )
 }
 
+function getLocationType(location) {
+  if (location?.isVehicle) return 'Vehicle'
+  if (location?.isReturnLocation) return 'Return'
+  return 'Main'
+}
+
+function LocationTypeBadge({ type, vehicleCode }) {
+  const styles = {
+    Main: {
+      background: 'var(--color-bg-elevated)',
+      border: '1px solid var(--color-border)',
+      color: 'var(--color-text-muted)',
+    },
+    Vehicle: {
+      background: 'rgba(34, 211, 238, 0.12)',
+      border: '1px solid rgba(34, 211, 238, 0.35)',
+      color: '#22d3ee',
+    },
+    Return: {
+      background: 'rgba(245, 158, 11, 0.12)',
+      border: '1px solid rgba(245, 158, 11, 0.35)',
+      color: 'var(--color-amber)',
+    },
+  }
+
+  return (
+    <span
+      className="mono"
+      style={{
+        ...styles[type],
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        borderRadius: 999,
+        fontSize: 9,
+        fontWeight: 800,
+        padding: '2px 6px',
+      }}
+    >
+      {type.toUpperCase()}
+      {type === 'Vehicle' && vehicleCode ? <span>{vehicleCode}</span> : null}
+    </span>
+  )
+}
+
+function StockByLocationPanel({ productName, rows, unitCode }) {
+  const totals = rows.reduce(
+    (result, row) => ({
+      available: result.available + row.totalAvailable,
+      reserved: result.reserved + row.totalReserved,
+      sellable: result.sellable + row.sellable,
+    }),
+    { available: 0, reserved: 0, sellable: 0 }
+  )
+
+  return (
+    <div
+      style={{
+        margin: 8,
+        overflow: 'hidden',
+        border: '1px solid var(--color-border)',
+        borderRadius: 8,
+        background: 'var(--color-bg-base)',
+      }}
+    >
+      <div
+        style={{
+          padding: '11px 13px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          borderBottom: '1px solid var(--color-border)',
+          background: 'color-mix(in srgb, var(--color-bg-elevated) 55%, transparent)',
+        }}
+      >
+        <MapPin size={14} color="#22d3ee" />
+        <strong>{productName} — Stock by Location</strong>
+      </div>
+
+      {rows.length ? (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table" style={{ minWidth: 720 }}>
+            <thead>
+              <tr>
+                <th style={{ minWidth: 260 }}>Location</th>
+                <th>Type</th>
+                <th style={{ textAlign: 'right' }}>Available</th>
+                <th style={{ textAlign: 'right' }}>Reserved</th>
+                <th style={{ textAlign: 'right' }}>Sellable</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.stockLocationId}>
+                  <td>
+                    <div style={{ fontWeight: 700 }}>{row.locationLabel}</div>
+                    {row.type !== 'Vehicle' && row.locationCode ? (
+                      <div
+                        className="mono"
+                        style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}
+                      >
+                        {row.locationCode}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td>
+                    <LocationTypeBadge type={row.type} vehicleCode={row.vehicleCode} />
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                    {formatNumber(row.totalAvailable)} <small>{row.smallestUnitCode}</small>
+                  </td>
+                  <td
+                    className="mono"
+                    style={{
+                      textAlign: 'right',
+                      color: row.totalReserved ? 'var(--color-amber)' : 'var(--color-text-muted)',
+                    }}
+                  >
+                    {formatNumber(row.totalReserved)} <small>{row.smallestUnitCode}</small>
+                  </td>
+                  <td
+                    className="mono"
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: 800,
+                      color: row.sellable <= 0 ? 'var(--color-danger)' : 'var(--color-teal)',
+                    }}
+                  >
+                    {formatNumber(row.sellable)} <small>{row.smallestUnitCode}</small>
+                  </td>
+                </tr>
+              ))}
+              <tr
+                style={{
+                  background: 'color-mix(in srgb, var(--color-bg-elevated) 65%, transparent)',
+                }}
+              >
+                <td colSpan={2} style={{ fontWeight: 800 }}>
+                  TOTAL
+                </td>
+                <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                  {formatNumber(totals.available)} <small>{unitCode}</small>
+                </td>
+                <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                  {formatNumber(totals.reserved)} <small>{unitCode}</small>
+                </td>
+                <td
+                  className="mono"
+                  style={{ textAlign: 'right', fontWeight: 800, color: 'var(--color-teal)' }}
+                >
+                  {formatNumber(totals.sellable)} <small>{unitCode}</small>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ padding: 22, textAlign: 'center', color: 'var(--color-text-muted)' }}>
+          No available or reserved stock at any location.
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function StockOverviewPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
+  const [lowStockOnly, setLowStockOnly] = useState(false)
+  const [sortBy, setSortBy] = useState('name')
   const [page, setPage] = useState(1)
   const [products, setProducts] = useState([])
   const [stockLocations, setStockLocations] = useState([])
   const [flagProduct, setFlagProduct] = useState(null)
-  const [isLoadingReferenceData, setIsLoadingReferenceData] = useState(false)
-  const [sortMode, setSortMode] = useState('newest')
+  const [expandedProductId, setExpandedProductId] = useState(null)
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false)
 
   const { data: rawLevels, isLoading: isLoadingLevels, refetch: refetchLevels } = useStockLevels()
   const { data: expiringBatches, refetch: refetchExpiring } = useExpiringBatches(30)
+  const {
+    data: activeBatches,
+    isLoading: isLoadingActiveBatches,
+    refetch: refetchActiveBatches,
+  } = useActiveStockBatches()
 
   useEffect(() => {
     let active = true
@@ -138,6 +316,42 @@ export default function StockOverviewPage() {
     }
   }, [])
 
+  useEffect(() => {
+    let active = true
+
+    async function loadStockLocations() {
+      setIsLoadingLocations(true)
+      try {
+        const firstPage = await inventoryService.listStockLocations({ page: 1, pageSize: 100 })
+        const allLocations = [...(firstPage.items || [])]
+        const totalPages = Number(firstPage.totalPages || 1)
+
+        if (totalPages > 1) {
+          const remaining = await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, index) =>
+              inventoryService.listStockLocations({ page: index + 2, pageSize: 100 })
+            )
+          )
+          remaining.forEach((result) => allLocations.push(...(result.items || [])))
+        }
+
+        if (active) setStockLocations(allLocations)
+      } catch (error) {
+        if (active) {
+          setStockLocations([])
+          toast.error(error.message || 'Unable to load stock location details.')
+        }
+      } finally {
+        if (active) setIsLoadingLocations(false)
+      }
+    }
+
+    loadStockLocations()
+    return () => {
+      active = false
+    }
+  }, [])
+
   const productById = useMemo(
     () =>
       products.reduce((map, product) => {
@@ -147,14 +361,25 @@ export default function StockOverviewPage() {
     [products]
   )
 
-  const locationNameById = useMemo(
+  const locationById = useMemo(
     () =>
       stockLocations.reduce((map, location) => {
-        map[location.id] = location.name || location.code || 'Location unavailable'
+        map[location.id] = location
         return map
       }, {}),
     [stockLocations]
   )
+
+  const stockValueByProductId = useMemo(() => {
+    const result = new Map()
+
+    for (const batch of activeBatches || []) {
+      const stockValue = Number(batch.qtyAvailable || 0) * Number(batch.unitCostSmallest || 0)
+      result.set(batch.productId, Number(result.get(batch.productId) || 0) + stockValue)
+    }
+
+    return result
+  }, [activeBatches])
 
   const stockRows = useMemo(() => {
     const grouped = new Map()
@@ -168,10 +393,12 @@ export default function StockOverviewPage() {
         locationIds: new Set(),
         lastMovementAt: null,
         smallestUnitCode: level.smallestUnitCode || 'PCS',
+        levels: [],
       }
 
       current.totalAvailable += Number(level.totalAvailable || 0)
       current.totalReserved += Number(level.totalReserved || 0)
+      current.levels.push(level)
       if (level.stockLocationId) current.locationIds.add(level.stockLocationId)
       if (
         level.lastMovementAt &&
@@ -183,21 +410,117 @@ export default function StockOverviewPage() {
       grouped.set(level.productId, current)
     }
 
-    return [...grouped.values()].map((row) => ({
-      ...row,
-      sellable: row.totalAvailable - row.totalReserved,
-      locationCount: row.locationIds.size,
-      locationNames: [...row.locationIds].map(
-        (locationId) => locationNameById[locationId] || 'Location unavailable'
+    return [...grouped.values()].map((row) => {
+      const locationRows = row.levels
+        .map((level) => {
+          const location = locationById[level.stockLocationId]
+          const type = getLocationType(location)
+          const locationCode = location?.code || ''
+          const locationName = location?.name || level.stockLocationId
+
+          return {
+            ...level,
+            totalAvailable: Number(level.totalAvailable || 0),
+            totalReserved: Number(level.totalReserved || 0),
+            sellable: Number(level.totalAvailable || 0) - Number(level.totalReserved || 0),
+            type,
+            locationCode,
+            vehicleCode: type === 'Vehicle' ? locationCode : '',
+            locationLabel:
+              type === 'Vehicle' && locationCode
+                ? `${locationCode}${locationName !== locationCode ? ` (${locationName})` : ''}`
+                : locationName,
+            smallestUnitCode: level.smallestUnitCode || row.smallestUnitCode,
+          }
+        })
+        .filter((level) => level.totalAvailable > 0 || level.totalReserved > 0)
+        .sort(
+          (a, b) => a.type.localeCompare(b.type) || a.locationLabel.localeCompare(b.locationLabel)
+        )
+
+      return {
+        ...row,
+        sellable: row.totalAvailable - row.totalReserved,
+        stockValue: Number(stockValueByProductId.get(row.productId) || 0),
+        locationCount: locationRows.length,
+        locationRows,
+        product: productById[row.productId] || null,
+      }
+    })
+  }, [locationById, productById, rawLevels, stockValueByProductId])
+
+  const locationTypeKpis = useMemo(() => {
+    const result = {
+      Main: { available: 0, value: 0, products: new Set(), locations: new Set() },
+      Vehicle: { available: 0, value: 0, products: new Set(), locations: new Set() },
+      Return: { available: 0, value: 0, products: new Set(), locations: new Set() },
+      vehicles: new Map(),
+    }
+
+    for (const batch of activeBatches || []) {
+      const available = Number(batch.qtyAvailable || 0)
+      if (available <= 0) continue
+
+      const location = locationById[batch.stockLocationId]
+      const type = getLocationType(location)
+      const value = available * Number(batch.unitCostSmallest || 0)
+      result[type].available += available
+      result[type].value += value
+      result[type].products.add(batch.productId)
+      result[type].locations.add(batch.stockLocationId)
+
+      if (type === 'Vehicle') {
+        const vehicle = result.vehicles.get(batch.stockLocationId) || {
+          id: batch.stockLocationId,
+          code: location?.code || '',
+          name: location?.name || batch.stockLocationId,
+          available: 0,
+          value: 0,
+          products: new Set(),
+        }
+        vehicle.available += available
+        vehicle.value += value
+        vehicle.products.add(batch.productId)
+        result.vehicles.set(batch.stockLocationId, vehicle)
+      }
+    }
+
+    return result
+  }, [activeBatches, locationById])
+
+  const vehicleStockCards = useMemo(
+    () =>
+      [...locationTypeKpis.vehicles.values()].sort(
+        (a, b) => b.value - a.value || a.name.localeCompare(b.name)
       ),
-      product: productById[row.productId] || null,
-    }))
-  }, [locationNameById, productById, rawLevels])
+    [locationTypeKpis]
+  )
 
   const kpis = useMemo(() => {
     const available = stockRows.reduce((sum, row) => sum + row.totalAvailable, 0)
     const reserved = stockRows.reduce((sum, row) => sum + row.totalReserved, 0)
     const locationIds = new Set(stockRows.flatMap((row) => [...row.locationIds]))
+    const sellableByProductId = new Map(stockRows.map((row) => [row.productId, row.sellable]))
+    const activeProducts = products.filter((product) => product.status !== 'Inactive')
+    const outOfStockProducts = activeProducts.filter(
+      (product) => Number(sellableByProductId.get(product.id) || 0) <= 0
+    ).length
+    const criticalProducts = activeProducts.filter((product) => {
+      const reorderLevel = Number(product.minValue || 0)
+      if (reorderLevel <= 0) return false
+      const sellable = Number(sellableByProductId.get(product.id) || 0)
+      return sellable > 0 && sellable <= reorderLevel
+    }).length
+    const stockValue = (activeBatches || []).reduce(
+      (sum, batch) =>
+        sum + Number(batch.qtyAvailable || 0) * Number(batch.unitCostSmallest || 0),
+      0
+    )
+    const nearExpiryValue = (expiringBatches || []).reduce(
+      (sum, batch) =>
+        sum + Number(batch.qtyAvailable || 0) * Number(batch.unitCostSmallest || 0),
+      0
+    )
 
     return {
       productsWithStock: stockRows.filter((row) => row.totalAvailable > 0).length,
@@ -206,8 +529,12 @@ export default function StockOverviewPage() {
       sellable: available - reserved,
       locations: locationIds.size,
       expiring: (expiringBatches || []).length,
+      criticalProducts,
+      outOfStockProducts,
+      stockValue,
+      nearExpiryValue,
     }
-  }, [expiringBatches, stockRows])
+  }, [activeBatches, expiringBatches, products, stockRows])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -215,34 +542,33 @@ export default function StockOverviewPage() {
     return stockRows
       .filter((row) => {
         if (!term) return true
-
         return (
           row.productSku?.toLowerCase().includes(term) ||
           row.product?.name?.toLowerCase().includes(term) ||
           row.product?.barcode?.toLowerCase().includes(term)
         )
       })
+      .filter((row) => !lowStockOnly || row.totalAvailable <= 0)
       .sort((a, b) => {
-        if (sortMode === 'az') {
-          const nameA = a.product?.name || a.productSku || ''
-          const nameB = b.product?.name || b.productSku || ''
-          return nameA.localeCompare(nameB)
-        }
-
-        const movementDifference =
-          dayjs(b.lastMovementAt).valueOf() - dayjs(a.lastMovementAt).valueOf()
-
-        if (movementDifference !== 0) return movementDifference
-
-        return (a.product?.name || a.productSku || '').localeCompare(
-          b.product?.name || b.productSku || ''
+        const nameCompare = (a.product?.name || a.productSku).localeCompare(
+          b.product?.name || b.productSku
         )
+        const aLastActivity = a.lastMovementAt ? dayjs(a.lastMovementAt).valueOf() : 0
+        const bLastActivity = b.lastMovementAt ? dayjs(b.lastMovementAt).valueOf() : 0
+
+        if (sortBy === 'stockValueDesc') return b.stockValue - a.stockValue || nameCompare
+        if (sortBy === 'stockValueAsc') return a.stockValue - b.stockValue || nameCompare
+        if (sortBy === 'availableDesc') return b.totalAvailable - a.totalAvailable || nameCompare
+        if (sortBy === 'availableAsc') return a.totalAvailable - b.totalAvailable || nameCompare
+        if (sortBy === 'newest') return bLastActivity - aLastActivity || nameCompare
+        if (sortBy === 'oldest') return aLastActivity - bLastActivity || nameCompare
+        return nameCompare
       })
-  }, [search, sortMode, stockRows])
+  }, [lowStockOnly, search, sortBy, stockRows])
 
   useEffect(() => {
     setPage(1)
-  }, [search, sortMode])
+  }, [search, lowStockOnly, sortBy])
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
@@ -257,9 +583,10 @@ export default function StockOverviewPage() {
   function handleRefresh() {
     refetchLevels()
     refetchExpiring()
+    refetchActiveBatches()
   }
 
-  const isLoading = isLoadingLevels || isLoadingReferenceData
+  const isLoading = isLoadingLevels || isLoadingProducts || isLoadingLocations || isLoadingActiveBatches
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -280,6 +607,9 @@ export default function StockOverviewPage() {
               </span>
             ) : null}
           </div>
+          <p style={{ marginTop: 3, fontSize: 13, color: 'var(--color-text-muted)' }}>
+            Live inventory position consolidated across all stock locations.
+          </p>
         </div>
         <button
           type="button"
@@ -292,49 +622,89 @@ export default function StockOverviewPage() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <MetricCard
           label="Products in stock"
-          value={formatNumber(kpis.productsWithStock)}
-          helper={`${kpis.locations} active stock location${kpis.locations === 1 ? '' : 's'}`}
+          value={formatNumber(locationTypeKpis.Main.products.size)}
+          helper="Products available in main stock"
           icon={Boxes}
           tone="var(--color-blue)"
         />
         <MetricCard
-          label="Available units"
-          value={formatNumber(kpis.available)}
-          helper="Physical quantity on hand"
+          label="Available units in main stock"
+          value={formatNumber(locationTypeKpis.Main.available)}
+          helper={`${locationTypeKpis.Main.locations.size} main stock location${locationTypeKpis.Main.locations.size === 1 ? '' : 's'}`}
+          icon={Warehouse}
+          tone="var(--color-teal)"
+        />
+        <MetricCard
+          label="Main stock value"
+          value={formatLKRShort(locationTypeKpis.Main.value)}
+          helper="Main stock at batch cost"
+          icon={Banknote}
+          tone="var(--color-teal)"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <MetricCard
+          label="Return in stock"
+          value={formatNumber(locationTypeKpis.Return.products.size)}
+          helper="Products held in return stock"
+          icon={RotateCcw}
+          tone="var(--color-amber)"
+        />
+        <MetricCard
+          label="Available units in return"
+          value={formatNumber(locationTypeKpis.Return.available)}
+          helper={`${locationTypeKpis.Return.locations.size} return stock location${locationTypeKpis.Return.locations.size === 1 ? '' : 's'}`}
           icon={Package}
           tone="var(--color-teal)"
         />
         <MetricCard
-          label="Sellable units"
-          value={formatNumber(kpis.sellable)}
-          helper={`${formatNumber(kpis.reserved)} currently reserved`}
-          icon={ShieldCheck}
+          label="Return stock value"
+          value={formatLKRShort(locationTypeKpis.Return.value)}
+          helper="Return stock at batch cost"
+          icon={Banknote}
           tone="var(--color-amber)"
         />
-        <MetricCard
-          label="Expiring within 30 days"
-          value={formatNumber(kpis.expiring)}
-          helper={kpis.expiring ? 'Review affected batches' : 'No batches need attention'}
-          icon={AlertTriangle}
-          tone={kpis.expiring ? 'var(--color-danger)' : 'var(--color-text-muted)'}
-        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {vehicleStockCards.length ? (
+          vehicleStockCards.map((vehicle) => (
+            <MetricCard
+              key={vehicle.id}
+              label={`${vehicle.code || 'Vehicle'} stock`}
+              value={`${formatNumber(vehicle.available)} units`}
+              helper={`${vehicle.name}${vehicle.value ? ` | ${formatLKRShort(vehicle.value)}` : ''}`}
+              icon={Truck}
+              tone="#22d3ee"
+            />
+          ))
+        ) : (
+          <MetricCard
+            label="Vehicle stock"
+            value="0 units"
+            helper="No vehicle stock available"
+            icon={Truck}
+            tone="#22d3ee"
+          />
+        )}
       </div>
 
       <section className="panel" style={{ overflow: 'hidden' }}>
         <div
+          className="responsive-filter-bar"
           style={{
-            padding: '12px',
+            padding: 12,
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
-            flex: 1,
+            justifyContent: 'space-between',
+            gap: 12,
             borderBottom: '1px solid var(--color-border)',
           }}
         >
-          {/* Search */}
           <div style={{ position: 'relative', width: 'min(100%, 480px)' }}>
             <Search
               size={15}
@@ -354,22 +724,34 @@ export default function StockOverviewPage() {
               style={{ height: 36, paddingLeft: 36, background: 'var(--color-bg-base)' }}
             />
           </div>
-          {/* Sort */}
-          <select
-            className="form-input"
-            value={sortMode}
-            onChange={(event) => setSortMode(event.target.value)}
-            style={{
-              height: 36,
-              width: 150,
-              cursor: 'pointer',
-              background: 'var(--color-bg-base)',
-            }}
-          >
-            <option value="newest">Newest Added</option>
-            <option value="az">Product A - Z</option>
-          </select>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <select
+              className="form-select"
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              style={{ height: 34, width: 210, fontSize: 12 }}
+            >
+              <option value="name">Sort by product name</option>
+              <option value="stockValueDesc">Stock value high to low</option>
+              <option value="stockValueAsc">Stock value low to high</option>
+              <option value="newest">Newest updated first</option>
+              <option value="oldest">Oldest updated first</option>
+              <option value="availableDesc">Available qty high to low</option>
+              <option value="availableAsc">Available qty low to high</option>
+            </select>
+
+            <button
+              type="button"
+              className={lowStockOnly ? 'button-primary' : 'button-secondary'}
+              onClick={() => setLowStockOnly((current) => !current)}
+              style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+            >
+              <AlertTriangle size={13} /> Critical stock only
+            </button>
+          </div>
         </div>
+
         <div
           style={{
             padding: '10px 12px',
@@ -396,15 +778,14 @@ export default function StockOverviewPage() {
           </div>
         ) : filteredRows.length ? (
           <div style={{ overflowX: 'auto' }}>
-            <table className="data-table product-table-compact" style={{ minWidth: 1080 }}>
+            <table className="data-table product-table-compact" style={{ minWidth: 1040 }}>
               <thead>
                 <tr>
                   <th style={{ minWidth: 280 }}>Product</th>
                   <th>Status</th>
                   <th>Locations</th>
                   <th style={{ textAlign: 'right' }}>Available</th>
-                  <th style={{ textAlign: 'right' }}>Reserved</th>
-                  <th style={{ textAlign: 'right' }}>Sellable</th>
+                  <th style={{ textAlign: 'right' }}>Stock value</th>
                   <th>Last activity</th>
                   <th style={{ width: 250 }}></th>
                 </tr>
@@ -412,125 +793,139 @@ export default function StockOverviewPage() {
               <tbody>
                 {pagedRows.map((row) => {
                   const productName = row.product?.name || 'Product name unavailable'
-                  const status =
-                    row.sellable <= 0
-                      ? 'Critical'
-                      : row.totalReserved > 0
-                        ? 'Allocated'
-                        : 'Available'
+                  const uom = row.product?.uomBase || ''
+                  const status = row.totalAvailable <= 0 ? 'Critical' : 'Available'
 
                   return (
-                    <tr key={row.productId}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div
-                            style={{
-                              width: 31,
-                              height: 31,
-                              flex: '0 0 auto',
-                              display: 'grid',
-                              placeItems: 'center',
-                              borderRadius: 7,
-                              color: 'var(--color-text-muted)',
-                              background: 'var(--color-bg-elevated)',
-                              border: '1px solid var(--color-border)',
-                            }}
-                          >
-                            <Package size={14} />
+                    <Fragment key={row.productId}>
+                      <tr>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div
+                              style={{
+                                width: 31,
+                                height: 31,
+                                flex: '0 0 auto',
+                                display: 'grid',
+                                placeItems: 'center',
+                                borderRadius: 7,
+                                color: 'var(--color-text-muted)',
+                                background: 'var(--color-bg-elevated)',
+                                border: '1px solid var(--color-border)',
+                              }}
+                            >
+                              <Package size={14} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: 700 }}>{productName}</div>
+                              <div
+                                className="mono"
+                                style={{
+                                  marginTop: 2,
+                                  fontSize: 10,
+                                  color: 'var(--color-text-dim)',
+                                }}
+                              >
+                                {row.productSku}
+                              </div>
+                            </div>
                           </div>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontWeight: 700 }}>{productName}</div>
+                        </td>
+                        <td>
+                          <StatusBadge status={status} />
+                        </td>
+                        <td>
+                          <span className="mono" style={{ fontWeight: 700 }}>
+                            {row.locationCount}
+                          </span>{' '}
+                          <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                            location{row.locationCount === 1 ? '' : 's'}
+                          </span>
+                        </td>
+                        <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                          {formatNumber(row.totalAvailable)}{' '}
+                          <small style={{ color: 'var(--color-text-dim)' }}>
+                            {row.smallestUnitCode || 'PCS'}
+                          </small>
+                        </td>
+                        <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                          {formatLKR(row.stockValue)}
+                        </td>
+                        <td>
+                          <div style={{ fontSize: 12 }}>{formatDate(row.lastMovementAt)}</div>
+                          {row.lastMovementAt ? (
                             <div
                               className="mono"
                               style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}
                             >
-                              {row.productSku}
+                              {formatTime(row.lastMovementAt)}
                             </div>
+                          ) : null}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                            <button
+                              type="button"
+                              className="button-ghost"
+                              onClick={() =>
+                                setFlagProduct({
+                                  id: row.productId,
+                                  sku: row.productSku,
+                                  name: productName,
+                                })
+                              }
+                              style={{ height: 30, padding: '0 9px', fontSize: 11 }}
+                            >
+                              <Flag size={12} /> Flag return
+                            </button>
+                            <button
+                              type="button"
+                              className={
+                                expandedProductId === row.productId
+                                  ? 'button-secondary'
+                                  : 'button-ghost'
+                              }
+                              onClick={() =>
+                                setExpandedProductId((current) =>
+                                  current === row.productId ? null : row.productId
+                                )
+                              }
+                              aria-expanded={expandedProductId === row.productId}
+                              style={{ height: 30, padding: '0 9px', fontSize: 11 }}
+                            >
+                              <MapPin size={12} /> Locations
+                              {expandedProductId === row.productId ? (
+                                <ChevronDown size={12} />
+                              ) : (
+                                <ChevronRight size={12} />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              className="button-primary"
+                              onClick={() => navigate(`/inventory/stock/batches/${row.productId}`)}
+                              style={{ height: 30, padding: '0 10px', fontSize: 11 }}
+                            >
+                              Batches <ChevronRight size={12} />
+                            </button>
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <StatusBadge status={status} />
-                      </td>
-                      <td>
-                        <span
-                          title={row.locationNames.join(', ')}
-                          style={{ fontSize: 12, fontWeight: 650 }}
-                        >
-                          {row.locationNames.join(', ')}
-                        </span>
-                      </td>
-                      <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-                        {formatNumber(row.totalAvailable)}{' '}
-                        <small style={{ color: 'var(--color-text-dim)' }}>
-                          {row.smallestUnitCode || 'PCS'}
-                        </small>
-                      </td>
-                      <td
-                        className="mono"
-                        style={{
-                          textAlign: 'right',
-                          color: row.totalReserved
-                            ? 'var(--color-amber)'
-                            : 'var(--color-text-muted)',
-                        }}
-                      >
-                        {formatNumber(row.totalReserved)}{' '}
-                        <small style={{ color: 'var(--color-text-dim)' }}>
-                          {row.smallestUnitCode || 'PCS'}
-                        </small>
-                      </td>
-                      <td
-                        className="mono"
-                        style={{
-                          textAlign: 'right',
-                          fontWeight: 800,
-                          color: row.sellable <= 0 ? 'var(--color-danger)' : 'var(--color-teal)',
-                        }}
-                      >
-                        {formatNumber(row.sellable)}{' '}
-                        <small style={{ color: 'var(--color-text-dim)' }}>
-                          {row.smallestUnitCode || 'PCS'}
-                        </small>
-                      </td>
-                      <td>
-                        <div style={{ fontSize: 12 }}>{formatDate(row.lastMovementAt)}</div>
-                        {row.lastMovementAt ? (
-                          <div
-                            className="mono"
-                            style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}
+                        </td>
+                      </tr>
+                      {expandedProductId === row.productId ? (
+                        <tr>
+                          <td
+                            colSpan={7}
+                            style={{ padding: 0, background: 'var(--color-bg-surface)' }}
                           >
-                            {formatTime(row.lastMovementAt)}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                          <button
-                            type="button"
-                            className="button-ghost"
-                            onClick={() =>
-                              setFlagProduct({
-                                id: row.productId,
-                                sku: row.productSku,
-                                name: productName,
-                              })
-                            }
-                            style={{ height: 30, padding: '0 9px', fontSize: 11 }}
-                          >
-                            <Flag size={12} /> Flag return
-                          </button>
-                          <button
-                            type="button"
-                            className="button-primary"
-                            onClick={() => navigate(`/inventory/stock/batches/${row.productId}`)}
-                            style={{ height: 30, padding: '0 10px', fontSize: 11 }}
-                          >
-                            Batches <ChevronRight size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                            <StockByLocationPanel
+                              productName={productName}
+                              rows={row.locationRows}
+                              unitCode={row.smallestUnitCode || uom || 'PCS'}
+                            />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   )
                 })}
               </tbody>

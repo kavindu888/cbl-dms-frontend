@@ -93,6 +93,28 @@ const readOnlyDisplayStyle = {
   userSelect: 'none',
 }
 
+const returnReasonOptions = [
+  { value: 1, label: 'Damaged' },
+  { value: 2, label: 'Expired' },
+  { value: 3, label: 'Short Expiry' },
+  { value: 4, label: 'Unwanted' },
+]
+
+function todayInputDate() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function toColomboDateTimeOffset(dateValue) {
+  return new Date(`${dateValue || todayInputDate()}T00:00:00+05:30`).toISOString()
+}
+
+function toInputDate(value) {
+  if (!value) return ''
+  const text = String(value)
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10)
+  return new Date(value).toISOString().slice(0, 10)
+}
+
 function SearchablePicker({
   value,
   onChange,
@@ -287,11 +309,24 @@ export default function InvoiceCreatorPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [salesRouteName, setSalesRouteName] = useState('')
+  const [deliveryRunId, setDeliveryRunId] = useState('')
+  const [deliveryRunName, setDeliveryRunName] = useState('')
   const [selectedCustomerDetails, setSelectedCustomerDetails] = useState(null)
   const [serialNumber, setSerialNumber] = useState('')
+  const [invoiceDate, setInvoiceDate] = useState(todayInputDate())
   const [serialNumberWarning, setSerialNumberWarning] = useState(false)
   const [serialNumberChecking, setSerialNumberChecking] = useState(false)
   const [returnLines, setReturnLines] = useState([])
+  const [returnDraftLine, setReturnDraftLine] = useState({
+    productId: '',
+    quantity: 1,
+    reason: 4,
+    mrp: 0,
+    categoryDiscountPercent: 0,
+    discountPercent: 0,
+  })
+  const [manualSkuDiscountAmount, setManualSkuDiscountAmount] = useState('')
+  const [manualSpecialDiscountAmount, setManualSpecialDiscountAmount] = useState('')
   const [sourceOrderSummary, setSourceOrderSummary] = useState(null)
   const serialCheckTimeout = useRef(null)
 
@@ -354,11 +389,15 @@ export default function InvoiceCreatorPage() {
 
     const sourceSkuDiscount =
       sourceOrderSummary?.skuDiscount ??
-      normalSubtotal.skuDiscount
+      (manualSkuDiscountAmount === ''
+        ? normalSubtotal.skuDiscount
+        : Math.max(0, Number(manualSkuDiscountAmount || 0)))
 
     const sourceSpecialDiscount =
       sourceOrderSummary?.specialDiscount ??
-      normalSubtotal.specialDiscount
+      (manualSpecialDiscountAmount === ''
+        ? normalSubtotal.specialDiscount
+        : Math.max(0, Number(manualSpecialDiscountAmount || 0)))
 
     const returnTotal = returnLines.reduce(
       (sum, line) => sum + getReturnCreditAmount(line),
@@ -402,6 +441,8 @@ export default function InvoiceCreatorPage() {
     sourceOrderSummary,
     isFromSalesOrder,
     isCustomerVatRegistered,
+    manualSkuDiscountAmount,
+    manualSpecialDiscountAmount,
   ])
 
   useEffect(() => {
@@ -530,21 +571,32 @@ export default function InvoiceCreatorPage() {
     async function loadSalesRouteName() {
       if (!selectedSalesRouteId) {
         setSalesRouteName('')
+        setDeliveryRunId('')
+        setDeliveryRunName('')
         return
       }
 
       setSalesRouteName('')
+      setDeliveryRunId('')
+      setDeliveryRunName('')
 
       try {
         if (selectedCustomerDetails?.salesRouteName) {
           if (isCurrent) setSalesRouteName(selectedCustomerDetails.salesRouteName)
-          return
         }
 
         const route = await masterService.getSalesRoute(selectedSalesRouteId)
-        if (isCurrent) setSalesRouteName(route?.name || '')
+        if (isCurrent) {
+          setSalesRouteName(selectedCustomerDetails?.salesRouteName || route?.name || '')
+          setDeliveryRunId(route?.defaultDeliveryRunId || '')
+          setDeliveryRunName(route?.defaultDeliveryRunName || '')
+        }
       } catch {
-        if (isCurrent) setSalesRouteName('')
+        if (isCurrent) {
+          setSalesRouteName('')
+          setDeliveryRunId('')
+          setDeliveryRunName('')
+        }
       }
     }
 
@@ -629,6 +681,84 @@ export default function InvoiceCreatorPage() {
     }
   }
 
+  async function handleReturnProductChange(productId) {
+    if (!productId) {
+      setReturnDraftLine({
+        productId: '',
+        quantity: 1,
+        reason: 4,
+        mrp: 0,
+        categoryDiscountPercent: 0,
+        discountPercent: 0,
+      })
+      return
+    }
+
+    try {
+      const [product, prices] = await Promise.all([
+        masterService.getProduct(productId),
+        inventoryService.getLastPrices(productId).catch(() => null),
+      ])
+      const categoryId = product.categoryId || product.category?.id || ''
+      const categoryDiscount = categoryId
+        ? await masterService.getActiveCategoryDiscount(categoryId).catch(() => null)
+        : null
+
+      setReturnDraftLine((current) => ({
+        ...current,
+        productId,
+        mrp: Number(product.mrp || prices?.lastMrp || product.sellingPrice || 0),
+        categoryDiscountPercent: Number(categoryDiscount || 0),
+        discountPercent: Number(categoryDiscount || 0),
+      }))
+    } catch (error) {
+      toast.error(error?.message || 'Unable to load return product details.')
+      const product = productById[productId]
+      setReturnDraftLine((current) => ({
+        ...current,
+        productId,
+        mrp: Number(product?.mrp || product?.sellingPrice || 0),
+        categoryDiscountPercent: 0,
+        discountPercent: 0,
+      }))
+    }
+  }
+
+  function handleAddReturnLine() {
+    if (!returnDraftLine.productId) {
+      toast.error('Return product is required.')
+      return
+    }
+
+    if (Number(returnDraftLine.quantity) <= 0) {
+      toast.error('Return quantity must be greater than zero.')
+      return
+    }
+
+    const returnLine = {
+      id: `return-${Date.now()}`,
+      productId: returnDraftLine.productId,
+      quantity: Number(returnDraftLine.quantity),
+      mrp: Number(returnDraftLine.mrp || 0),
+      categoryDiscountPercent: Number(returnDraftLine.categoryDiscountPercent || 0),
+      discountPercent: Number(returnDraftLine.categoryDiscountPercent || 0),
+      skuDiscountPercent: 0,
+      specialDiscountPercent: 0,
+      isReturnLine: true,
+      returnReason: Number(returnDraftLine.reason || 4),
+    }
+
+    setReturnLines((current) => [...current, returnLine])
+    setReturnDraftLine({
+      productId: '',
+      quantity: 1,
+      reason: 4,
+      mrp: 0,
+      categoryDiscountPercent: 0,
+      discountPercent: 0,
+    })
+  }
+
   function handleSerialNumberChange(value) {
     // Allow only English letters and numbers
     const cleanedValue = value.replace(/[^a-zA-Z0-9]/g, '')
@@ -660,10 +790,23 @@ export default function InvoiceCreatorPage() {
   function handleClear() {
     if (serialCheckTimeout.current) clearTimeout(serialCheckTimeout.current)
     setSerialNumber('')
+    setInvoiceDate(todayInputDate())
     setSerialNumberWarning(false)
     setSerialNumberChecking(false)
     reset(createDefaultValues())
     setReturnLines([])
+    setDeliveryRunId('')
+    setDeliveryRunName('')
+    setReturnDraftLine({
+      productId: '',
+      quantity: 1,
+      reason: 4,
+      mrp: 0,
+      categoryDiscountPercent: 0,
+      discountPercent: 0,
+    })
+    setManualSkuDiscountAmount('')
+    setManualSpecialDiscountAmount('')
   }
 
   function validate(values) {
@@ -682,6 +825,10 @@ export default function InvoiceCreatorPage() {
 
     if (!values.salesRouteId) {
       return 'Selected customer does not have a sales route.'
+    }
+
+    if (!invoiceDate) {
+      return 'Invoice date is required.'
     }
 
     const invalidLine = values.lines.find(
@@ -703,7 +850,45 @@ export default function InvoiceCreatorPage() {
       return 'Each line needs a product, quantity, and discounts within their allowed maximums.'
     }
 
+    const maxManualDiscount = Math.max(0, totals.gross - totals.categoryDiscount)
+    if (totals.skuDiscount + totals.specialDiscount > maxManualDiscount) {
+      return 'SKU discount and special discount cannot exceed the gross amount after category discount.'
+    }
+
     return ''
+  }
+
+  async function resolveVehicleLocationForDirectInvoice() {
+    if (isFromSalesOrder) return null
+
+    if (!deliveryRunId) {
+      throw new Error('Selected route does not have a delivery run assigned.')
+    }
+
+    const appliedLoadings = await inventoryService.listVehicleLoadings({ status: 2 })
+    const matchingLoadings = appliedLoadings.filter(
+      (loading) =>
+        loading.deliveryRunId === deliveryRunId &&
+        toInputDate(loading.loadingDate) === invoiceDate
+    )
+
+    if (matchingLoadings.length === 0) {
+      throw new Error(
+        `No applied vehicle loading found for ${deliveryRunName || 'this delivery run'} on ${invoiceDate}.`
+      )
+    }
+
+    const vehicleLocationIds = Array.from(
+      new Set(matchingLoadings.map((loading) => loading.vehicleLocationId).filter(Boolean))
+    )
+
+    if (vehicleLocationIds.length !== 1) {
+      throw new Error(
+        `Multiple vehicles are loaded for ${deliveryRunName || 'this delivery run'} on ${invoiceDate}. Select the correct vehicle before invoicing.`
+      )
+    }
+
+    return vehicleLocationIds[0]
   }
 
   async function onSubmit(values) {
@@ -713,20 +898,41 @@ export default function InvoiceCreatorPage() {
       return
     }
 
+    let vehicleLocationId = null
+    try {
+      vehicleLocationId = await resolveVehicleLocationForDirectInvoice()
+    } catch (error) {
+      toast.error(error.message)
+      return
+    }
+
     const payload = {
       customerId: values.customerId,
       serialNumber: serialNumber.trim(),
-      invoiceDate: new Date().toISOString(),
+      invoiceDate: toColomboDateTimeOffset(invoiceDate),
       dueDate: null,
       isTaxInvoice: isCustomerVatRegistered,
       customerVatTin: selectedCustomerDetails?.taxNumber || null,
       notes: null,
-      lines: values.lines.map((line) => ({
-        productId: line.productId,
-        quantity: Number(line.quantity),
-        skuDiscountPercent: Number(line.skuDiscountPercent || 0),
-        specialDiscountPercent: Number(line.specialDiscountPercent || 0),
-      })),
+      vehicleLocationId,
+      manualSkuDiscountAmount: totals.skuDiscount,
+      manualSpecialDiscountAmount: totals.specialDiscount,
+      lines: [
+        ...values.lines.map((line) => ({
+          productId: line.productId,
+          quantity: Number(line.quantity),
+          skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+          specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+        })),
+        ...returnLines.map((line) => ({
+          productId: line.productId,
+          quantity: Math.abs(Number(line.quantity || 0)),
+          skuDiscountPercent: 0,
+          specialDiscountPercent: 0,
+          isReturnLine: true,
+          returnReason: Number(line.returnReason || 4),
+        })),
+      ],
     }
 
     setIsSaving(true)
@@ -882,6 +1088,111 @@ export default function InvoiceCreatorPage() {
               Add Item
             </button>
           </div>
+
+          {!isFromSalesOrder ? (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(240px, 1fr) 90px 130px 130px 120px',
+                gap: 10,
+                alignItems: 'end',
+                marginBottom: 14,
+                padding: 12,
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                background: 'rgba(32, 212, 191, 0.04)',
+              }}
+            >
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Return Product
+                </label>
+                <SearchablePicker
+                  value={returnDraftLine.productId}
+                  onChange={handleReturnProductChange}
+                  options={products}
+                  getLabel={(product) =>
+                    [product.sku, product.name].filter(Boolean).join(' - ') ||
+                    product.id ||
+                    ''
+                  }
+                  getMeta={(product) =>
+                    [product.baseUom || product.uomBase, product.category?.name]
+                      .filter(Boolean)
+                      .join(' - ')
+                  }
+                  placeholder="Type SKU or product name..."
+                  emptyLabel="No matching active products"
+                  disabled={isLoadingData || isSaving}
+                />
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Qty
+                </label>
+                <input
+                  className="form-input mono text-right"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={returnDraftLine.quantity}
+                  onChange={(event) =>
+                    setReturnDraftLine((current) => ({
+                      ...current,
+                      quantity: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Reason
+                </label>
+                <select
+                  className="form-input"
+                  value={returnDraftLine.reason}
+                  onChange={(event) =>
+                    setReturnDraftLine((current) => ({
+                      ...current,
+                      reason: Number(event.target.value),
+                    }))
+                  }
+                  style={{ height: 38 }}
+                >
+                  {returnReasonOptions.map((reason) => (
+                    <option key={reason.value} value={reason.value}>
+                      {reason.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Credit
+                </label>
+                <div
+                  className="form-input mono text-right"
+                  style={{
+                    ...readOnlyDisplayStyle,
+                    justifyContent: 'flex-end',
+                    padding: '0 10px',
+                  }}
+                >
+                  {money(getReturnCreditAmount(returnDraftLine))}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={handleAddReturnLine}
+                disabled={isSaving || !returnDraftLine.productId}
+                style={{ height: 38 }}
+              >
+                <Plus style={{ width: 14, height: 14 }} />
+                Return
+              </button>
+            </div>
+          ) : null}
 
           <div className="overflow-x-auto" style={{ flex: 1, overflowY: 'visible', minHeight: 0 }}>
             <table
@@ -1104,7 +1415,21 @@ export default function InvoiceCreatorPage() {
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{discountPercent.toFixed(2)}%</td>
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{unitPrice.toFixed(2)}</td>
                       <td className="mono text-right font-semibold" style={{ color: 'var(--color-teal)' }}>-{totalCredit.toFixed(2)}</td>
-                      <td></td>
+                      <td>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() =>
+                            setReturnLines((current) =>
+                              current.filter((item) => item.id !== line.id)
+                            )
+                          }
+                          disabled={isSaving}
+                          style={{ width: 32, height: 32 }}
+                        >
+                          <Trash2 style={{ width: 14, height: 14 }} />
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -1196,6 +1521,21 @@ export default function InvoiceCreatorPage() {
 
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
+                  Invoice Date *
+                </label>
+                <input
+                  className="form-input"
+                  type="date"
+                  required
+                  value={invoiceDate}
+                  onChange={(event) => setInvoiceDate(event.target.value)}
+                  disabled={isSaving || isFromSalesOrder}
+                  style={{ width: '100%', height: 38, fontSize: 13 }}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
                   Customer *
                 </label>
                 <input type="hidden" {...register('customerId')} />
@@ -1274,6 +1614,26 @@ export default function InvoiceCreatorPage() {
                 </div>
                 <input type="hidden" {...register('salesRouteId')} />
               </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 10 }}>
+                  Delivery Run
+                </label>
+                <div
+                  className="form-input"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    minHeight: 38,
+                    color: deliveryRunName
+                      ? 'var(--color-text-primary)'
+                      : 'var(--color-text-muted)',
+                  }}
+                >
+                  {deliveryRunName ||
+                    (selectedSalesRouteId ? 'Not assigned to route' : 'Select a customer first')}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1287,12 +1647,48 @@ export default function InvoiceCreatorPage() {
                 <span className="mono">{money(totals.gross)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Category Discount</span>
+                <span className="mono">{money(totals.categoryDiscount)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Subtotal</span>
+                <span className="mono">
+                  {money(totals.gross - totals.categoryDiscount)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--color-text-muted)' }}>SKU Discount</span>
-                <span className="mono">{money(totals.skuDiscount)}</span>
+                {isFromSalesOrder ? (
+                  <span className="mono">{money(totals.skuDiscount)}</span>
+                ) : (
+                  <input
+                    className="form-input mono text-right"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={manualSkuDiscountAmount}
+                    onChange={(event) => setManualSkuDiscountAmount(event.target.value)}
+                    placeholder="0.00"
+                    style={{ width: 140, height: 32 }}
+                  />
+                )}
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--color-text-muted)' }}>Special Discount</span>
-                <span className="mono">{money(totals.specialDiscount)}</span>
+                {isFromSalesOrder ? (
+                  <span className="mono">{money(totals.specialDiscount)}</span>
+                ) : (
+                  <input
+                    className="form-input mono text-right"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={manualSpecialDiscountAmount}
+                    onChange={(event) => setManualSpecialDiscountAmount(event.target.value)}
+                    placeholder="0.00"
+                    style={{ width: 140, height: 32 }}
+                  />
+                )}
               </div>
               {totals.returnTotal > 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>

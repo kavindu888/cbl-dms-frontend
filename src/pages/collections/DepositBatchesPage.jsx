@@ -10,7 +10,7 @@ import {
   useCreateDepositBatch,
   useDepositBatch,
   useDepositBatches,
-  useDepositCheque,
+  useAssignChequeToBatch,
   useSubmitDepositBatch,
 } from '@/hooks/useCollections'
 import { formatDate } from '@/utils'
@@ -39,7 +39,7 @@ export default function DepositBatchesPage() {
   const batches = useDepositBatches({ status: status || undefined, page: 1, pageSize: 100 })
   const received = useCheques({ status: 'Received', page: 1, pageSize: 100 })
   const create = useCreateDepositBatch()
-  const assign = useDepositCheque()
+  const assign = useAssignChequeToBatch()
   const submit = useSubmitDepositBatch()
   const confirm = useConfirmDepositBatch()
   const list = batches.data || []

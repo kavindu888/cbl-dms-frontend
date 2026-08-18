@@ -8,7 +8,6 @@ export function getReturnDiscountPercent(line) {
   return toNumber(
     line.discountPercent ??
     line.returnDiscountPercent ??
-    line.totalDiscountPercent ??
     line.skuDiscountPercent ??
     0
   )

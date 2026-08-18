@@ -1,7 +1,9 @@
 ﻿import api, { getOnce } from '@/lib/api'
 
+const useIdentityProxy = import.meta.env.DEV && import.meta.env.VITE_USE_API_PROXY !== 'false'
+
 const identityPath = (path) =>
-  import.meta.env.DEV ? `/identity-proxy/${path.replace(/^\//, '')}` : `/${path.replace(/^\//, '')}`
+  useIdentityProxy ? `/identity-proxy/${path.replace(/^\//, '')}` : `/${path.replace(/^\//, '')}`
 
 function getValue(response, fallbackMessage = 'Request failed') {
   const result = response.data?.data
@@ -214,5 +216,3 @@ export const usersService = {
     return getValue(response, 'Unable to revoke permission.')
   },
 }
-
-

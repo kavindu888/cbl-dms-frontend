@@ -3,6 +3,7 @@ import { AppShell } from '@components/layout'
 import { Role } from '@/types/auth.types'
 import LoginPage from '@pages/auth/LoginPage'
 import RegisterPage from '@pages/auth/RegisterPage'
+import BankManagementPage from '@pages/collections/BankManagementPage'
 import ChequesPage from '@pages/collections/ChequesPage'
 import CollectionSessionDetailPage from '@pages/collections/CollectionSessionDetailPage'
 import CollectionSessionsPage from '@pages/collections/CollectionSessionsPage'
@@ -17,9 +18,9 @@ import StockBatchesPage from '@pages/inventory/StockBatchesPage'
 import CategoryDiscountList from '@pages/master/CategoryDiscounts/CategoryDiscountList'
 import CategoryListPage from '@pages/master/CategoryListPage'
 import MasterCustomerListPage from '@pages/master/CustomerListPage'
+import DeliveryRunListPage from '@pages/master/DeliveryRunListPage'
 import Product from '@pages/master/Product'
 import SalesRouteListPage from '@pages/master/SalesRouteListPage'
-import SkuDiscountList from '@pages/master/SkuDiscounts/SkuDiscountList'
 import UnitOfMeasureListPage from '@pages/master/UnitOfMeasureListPage'
 import AllPurchaseOrdersPage from '@pages/purchasing/purchase-orders/AllPurchaseOrdersPage'
 import ApprovedPurchaseOrdersPage from '@pages/purchasing/purchase-orders/ApprovedPurchaseOrdersPage'
@@ -57,6 +58,12 @@ import ReturnStockPage from '@pages/inventory/ReturnStock/ReturnStockPage'
 import InStoreReturnCreatePage from '@pages/inventory/InStoreReturns/InStoreReturnCreatePage'
 import InStoreReturnDetailPage from '@pages/inventory/InStoreReturns/InStoreReturnDetailPage'
 import InStoreReturnListPage from '@pages/inventory/InStoreReturns/InStoreReturnListPage'
+import VehicleLoadingListPage from '@pages/inventory/VehicleLoading/VehicleLoadingListPage'
+import VehicleLoadingCreatePage from '@pages/inventory/VehicleLoading/VehicleLoadingCreatePage'
+import VehicleLoadingDetailPage from '@pages/inventory/VehicleLoading/VehicleLoadingDetailPage'
+import VehicleUnloadingListPage from '@pages/inventory/VehicleUnloading/VehicleUnloadingListPage'
+import VehicleUnloadingCreatePage from '@pages/inventory/VehicleUnloading/VehicleUnloadingCreatePage'
+import VehicleUnloadingDetailPage from '@pages/inventory/VehicleUnloading/VehicleUnloadingDetailPage'
 import OpeningStockPage from '@pages/inventory/OpeningStock/OpeningStockPage'
 import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
 import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
@@ -237,6 +244,39 @@ export const router = createBrowserRouter([
         ]),
       },
       {
+        path: 'inventory/vehicle-loadings',
+        element: requirePermission(<VehicleLoadingListPage />, PERMISSIONS.inventory.vehicleLoad),
+      },
+      {
+        path: 'inventory/vehicle-loadings/new',
+        element: requirePermission(<VehicleLoadingCreatePage />, PERMISSIONS.inventory.vehicleLoad),
+      },
+      {
+        path: 'inventory/vehicle-loadings/:id',
+        element: requirePermission(<VehicleLoadingDetailPage />, PERMISSIONS.inventory.vehicleLoad),
+      },
+      {
+        path: 'inventory/vehicle-unloadings',
+        element: requirePermission(
+          <VehicleUnloadingListPage />,
+          PERMISSIONS.inventory.vehicleUnload
+        ),
+      },
+      {
+        path: 'inventory/vehicle-unloadings/new',
+        element: requirePermission(
+          <VehicleUnloadingCreatePage />,
+          PERMISSIONS.inventory.vehicleUnload
+        ),
+      },
+      {
+        path: 'inventory/vehicle-unloadings/:id',
+        element: requirePermission(
+          <VehicleUnloadingDetailPage />,
+          PERMISSIONS.inventory.vehicleUnload
+        ),
+      },
+      {
         path: 'inventory/stock-adjustments',
         element: requirePermission(
           <StockAdjustmentListPage />,
@@ -312,7 +352,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'master/sku-discounts',
-        element: requirePermission(<SkuDiscountList />, PERMISSIONS.masterData.categoryManage),
+        element: <Navigate to="/master/category-discounts" replace />,
       },
       {
         path: 'master/brands',
@@ -325,6 +365,13 @@ export const router = createBrowserRouter([
       {
         path: 'master/sales-routes',
         element: requirePermission(<SalesRouteListPage />, PERMISSIONS.masterData.salesRouteManage),
+      },
+      {
+        path: 'master/delivery-runs',
+        element: requirePermission(
+          <DeliveryRunListPage />,
+          PERMISSIONS.masterData.salesRouteManage
+        ),
       },
       {
         path: 'inventory/categories',
@@ -385,6 +432,13 @@ export const router = createBrowserRouter([
         ]),
       },
       {
+        path: 'sales/orders/:id/edit',
+        element: requirePermission(<NewSalesOrder />, [
+          PERMISSIONS.salesOrders.create,
+          PERMISSIONS.sales.orderCreate,
+        ]),
+      },
+      {
         path: 'sales/invoices',
         element: requirePermission(<InvoiceListPage />, PERMISSIONS.sales.invoiceRead),
       },
@@ -404,30 +458,55 @@ export const router = createBrowserRouter([
       },
       { path: 'collections', element: <Navigate to="/collections/sessions" replace /> },
       { path: 'collections/daily', element: <Navigate to="/collections/sessions" replace /> },
-      { path: 'collections/aging', element: <Navigate to="/collections/customer-accounts" replace /> },
+      {
+        path: 'collections/aging',
+        element: <Navigate to="/collections/customer-accounts" replace />,
+      },
       {
         path: 'collections/sessions',
-        element: requirePermission(<CollectionSessionsPage />, [PERMISSIONS.collections.sessionRead, PERMISSIONS.collections.sessionCreate]),
+        element: requirePermission(<CollectionSessionsPage />, [
+          PERMISSIONS.collections.sessionRead,
+          PERMISSIONS.collections.sessionCreate,
+        ]),
       },
       {
         path: 'collections/sessions/:id',
-        element: requirePermission(<CollectionSessionDetailPage />, [PERMISSIONS.collections.sessionRead, PERMISSIONS.collections.collectionRead]),
+        element: requirePermission(<CollectionSessionDetailPage />, [
+          PERMISSIONS.collections.sessionRead,
+          PERMISSIONS.collections.collectionRead,
+        ]),
       },
       {
         path: 'collections/sessions/:id/reconciliation',
-        element: requirePermission(<ReconciliationPage />, [PERMISSIONS.collections.reconciliationRead, PERMISSIONS.collections.sessionRead]),
+        element: requirePermission(<ReconciliationPage />, [
+          PERMISSIONS.collections.reconciliationRead,
+          PERMISSIONS.collections.sessionRead,
+        ]),
       },
       {
         path: 'collections/cheques',
-        element: requirePermission(<ChequesPage />, [PERMISSIONS.collections.chequeRead, PERMISSIONS.collections.chequeManage]),
+        element: requirePermission(<ChequesPage />, [
+          PERMISSIONS.collections.chequeRead,
+          PERMISSIONS.collections.chequeManage,
+        ]),
       },
       {
         path: 'collections/deposit-batches',
-        element: requirePermission(<DepositBatchesPage />, [PERMISSIONS.collections.depositBatchCreate, PERMISSIONS.collections.depositBatchManage]),
+        element: requirePermission(<DepositBatchesPage />, [
+          PERMISSIONS.collections.depositBatchCreate,
+          PERMISSIONS.collections.depositBatchManage,
+        ]),
       },
       {
         path: 'collections/customer-accounts',
-        element: requirePermission(<CustomerAccountPage />, [PERMISSIONS.collections.customerAccountRead, PERMISSIONS.collections.customerAccountManage]),
+        element: requirePermission(<CustomerAccountPage />, [
+          PERMISSIONS.collections.customerAccountRead,
+          PERMISSIONS.collections.customerAccountManage,
+        ]),
+      },
+      {
+        path: 'collections/banks',
+        element: requirePermission(<BankManagementPage />, PERMISSIONS.collections.bankManage),
       },
       {
         path: 'fleet',

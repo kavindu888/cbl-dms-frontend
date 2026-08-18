@@ -5,6 +5,7 @@ import ConfirmDialog from '@components/ui/ConfirmDialog'
 import Modal from '@components/ui/Modal'
 import StatusBadge from '@components/ui/StatusBadge'
 import AgingBadge from '@/components/collections/AgingBadge'
+import CustomerSelector from '@/components/collections/CustomerSelector'
 import {
   useCreateCustomerAccount,
   useCustomerAccount,
@@ -79,6 +80,13 @@ export default function CustomerAccountPage() {
           </button>
         }
       />
+      <section className="panel" style={{ padding: 12 }}>
+        <CustomerSelector
+          value={names[selectedId] || null}
+          onChange={(customer) => setCustomerId(customer?.id || '')}
+          placeholder="Search customer to view account..."
+        />
+      </section>
       {accounts.isLoading ? (
         <Busy label="Loading customer accounts..." />
       ) : accounts.isError ? (
@@ -148,6 +156,8 @@ export default function CustomerAccountPage() {
           <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {detail.isLoading ? (
               <Busy />
+            ) : detail.isError ? (
+              <Problem error={detail.error} />
             ) : data ? (
               <>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">

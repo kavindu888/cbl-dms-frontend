@@ -39,6 +39,9 @@
     stocktakeManage: 'inventory:stocktake:manage',
     inStoreReturnCreate: 'inventory:instorereturn:create',
     inStoreReturnApprove: 'inventory:instorereturn:approve',
+    vehicleLoad: 'inventory:vehicle:load',
+    vehicleUnload: 'inventory:vehicle:unload',
+    vehicleManage: 'inventory:vehicle:manage',
     stockAdjustmentCreate: 'inventory:stock-adjustment:create',
     stockAdjustmentApprove: 'inventory:stock-adjustment:approve',
   },
@@ -92,6 +95,7 @@
     customerAccountRead: 'collections:customeraccount:read',
     customerAccountManage: 'collections:customeraccount:manage',
     reconciliationRead: 'collections:reconciliation:read',
+    bankManage: 'collections:bank:manage',
   },
   fleet: {
     vehicleRead: 'fleet:vehicle:read',
