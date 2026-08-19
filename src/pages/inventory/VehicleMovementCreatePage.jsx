@@ -1,16 +1,23 @@
 import { ArrowLeft, PackageSearch, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { inventoryService } from '@/services/api/inventoryService'
-import { masterService } from '@/services/api/masterService'
+import DraftStatusBadge from '@/components/drafts/DraftStatusBadge'
+import ResumeDraftModal from '@/components/drafts/ResumeDraftModal'
+import { useAutosaveDraft } from '@/hooks/useAutosaveDraft'
 import {
   useApplyVehicleLoading,
   useApplyVehicleUnloading,
   useCreateVehicleLoading,
   useCreateVehicleUnloading,
+  useVehicleLoading,
+  useVehicleUnloading,
   useVehicles,
 } from '@/hooks/useVehicle'
+import { draftsService } from '@/services/api/draftsService'
+import { inventoryService } from '@/services/api/inventoryService'
+import { masterService } from '@/services/api/masterService'
+import { useDraftsStore } from '@/stores/draftsStore'
 import { formatDate } from '@/utils/formatDate'
 import { formatLKR } from '@/utils/formatCurrency'
 import {
@@ -36,7 +43,9 @@ function todayInputValue() {
 
 export default function VehicleMovementCreatePage({ kind, basePath }) {
   const isUnloading = kind === 'Unloading'
+  const draftType = isUnloading ? 'VehicleUnloading' : 'VehicleLoading'
   const navigate = useNavigate()
+  const location = useLocation()
   const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles()
   const createLoading = useCreateVehicleLoading()
   const createUnloading = useCreateVehicleUnloading()
@@ -64,6 +73,118 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [isAddingLine, setIsAddingLine] = useState(false)
   const [deliveryRuns, setDeliveryRuns] = useState([])
   const [appliedLoadings, setAppliedLoadings] = useState([])
+  const [resumeModalDraft, setResumeModalDraft] = useState(null)
+  const [hydrateLinesFromServer, setHydrateLinesFromServer] = useState(false)
+  const skipResetForVehicleLoadingIdRef = useRef(null)
+
+  const { data: resumedLoading } = useVehicleLoading(
+    !isUnloading && hydrateLinesFromServer ? draftId : undefined
+  )
+  const { data: resumedUnloading } = useVehicleUnloading(
+    isUnloading && hydrateLinesFromServer ? draftId : undefined
+  )
+
+  function restoreFromDraft(entry) {
+    const payload = entry?.payload || {}
+    setVehicleId(payload.vehicleId || '')
+    setVehicleLoadingId(payload.vehicleLoadingId || '')
+    setDeliveryRunId(payload.deliveryRunId || '')
+    setLoadingDate(payload.loadingDate || todayInputValue())
+    setUnloadingDate(payload.unloadingDate || todayInputValue())
+    setNotes(payload.notes || '')
+    const pendingPicker = payload.pendingPicker || {}
+    setProductSearch(pendingPicker.productSearch || '')
+    setSelectedProductId(pendingPicker.selectedProductId || '')
+    setSelectedBatchId(pendingPicker.selectedBatchId || '')
+    setQty(pendingPicker.qty || '')
+    setUnloadingType(pendingPicker.unloadingType ?? 1)
+    setReturnReason(pendingPicker.returnReason || '')
+    if (isUnloading && payload.vehicleLoadingId) {
+      skipResetForVehicleLoadingIdRef.current = payload.vehicleLoadingId
+    }
+    if (entry?.referenceId) {
+      setDraftId(entry.referenceId)
+      setHydrateLinesFromServer(true)
+    }
+  }
+
+  useEffect(() => {
+    const resumeDraftId = location.state?.resumeDraftId
+    if (resumeDraftId) {
+      const entry = useDraftsStore.getState().drafts[resumeDraftId]
+      if (entry) {
+        restoreFromDraft(entry)
+        toast.success('Draft resumed.')
+      }
+      return
+    }
+    const latest = useDraftsStore.getState().getLatestByType(draftType)
+    if (latest) setResumeModalDraft(latest)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const movement = isUnloading ? resumedUnloading : resumedLoading
+    if (!hydrateLinesFromServer || !movement) return
+    setLines(
+      (movement.lines || []).map((line) => ({
+        id: line.id,
+        productName: line.productName || line.productSku,
+        productSku: line.productSku,
+        sourceBatchNo: line.sourceBatchNo,
+        qtySmallest: line.qtySmallest,
+        unitCostSmallest: line.unitCostSmallest,
+        mrp: line.mrp,
+        unloadingType: line.unloadingType,
+        returnReason: line.returnReason,
+      }))
+    )
+    setHydrateLinesFromServer(false)
+  }, [hydrateLinesFromServer, isUnloading, resumedLoading, resumedUnloading])
+
+  function handleResumeDraft() {
+    restoreFromDraft(resumeModalDraft)
+    setResumeModalDraft(null)
+    toast.success('Draft resumed.')
+  }
+
+  function handleDiscardResumeDraft() {
+    const entry = resumeModalDraft
+    if (entry) {
+      useDraftsStore.getState().removeDraft(entry.id)
+      if (entry.serverId) draftsService.deleteDraft(entry.serverId).catch(() => {})
+    }
+    setResumeModalDraft(null)
+  }
+
+  const selectedVehicleForLabel = vehicles.find((vehicle) => vehicle.id === vehicleId)
+
+  const {
+    status: draftStatus,
+    lastSavedAt,
+    discardDraft,
+  } = useAutosaveDraft({
+    draftType,
+    referenceId: draftId,
+    getSnapshot: () => ({
+      vehicleId,
+      vehicleLoadingId,
+      deliveryRunId,
+      loadingDate,
+      unloadingDate,
+      notes,
+      pendingPicker: {
+        productSearch,
+        selectedProductId,
+        selectedBatchId,
+        qty,
+        unloadingType,
+        returnReason,
+      },
+    }),
+    label: selectedVehicleForLabel ? vehicleLabel(selectedVehicleForLabel) : undefined,
+    enabled: !hydrateLinesFromServer,
+  })
 
   useEffect(() => {
     let active = true
@@ -165,12 +286,20 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     if (!isUnloading) return
     const loading = appliedLoadings.find((item) => item.id === vehicleLoadingId)
     setVehicleId(loading?.vehicleLocationId || '')
+  }, [appliedLoadings, isUnloading, vehicleLoadingId])
+
+  useEffect(() => {
+    if (!isUnloading) return
     setSelectedProductId('')
     setSelectedBatchId('')
     setProductSearch('')
+    if (skipResetForVehicleLoadingIdRef.current === vehicleLoadingId) {
+      skipResetForVehicleLoadingIdRef.current = null
+      return
+    }
     setLines([])
     setDraftId('')
-  }, [appliedLoadings, isUnloading, vehicleLoadingId])
+  }, [isUnloading, vehicleLoadingId])
 
   const selectedVehicleLoading = appliedLoadings.find((loading) => loading.id === vehicleLoadingId)
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId)
@@ -305,6 +434,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     try {
       if (isUnloading) await applyUnloading.mutateAsync(draftId)
       else await applyLoading.mutateAsync(draftId)
+      discardDraft()
       navigate(basePath)
     } catch {
       /* Hook shows the error toast. */
@@ -325,9 +455,12 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
           <ArrowLeft size={15} /> Back to List
         </button>
         <p className="eyebrow">Inventory</p>
-        <h1 style={{ color: 'var(--color-text-primary)', fontSize: 24, fontWeight: 800 }}>
-          New Vehicle {kind}
-        </h1>
+        <div style={{ alignItems: 'center', display: 'flex', gap: 12 }}>
+          <h1 style={{ color: 'var(--color-text-primary)', fontSize: 24, fontWeight: 800 }}>
+            New Vehicle {kind}
+          </h1>
+          <DraftStatusBadge status={draftStatus} lastSavedAt={lastSavedAt} />
+        </div>
         <p style={{ color: 'var(--color-text-muted)', fontSize: 13, marginTop: 4 }}>
           {isUnloading
             ? 'Move selected vehicle batches back to main inventory.'
@@ -932,6 +1065,12 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
           </button>
         </aside>
       </div>
+      <ResumeDraftModal
+        draft={resumeModalDraft}
+        onResume={handleResumeDraft}
+        onDiscard={handleDiscardResumeDraft}
+        onClose={() => setResumeModalDraft(null)}
+      />
     </div>
   )
 }
