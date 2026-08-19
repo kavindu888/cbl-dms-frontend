@@ -11,6 +11,7 @@ import CustomerAccountPage from '@pages/collections/CustomerAccountPage'
 import DepositBatchesPage from '@pages/collections/DepositBatchesPage'
 import ReconciliationPage from '@pages/collections/ReconciliationPage'
 import DashboardPage from '@pages/dashboard/DashboardPage'
+import MyDraftsPage from '@pages/drafts/MyDraftsPage'
 import FleetOverviewPage from '@pages/fleet/FleetOverviewPage'
 import VehicleDetailPage from '@pages/fleet/VehicleDetailPage'
 import StockModulePage from '@pages/inventory/StockModulePage'
@@ -549,6 +550,10 @@ export const router = createBrowserRouter([
       {
         path: 'profile',
         element: <UserProfilePage />,
+      },
+      {
+        path: 'drafts',
+        element: <MyDraftsPage />,
       },
     ],
   },

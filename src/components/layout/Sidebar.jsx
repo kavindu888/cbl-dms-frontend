@@ -5,6 +5,7 @@ import {
   // Bookmark,
   ClipboardList,
   ClipboardCheck,
+  FileClock,
   FileText,
   FileCheck2,
   LayoutDashboard,
@@ -49,7 +50,10 @@ import styles from './Sidebar.module.css'
 const navGroups = [
   {
     label: 'OPERATIONS',
-    items: [{ label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true }],
+    items: [
+      { label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true },
+      { label: 'My Drafts', to: '/drafts', icon: FileClock },
+    ],
   },
   {
     label: 'SALES',

@@ -3,9 +3,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import DraftStatusBadge from '@/components/drafts/DraftStatusBadge'
+import ResumeDraftModal from '@/components/drafts/ResumeDraftModal'
+import { useAutosaveDraft } from '@/hooks/useAutosaveDraft'
+import { draftsService } from '@/services/api/draftsService'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
+import { useDraftsStore } from '@/stores/draftsStore'
 import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { formatDate } from '@/utils'
 import SimplePagination from '@components/ui/SimplePagination'
@@ -328,6 +333,7 @@ export default function InvoiceCreatorPage() {
   const [manualSkuDiscountAmount, setManualSkuDiscountAmount] = useState('')
   const [manualSpecialDiscountAmount, setManualSpecialDiscountAmount] = useState('')
   const [sourceOrderSummary, setSourceOrderSummary] = useState(null)
+  const [resumeModalDraft, setResumeModalDraft] = useState(null)
   const serialCheckTimeout = useRef(null)
 
   const {
@@ -336,6 +342,7 @@ export default function InvoiceCreatorPage() {
     handleSubmit,
     reset,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm({
     defaultValues: createDefaultValues(),
@@ -350,6 +357,80 @@ export default function InvoiceCreatorPage() {
     return customers.find((item) => item.id === selectedCustomerId) || null
   }, [customers, selectedCustomerId])
   const isCustomerVatRegistered = Boolean(selectedCustomerDetails?.isVatRegistered)
+
+  function restoreFromDraft(entry) {
+    const payload = entry?.payload || {}
+    if (payload.formValues) reset(payload.formValues)
+    const extra = payload.extra || {}
+    setSerialNumber(extra.serialNumber || '')
+    setInvoiceDate(extra.invoiceDate || todayInputDate())
+    setReturnLines(extra.returnLines || [])
+    setManualSkuDiscountAmount(extra.manualSkuDiscountAmount ?? '')
+    setManualSpecialDiscountAmount(extra.manualSpecialDiscountAmount ?? '')
+    setReturnDraftLine(
+      extra.returnDraftLine || {
+        productId: '',
+        quantity: 1,
+        reason: 4,
+        mrp: 0,
+        categoryDiscountPercent: 0,
+        discountPercent: 0,
+      }
+    )
+  }
+
+  useEffect(() => {
+    if (isFromSalesOrder) return
+    const resumeDraftId = location.state?.resumeDraftId
+    if (resumeDraftId) {
+      const entry = useDraftsStore.getState().drafts[resumeDraftId]
+      if (entry) {
+        restoreFromDraft(entry)
+        toast.success('Draft resumed.')
+      }
+      return
+    }
+    const latest = useDraftsStore.getState().getLatestByType('Invoice')
+    if (latest) setResumeModalDraft(latest)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleResumeDraft() {
+    restoreFromDraft(resumeModalDraft)
+    setResumeModalDraft(null)
+    toast.success('Draft resumed.')
+  }
+
+  function handleDiscardResumeDraft() {
+    const entry = resumeModalDraft
+    if (entry) {
+      useDraftsStore.getState().removeDraft(entry.id)
+      if (entry.serverId) draftsService.deleteDraft(entry.serverId).catch(() => {})
+    }
+    setResumeModalDraft(null)
+  }
+
+  const {
+    status: draftStatus,
+    lastSavedAt,
+    discardDraft,
+  } = useAutosaveDraft({
+    draftType: 'Invoice',
+    referenceId: null,
+    getSnapshot: () => ({
+      formValues: getValues(),
+      extra: {
+        serialNumber,
+        invoiceDate,
+        returnLines,
+        manualSkuDiscountAmount,
+        manualSpecialDiscountAmount,
+        returnDraftLine,
+      },
+    }),
+    label: selectedCustomer?.name,
+    enabled: !isFromSalesOrder,
+  })
 
   const [linePage, setLinePage] = useState(1)
   const linePageSize = 5
@@ -950,6 +1031,7 @@ export default function InvoiceCreatorPage() {
       setSelectedCustomerDetails(null)
       setSalesRouteName('')
       setLinePage(1)
+      if (!isFromSalesOrder) discardDraft()
       if (isFromSalesOrder) {
         toast.success('Sales order converted to invoice.')
         navigate(invoiceId ? `/sales/invoices/${invoiceId}` : '/sales/invoices/new', { replace: true })
@@ -996,9 +1078,14 @@ export default function InvoiceCreatorPage() {
             Back to Sales Order
           </button>
         ) : null}
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-          {isFromSalesOrder ? 'Convert to Invoice' : 'Create Invoice'}
-        </h1>
+        <div style={{ alignItems: 'center', display: 'flex', gap: 12 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+            {isFromSalesOrder ? 'Convert to Invoice' : 'Create Invoice'}
+          </h1>
+          {!isFromSalesOrder ? (
+            <DraftStatusBadge status={draftStatus} lastSavedAt={lastSavedAt} />
+          ) : null}
+        </div>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
           {isFromSalesOrder
             ? `Converting Sales Order ${orderState.salesOrderNumber || ''}. You can adjust before saving.`
@@ -1737,6 +1824,12 @@ export default function InvoiceCreatorPage() {
           </div>
         </aside>
       </form>
+      <ResumeDraftModal
+        draft={resumeModalDraft}
+        onResume={handleResumeDraft}
+        onDiscard={handleDiscardResumeDraft}
+        onClose={() => setResumeModalDraft(null)}
+      />
     </div>
   )
 }
