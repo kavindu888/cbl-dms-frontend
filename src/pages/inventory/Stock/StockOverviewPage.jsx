@@ -437,34 +437,45 @@ export default function StockOverviewPage() {
   useEffect(() => {
     let active = true
 
-    async function loadProducts() {
-      setIsLoadingProducts(true)
+    async function loadReferenceData() {
+      setIsLoadingReferenceData(true)
       try {
-        const firstPage = await masterService.listProducts({ page: 1, pageSize: 100 })
-        const allProducts = [...(firstPage.items || [])]
-        const totalPages = Number(firstPage.totalPages || 1)
+        const [allProducts, firstLocationPage] = await Promise.all([
+          masterService.listAllProducts({ pageSize: 100 }),
+          inventoryService.listStockLocations({ page: 1, pageSize: 100 }),
+        ])
+        const allLocations = [...(firstLocationPage.items || [])]
+        const locationTotalPages = Number(
+          firstLocationPage.totalPages ??
+            Math.ceil(Number(firstLocationPage.totalItems || allLocations.length) / 100) ??
+            1
+        )
 
-        if (totalPages > 1) {
+        if (locationTotalPages > 1) {
           const remaining = await Promise.all(
-            Array.from({ length: totalPages - 1 }, (_, index) =>
-              masterService.listProducts({ page: index + 2, pageSize: 100 })
+            Array.from({ length: locationTotalPages - 1 }, (_, index) =>
+              inventoryService.listStockLocations({ page: index + 2, pageSize: 100 })
             )
           )
-          remaining.forEach((result) => allProducts.push(...(result.items || [])))
+          remaining.forEach((result) => allLocations.push(...(result.items || [])))
         }
 
-        if (active) setProducts(allProducts)
+        if (active) {
+          setProducts(allProducts)
+          setStockLocations(allLocations)
+        }
       } catch (error) {
         if (active) {
           setProducts([])
-          toast.error(error.message || 'Unable to load product names.')
+          setStockLocations([])
+          toast.error(error.message || 'Unable to load product and stock location details.')
         }
       } finally {
-        if (active) setIsLoadingProducts(false)
+        if (active) setIsLoadingReferenceData(false)
       }
     }
 
-    loadProducts()
+    loadReferenceData()
     return () => {
       active = false
     }
@@ -917,7 +928,7 @@ export default function StockOverviewPage() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <select
-              className="form-select"
+              className="form-input"
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value)}
               style={{ height: 34, width: 210, fontSize: 12 }}
