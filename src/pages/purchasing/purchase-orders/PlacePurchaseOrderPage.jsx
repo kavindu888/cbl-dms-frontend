@@ -1,12 +1,13 @@
 import dayjs from 'dayjs'
 import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@services/api/masterService'
 import { purchasingService } from '@services/api/purchasingService'
 import { inventoryService } from '@services/api/inventoryService'
+import { PurchaseOrderStatus } from '@/types/purchasing.types'
 
 const linePageSize = 5
 
@@ -240,7 +241,8 @@ function ProductSearchSelect({
 export default function PlacePurchaseOrderPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const editPoId = location.state?.editPoId
+  const { id: routePoId } = useParams()
+  const editPoId = routePoId || location.state?.editPoId
   const [header, setHeader] = useState(emptyHeader)
 
   const supplierRef = useRef(null)
@@ -256,6 +258,8 @@ export default function PlacePurchaseOrderPage() {
   const [error, setError] = useState('')
   const [lookupError, setLookupError] = useState('')
   const [linePage, setLinePage] = useState(1)
+  const [editingOrderStatus, setEditingOrderStatus] = useState(null)
+  const originalLineProductByIdRef = useRef(new Map())
 
   const fetchProductDetailIfNeeded = useCallback(async (productId) => {
     if (!productId) return
@@ -342,6 +346,7 @@ export default function PlacePurchaseOrderPage() {
     }
 
     if (editPoDetail) {
+      setEditingOrderStatus(Number(editPoDetail.status))
       setHeader({
         supplierId: editPoDetail.supplierId || '',
         businessUnitId: editPoDetail.businessUnitId || '',
@@ -368,6 +373,9 @@ export default function PlacePurchaseOrderPage() {
         })) || []
 
       setLines(loadedLines.length ? loadedLines : [createEmptyLine()])
+      originalLineProductByIdRef.current = new Map(
+        loadedLines.filter((line) => line.id).map((line) => [line.id, line.productId])
+      )
 
       // Fetch details for any initial lines in edit mode
       loadedLines.forEach((line) => {
@@ -384,6 +392,8 @@ export default function PlacePurchaseOrderPage() {
         }
       })
     } else {
+      setEditingOrderStatus(null)
+      originalLineProductByIdRef.current = new Map()
       setHeader({
         ...emptyHeader,
         supplierId: preselectedSupplierId,
@@ -422,6 +432,9 @@ export default function PlacePurchaseOrderPage() {
       total: subtotal + vat,
     }
   }, [header.taxId, lines, taxes])
+
+  const isDraftEdit =
+    Boolean(editPoId) && Number(editingOrderStatus) === Number(PurchaseOrderStatus.Draft)
 
   const pagedLines = useMemo(() => {
     const start = (linePage - 1) * linePageSize
@@ -510,17 +523,22 @@ export default function PlacePurchaseOrderPage() {
     )
   }
 
-  function validateForm() {
+  function validateDraftHeader() {
     if (!suppliers.length) return 'No active suppliers are available.'
-    if (!products.length) return 'No active products are available.'
     if (!header.supplierId) return 'Select a supplier.'
     if (header.expectedDeliveryDate && header.expectedDeliveryDate < tomorrow) {
       return 'Expected delivery date must be in the future.'
     }
+    if (!header.taxId) return 'Select a tax rate.'
+    return ''
+  }
+
+  function validateLines() {
+    if (!products.length) return 'No active products are available.'
     if (!lines.length) return 'Add at least one product.'
 
     const selectedProductIds = new Set()
-    for (const line of lines) {
+    for (const line of lines.filter((item) => item.productId || Number(item.bigBoxQty) > 0)) {
       if (!line.productId) return 'Select a product for every line.'
       if (selectedProductIds.has(line.productId)) {
         return 'Each product should appear only once. Update its quantity instead.'
@@ -533,21 +551,26 @@ export default function PlacePurchaseOrderPage() {
     return ''
   }
 
-  async function placePurchaseOrder(event) {
-    event.preventDefault()
-    const validationError = validateForm()
-    if (validationError) {
-      setError(validationError)
-      return
-    }
+  function validateSubmit() {
+    return validateDraftHeader() || validateLines()
+  }
 
-    setIsSaving(true)
-    setError('')
-    let createdOrder = null
+  async function persistDraft() {
+    const validLines = lines.filter((line) => line.productId && Number(line.bigBoxQty) > 0)
+    const isDraftEdit =
+      editPoId && Number(editingOrderStatus) === Number(PurchaseOrderStatus.Draft)
 
-    try {
-      // Create a brand new PO with the modified form details
-      createdOrder = await purchasingService.createPurchaseOrder({
+    let savedOrder = null
+    if (isDraftEdit) {
+      savedOrder = await purchasingService.updatePurchaseOrder(editPoId, {
+        businessUnitId: header.businessUnitId || null,
+        paymentTermId: header.paymentTermId || null,
+        orderDate: header.orderDate || null,
+        expectedDeliveryDate: header.expectedDeliveryDate || null,
+        notes: header.notes.trim() || null,
+      })
+    } else {
+      savedOrder = await purchasingService.createPurchaseOrder({
         supplierId: header.supplierId,
         businessUnitId: header.businessUnitId || null,
         paymentTermId: header.paymentTermId || null,
@@ -556,27 +579,107 @@ export default function PlacePurchaseOrderPage() {
         expectedDeliveryDate: header.expectedDeliveryDate || null,
         notes: header.notes.trim() || null,
       })
+    }
 
-      for (const line of lines) {
-        const product = products.find((item) => item.id === line.productId)
-        await purchasingService.addPurchaseOrderLine(createdOrder.id, {
-          productId: product.id,
-          productSku: product.sku,
-          productName: product.name,
-          bigBoxQty: Number(line.bigBoxQty),
-          unitCostSmallest: Number(line.unitCostSmallest),
-          notes: line.notes.trim() || null,
-        })
+    const poId = savedOrder.id
+    const remainingOriginalLineIds = new Set(originalLineProductByIdRef.current.keys())
+
+    for (const line of validLines) {
+      const product = products.find((item) => item.id === line.productId)
+      if (!product) continue
+
+      if (isDraftEdit && line.id) {
+        remainingOriginalLineIds.delete(line.id)
+        const originalProductId = originalLineProductByIdRef.current.get(line.id)
+        if (originalProductId === line.productId) {
+          await purchasingService.updatePurchaseOrderLine(poId, line.id, {
+            bigBoxQty: Number(line.bigBoxQty),
+            unitCostSmallest: Number(line.unitCostSmallest),
+            notes: line.notes.trim() || null,
+          })
+          continue
+        }
+
+        await purchasingService.removePurchaseOrderLine(poId, line.id)
       }
 
-      await purchasingService.submitPurchaseOrder(createdOrder.id)
+      await purchasingService.addPurchaseOrderLine(poId, {
+        productId: product.id,
+        productSku: product.sku,
+        productName: product.name,
+        bigBoxQty: Number(line.bigBoxQty),
+        unitCostSmallest: Number(line.unitCostSmallest),
+        notes: line.notes.trim() || null,
+      })
+    }
+
+    if (isDraftEdit) {
+      for (const lineId of remainingOriginalLineIds) {
+        await purchasingService.removePurchaseOrderLine(poId, lineId)
+      }
+    }
+
+    const detail = await purchasingService.getPurchaseOrder(poId)
+    setEditingOrderStatus(Number(detail.status))
+    originalLineProductByIdRef.current = new Map(
+      (detail.lines || []).map((line) => [line.id, line.productId])
+    )
+
+    return detail
+  }
+
+  async function saveDraft() {
+    const validationError = validateDraftHeader()
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
+    setIsSaving(true)
+    setError('')
+
+    try {
+      const draft = await persistDraft()
+      toast.success(`Draft purchase order ${draft.poNumber} saved.`)
+      if (!routePoId) {
+        navigate(`/purchasing/place-order/${draft.id}/edit`, { replace: true })
+      } else {
+        await loadFormData()
+      }
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function placePurchaseOrder(event) {
+    event.preventDefault()
+    const validationError = validateSubmit()
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
+    setIsSaving(true)
+    setError('')
+    let savedOrder = null
+
+    try {
+      if (editPoId && Number(editingOrderStatus) !== Number(PurchaseOrderStatus.Draft)) {
+        savedOrder = await persistDraft()
+      } else {
+        savedOrder = await persistDraft()
+      }
+
+      await purchasingService.submitPurchaseOrder(savedOrder.id)
 
       // If we are in edit mode, cancel the original rejected PO to maintain clean history
-      if (editPoId) {
+      if (editPoId && Number(editingOrderStatus) !== Number(PurchaseOrderStatus.Draft)) {
         try {
           await purchasingService.cancelPurchaseOrder(
             editPoId,
-            `Re-edited and replaced by purchase order ${createdOrder.poNumber}.`
+            `Re-edited and replaced by purchase order ${savedOrder.poNumber}.`
           )
         } catch (cancelError) {
           console.warn('Unable to cancel the original purchase order:', cancelError)
@@ -585,26 +688,26 @@ export default function PlacePurchaseOrderPage() {
 
       toast.success(
         editPoId
-          ? `Purchase order updated and resubmitted as ${createdOrder.poNumber}.`
-          : `Purchase order ${createdOrder.poNumber} placed. Ready for the next order.`
+          ? `Purchase order ${savedOrder.poNumber} submitted for approval.`
+          : `Purchase order ${savedOrder.poNumber} submitted for approval.`
       )
 
-      if (editPoId) {
-        navigate('/purchasing/place-order', { replace: true })
+      if (routePoId || editPoId) {
+        navigate('/purchasing/all-orders', { replace: true })
       } else {
         await loadFormData()
       }
     } catch (requestError) {
-      if (createdOrder) {
+      if (savedOrder && !routePoId) {
         try {
           await purchasingService.cancelPurchaseOrder(
-            createdOrder.id,
+            savedOrder.id,
             'Cancelled automatically because the purchase order could not be completed.'
           )
           setError(`${requestError.message} The new incomplete draft was cancelled.`)
         } catch {
           setError(
-            `${requestError.message} New draft ${createdOrder.poNumber} could not be completed.`
+            `${requestError.message} New draft ${savedOrder.poNumber} could not be completed.`
           )
         }
       } else {
@@ -629,12 +732,14 @@ export default function PlacePurchaseOrderPage() {
     >
       <header style={{ flexShrink: 0 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-          {editPoId ? 'Edit Purchase Order' : 'New Purchase Order'}
+          {isDraftEdit ? 'Edit Draft Purchase Order' : editPoId ? 'Edit Purchase Order' : 'New Purchase Order'}
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          {editPoId
+          {isDraftEdit
+            ? 'Changes stay in draft until the purchase order is submitted for approval.'
+            : editPoId
             ? 'Update the purchase order and resubmit it for approval.'
-            : 'Build the purchase order and send it to the approval queue.'}
+            : 'Build the purchase order, save it as draft, or submit it for approval.'}
         </p>
       </header>
 
@@ -875,7 +980,7 @@ export default function PlacePurchaseOrderPage() {
               Order Details
             </h2>
             <p style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
-              Complete the header before placing this order.
+              Complete the header before saving or submitting this order.
             </p>
           </div>
 
@@ -887,7 +992,7 @@ export default function PlacePurchaseOrderPage() {
               name="supplierId"
               value={header.supplierId}
               onChange={updateHeader}
-              disabled={isLoading || isSaving}
+              disabled={isLoading || isSaving || isDraftEdit}
               style={{ height: 40 }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -1021,25 +1126,39 @@ export default function PlacePurchaseOrderPage() {
 
           <div
             style={{
-              display: 'flex',
-              justifyContent: 'center',
+              display: 'grid',
+              gridTemplateColumns: !editPoId || isDraftEdit ? '1fr 1fr' : '1fr',
+              gap: 10,
               paddingTop: 14,
               borderTop: '1px solid var(--color-border)',
             }}
           >
+            {!editPoId || isDraftEdit ? (
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={isLoading || isSaving || !suppliers.length}
+                onClick={saveDraft}
+                style={{ height: 38, fontSize: 13 }}
+              >
+                {isSaving ? 'Saving...' : 'Save Draft'}
+              </button>
+            ) : null}
             <button
               type="submit"
               className="button-primary"
               disabled={isLoading || isSaving || !suppliers.length || !products.length}
-              style={{ padding: '0 32px', height: 38, fontSize: 13 }}
+              style={{ height: 38, fontSize: 13 }}
             >
               {isSaving
                 ? editPoId
                   ? 'Saving...'
-                  : 'Placing...'
-                : editPoId
-                  ? 'Save & Resubmit'
-                  : 'Place Order'}
+                  : 'Submitting...'
+                : isDraftEdit
+                  ? 'Submit for Approval'
+                  : editPoId
+                    ? 'Save & Resubmit'
+                    : 'Submit for Approval'}
             </button>
           </div>
         </aside>

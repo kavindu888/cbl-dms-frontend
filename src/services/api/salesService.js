@@ -152,6 +152,7 @@ function formatInvoice(invoice) {
     serialNumber: invoice.serialNumber ?? '',
     invoiceDate: invoice.invoiceDate,
     dueDate: invoice.dueDate,
+    updatedAt: invoice.updatedAt ?? invoice.invoiceDate,
     status: invoice.status ?? 'Unpaid',
     isTaxInvoice: Boolean(invoice.isTaxInvoice),
     customerVatTin: invoice.customerVatTin ?? '',
@@ -475,6 +476,52 @@ export const salesService = {
         isReturnLine: Boolean(line.isReturnLine),
         returnReason: line.returnReason ?? null,
       })),
+    })
+    return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
+  },
+
+  async createInvoiceDraft(payload) {
+    const response = await api.post('/api/v1/sales/invoices/drafts', {
+      customerId: payload.customerId,
+      salesRouteId: payload.salesRouteId || null,
+      vehicleId: payload.vehicleId || null,
+      salesPersonId: payload.salesPersonId || null,
+      serialNumber: payload.serialNumber || null,
+      invoiceDate: payload.invoiceDate,
+      isTaxInvoice: Boolean(payload.isTaxInvoice),
+      customerVatTin: payload.customerVatTin ?? null,
+      notes: payload.notes ?? null,
+    })
+    return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
+  },
+
+  async updateInvoiceDraft(id, payload) {
+    await api.put(`/api/v1/sales/invoices/${id}/draft`, {
+      customerId: payload.customerId,
+      salesRouteId: payload.salesRouteId || null,
+      vehicleId: payload.vehicleId || null,
+      salesPersonId: payload.salesPersonId || null,
+      serialNumber: payload.serialNumber || null,
+      invoiceDate: payload.invoiceDate,
+      isTaxInvoice: Boolean(payload.isTaxInvoice),
+      customerVatTin: payload.customerVatTin ?? null,
+      notes: payload.notes ?? null,
+      manualSkuDiscountAmount: Number(payload.manualSkuDiscountAmount || 0),
+      manualSpecialDiscountAmount: Number(payload.manualSpecialDiscountAmount || 0),
+      lines: (payload.lines || []).map((line) => ({
+        productId: line.productId,
+        quantity: Number(line.quantity),
+        skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+        specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+        isReturnLine: Boolean(line.isReturnLine),
+        returnReason: line.returnReason ?? null,
+      })),
+    })
+  },
+
+  async finalizeInvoiceDraft(id, payload = {}) {
+    const response = await api.post(`/api/v1/sales/invoices/${id}/finalize`, {
+      vehicleLocationId: payload.vehicleLocationId ?? null,
     })
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
   },

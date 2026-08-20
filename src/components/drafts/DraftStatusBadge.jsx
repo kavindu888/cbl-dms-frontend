@@ -47,14 +47,15 @@ export default function DraftStatusBadge({ status, lastSavedAt }) {
   if (status === 'idle') return null
 
   const style = STATUS_STYLES[status] || STATUS_STYLES.idle
+  const savedSuffix = lastSavedAt ? ` - ${relativeTimeFromNow(now, lastSavedAt)}` : ''
   const label =
     status === 'saving'
       ? 'Saving...'
       : status === 'offline'
-        ? `Offline — saved locally${lastSavedAt ? ` · ${relativeTimeFromNow(now, lastSavedAt)}` : ''}`
+        ? `Offline - draft pending${savedSuffix}`
         : status === 'error'
           ? 'Draft error'
-          : `Saved locally${lastSavedAt ? ` · ${relativeTimeFromNow(now, lastSavedAt)}` : ''}`
+          : `Draft saved${savedSuffix}`
 
   return (
     <span

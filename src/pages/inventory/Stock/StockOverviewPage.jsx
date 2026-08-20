@@ -32,7 +32,7 @@ function formatNumber(value) {
   return Number(value || 0).toLocaleString('en-LK', { maximumFractionDigits: 2 })
 }
 
-function MetricCard({ label, value, helper, icon: Icon, tone }) {
+function MetricCard({ label, value, helper, detail, icon: Icon, tone }) {
   return (
     <section
       className="panel"
@@ -78,6 +78,24 @@ function MetricCard({ label, value, helper, icon: Icon, tone }) {
         >
           {helper}
         </div>
+        {detail ? (
+          <div
+            className="mono"
+            style={{
+              marginTop: 5,
+              fontSize: 13,
+              lineHeight: 1.2,
+              fontWeight: 800,
+              color: 'var(--color-text)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={detail}
+          >
+            {detail}
+          </div>
+        ) : null}
       </div>
     </section>
   )
@@ -248,6 +266,153 @@ function StockByLocationPanel({ productName, rows, unitCode }) {
   )
 }
 
+function BatchUnitCostCell({ summary, unitCode }) {
+  if (!summary?.batchCount) {
+    return <span style={{ color: 'var(--color-text-dim)' }}>-</span>
+  }
+
+  const hasMultipleCosts = summary.costCount > 1
+
+  return (
+    <div style={{ textAlign: 'right' }}>
+      <div className="mono" style={{ fontWeight: 800 }}>
+        {formatLKR(summary.weightedUnitCost)}
+      </div>
+      <div
+        style={{
+          marginTop: 2,
+          fontSize: 10,
+          color: hasMultipleCosts ? 'var(--color-amber)' : 'var(--color-text-dim)',
+        }}
+      >
+        {hasMultipleCosts
+          ? `${summary.costCount} batch costs`
+          : `${summary.batchCount} batch${summary.batchCount === 1 ? '' : 'es'}`}{' '}
+        / {unitCode || 'PCS'}
+      </div>
+    </div>
+  )
+}
+
+function BatchValuationPanel({ productName, rows, totalValue, unitCode }) {
+  const totalQty = rows.reduce((sum, row) => sum + row.qtyAvailable, 0)
+
+  return (
+    <div
+      style={{
+        margin: '0 8px 8px',
+        overflow: 'hidden',
+        border: '1px solid var(--color-border)',
+        borderRadius: 8,
+        background: 'var(--color-bg-base)',
+      }}
+    >
+      <div
+        style={{
+          padding: '11px 13px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          borderBottom: '1px solid var(--color-border)',
+          background: 'color-mix(in srgb, var(--color-bg-elevated) 55%, transparent)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Banknote size={14} color="var(--color-teal)" />
+          <strong>{productName} - Batch unit cost audit</strong>
+        </div>
+        <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>
+          {formatLKR(totalValue)}
+        </div>
+      </div>
+
+      {rows.length ? (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table" style={{ minWidth: 860 }}>
+            <thead>
+              <tr>
+                <th style={{ minWidth: 180 }}>Batch</th>
+                <th>Location</th>
+                <th style={{ textAlign: 'right' }}>Qty</th>
+                <th style={{ textAlign: 'right' }}>Unit cost</th>
+                <th style={{ textAlign: 'right' }}>Stock value</th>
+                <th>Received</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <div className="mono" style={{ fontWeight: 800 }}>
+                      {row.batchNo || row.id}
+                    </div>
+                    {row.expiryDate ? (
+                      <div
+                        className="mono"
+                        style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}
+                      >
+                        Exp {formatDate(row.expiryDate)}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td>
+                    <div style={{ fontWeight: 700 }}>{row.locationLabel}</div>
+                    <LocationTypeBadge type={row.locationType} vehicleCode={row.vehicleCode} />
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                    {formatNumber(row.qtyAvailable)} <small>{row.smallestUnitCode}</small>
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                    {formatLKR(row.unitCostSmallest)}
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                    {formatLKR(row.stockValue)}
+                  </td>
+                  <td>
+                    <div style={{ fontSize: 12 }}>{formatDate(row.receivedDate)}</div>
+                    {row.receivedDate ? (
+                      <div
+                        className="mono"
+                        style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}
+                      >
+                        {formatTime(row.receivedDate)}
+                      </div>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+              <tr
+                style={{
+                  background: 'color-mix(in srgb, var(--color-bg-elevated) 65%, transparent)',
+                }}
+              >
+                <td colSpan={2} style={{ fontWeight: 800 }}>
+                  TOTAL
+                </td>
+                <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                  {formatNumber(totalQty)} <small>{unitCode}</small>
+                </td>
+                <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                  {totalQty > 0 ? formatLKR(totalValue / totalQty) : formatLKR(0)}
+                </td>
+                <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                  {formatLKR(totalValue)}
+                </td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ padding: 22, textAlign: 'center', color: 'var(--color-text-muted)' }}>
+          No active stock batches with available quantity.
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function StockOverviewPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -262,7 +427,7 @@ export default function StockOverviewPage() {
   const [isLoadingLocations, setIsLoadingLocations] = useState(false)
 
   const { data: rawLevels, isLoading: isLoadingLevels, refetch: refetchLevels } = useStockLevels()
-  const { data: expiringBatches, refetch: refetchExpiring } = useExpiringBatches(30)
+  const { refetch: refetchExpiring } = useExpiringBatches(30)
   const {
     data: activeBatches,
     isLoading: isLoadingActiveBatches,
@@ -381,6 +546,71 @@ export default function StockOverviewPage() {
     return result
   }, [activeBatches])
 
+  const batchRowsByProductId = useMemo(() => {
+    const result = new Map()
+
+    for (const batch of activeBatches || []) {
+      const qtyAvailable = Number(batch.qtyAvailable || 0)
+      if (qtyAvailable <= 0) continue
+
+      const location = locationById[batch.stockLocationId]
+      const locationType = getLocationType(location)
+      const locationCode = location?.code || ''
+      const locationName = location?.name || batch.stockLocationId
+      const unitCostSmallest = Number(batch.unitCostSmallest || 0)
+      const stockValue = qtyAvailable * unitCostSmallest
+      const rows = result.get(batch.productId) || []
+
+      rows.push({
+        ...batch,
+        qtyAvailable,
+        unitCostSmallest,
+        stockValue,
+        locationType,
+        vehicleCode: locationType === 'Vehicle' ? locationCode : '',
+        locationLabel:
+          locationType === 'Vehicle' && locationCode
+            ? `${locationCode}${locationName !== locationCode ? ` (${locationName})` : ''}`
+            : locationName,
+        smallestUnitCode: batch.smallestUnitCode || 'PCS',
+      })
+
+      result.set(batch.productId, rows)
+    }
+
+    for (const rows of result.values()) {
+      rows.sort(
+        (a, b) =>
+          a.locationType.localeCompare(b.locationType) ||
+          a.locationLabel.localeCompare(b.locationLabel) ||
+          dayjs(a.expiryDate || a.receivedDate || 0).valueOf() -
+            dayjs(b.expiryDate || b.receivedDate || 0).valueOf()
+      )
+    }
+
+    return result
+  }, [activeBatches, locationById])
+
+  const batchCostSummaryByProductId = useMemo(() => {
+    const result = new Map()
+
+    for (const [productId, rows] of batchRowsByProductId.entries()) {
+      const totalQty = rows.reduce((sum, row) => sum + row.qtyAvailable, 0)
+      const totalValue = rows.reduce((sum, row) => sum + row.stockValue, 0)
+      const costs = new Set(rows.map((row) => row.unitCostSmallest.toFixed(4)))
+
+      result.set(productId, {
+        batchCount: rows.length,
+        costCount: costs.size,
+        totalQty,
+        totalValue,
+        weightedUnitCost: totalQty > 0 ? totalValue / totalQty : 0,
+      })
+    }
+
+    return result
+  }, [batchRowsByProductId])
+
   const stockRows = useMemo(() => {
     const grouped = new Map()
 
@@ -442,12 +672,21 @@ export default function StockOverviewPage() {
         ...row,
         sellable: row.totalAvailable - row.totalReserved,
         stockValue: Number(stockValueByProductId.get(row.productId) || 0),
+        batchRows: batchRowsByProductId.get(row.productId) || [],
+        batchCostSummary: batchCostSummaryByProductId.get(row.productId) || null,
         locationCount: locationRows.length,
         locationRows,
         product: productById[row.productId] || null,
       }
     })
-  }, [locationById, productById, rawLevels, stockValueByProductId])
+  }, [
+    batchCostSummaryByProductId,
+    batchRowsByProductId,
+    locationById,
+    productById,
+    rawLevels,
+    stockValueByProductId,
+  ])
 
   const locationTypeKpis = useMemo(() => {
     const result = {
@@ -495,46 +734,6 @@ export default function StockOverviewPage() {
       ),
     [locationTypeKpis]
   )
-
-  const kpis = useMemo(() => {
-    const available = stockRows.reduce((sum, row) => sum + row.totalAvailable, 0)
-    const reserved = stockRows.reduce((sum, row) => sum + row.totalReserved, 0)
-    const locationIds = new Set(stockRows.flatMap((row) => [...row.locationIds]))
-    const sellableByProductId = new Map(stockRows.map((row) => [row.productId, row.sellable]))
-    const activeProducts = products.filter((product) => product.status !== 'Inactive')
-    const outOfStockProducts = activeProducts.filter(
-      (product) => Number(sellableByProductId.get(product.id) || 0) <= 0
-    ).length
-    const criticalProducts = activeProducts.filter((product) => {
-      const reorderLevel = Number(product.minValue || 0)
-      if (reorderLevel <= 0) return false
-      const sellable = Number(sellableByProductId.get(product.id) || 0)
-      return sellable > 0 && sellable <= reorderLevel
-    }).length
-    const stockValue = (activeBatches || []).reduce(
-      (sum, batch) =>
-        sum + Number(batch.qtyAvailable || 0) * Number(batch.unitCostSmallest || 0),
-      0
-    )
-    const nearExpiryValue = (expiringBatches || []).reduce(
-      (sum, batch) =>
-        sum + Number(batch.qtyAvailable || 0) * Number(batch.unitCostSmallest || 0),
-      0
-    )
-
-    return {
-      productsWithStock: stockRows.filter((row) => row.totalAvailable > 0).length,
-      available,
-      reserved,
-      sellable: available - reserved,
-      locations: locationIds.size,
-      expiring: (expiringBatches || []).length,
-      criticalProducts,
-      outOfStockProducts,
-      stockValue,
-      nearExpiryValue,
-    }
-  }, [activeBatches, expiringBatches, products, stockRows])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -641,6 +840,7 @@ export default function StockOverviewPage() {
           label="Main stock value"
           value={formatLKRShort(locationTypeKpis.Main.value)}
           helper="Main stock at batch cost"
+          detail={`Full value ${formatLKR(locationTypeKpis.Main.value)}`}
           icon={Banknote}
           tone="var(--color-teal)"
         />
@@ -665,6 +865,7 @@ export default function StockOverviewPage() {
           label="Return stock value"
           value={formatLKRShort(locationTypeKpis.Return.value)}
           helper="Return stock at batch cost"
+          detail={`Full value ${formatLKR(locationTypeKpis.Return.value)}`}
           icon={Banknote}
           tone="var(--color-amber)"
         />
@@ -778,13 +979,14 @@ export default function StockOverviewPage() {
           </div>
         ) : filteredRows.length ? (
           <div style={{ overflowX: 'auto' }}>
-            <table className="data-table product-table-compact" style={{ minWidth: 1040 }}>
+            <table className="data-table product-table-compact" style={{ minWidth: 1180 }}>
               <thead>
                 <tr>
                   <th style={{ minWidth: 280 }}>Product</th>
                   <th>Status</th>
                   <th>Locations</th>
                   <th style={{ textAlign: 'right' }}>Available</th>
+                  <th style={{ textAlign: 'right' }}>Batch unit cost</th>
                   <th style={{ textAlign: 'right' }}>Stock value</th>
                   <th>Last activity</th>
                   <th style={{ width: 250 }}></th>
@@ -848,6 +1050,12 @@ export default function StockOverviewPage() {
                             {row.smallestUnitCode || 'PCS'}
                           </small>
                         </td>
+                        <td className="mono" style={{ textAlign: 'right' }}>
+                          <BatchUnitCostCell
+                            summary={row.batchCostSummary}
+                            unitCode={row.smallestUnitCode || uom || 'PCS'}
+                          />
+                        </td>
                         <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                           {formatLKR(row.stockValue)}
                         </td>
@@ -893,7 +1101,7 @@ export default function StockOverviewPage() {
                               aria-expanded={expandedProductId === row.productId}
                               style={{ height: 30, padding: '0 9px', fontSize: 11 }}
                             >
-                              <MapPin size={12} /> Locations
+                              <MapPin size={12} /> Audit
                               {expandedProductId === row.productId ? (
                                 <ChevronDown size={12} />
                               ) : (
@@ -914,12 +1122,18 @@ export default function StockOverviewPage() {
                       {expandedProductId === row.productId ? (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={8}
                             style={{ padding: 0, background: 'var(--color-bg-surface)' }}
                           >
                             <StockByLocationPanel
                               productName={productName}
                               rows={row.locationRows}
+                              unitCode={row.smallestUnitCode || uom || 'PCS'}
+                            />
+                            <BatchValuationPanel
+                              productName={productName}
+                              rows={row.batchRows}
+                              totalValue={row.stockValue}
                               unitCode={row.smallestUnitCode || uom || 'PCS'}
                             />
                           </td>

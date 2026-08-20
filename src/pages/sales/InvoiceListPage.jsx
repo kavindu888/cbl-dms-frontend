@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
-import { CalendarDays, ChevronRight, ClipboardList, FileText, Search, X } from 'lucide-react'
+import { CalendarDays, ChevronRight, ClipboardList, FileText, Pencil, Search, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import StatusBadge from '@components/ui/StatusBadge'
 import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@/services/api/masterService'
@@ -46,6 +47,7 @@ function amountTone(value) {
 }
 
 export default function InvoiceListPage() {
+  const navigate = useNavigate()
   const [customers, setCustomers] = useState([])
   const [invoices, setInvoices] = useState([])
   const [search, setSearch] = useState('')
@@ -294,8 +296,10 @@ export default function InvoiceListPage() {
     })
 
     return [...filtered].sort((a, b) => {
-      const dateA = dayjs(a.invoiceDate)
-      const dateB = dayjs(b.invoiceDate)
+      const activityA = a.status === 'Draft' ? a.updatedAt || a.invoiceDate : a.invoiceDate
+      const activityB = b.status === 'Draft' ? b.updatedAt || b.invoiceDate : b.invoiceDate
+      const dateA = dayjs(activityA)
+      const dateB = dayjs(activityB)
       if (!dateA.isSame(dateB)) return dateB.isAfter(dateA) ? 1 : -1
       return String(b.invoiceNumber || '').localeCompare(String(a.invoiceNumber || ''), undefined, {
         numeric: true,
@@ -592,12 +596,20 @@ export default function InvoiceListPage() {
                     routeNameById[invoice.salesRouteId] || invoice.salesRouteName || 'No route'
 
                   return (
-                    <button
-                      type="button"
+                    <div
+                      role="button"
+                      tabIndex={0}
                       key={invoice.id}
                       onClick={() => {
                         setError('')
                         setSelectedId(invoice.id)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setError('')
+                          setSelectedId(invoice.id)
+                        }
                       }}
                       style={{
                         width: '100%',
@@ -632,6 +644,20 @@ export default function InvoiceListPage() {
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <StatusBadge status={invoiceStatusLabel(invoice.status)} />
+                          {invoice.status === 'Draft' ? (
+                            <button
+                              type="button"
+                              className="button-primary"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                navigate(`/sales/invoices/${invoice.id}/edit`)
+                              }}
+                              style={{ height: 28, padding: '0 10px' }}
+                            >
+                              <Pencil style={{ width: 13, height: 13 }} />
+                              Edit
+                            </button>
+                          ) : null}
                           <ChevronRight
                             style={{
                               width: 15,
@@ -702,7 +728,7 @@ export default function InvoiceListPage() {
                           {formatMoney(invoice.outstandingAmount)}
                         </span>
                       </div>
-                    </button>
+                    </div>
                   )
                 })}
               </div>

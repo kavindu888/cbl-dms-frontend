@@ -11,7 +11,6 @@ import CustomerAccountPage from '@pages/collections/CustomerAccountPage'
 import DepositBatchesPage from '@pages/collections/DepositBatchesPage'
 import ReconciliationPage from '@pages/collections/ReconciliationPage'
 import DashboardPage from '@pages/dashboard/DashboardPage'
-import MyDraftsPage from '@pages/drafts/MyDraftsPage'
 import FleetOverviewPage from '@pages/fleet/FleetOverviewPage'
 import VehicleDetailPage from '@pages/fleet/VehicleDetailPage'
 import StockModulePage from '@pages/inventory/StockModulePage'
@@ -112,6 +111,10 @@ export const router = createBrowserRouter([
       },
       {
         path: 'purchasing/place-order',
+        element: requirePermission(<PlacePurchaseOrderPage />, PERMISSIONS.purchasing.poCreate),
+      },
+      {
+        path: 'purchasing/place-order/:id/edit',
         element: requirePermission(<PlacePurchaseOrderPage />, PERMISSIONS.purchasing.poCreate),
       },
       {
@@ -253,6 +256,10 @@ export const router = createBrowserRouter([
         element: requirePermission(<VehicleLoadingCreatePage />, PERMISSIONS.inventory.vehicleLoad),
       },
       {
+        path: 'inventory/vehicle-loadings/:id/edit',
+        element: requirePermission(<VehicleLoadingCreatePage />, PERMISSIONS.inventory.vehicleLoad),
+      },
+      {
         path: 'inventory/vehicle-loadings/:id',
         element: requirePermission(<VehicleLoadingDetailPage />, PERMISSIONS.inventory.vehicleLoad),
       },
@@ -265,6 +272,13 @@ export const router = createBrowserRouter([
       },
       {
         path: 'inventory/vehicle-unloadings/new',
+        element: requirePermission(
+          <VehicleUnloadingCreatePage />,
+          PERMISSIONS.inventory.vehicleUnload
+        ),
+      },
+      {
+        path: 'inventory/vehicle-unloadings/:id/edit',
         element: requirePermission(
           <VehicleUnloadingCreatePage />,
           PERMISSIONS.inventory.vehicleUnload
@@ -448,6 +462,10 @@ export const router = createBrowserRouter([
         element: requirePermission(<InvoiceCreatorPage />, PERMISSIONS.sales.invoiceCreate),
       },
       {
+        path: 'sales/invoices/:id/edit',
+        element: requirePermission(<InvoiceCreatorPage />, PERMISSIONS.sales.invoiceCreate),
+      },
+      {
         path: 'sales/invoice-payment-record',
         element: requirePermission(<InvoicePaymentRecordPage />, {
           all: [PERMISSIONS.sales.invoiceRead, PERMISSIONS.sales.invoiceAddPayment],
@@ -550,10 +568,6 @@ export const router = createBrowserRouter([
       {
         path: 'profile',
         element: <UserProfilePage />,
-      },
-      {
-        path: 'drafts',
-        element: <MyDraftsPage />,
       },
     ],
   },
