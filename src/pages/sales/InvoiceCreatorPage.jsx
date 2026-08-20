@@ -1,16 +1,12 @@
 import { ArrowLeft, Info, Plus, RotateCcw, Save, Search, Trash2, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import DraftStatusBadge from '@/components/drafts/DraftStatusBadge'
-import ResumeDraftModal from '@/components/drafts/ResumeDraftModal'
-import { useAutosaveDraft } from '@/hooks/useAutosaveDraft'
-import { draftsService } from '@/services/api/draftsService'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
-import { useDraftsStore } from '@/stores/draftsStore'
 import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { formatDate } from '@/utils'
 import SimplePagination from '@components/ui/SimplePagination'
@@ -118,6 +114,16 @@ function toInputDate(value) {
   const text = String(value)
   if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10)
   return new Date(value).toISOString().slice(0, 10)
+}
+
+function returnReasonValue(value) {
+  if (value === null || value === undefined || value === '') return 4
+  if (!Number.isNaN(Number(value))) return Number(value)
+  const normalized = String(value).toLowerCase()
+  if (normalized === 'damaged') return 1
+  if (normalized === 'expired') return 2
+  if (normalized === 'shortexpiry' || normalized === 'short expiry') return 3
+  return 4
 }
 
 function SearchablePicker({
@@ -305,9 +311,15 @@ function SearchablePicker({
 export default function InvoiceCreatorPage() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { id: routeInvoiceId } = useParams()
   const orderState = location.state
   const isFromSalesOrder = orderState?.fromSalesOrder === true
+  const isEditingDraftInvoice = Boolean(routeInvoiceId) && !isFromSalesOrder
   const hasPrefilledFromSalesOrder = useRef(false)
+  const hasHydratedDraftInvoice = useRef(false)
+  const draftSaveTimeout = useRef(null)
+  const lastDraftPayloadRef = useRef('')
+  const isHydratingDraftRef = useRef(false)
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [isLoadingData, setIsLoadingData] = useState(true)
@@ -333,7 +345,9 @@ export default function InvoiceCreatorPage() {
   const [manualSkuDiscountAmount, setManualSkuDiscountAmount] = useState('')
   const [manualSpecialDiscountAmount, setManualSpecialDiscountAmount] = useState('')
   const [sourceOrderSummary, setSourceOrderSummary] = useState(null)
-  const [resumeModalDraft, setResumeModalDraft] = useState(null)
+  const [draftInvoiceId, setDraftInvoiceId] = useState(routeInvoiceId || '')
+  const [draftStatus, setDraftStatus] = useState(routeInvoiceId ? 'saved' : 'idle')
+  const [lastSavedAt, setLastSavedAt] = useState(null)
   const serialCheckTimeout = useRef(null)
 
   const {
@@ -357,80 +371,6 @@ export default function InvoiceCreatorPage() {
     return customers.find((item) => item.id === selectedCustomerId) || null
   }, [customers, selectedCustomerId])
   const isCustomerVatRegistered = Boolean(selectedCustomerDetails?.isVatRegistered)
-
-  function restoreFromDraft(entry) {
-    const payload = entry?.payload || {}
-    if (payload.formValues) reset(payload.formValues)
-    const extra = payload.extra || {}
-    setSerialNumber(extra.serialNumber || '')
-    setInvoiceDate(extra.invoiceDate || todayInputDate())
-    setReturnLines(extra.returnLines || [])
-    setManualSkuDiscountAmount(extra.manualSkuDiscountAmount ?? '')
-    setManualSpecialDiscountAmount(extra.manualSpecialDiscountAmount ?? '')
-    setReturnDraftLine(
-      extra.returnDraftLine || {
-        productId: '',
-        quantity: 1,
-        reason: 4,
-        mrp: 0,
-        categoryDiscountPercent: 0,
-        discountPercent: 0,
-      }
-    )
-  }
-
-  useEffect(() => {
-    if (isFromSalesOrder) return
-    const resumeDraftId = location.state?.resumeDraftId
-    if (resumeDraftId) {
-      const entry = useDraftsStore.getState().drafts[resumeDraftId]
-      if (entry) {
-        restoreFromDraft(entry)
-        toast.success('Draft resumed.')
-      }
-      return
-    }
-    const latest = useDraftsStore.getState().getLatestByType('Invoice')
-    if (latest) setResumeModalDraft(latest)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  function handleResumeDraft() {
-    restoreFromDraft(resumeModalDraft)
-    setResumeModalDraft(null)
-    toast.success('Draft resumed.')
-  }
-
-  function handleDiscardResumeDraft() {
-    const entry = resumeModalDraft
-    if (entry) {
-      useDraftsStore.getState().removeDraft(entry.id)
-      if (entry.serverId) draftsService.deleteDraft(entry.serverId).catch(() => {})
-    }
-    setResumeModalDraft(null)
-  }
-
-  const {
-    status: draftStatus,
-    lastSavedAt,
-    discardDraft,
-  } = useAutosaveDraft({
-    draftType: 'Invoice',
-    referenceId: null,
-    getSnapshot: () => ({
-      formValues: getValues(),
-      extra: {
-        serialNumber,
-        invoiceDate,
-        returnLines,
-        manualSkuDiscountAmount,
-        manualSpecialDiscountAmount,
-        returnDraftLine,
-      },
-    }),
-    label: selectedCustomer?.name,
-    enabled: !isFromSalesOrder,
-  })
 
   const [linePage, setLinePage] = useState(1)
   const linePageSize = 5
@@ -645,6 +585,88 @@ export default function InvoiceCreatorPage() {
       isCurrent = false
     }
   }, [selectedCustomerId])
+
+  useEffect(() => {
+    if (!routeInvoiceId || isFromSalesOrder || hasHydratedDraftInvoice.current) return
+    hasHydratedDraftInvoice.current = true
+    isHydratingDraftRef.current = true
+
+    async function hydrateDraftInvoice() {
+      setIsLoadingData(true)
+      try {
+        const invoice = await salesService.getInvoice(routeInvoiceId)
+        if (invoice.status !== 'Draft') {
+          toast.error('Only draft invoices can be edited.')
+          navigate(`/sales/invoices/${routeInvoiceId}`, { replace: true })
+          return
+        }
+
+        const normalLines = (invoice.lines || []).filter((line) => !line.isReturnLine)
+        const invoiceReturnLines = (invoice.lines || []).filter((line) => line.isReturnLine)
+
+        reset({
+          customerId: invoice.customerId || '',
+          salesRouteId: invoice.salesRouteId || '',
+          lines: normalLines.length
+            ? normalLines.map((line) => ({
+                productId: line.productId || '',
+                unitId: line.unitId || line.smallestUnitCode || '',
+                unitName: line.smallestUnitCode || line.unitId || '',
+                quantity: Number(line.quantity || 0),
+                mrp: Number(line.mrp || 0),
+                categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
+                skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
+                skuDiscountMax: Math.max(Number(line.skuDiscountPercent || 0), 5),
+                skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+                specialDiscountAvailable: Number(line.specialDiscountPercent || 0) > 0,
+                specialDiscountMax: Math.max(Number(line.specialDiscountPercent || 0), 10),
+                specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+              }))
+            : [{ ...emptyLine }],
+        })
+
+        setSerialNumber(invoice.serialNumber || '')
+        setInvoiceDate(toInputDate(invoice.invoiceDate) || todayInputDate())
+        setReturnLines(
+          invoiceReturnLines.map((line) => ({
+            id: line.id,
+            productId: line.productId,
+            quantity: Number(line.quantity || 0),
+            reason: returnReasonValue(line.returnReason),
+            returnReason: returnReasonValue(line.returnReason),
+            mrp: Number(line.mrp || 0),
+            categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
+            discountPercent: Number(line.totalDiscountPercent || 0),
+            skuDiscountPercent: 0,
+            specialDiscountPercent: 0,
+            isReturnLine: true,
+          }))
+        )
+        setManualSkuDiscountAmount(
+          Number(invoice.totalSkuDiscountAmount || 0) > 0
+            ? String(Number(invoice.totalSkuDiscountAmount || 0))
+            : ''
+        )
+        setManualSpecialDiscountAmount(
+          Number(invoice.totalSpecialDiscountAmount || 0) > 0
+            ? String(Number(invoice.totalSpecialDiscountAmount || 0))
+            : ''
+        )
+        setDraftInvoiceId(invoice.id)
+        setDraftStatus('saved')
+        setLastSavedAt(invoice.updatedAt || invoice.invoiceDate || null)
+        setLinePage(1)
+        lastDraftPayloadRef.current = ''
+      } catch (error) {
+        toast.error(error?.message || 'Unable to load draft invoice.')
+      } finally {
+        isHydratingDraftRef.current = false
+        setIsLoadingData(false)
+      }
+    }
+
+    hydrateDraftInvoice()
+  }, [isFromSalesOrder, navigate, reset, routeInvoiceId])
 
   useEffect(() => {
     let isCurrent = true
@@ -972,6 +994,109 @@ export default function InvoiceCreatorPage() {
     return vehicleLocationIds[0]
   }
 
+  function buildInvoicePayload(values, vehicleLocationId = null) {
+    return {
+      customerId: values.customerId,
+      salesRouteId: values.salesRouteId,
+      serialNumber: serialNumber.trim(),
+      invoiceDate: toColomboDateTimeOffset(invoiceDate),
+      dueDate: null,
+      isTaxInvoice: isCustomerVatRegistered,
+      customerVatTin: selectedCustomerDetails?.taxNumber || null,
+      notes: null,
+      vehicleLocationId,
+      manualSkuDiscountAmount: totals.skuDiscount,
+      manualSpecialDiscountAmount: totals.specialDiscount,
+      lines: [
+        ...values.lines
+          .filter((line) => line.productId && Number(line.quantity) > 0)
+          .map((line) => ({
+            productId: line.productId,
+            quantity: Number(line.quantity),
+            skuDiscountPercent: Number(line.skuDiscountPercent || 0),
+            specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+          })),
+        ...returnLines
+          .filter((line) => line.productId && Number(line.quantity) > 0)
+          .map((line) => ({
+            productId: line.productId,
+            quantity: Math.abs(Number(line.quantity || 0)),
+            skuDiscountPercent: 0,
+            specialDiscountPercent: 0,
+            isReturnLine: true,
+            returnReason: returnReasonValue(line.returnReason || line.reason),
+          })),
+      ],
+    }
+  }
+
+  async function saveInvoiceDraft(values = getValues(), { immediate = false } = {}) {
+    if (isFromSalesOrder || !values.customerId || !values.salesRouteId) return draftInvoiceId
+    if (isHydratingDraftRef.current) return draftInvoiceId
+
+    const payload = buildInvoicePayload(values)
+    const payloadJson = JSON.stringify(payload)
+    if (payloadJson === lastDraftPayloadRef.current && draftInvoiceId) return draftInvoiceId
+
+    async function persist() {
+      setDraftStatus('saving')
+      try {
+        let id = draftInvoiceId
+        if (!id) {
+          const response = await salesService.createInvoiceDraft(payload)
+          id = getInvoiceId(response)
+          setDraftInvoiceId(id)
+          if (!routeInvoiceId && id) {
+            navigate(`/sales/invoices/${id}/edit`, { replace: true })
+          }
+        }
+        if (id) {
+          await salesService.updateInvoiceDraft(id, payload)
+          lastDraftPayloadRef.current = payloadJson
+          setLastSavedAt(new Date().toISOString())
+          setDraftStatus('saved')
+        }
+        return id
+      } catch (error) {
+        setDraftStatus('error')
+        if (immediate) throw error
+        return draftInvoiceId
+      }
+    }
+
+    if (immediate) return persist()
+
+    if (draftSaveTimeout.current) clearTimeout(draftSaveTimeout.current)
+    draftSaveTimeout.current = setTimeout(() => {
+      persist().catch(() => {})
+    }, 1200)
+    setDraftStatus('saving')
+    return draftInvoiceId
+  }
+
+  useEffect(() => {
+    if (isFromSalesOrder || isHydratingDraftRef.current) return undefined
+    if (!selectedCustomerId || !selectedSalesRouteId) return undefined
+
+    saveInvoiceDraft()
+
+    return () => {
+      if (draftSaveTimeout.current) clearTimeout(draftSaveTimeout.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedCustomerId,
+    selectedSalesRouteId,
+    serialNumber,
+    invoiceDate,
+    lines,
+    returnLines,
+    manualSkuDiscountAmount,
+    manualSpecialDiscountAmount,
+    isCustomerVatRegistered,
+    selectedCustomerDetails?.taxNumber,
+  ])
+
   async function onSubmit(values) {
     const validationMessage = validate(values)
     if (validationMessage) {
@@ -987,43 +1112,20 @@ export default function InvoiceCreatorPage() {
       return
     }
 
-    const payload = {
-      customerId: values.customerId,
-      serialNumber: serialNumber.trim(),
-      invoiceDate: toColomboDateTimeOffset(invoiceDate),
-      dueDate: null,
-      isTaxInvoice: isCustomerVatRegistered,
-      customerVatTin: selectedCustomerDetails?.taxNumber || null,
-      notes: null,
-      vehicleLocationId,
-      manualSkuDiscountAmount: totals.skuDiscount,
-      manualSpecialDiscountAmount: totals.specialDiscount,
-      lines: [
-        ...values.lines.map((line) => ({
-          productId: line.productId,
-          quantity: Number(line.quantity),
-          skuDiscountPercent: Number(line.skuDiscountPercent || 0),
-          specialDiscountPercent: Number(line.specialDiscountPercent || 0),
-        })),
-        ...returnLines.map((line) => ({
-          productId: line.productId,
-          quantity: Math.abs(Number(line.quantity || 0)),
-          skuDiscountPercent: 0,
-          specialDiscountPercent: 0,
-          isReturnLine: true,
-          returnReason: Number(line.returnReason || 4),
-        })),
-      ],
-    }
+    const payload = buildInvoicePayload(values, vehicleLocationId)
 
     setIsSaving(true)
     try {
       const response = isFromSalesOrder
         ? await salesService.convertSalesOrderToInvoice(orderState.salesOrderId, {
-          serialNumber: serialNumber.trim(),
-          notes: null,
-        })
-        : await salesService.createInvoice(payload)
+            serialNumber: serialNumber.trim(),
+            notes: null,
+          })
+        : await (async () => {
+            const id = await saveInvoiceDraft(values, { immediate: true })
+            await salesService.finalizeInvoiceDraft(id, { vehicleLocationId: payload.vehicleLocationId })
+            return id
+          })()
       console.log('Create invoice response:', response)
       console.log('Type:', typeof response)
       const invoiceId = getInvoiceId(response)
@@ -1031,12 +1133,12 @@ export default function InvoiceCreatorPage() {
       setSelectedCustomerDetails(null)
       setSalesRouteName('')
       setLinePage(1)
-      if (!isFromSalesOrder) discardDraft()
       if (isFromSalesOrder) {
         toast.success('Sales order converted to invoice.')
         navigate(invoiceId ? `/sales/invoices/${invoiceId}` : '/sales/invoices/new', { replace: true })
       } else {
         toast.success('Invoice created successfully.')
+        navigate(invoiceId ? `/sales/invoices/${invoiceId}` : '/sales/invoices', { replace: true })
       }
     } catch (error) {
       toast.error(error?.message || 'Invoice could not be created.')
@@ -1080,7 +1182,11 @@ export default function InvoiceCreatorPage() {
         ) : null}
         <div style={{ alignItems: 'center', display: 'flex', gap: 12 }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-            {isFromSalesOrder ? 'Convert to Invoice' : 'Create Invoice'}
+            {isFromSalesOrder
+              ? 'Convert to Invoice'
+              : isEditingDraftInvoice
+                ? 'Edit Draft Invoice'
+                : 'Create Invoice'}
           </h1>
           {!isFromSalesOrder ? (
             <DraftStatusBadge status={draftStatus} lastSavedAt={lastSavedAt} />
@@ -1089,7 +1195,9 @@ export default function InvoiceCreatorPage() {
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
           {isFromSalesOrder
             ? `Converting Sales Order ${orderState.salesOrderNumber || ''}. You can adjust before saving.`
-            : `Backend creates the invoice with today's server date: ${formatDate(new Date())}.`}
+            : isEditingDraftInvoice
+              ? 'Changes stay as a draft until the invoice is finalized.'
+              : `Backend creates the invoice with today's server date: ${formatDate(new Date())}.`}
         </p>
       </div>
 
@@ -1819,17 +1927,11 @@ export default function InvoiceCreatorPage() {
               }
             >
               <Save style={{ width: 15, height: 15 }} />
-              {isSaving ? 'Saving...' : 'Save'}
+              {isSaving ? 'Saving...' : 'Finalize Invoice'}
             </button>
           </div>
         </aside>
       </form>
-      <ResumeDraftModal
-        draft={resumeModalDraft}
-        onResume={handleResumeDraft}
-        onDiscard={handleDiscardResumeDraft}
-        onClose={() => setResumeModalDraft(null)}
-      />
     </div>
   )
 }
