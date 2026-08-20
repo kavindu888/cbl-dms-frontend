@@ -32,7 +32,7 @@ function formatNumber(value) {
   return Number(value || 0).toLocaleString('en-LK', { maximumFractionDigits: 2 })
 }
 
-function MetricCard({ label, value, helper, icon: Icon, tone }) {
+function MetricCard({ label, value, helper, detail, icon: Icon, tone }) {
   return (
     <section
       className="panel"
@@ -78,6 +78,24 @@ function MetricCard({ label, value, helper, icon: Icon, tone }) {
         >
           {helper}
         </div>
+        {detail ? (
+          <div
+            className="mono"
+            style={{
+              marginTop: 5,
+              fontSize: 13,
+              lineHeight: 1.2,
+              fontWeight: 800,
+              color: 'var(--color-text)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={detail}
+          >
+            {detail}
+          </div>
+        ) : null}
       </div>
     </section>
   )
@@ -811,6 +829,7 @@ export default function StockOverviewPage() {
           label="Main stock value"
           value={formatLKRShort(locationTypeKpis.Main.value)}
           helper="Main stock at batch cost"
+          detail={`Full value ${formatLKR(locationTypeKpis.Main.value)}`}
           icon={Banknote}
           tone="var(--color-teal)"
         />
@@ -835,6 +854,7 @@ export default function StockOverviewPage() {
           label="Return stock value"
           value={formatLKRShort(locationTypeKpis.Return.value)}
           helper="Return stock at batch cost"
+          detail={`Full value ${formatLKR(locationTypeKpis.Return.value)}`}
           icon={Banknote}
           tone="var(--color-amber)"
         />

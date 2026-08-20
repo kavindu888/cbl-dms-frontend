@@ -6,6 +6,7 @@ import {
   ClipboardList,
   FileText,
   Package,
+  Pencil,
   Search,
   X,
 } from 'lucide-react'
@@ -22,6 +23,7 @@ const itemPageSize = 5
 
 const statusOptions = [
   { value: '', label: 'All statuses' },
+  { value: PurchaseOrderStatus.Draft, label: 'Draft' },
   { value: PurchaseOrderStatus.Submitted, label: 'Pending Approval' },
   { value: PurchaseOrderStatus.Approved, label: 'Approved' },
   { value: PurchaseOrderStatus.Rejected, label: 'Rejected' },
@@ -683,17 +685,22 @@ export default function AllPurchaseOrdersPage() {
                       {selectedOrder.poNumber}
                     </span>
                     <StatusBadge status={getStatusLabel(selectedOrder)} />
-                    {Number(selectedOrder.status) === Number(PurchaseOrderStatus.Rejected) && (
+                    {[PurchaseOrderStatus.Draft, PurchaseOrderStatus.Rejected].includes(
+                      Number(selectedOrder.status)
+                    ) && (
                       <button
                         type="button"
                         className="button-primary"
                         onClick={() =>
-                          navigate('/purchasing/place-order', {
-                            state: { editPoId: selectedOrder.id },
-                          })
+                          Number(selectedOrder.status) === Number(PurchaseOrderStatus.Draft)
+                            ? navigate(`/purchasing/place-order/${selectedOrder.id}/edit`)
+                            : navigate('/purchasing/place-order', {
+                                state: { editPoId: selectedOrder.id },
+                              })
                         }
                         style={{ height: 28, padding: '0 10px', fontSize: 11 }}
                       >
+                        <Pencil style={{ width: 12, height: 12 }} />
                         Edit Order
                       </button>
                     )}

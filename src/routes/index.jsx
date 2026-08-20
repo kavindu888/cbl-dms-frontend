@@ -114,6 +114,10 @@ export const router = createBrowserRouter([
         element: requirePermission(<PlacePurchaseOrderPage />, PERMISSIONS.purchasing.poCreate),
       },
       {
+        path: 'purchasing/place-order/:id/edit',
+        element: requirePermission(<PlacePurchaseOrderPage />, PERMISSIONS.purchasing.poCreate),
+      },
+      {
         path: 'purchasing/approvals',
         element: requirePermission(<PurchaseOrderApprovalPage />, {
           all: [PERMISSIONS.purchasing.poRead, PERMISSIONS.purchasing.poApprove],
