@@ -928,7 +928,7 @@ export default function StockOverviewPage() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <select
-              className="form-select"
+              className="form-input"
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value)}
               style={{ height: 34, width: 210, fontSize: 12 }}
