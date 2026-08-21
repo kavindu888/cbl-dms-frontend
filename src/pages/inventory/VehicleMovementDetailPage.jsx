@@ -67,6 +67,8 @@ export default function VehicleMovementDetailPage({
   const applyMovement = useApply()
   const cancelMovement = useCancel()
   const [deliveryRuns, setDeliveryRuns] = useState([])
+  const [productById, setProductById] = useState({})
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [createdByName, setCreatedByName] = useState('')
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false)
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
@@ -118,6 +120,42 @@ export default function VehicleMovementDetailPage({
       active = false
     }
   }, [movement?.createdByUserId])
+
+  useEffect(() => {
+    const productIds = [
+      ...new Set((movement?.lines || []).map((line) => line.productId).filter(Boolean)),
+    ]
+
+    if (!productIds.length) {
+      setProductById({})
+      setIsLoadingProducts(false)
+      return undefined
+    }
+
+    let active = true
+    setProductById({})
+    setIsLoadingProducts(true)
+
+    Promise.allSettled(productIds.map((productId) => masterService.getProduct(productId)))
+      .then((results) => {
+        if (!active) return
+
+        const products = {}
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled' && result.value) {
+            products[productIds[index]] = result.value
+          }
+        })
+        setProductById(products)
+      })
+      .finally(() => {
+        if (active) setIsLoadingProducts(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [movement?.lines])
 
   async function handleApply(event) {
     event.preventDefault()
@@ -413,38 +451,46 @@ export default function VehicleMovementDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {movement.lines.map((line) => (
-                  <tr key={line.id}>
-                    <td>
-                      <span className="product-sku-badge mono">{line.productSku}</span>
-                    </td>
-                    <td className="mono">{line.sourceBatchNo || '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-                      {formatNumber(line.qtySmallest)}
-                    </td>
-                    {isUnloading ? (
-                      <>
-                        <td>
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
-                          >
-                            {unloadingTypeLabel(line.unloadingType).toUpperCase()}
-                          </span>
-                        </td>
-                        <td>{returnReasonLabel(line.returnReason)}</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="mono" style={{ textAlign: 'right' }}>
-                          {formatLKR(line.unitCostSmallest)}
-                        </td>
-                        <td className="mono" style={{ textAlign: 'right' }}>
-                          {formatLKR(line.mrp)}
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                ))}
+                {movement.lines.map((line) => {
+                  const productName = line.productName || productById[line.productId]?.name
+
+                  return (
+                    <tr key={line.id}>
+                      <td>
+                        <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
+                          {productName ||
+                            (isLoadingProducts ? 'Loading product...' : 'Product name unavailable')}
+                        </strong>
+                        <span className="product-sku-badge mono">{line.productSku}</span>
+                      </td>
+                      <td className="mono">{line.sourceBatchNo || '—'}</td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                        {formatNumber(line.qtySmallest)}
+                      </td>
+                      {isUnloading ? (
+                        <>
+                          <td>
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
+                            >
+                              {unloadingTypeLabel(line.unloadingType).toUpperCase()}
+                            </span>
+                          </td>
+                          <td>{returnReasonLabel(line.returnReason)}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="mono" style={{ textAlign: 'right' }}>
+                            {formatLKR(line.unitCostSmallest)}
+                          </td>
+                          <td className="mono" style={{ textAlign: 'right' }}>
+                            {formatLKR(line.mrp)}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
