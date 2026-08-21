@@ -437,45 +437,25 @@ export default function StockOverviewPage() {
   useEffect(() => {
     let active = true
 
-    async function loadReferenceData() {
-      setIsLoadingReferenceData(true)
+    async function loadProducts() {
+      setIsLoadingProducts(true)
       try {
-        const [allProducts, firstLocationPage] = await Promise.all([
-          masterService.listAllProducts({ pageSize: 100 }),
-          inventoryService.listStockLocations({ page: 1, pageSize: 100 }),
-        ])
-        const allLocations = [...(firstLocationPage.items || [])]
-        const locationTotalPages = Number(
-          firstLocationPage.totalPages ??
-            Math.ceil(Number(firstLocationPage.totalItems || allLocations.length) / 100) ??
-            1
-        )
-
-        if (locationTotalPages > 1) {
-          const remaining = await Promise.all(
-            Array.from({ length: locationTotalPages - 1 }, (_, index) =>
-              inventoryService.listStockLocations({ page: index + 2, pageSize: 100 })
-            )
-          )
-          remaining.forEach((result) => allLocations.push(...(result.items || [])))
-        }
+        const allProducts = await masterService.listAllProducts({ pageSize: 100 })
 
         if (active) {
           setProducts(allProducts)
-          setStockLocations(allLocations)
         }
       } catch (error) {
         if (active) {
           setProducts([])
-          setStockLocations([])
-          toast.error(error.message || 'Unable to load product and stock location details.')
+          toast.error(error.message || 'Unable to load product details.')
         }
       } finally {
-        if (active) setIsLoadingReferenceData(false)
+        if (active) setIsLoadingProducts(false)
       }
     }
 
-    loadReferenceData()
+    loadProducts()
     return () => {
       active = false
     }
