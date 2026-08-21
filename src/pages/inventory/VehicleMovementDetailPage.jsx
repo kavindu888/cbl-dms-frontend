@@ -208,10 +208,12 @@ export default function VehicleMovementDetailPage({
     (sum, line) => sum + Number(line.qtySmallest || 0),
     0
   )
-  const totalValue = (movement.lines || []).reduce(
-    (sum, line) => sum + Number(line.qtySmallest || 0) * Number(line.unitCostSmallest || 0),
-    0
-  )
+  const totalValue = (movement.lines || []).reduce((sum, line) => {
+    const unitCost = Number(line.unitCostSmallest || 0)
+    const qty = Number(line.qtySmallest || 0)
+    const sellingPrice = unitCost + (unitCost * 0.067)
+    return sum + (sellingPrice * qty)
+  }, 0)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -426,33 +428,28 @@ export default function VehicleMovementDetailPage({
               style={{ minWidth: 760, tableLayout: 'fixed', width: '100%' }}
             >
               <colgroup>
-                <col style={{ width: '22%' }} />
-                <col style={{ width: '28%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '17%' }} />
-                <col style={{ width: '17%' }} />
+                <col style={{ width: '30%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '20%' }} />
               </colgroup>
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th>Source Batch</th>
                   <th style={{ textAlign: 'right' }}>Qty</th>
-                  {isUnloading ? (
-                    <>
-                      <th>Type</th>
-                      <th>Reason</th>
-                    </>
-                  ) : (
-                    <>
-                      <th style={{ textAlign: 'right' }}>Unit Cost</th>
-                      <th style={{ textAlign: 'right' }}>MRP</th>
-                    </>
-                  )}
+                  <th style={{ textAlign: 'right' }}>Selling Price</th>
+                  <th style={{ textAlign: 'right' }}>MRP</th>
+                  <th style={{ textAlign: 'right' }}>Value</th>
                 </tr>
               </thead>
               <tbody>
                 {movement.lines.map((line) => {
                   const productName = line.productName || productById[line.productId]?.name
+                  const unitCost = Number(line.unitCostSmallest || 0)
+                  const qty = Number(line.qtySmallest || 0)
+                  const sellingPrice = unitCost + (unitCost * 0.067)
+                  const value = sellingPrice * qty
 
                   return (
                     <tr key={line.id}>
@@ -463,31 +460,18 @@ export default function VehicleMovementDetailPage({
                         </strong>
                         <span className="product-sku-badge mono">{line.productSku}</span>
                       </td>
-                      <td className="mono">{line.sourceBatchNo || '—'}</td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-                        {formatNumber(line.qtySmallest)}
+                        {formatNumber(qty)}
                       </td>
-                      {isUnloading ? (
-                        <>
-                          <td>
-                            <span
-                              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
-                            >
-                              {unloadingTypeLabel(line.unloadingType).toUpperCase()}
-                            </span>
-                          </td>
-                          <td>{returnReasonLabel(line.returnReason)}</td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="mono" style={{ textAlign: 'right' }}>
-                            {formatLKR(line.unitCostSmallest)}
-                          </td>
-                          <td className="mono" style={{ textAlign: 'right' }}>
-                            {formatLKR(line.mrp)}
-                          </td>
-                        </>
-                      )}
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {formatLKR(sellingPrice)}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {formatLKR(line.mrp)}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                        {formatLKR(value)}
+                      </td>
                     </tr>
                   )
                 })}
