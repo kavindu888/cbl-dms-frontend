@@ -1,5 +1,6 @@
 export * from './authStorage'
 export * from './cn'
+export * from './fileDownload'
 export * from './formatCurrency'
 export * from './formatDate'
 export * from './validation'
