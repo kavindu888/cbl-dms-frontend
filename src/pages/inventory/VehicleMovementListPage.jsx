@@ -2,6 +2,7 @@ import { ChevronRight, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatDate } from '@/utils/formatDate'
+import { formatLKR } from '@/utils/formatCurrency'
 import { useVehicles } from '@/hooks/useVehicle'
 import { masterService } from '@/services/api/masterService'
 import { useEffect } from 'react'
@@ -152,6 +153,7 @@ export default function VehicleMovementListPage({
                 <th>Vehicle</th>
                 {kind === 'Loading' ? <th>Delivery Run</th> : null}
                 <th className="text-right">Lines</th>
+                <th className="text-right">Total Value</th>
                 <th>Status</th>
                 <th className="text-right">Action</th>
               </tr>
@@ -159,7 +161,7 @@ export default function VehicleMovementListPage({
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={kind === 'Loading' ? 7 : 6}>Loading {title.toLowerCase()}...</td>
+                  <td colSpan={kind === 'Loading' ? 8 : 7}>Loading {title.toLowerCase()}...</td>
                 </tr>
               ) : filteredRows.length ? (
                 filteredRows.map((row) => {
@@ -192,6 +194,7 @@ export default function VehicleMovementListPage({
                         </td>
                       ) : null}
                       <td className="mono text-right">{row.lineCount ?? row.lines?.length ?? 0}</td>
+                      <td className="mono text-right">{formatLKR(row.totalValue)}</td>
                       <td>
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusColors[label] || statusColors.Draft}`}
@@ -205,11 +208,13 @@ export default function VehicleMovementListPage({
                           className="button-secondary"
                           onClick={(event) => {
                             event.stopPropagation()
-                            navigate(`${basePath}/${row.id}`)
+                            navigate(
+                              label === 'Draft' ? `${basePath}/${row.id}/edit` : `${basePath}/${row.id}`
+                            )
                           }}
                           style={{ height: 30 }}
                         >
-                          <ChevronRight size={15} /> View
+                          <ChevronRight size={15} /> {label === 'Draft' ? 'Edit' : 'View'}
                         </button>
                       </td>
                     </tr>
@@ -217,7 +222,7 @@ export default function VehicleMovementListPage({
                 })
               ) : (
                 <tr>
-                  <td colSpan={kind === 'Loading' ? 7 : 6}>No {title.toLowerCase()} found.</td>
+                  <td colSpan={kind === 'Loading' ? 8 : 7}>No {title.toLowerCase()} found.</td>
                 </tr>
               )}
             </tbody>

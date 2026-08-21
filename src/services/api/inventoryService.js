@@ -138,11 +138,19 @@ function formatInStoreReturn(item) {
 function formatVehicleMovement(item) {
   if (!item) return item
   const lines = Array.isArray(item.lines) ? item.lines : []
+  const totalValue =
+    item.totalValue ??
+    lines.reduce(
+      (sum, line) =>
+        sum + Number(line.qtySmallest || 0) * Number(line.unitCostSmallest || line.unitCost || 0),
+      0
+    )
   return {
     ...item,
     status: enumLabel(item.status, vehicleMovementStatusLabels),
     lines,
     lineCount: item.lineCount ?? lines.length,
+    totalValue: Number(totalValue || 0),
   }
 }
 
