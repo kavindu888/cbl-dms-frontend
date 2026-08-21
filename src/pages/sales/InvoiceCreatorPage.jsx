@@ -1404,7 +1404,7 @@ export default function InvoiceCreatorPage() {
                 <col style={{ width: 90 }} />  {/* MRP */}
                 <col style={{ width: 80 }} />  {/* QTY */}
                 <col style={{ width: 110 }} /> {/* Category Discount */}
-                <col style={{ width: 120 }} /> {/* Unit Price */}
+                <col style={{ width: 120 }} /> {/* Selling Price */}
                 <col style={{ width: 130 }} /> {/* Total */}
                 <col style={{ width: 50 }} />  {/* Delete */}
               </colgroup>
@@ -1419,7 +1419,7 @@ export default function InvoiceCreatorPage() {
                   </th>
 
                   <th style={{ textAlign: 'right', paddingRight: 16 }}>
-                    Unit Price
+                    Selling Price
                   </th>
 
                   <th style={{ textAlign: 'right', paddingRight: 16 }}>
