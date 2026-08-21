@@ -105,8 +105,8 @@ function todayInputDate() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function toColomboDateTimeOffset(dateValue) {
-  return new Date(`${dateValue || todayInputDate()}T00:00:00+05:30`).toISOString()
+function toCalendarDateTimeOffset(dateValue) {
+  return `${dateValue || todayInputDate()}T00:00:00.000Z`
 }
 
 function toInputDate(value) {
@@ -999,7 +999,7 @@ export default function InvoiceCreatorPage() {
       customerId: values.customerId,
       salesRouteId: values.salesRouteId,
       serialNumber: serialNumber.trim(),
-      invoiceDate: toColomboDateTimeOffset(invoiceDate),
+      invoiceDate: toCalendarDateTimeOffset(invoiceDate),
       dueDate: null,
       isTaxInvoice: isCustomerVatRegistered,
       customerVatTin: selectedCustomerDetails?.taxNumber || null,
