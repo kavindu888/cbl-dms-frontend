@@ -294,7 +294,7 @@ function BatchSummary({ batches }) {
   )
 }
 
-function BatchTable({ batches, isLoading, error }) {
+function BatchTable({ batches, products, locations, isLoading, error }) {
   return (
     <div
       className="panel responsive-table-shell"
@@ -332,17 +332,42 @@ function BatchTable({ batches, isLoading, error }) {
             {!isLoading && !error
               ? batches.map((item) => {
                   const status = item.isExpiringSoon ? 'Expiring Soon' : item.status
+                  const product = products.find((p) => p.id === item.productId)
+                  const productName = product ? product.name : 'Unknown Product'
+                  const locationObj = locations.find((l) => l.id === item.stockLocationId)
+                  const locationName = locationObj ? locationObj.name : (item.stockLocationName || item.locationName || '-')
                   return (
                     <tr key={item.id}>
-                      <td className="mono">{item.id}</td>
-                      <td className="mono">{item.productId}</td>
+                      <td>
+                        <div style={{ fontWeight: 550, color: 'var(--color-text-primary)' }}>
+                          {item.batchNo || '—'}
+                        </div>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--color-text-dim)' }}>
+                          {item.id}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 550, color: 'var(--color-text-primary)' }}>
+                          {productName}
+                        </div>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--color-text-dim)' }}>
+                          {item.productId}
+                        </div>
+                      </td>
                       <td>
                         <span className="mono" style={{ color: 'var(--color-amber)' }}>
                           {item.productSku}
                         </span>
                       </td>
-                      <td className="mono">{item.stockLocationId}</td>
-                      <td>{item.stockLocationName || item.locationName || '-'}</td>
+                      <td>
+                        <div style={{ fontWeight: 550, color: 'var(--color-text-primary)' }}>
+                          {locationName}
+                        </div>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--color-text-dim)' }}>
+                          {item.stockLocationId}
+                        </div>
+                      </td>
+                      <td>{locationName}</td>
                       <td className="font-mono text-sm text-cyan-600">{item.batchNo}</td>
                       <td className="mono">{item.grnLineId}</td>
                        <td className="amount">
@@ -404,6 +429,7 @@ export default function StockBatchesPage() {
   const [mode, setMode] = useState('product')
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+  const [locations, setLocations] = useState([])
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -437,8 +463,30 @@ export default function StockBatchesPage() {
         setIsLoadingProducts(false)
       }
     }
+    
+    async function loadLocations() {
+      try {
+        const firstPage = await inventoryService.listStockLocations({ page: 1, pageSize: 100 })
+        const allLocations = [...(firstPage.items || [])]
+        const totalPages = Number(firstPage.totalPages || 1)
+
+        if (totalPages > 1) {
+          const remaining = await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, index) =>
+              inventoryService.listStockLocations({ page: index + 2, pageSize: 100 })
+            )
+          )
+          remaining.forEach((result) => allLocations.push(...(result.items || [])))
+        }
+
+        setLocations(allLocations)
+      } catch (loadError) {
+        console.error('Unable to load stock locations:', loadError)
+      }
+    }
 
     loadProducts()
+    loadLocations()
   }, [])
 
   const loadProductBatches = useCallback(async () => {
@@ -582,7 +630,13 @@ export default function StockBatchesPage() {
       </div>
 
       <BatchSummary batches={batches} />
-      <BatchTable batches={batches} isLoading={isLoading} error={error} />
+      <BatchTable
+        batches={batches}
+        products={products}
+        locations={locations}
+        isLoading={isLoading}
+        error={error}
+      />
     </div>
   )
 }
