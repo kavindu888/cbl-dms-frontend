@@ -101,6 +101,22 @@ const returnReasonOptions = [
   { value: 4, label: 'Unwanted' },
 ]
 
+const invalidQuantityKeys = new Set(['.', ',', 'e', 'E', '+', '-'])
+
+function integerQuantity(value) {
+  const quantity = Number(value)
+  return Number.isFinite(quantity) ? Math.trunc(quantity) : 0
+}
+
+function isPositiveIntegerInput(value) {
+  return value === '' || /^[1-9]\d*$/.test(value)
+}
+
+function preventInvalidQuantityPaste(event) {
+  const pastedValue = event.clipboardData.getData('text').trim()
+  if (!/^[1-9]\d*$/.test(pastedValue)) event.preventDefault()
+}
+
 function todayInputDate() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -555,13 +571,18 @@ export default function InvoiceCreatorPage() {
         const normalLines = orderLines.filter((line) => !line.isReturnLine)
         const orderReturnLines = orderLines.filter((line) => line.isReturnLine)
 
-        setReturnLines(orderReturnLines)
+        setReturnLines(
+          orderReturnLines.map((line) => ({
+            ...line,
+            quantity: integerQuantity(line.quantity),
+          }))
+        )
 
         const prefilledLines = normalLines.map((line) => ({
           productId: line.productId || '',
           unitId: line.unitId || line.smallestUnitCode || line.smallestUnitName || line.unitName || '',
           unitName: line.smallestUnitName || line.smallestUnitCode || line.unitName || '',
-          quantity: Number(line.quantity || 0),
+          quantity: integerQuantity(line.quantity),
           mrp: Number(line.mrp || 0),
           categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
           skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
@@ -644,7 +665,7 @@ export default function InvoiceCreatorPage() {
                 productId: line.productId || '',
                 unitId: line.unitId || line.smallestUnitCode || '',
                 unitName: line.smallestUnitCode || line.unitId || '',
-                quantity: Number(line.quantity || 0),
+                quantity: integerQuantity(line.quantity),
                 mrp: Number(line.mrp || 0),
                 categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
                 skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
@@ -663,7 +684,7 @@ export default function InvoiceCreatorPage() {
           invoiceReturnLines.map((line) => ({
             id: line.id,
             productId: line.productId,
-            quantity: Number(line.quantity || 0),
+            quantity: integerQuantity(line.quantity),
             reason: returnReasonValue(line.returnReason),
             returnReason: returnReasonValue(line.returnReason),
             mrp: Number(line.mrp || 0),
@@ -877,8 +898,11 @@ export default function InvoiceCreatorPage() {
       return
     }
 
-    if (Number(returnDraftLine.quantity) <= 0) {
-      toast.error('Return quantity must be greater than zero.')
+    if (
+      Number(returnDraftLine.quantity) <= 0 ||
+      !Number.isInteger(Number(returnDraftLine.quantity))
+    ) {
+      toast.error('Return quantity must be a whole number greater than zero.')
       return
     }
 
@@ -986,6 +1010,7 @@ export default function InvoiceCreatorPage() {
       (line) =>
         !line.productId ||
         Number(line.quantity) <= 0 ||
+        !Number.isInteger(Number(line.quantity)) ||
         Number(line.skuDiscountPercent || 0) < 0 ||
         Number(line.skuDiscountPercent || 0) > Number(line.skuDiscountMax || 0) ||
         Number(line.specialDiscountPercent || 0) < 0 ||
@@ -998,7 +1023,7 @@ export default function InvoiceCreatorPage() {
     )
 
     if (invalidLine) {
-      return 'Each line needs a product, quantity, and discounts within their allowed maximums.'
+      return 'Each line needs a product, a whole-number quantity greater than zero, and discounts within their allowed maximums.'
     }
 
     const maxManualDiscount = Math.max(0, totals.gross - totals.categoryDiscount)
@@ -1378,16 +1403,26 @@ export default function InvoiceCreatorPage() {
                   ref={returnQuantityInputRef}
                   className="form-input mono text-right"
                   type="number"
-                  min="0.01"
-                  step="0.01"
+                  min="1"
+                  step="1"
                   value={returnDraftLine.quantity}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    if (!isPositiveIntegerInput(event.target.value)) return
                     setReturnDraftLine((current) => ({
                       ...current,
                       quantity: event.target.value,
                     }))
-                  }
+                  }}
+                  onBlur={() => {
+                    if (returnDraftLine.quantity !== '') return
+                    setReturnDraftLine((current) => ({ ...current, quantity: 1 }))
+                  }}
+                  onPaste={preventInvalidQuantityPaste}
                   onKeyDown={(event) => {
+                    if (invalidQuantityKeys.has(event.key)) {
+                      event.preventDefault()
+                      return
+                    }
                     if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
                     event.preventDefault()
                     returnReasonInputRef.current?.focus()
@@ -1494,7 +1529,11 @@ export default function InvoiceCreatorPage() {
                 {pagedFields.map(({ field, index }) => {
                   const line = lines[index] || emptyLine
                   const { unitPrice, lineTotal } = getLineAmounts(line)
-                  const quantityField = register(`lines.${index}.quantity`)
+                  const quantityPath = `lines.${index}.quantity`
+                  const quantityField = register(quantityPath, {
+                    min: 1,
+                    validate: (value) => Number.isInteger(Number(value)),
+                  })
 
                   return (
                     <tr key={field.id}>
@@ -1580,13 +1619,33 @@ export default function InvoiceCreatorPage() {
                         <input
                           className="form-input mono text-right"
                           type="number"
-                          step="0.01"
+                          min="1"
+                          step="1"
                           {...quantityField}
                           ref={(element) => {
                             quantityField.ref(element)
                             quantityInputRefs.current[index] = element
                           }}
+                          value={line.quantity ?? ''}
+                          onChange={(event) => {
+                            if (!isPositiveIntegerInput(event.target.value)) return
+                            setValue(
+                              quantityPath,
+                              event.target.value === '' ? '' : Number(event.target.value),
+                              { shouldDirty: true, shouldValidate: true }
+                            )
+                          }}
+                          onBlur={(event) => {
+                            quantityField.onBlur(event)
+                            if (event.target.value !== '') return
+                            setValue(quantityPath, 1, { shouldDirty: true, shouldValidate: true })
+                          }}
+                          onPaste={preventInvalidQuantityPaste}
                           onKeyDown={(event) => {
+                            if (invalidQuantityKeys.has(event.key)) {
+                              event.preventDefault()
+                              return
+                            }
                             if (
                               event.key !== 'Enter' ||
                               event.repeat ||
