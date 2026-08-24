@@ -129,6 +129,8 @@ function returnReasonValue(value) {
 function SearchablePicker({
   value,
   onChange,
+  onEnter,
+  inputRef,
   options,
   getLabel,
   getMeta = () => '',
@@ -203,6 +205,7 @@ function SearchablePicker({
         }}
       />
       <input
+        ref={inputRef}
         className="form-input"
         type="text"
         role="combobox"
@@ -224,8 +227,14 @@ function SearchablePicker({
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault()
+            if (event.nativeEvent.isComposing) return
+
             if (isOpen && filteredOptions[highlightedIndex]) {
+              const selectedId = filteredOptions[highlightedIndex].id
               selectOption(filteredOptions[highlightedIndex])
+              onEnter?.(selectedId)
+            } else if (value) {
+              onEnter?.(value)
             }
           } else if (event.key === 'ArrowDown') {
             event.preventDefault()
@@ -349,6 +358,13 @@ export default function InvoiceCreatorPage() {
   const [draftStatus, setDraftStatus] = useState(routeInvoiceId ? 'saved' : 'idle')
   const [lastSavedAt, setLastSavedAt] = useState(null)
   const serialCheckTimeout = useRef(null)
+  const productInputRefs = useRef([])
+  const quantityInputRefs = useRef([])
+  const pendingProductFocusIndexRef = useRef(null)
+  const returnProductInputRef = useRef(null)
+  const returnQuantityInputRef = useRef(null)
+  const returnReasonInputRef = useRef(null)
+  const returnButtonRef = useRef(null)
 
   const {
     register,
@@ -384,6 +400,22 @@ export default function InvoiceCreatorPage() {
     const totalPages = Math.max(1, Math.ceil(fields.length / linePageSize))
     if (linePage > totalPages) setLinePage(totalPages)
   }, [linePage, fields.length])
+
+  useEffect(() => {
+    const pendingIndex = pendingProductFocusIndexRef.current
+    if (pendingIndex === null) return undefined
+
+    const input = productInputRefs.current[pendingIndex]
+    if (!input) return undefined
+
+    pendingProductFocusIndexRef.current = null
+    const animationFrame = requestAnimationFrame(() => {
+      input.focus()
+      input.select()
+    })
+
+    return () => cancelAnimationFrame(animationFrame)
+  }, [fields.length, linePage])
 
   const productById = useMemo(() => {
     return products.reduce((map, product) => {
@@ -797,6 +829,11 @@ export default function InvoiceCreatorPage() {
       return
     }
 
+    setReturnDraftLine((current) => ({
+      ...current,
+      productId,
+    }))
+
     try {
       const [product, prices] = await Promise.all([
         masterService.getProduct(productId),
@@ -825,6 +862,13 @@ export default function InvoiceCreatorPage() {
         discountPercent: 0,
       }))
     }
+  }
+
+  function handleAddInvoiceLine() {
+    const nextIndex = fields.length
+    pendingProductFocusIndexRef.current = nextIndex
+    append({ ...emptyLine })
+    setLinePage(Math.floor(nextIndex / linePageSize) + 1)
   }
 
   function handleAddReturnLine() {
@@ -859,6 +903,10 @@ export default function InvoiceCreatorPage() {
       mrp: 0,
       categoryDiscountPercent: 0,
       discountPercent: 0,
+    })
+
+    requestAnimationFrame(() => {
+      returnProductInputRef.current?.focus()
     })
   }
 
@@ -1272,11 +1320,7 @@ export default function InvoiceCreatorPage() {
             <button
               type="button"
               className="button-secondary"
-              onClick={() => {
-                append({ ...emptyLine })
-                const nextCount = fields.length + 1
-                setLinePage(Math.ceil(nextCount / linePageSize))
-              }}
+              onClick={handleAddInvoiceLine}
               style={{ height: 34 }}
             >
               <Plus style={{ width: 14, height: 14 }} />
@@ -1303,8 +1347,13 @@ export default function InvoiceCreatorPage() {
                   Return Product
                 </label>
                 <SearchablePicker
+                  inputRef={returnProductInputRef}
                   value={returnDraftLine.productId}
                   onChange={handleReturnProductChange}
+                  onEnter={() => {
+                    returnQuantityInputRef.current?.focus()
+                    returnQuantityInputRef.current?.select()
+                  }}
                   options={products}
                   getLabel={(product) =>
                     [product.sku, product.name].filter(Boolean).join(' - ') ||
@@ -1326,6 +1375,7 @@ export default function InvoiceCreatorPage() {
                   Qty
                 </label>
                 <input
+                  ref={returnQuantityInputRef}
                   className="form-input mono text-right"
                   type="number"
                   min="0.01"
@@ -1337,6 +1387,11 @@ export default function InvoiceCreatorPage() {
                       quantity: event.target.value,
                     }))
                   }
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                    event.preventDefault()
+                    returnReasonInputRef.current?.focus()
+                  }}
                 />
               </div>
               <div>
@@ -1344,6 +1399,7 @@ export default function InvoiceCreatorPage() {
                   Reason
                 </label>
                 <select
+                  ref={returnReasonInputRef}
                   className="form-input"
                   value={returnDraftLine.reason}
                   onChange={(event) =>
@@ -1352,6 +1408,11 @@ export default function InvoiceCreatorPage() {
                       reason: Number(event.target.value),
                     }))
                   }
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                    event.preventDefault()
+                    returnButtonRef.current?.focus()
+                  }}
                   style={{ height: 38 }}
                 >
                   {returnReasonOptions.map((reason) => (
@@ -1377,6 +1438,7 @@ export default function InvoiceCreatorPage() {
                 </div>
               </div>
               <button
+                ref={returnButtonRef}
                 type="button"
                 className="button-secondary"
                 onClick={handleAddReturnLine}
@@ -1432,12 +1494,16 @@ export default function InvoiceCreatorPage() {
                 {pagedFields.map(({ field, index }) => {
                   const line = lines[index] || emptyLine
                   const { unitPrice, lineTotal } = getLineAmounts(line)
+                  const quantityField = register(`lines.${index}.quantity`)
 
                   return (
                     <tr key={field.id}>
                       <td>
                         <input type="hidden" {...register(`lines.${index}.productId`)} />
                         <SearchablePicker
+                          inputRef={(element) => {
+                            productInputRefs.current[index] = element
+                          }}
                           value={line.productId}
                           onChange={(productId) => {
                             setValue(`lines.${index}.productId`, productId, {
@@ -1445,6 +1511,10 @@ export default function InvoiceCreatorPage() {
                               shouldValidate: true,
                             })
                             handleProductChange(index, productId)
+                          }}
+                          onEnter={() => {
+                            quantityInputRefs.current[index]?.focus()
+                            quantityInputRefs.current[index]?.select()
                           }}
                           options={products}
                           getLabel={(product) =>
@@ -1511,7 +1581,23 @@ export default function InvoiceCreatorPage() {
                           className="form-input mono text-right"
                           type="number"
                           step="0.01"
-                          {...register(`lines.${index}.quantity`)}
+                          {...quantityField}
+                          ref={(element) => {
+                            quantityField.ref(element)
+                            quantityInputRefs.current[index] = element
+                          }}
+                          onKeyDown={(event) => {
+                            if (
+                              event.key !== 'Enter' ||
+                              event.repeat ||
+                              event.nativeEvent.isComposing
+                            ) {
+                              return
+                            }
+
+                            event.preventDefault()
+                            handleAddInvoiceLine()
+                          }}
                           style={{
                             width: '100%',
                             minWidth: 0,
