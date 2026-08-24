@@ -65,9 +65,9 @@ export default function InvoiceListPage() {
   const [invoicePage, setInvoicePage] = useState(1)
   const [allRoutes, setAllRoutes] = useState([])
 
-  const customerNameById = useMemo(() => {
+  const customerById = useMemo(() => {
     return customers.reduce((map, customer) => {
-      map[customer.id] = customer.name
+      map[customer.id] = customer
       return map
     }, {})
   }, [customers])
@@ -131,13 +131,13 @@ export default function InvoiceListPage() {
 
     async function loadReferenceData() {
       try {
-        const [customerResult, territoriesList] = await Promise.all([
-          salesService.listCustomers({ page: 1, pageSize: 100, isActive: true }),
+        const [customerList, territoriesList] = await Promise.all([
+          salesService.listAllCustomers(),
           masterService.listTerritories(),
         ])
         if (!isCurrent) return
 
-        setCustomers(customerResult.items || [])
+        setCustomers(customerList || [])
 
         const routeResults = await Promise.all(
           territoriesList.map((territory) =>
@@ -278,15 +278,21 @@ export default function InvoiceListPage() {
     const query = search.trim().toLowerCase()
 
     const filtered = invoices.filter((invoice) => {
-      const customerName = customerNameById[invoice.customerId] || ''
+      const customer = customerById[invoice.customerId]
+      const customerName = customer?.name || ''
+      const customerCode = customer?.code || ''
       const routeName = routeNameById[invoice.salesRouteId] || invoice.salesRouteName || ''
       const invoiceDay = dayjs(invoice.invoiceDate).format('YYYY-MM-DD')
 
       const matchesSearch =
         !query ||
         invoice.invoiceNumber?.toLowerCase().includes(query) ||
+        String(invoice.serialNumber || '')
+          .toLowerCase()
+          .includes(query) ||
         invoice.id?.toLowerCase().includes(query) ||
         customerName.toLowerCase().includes(query) ||
+        customerCode.toLowerCase().includes(query) ||
         routeName.toLowerCase().includes(query)
       const matchesStatus = !status || invoice.status === status
       const matchesRoute = !salesRouteId || invoice.salesRouteId === salesRouteId
@@ -306,7 +312,7 @@ export default function InvoiceListPage() {
         sensitivity: 'base',
       })
     })
-  }, [customerNameById, invoices, invoiceDate, routeNameById, salesRouteId, search, status])
+  }, [customerById, invoices, invoiceDate, routeNameById, salesRouteId, search, status])
 
   const pagedInvoices = useMemo(() => {
     const start = (invoicePage - 1) * invoicePageSize
@@ -396,7 +402,7 @@ export default function InvoiceListPage() {
           Sales Invoices
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          Search by customer, invoice number, or filter by route/status.
+          Search by serial number or customer, or filter by route/status.
         </p>
       </div>
 
@@ -424,7 +430,7 @@ export default function InvoiceListPage() {
           />
           <input
             className="form-input"
-            placeholder="Search by invoice number or customer..."
+            placeholder="Search by serial number, customer name, or code..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             style={{
@@ -591,7 +597,10 @@ export default function InvoiceListPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {pagedInvoices.map((invoice) => {
                   const isSelected = invoice.id === selectedId
-                  const customerName = customerNameById[invoice.customerId] || 'Unknown customer'
+                  const customer = customerById[invoice.customerId]
+                  const customerName = customer?.name || 'Unknown customer'
+                  const customerCode = customer?.code || 'Code unavailable'
+                  const serialNumber = String(invoice.serialNumber || '').trim()
                   const routeName =
                     routeNameById[invoice.salesRouteId] || invoice.salesRouteName || 'No route'
 
@@ -636,12 +645,35 @@ export default function InvoiceListPage() {
                           gap: 10,
                         }}
                       >
-                        <span
-                          className="mono"
-                          style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-teal)' }}
+                        <div
+                          title={serialNumber || 'Serial number not assigned'}
+                          style={{
+                            minWidth: 0,
+                            flex: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 2,
+                          }}
                         >
-                          {invoice.invoiceNumber}
-                        </span>
+                          <span
+                            style={{ fontSize: 9, fontWeight: 700, color: 'var(--color-text-dim)' }}
+                          >
+                            SERIAL NUMBER
+                          </span>
+                          <span
+                            className="mono"
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: 'var(--color-teal)',
+                            }}
+                          >
+                            {serialNumber || 'Not assigned'}
+                          </span>
+                        </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <StatusBadge status={invoiceStatusLabel(invoice.status)} />
                           {invoice.status === 'Draft' ? (
@@ -682,7 +714,7 @@ export default function InvoiceListPage() {
                           {customerName}
                         </div>
                         <div
-                          title={routeName}
+                          title={`Customer code: ${customerCode} | Route: ${routeName}`}
                           style={{
                             marginTop: 3,
                             overflow: 'hidden',
@@ -692,7 +724,9 @@ export default function InvoiceListPage() {
                             color: 'var(--color-text-dim)',
                           }}
                         >
-                          {routeName}
+                          <span className="mono">Customer Code: {customerCode}</span>
+                          <span aria-hidden="true"> · </span>
+                          <span>{routeName}</span>
                         </div>
                       </div>
                       <div
@@ -754,7 +788,7 @@ export default function InvoiceListPage() {
             <DetailMessage>Loading invoice details...</DetailMessage>
           ) : selectedInvoice ? (
             <InvoiceDetailPanel
-              customerName={selectedCustomerName || customerNameById[selectedInvoice.customerId]}
+              customerName={selectedCustomerName || customerById[selectedInvoice.customerId]?.name}
               invoice={displayInvoice}
               productById={productById}
               salesRouteName={
