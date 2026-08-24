@@ -1,7 +1,7 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   Banknote,
-  // BarChart2,
+  BarChart3,
   // Bookmark,
   ClipboardList,
   ClipboardCheck,
@@ -366,6 +366,18 @@ const navGroups = [
       //   icon: ListChecks,
       //   permissions: PERMISSIONS.inventory.stockRead,
       // },
+    ],
+  },
+  {
+    label: 'REPORTS',
+    items: [
+      {
+        label: 'Stock Report',
+        to: '/reports/stock',
+        icon: BarChart3,
+        end: true,
+        permissions: PERMISSIONS.reporting.viewReports,
+      },
     ],
   },
   {
