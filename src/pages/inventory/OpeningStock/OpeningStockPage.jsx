@@ -1,8 +1,22 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Boxes, CheckCircle2, LoaderCircle, PackagePlus, Search } from 'lucide-react'
+import {
+  AlertTriangle,
+  Boxes,
+  CheckCircle2,
+  LoaderCircle,
+  PackagePlus,
+  Pencil,
+  Save,
+  Search,
+} from 'lucide-react'
 import { toast } from 'sonner'
-import { getLastPrices, recordOpeningStock } from '@/api/inventoryApi'
+import {
+  getLastPrices,
+  getStockBatches,
+  recordOpeningStock,
+  updateStockBatchPricing,
+} from '@/api/inventoryApi'
 import { useDebounce } from '@/hooks/useDebounce'
 import { masterService } from '@/services/api/masterService'
 import { formatLKR } from '@/utils/formatCurrency'
@@ -14,7 +28,7 @@ function resultValue(response) {
   return data?.value ?? data ?? response?.data
 }
 
-function errorMessage(error) {
+function errorMessage(error, fallback = 'Failed to record opening stock.') {
   const response = error?.response?.data
   const result = response?.data
   return (
@@ -23,7 +37,7 @@ function errorMessage(error) {
     response?.errorMessage ||
     response?.message ||
     error?.message ||
-    'Failed to record opening stock.'
+    fallback
   )
 }
 
@@ -31,21 +45,8 @@ function makeTempId() {
   return globalThis.crypto?.randomUUID?.() ?? `opening-stock-${Date.now()}-${Math.random()}`
 }
 
-export default function OpeningStockPage() {
-  const queryClient = useQueryClient()
-  const [productSearch, setProductSearch] = useState('')
-  const [selectedProduct, setSelectedProduct] = useState(null)
-  const [qty, setQty] = useState('')
-  const [unitCost, setUnitCost] = useState('')
-  const [mrp, setMrp] = useState('')
-  const [batchNo, setBatchNo] = useState('')
-  const [expiryDate, setExpiryDate] = useState('')
-  const [lastPrices, setLastPrices] = useState(null)
-  const [stockLines, setStockLines] = useState([])
-  const [notes, setNotes] = useState('')
-  const selectedProductRequest = useRef(0)
-
-  const debouncedSearch = useDebounce(productSearch.trim(), 250)
+function ProductPicker({ id, search, onSearchChange, selectedProduct, onSelect, onClear }) {
+  const debouncedSearch = useDebounce(search.trim(), 250)
   const productQuery = useQuery({
     queryKey: ['opening-stock', 'products', debouncedSearch],
     queryFn: () =>
@@ -57,8 +58,210 @@ export default function OpeningStockPage() {
       }),
     enabled: !selectedProduct && debouncedSearch.length >= 2,
   })
-
   const products = productQuery.data?.items ?? []
+
+  if (selectedProduct) {
+    return (
+      <div className={styles.selectedProduct}>
+        <span className={`mono ${styles.skuBadge}`}>{selectedProduct.sku}</span>
+        <span
+          style={{
+            color: 'var(--color-text-primary)',
+            flex: 1,
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          {selectedProduct.name}
+        </span>
+        <span className="mono" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
+          Unit: {selectedProduct.smallestUomCode || 'PCS'}
+        </span>
+        <button type="button" className="button-secondary" onClick={onClear} style={{ height: 30 }}>
+          Change
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.searchWrap}>
+      <Search className={styles.searchIcon} />
+      <input
+        id={id}
+        className={`form-input ${styles.searchInput}`}
+        value={search}
+        onChange={(event) => onSearchChange(event.target.value)}
+        placeholder="Search SKU or product name..."
+        autoComplete="off"
+      />
+
+      {search.trim().length >= 2 ? (
+        <div className={styles.searchResults}>
+          {productQuery.isFetching ? (
+            <div style={{ color: 'var(--color-text-muted)', fontSize: 13, padding: 14 }}>
+              Searching products...
+            </div>
+          ) : productQuery.isError ? (
+            <div style={{ color: 'var(--color-danger)', fontSize: 13, padding: 14 }}>
+              {productQuery.error?.message || 'Unable to search products.'}
+            </div>
+          ) : products.length ? (
+            products.map((product) => (
+              <button
+                key={product.id}
+                type="button"
+                className={styles.productResult}
+                onClick={() => onSelect(product)}
+              >
+                <span style={{ minWidth: 0 }}>
+                  <span
+                    style={{
+                      color: 'var(--color-text-primary)',
+                      display: 'block',
+                      fontSize: 13,
+                      fontWeight: 750,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {product.name}
+                  </span>
+                  <span className="mono" style={{ color: 'var(--color-teal)', fontSize: 11 }}>
+                    {product.sku}
+                  </span>
+                </span>
+                <span className="mono" style={{ color: 'var(--color-text-dim)', fontSize: 11 }}>
+                  {product.baseUom || product.uomBase || 'PCS'}
+                </span>
+              </button>
+            ))
+          ) : (
+            <div style={{ color: 'var(--color-text-muted)', fontSize: 13, padding: 14 }}>
+              No active products found.
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function EditableBatchRow({ batch, onSaved }) {
+  const [unitCost, setUnitCost] = useState(String(batch.unitCostSmallest ?? ''))
+  const [mrp, setMrp] = useState(String(batch.mrp ?? ''))
+  const [isHighlighted, setIsHighlighted] = useState(false)
+  const highlightTimer = useRef(null)
+
+  useEffect(() => {
+    setUnitCost(String(batch.unitCostSmallest ?? ''))
+    setMrp(String(batch.mrp ?? ''))
+  }, [batch.unitCostSmallest, batch.mrp])
+
+  useEffect(() => () => clearTimeout(highlightTimer.current), [])
+
+  const updateMutation = useMutation({
+    mutationFn: (data) => updateStockBatchPricing(batch.id, data),
+    onSuccess: async () => {
+      toast.success('Batch pricing updated')
+      setIsHighlighted(true)
+      clearTimeout(highlightTimer.current)
+      highlightTimer.current = setTimeout(() => setIsHighlighted(false), 1600)
+      await onSaved()
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to update batch pricing.')),
+  })
+
+  const cost = Number(unitCost)
+  const retailPrice = Number(mrp)
+  const isValid =
+    unitCost !== '' &&
+    Number.isFinite(cost) &&
+    cost >= 0 &&
+    mrp !== '' &&
+    Number.isFinite(retailPrice) &&
+    retailPrice >= 0
+
+  return (
+    <tr className={isHighlighted ? styles.updatedRow : undefined}>
+      <td className="mono">{batch.batchNo}</td>
+      <td className="mono">{batch.expiryDate ? formatDate(batch.expiryDate) : '—'}</td>
+      <td className="mono text-right">
+        {Number(batch.qtyAvailable).toLocaleString('en-LK')} {batch.smallestUnitCode || 'PCS'}
+      </td>
+      <td>
+        <input
+          aria-label={`Unit cost for batch ${batch.batchNo}`}
+          className={`form-input mono text-right ${styles.priceInput}`}
+          type="number"
+          min="0"
+          step="0.01"
+          value={unitCost}
+          onChange={(event) => setUnitCost(event.target.value)}
+        />
+      </td>
+      <td>
+        <input
+          aria-label={`MRP for batch ${batch.batchNo}`}
+          className={`form-input mono text-right ${styles.priceInput}`}
+          type="number"
+          min="0"
+          step="0.01"
+          value={mrp}
+          onChange={(event) => setMrp(event.target.value)}
+        />
+      </td>
+      <td className="text-right">
+        <button
+          type="button"
+          className="button-primary"
+          disabled={!isValid || updateMutation.isPending}
+          onClick={() => updateMutation.mutate({ unitCostSmallest: cost, mrp: retailPrice })}
+          style={{ height: 34, minWidth: 86 }}
+        >
+          {updateMutation.isPending ? (
+            <LoaderCircle className="animate-spin" size={15} />
+          ) : (
+            <Save size={15} />
+          )}
+          Save
+        </button>
+      </td>
+    </tr>
+  )
+}
+
+export default function OpeningStockPage() {
+  const queryClient = useQueryClient()
+  const [activeTab, setActiveTab] = useState('add')
+  const [productSearch, setProductSearch] = useState('')
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [editProductSearch, setEditProductSearch] = useState('')
+  const [selectedEditProduct, setSelectedEditProduct] = useState(null)
+  const [qty, setQty] = useState('')
+  const [unitCost, setUnitCost] = useState('')
+  const [mrp, setMrp] = useState('')
+  const [batchNo, setBatchNo] = useState('')
+  const [expiryDate, setExpiryDate] = useState('')
+  const [lastPrices, setLastPrices] = useState(null)
+  const [stockLines, setStockLines] = useState([])
+  const [notes, setNotes] = useState('')
+  const selectedProductRequest = useRef(0)
+
+  const existingBatchesQuery = useQuery({
+    queryKey: ['opening-stock', 'batches', selectedEditProduct?.id],
+    queryFn: () => getStockBatches(selectedEditProduct.id),
+    enabled: Boolean(selectedEditProduct),
+  })
+
+  const existingBatches = useMemo(() => {
+    const value = resultValue(existingBatchesQuery.data)
+    const batches = Array.isArray(value) ? value : (value?.items ?? [])
+    return batches.filter(
+      (batch) => batch.status === 1 || String(batch.status).toLowerCase() === 'active'
+    )
+  }, [existingBatchesQuery.data])
 
   const clearLineForm = useCallback(() => {
     selectedProductRequest.current += 1
@@ -111,6 +314,14 @@ export default function OpeningStockPage() {
       if (prices.lastCost > 0) setUnitCost(String(prices.lastCost))
       if (prices.lastMrp > 0) setMrp(String(prices.lastMrp))
     }
+  }, [])
+
+  const handleEditProductSelect = useCallback((product) => {
+    setSelectedEditProduct({
+      ...product,
+      smallestUomCode: product.smallestUnitId || product.baseUom || product.uomBase || 'PCS',
+    })
+    setEditProductSearch('')
   }, [])
 
   const submitMutation = useMutation({
@@ -238,7 +449,30 @@ export default function OpeningStockPage() {
         </div>
       </header>
 
-      <div className={styles.contentGrid}>
+      <div className={styles.tabs} role="tablist" aria-label="Opening stock actions">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'add'}
+          className={`${styles.tabButton} ${activeTab === 'add' ? styles.activeTab : ''}`}
+          onClick={() => setActiveTab('add')}
+        >
+          <PackagePlus size={16} />
+          Add Stock
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'edit'}
+          className={`${styles.tabButton} ${activeTab === 'edit' ? styles.activeTab : ''}`}
+          onClick={() => setActiveTab('edit')}
+        >
+          <Pencil size={15} />
+          Edit Existing
+        </button>
+      </div>
+
+      <div className={styles.contentGrid} hidden={activeTab !== 'add'}>
         <main className={styles.mainColumn}>
           <section className="panel" style={{ overflow: 'visible' }}>
             <div className={styles.sectionHeader}>
@@ -263,106 +497,14 @@ export default function OpeningStockPage() {
                 <label className="form-label" htmlFor="opening-stock-product">
                   Product *
                 </label>
-                {!selectedProduct ? (
-                  <div className={styles.searchWrap}>
-                    <Search className={styles.searchIcon} />
-                    <input
-                      id="opening-stock-product"
-                      className={`form-input ${styles.searchInput}`}
-                      value={productSearch}
-                      onChange={(event) => setProductSearch(event.target.value)}
-                      placeholder="Search SKU or product name..."
-                      autoComplete="off"
-                    />
-
-                    {productSearch.trim().length >= 2 ? (
-                      <div className={styles.searchResults}>
-                        {productQuery.isFetching ? (
-                          <div
-                            style={{ color: 'var(--color-text-muted)', fontSize: 13, padding: 14 }}
-                          >
-                            Searching products...
-                          </div>
-                        ) : productQuery.isError ? (
-                          <div style={{ color: 'var(--color-danger)', fontSize: 13, padding: 14 }}>
-                            {productQuery.error?.message || 'Unable to search products.'}
-                          </div>
-                        ) : products.length ? (
-                          products.map((product) => (
-                            <button
-                              key={product.id}
-                              type="button"
-                              className={styles.productResult}
-                              onClick={() => handleProductSelect(product)}
-                            >
-                              <span style={{ minWidth: 0 }}>
-                                <span
-                                  style={{
-                                    color: 'var(--color-text-primary)',
-                                    display: 'block',
-                                    fontSize: 13,
-                                    fontWeight: 750,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  {product.name}
-                                </span>
-                                <span
-                                  className="mono"
-                                  style={{ color: 'var(--color-teal)', fontSize: 11 }}
-                                >
-                                  {product.sku}
-                                </span>
-                              </span>
-                              <span
-                                className="mono"
-                                style={{ color: 'var(--color-text-dim)', fontSize: 11 }}
-                              >
-                                {product.baseUom || product.uomBase || 'PCS'}
-                              </span>
-                            </button>
-                          ))
-                        ) : (
-                          <div
-                            style={{ color: 'var(--color-text-muted)', fontSize: 13, padding: 14 }}
-                          >
-                            No active products found.
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className={styles.selectedProduct}>
-                    <span className={`mono ${styles.skuBadge}`}>{selectedProduct.sku}</span>
-                    <span
-                      style={{
-                        color: 'var(--color-text-primary)',
-                        flex: 1,
-                        fontSize: 13,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {selectedProduct.name}
-                    </span>
-                    <span
-                      className="mono"
-                      style={{ color: 'var(--color-text-muted)', fontSize: 11 }}
-                    >
-                      Unit: {selectedProduct.smallestUomCode || 'PCS'}
-                    </span>
-                    <button
-                      type="button"
-                      className="button-secondary"
-                      onClick={clearLineForm}
-                      style={{ height: 30 }}
-                    >
-                      Change
-                    </button>
-                  </div>
-                )}
+                <ProductPicker
+                  id="opening-stock-product"
+                  search={productSearch}
+                  onSearchChange={setProductSearch}
+                  selectedProduct={selectedProduct}
+                  onSelect={handleProductSelect}
+                  onClear={clearLineForm}
+                />
               </div>
 
               <div className={styles.formGrid}>
@@ -662,6 +804,106 @@ export default function OpeningStockPage() {
           ) : null}
         </aside>
       </div>
+
+      <section className="panel" hidden={activeTab !== 'edit'} style={{ overflow: 'visible' }}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
+              Edit Existing Batches
+            </h2>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 3 }}>
+              Select a product to view its active stock batches.
+            </p>
+          </div>
+        </div>
+
+        <div className={styles.editBody}>
+          <div>
+            <label className="form-label" htmlFor="edit-stock-product">
+              Product *
+            </label>
+            <ProductPicker
+              id="edit-stock-product"
+              search={editProductSearch}
+              onSearchChange={setEditProductSearch}
+              selectedProduct={selectedEditProduct}
+              onSelect={handleEditProductSelect}
+              onClear={() => {
+                setSelectedEditProduct(null)
+                setEditProductSearch('')
+              }}
+            />
+          </div>
+
+          {selectedEditProduct ? (
+            <div className={styles.batchSection}>
+              <div className={styles.editHint}>
+                Edit unit cost and MRP for existing stock batches. Batch number and quantity cannot
+                be changed here.
+              </div>
+
+              {existingBatchesQuery.isFetching ? (
+                <div className={styles.emptyState}>
+                  <LoaderCircle
+                    className="animate-spin"
+                    size={28}
+                    style={{ color: 'var(--color-teal)', marginBottom: 10 }}
+                  />
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
+                    Loading active batches...
+                  </p>
+                </div>
+              ) : existingBatchesQuery.isError ? (
+                <div className={styles.emptyState}>
+                  <AlertTriangle
+                    size={28}
+                    style={{ color: 'var(--color-danger)', marginBottom: 10 }}
+                  />
+                  <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>
+                    {errorMessage(existingBatchesQuery.error, 'Unable to load stock batches.')}
+                  </p>
+                </div>
+              ) : existingBatches.length ? (
+                <div className="overflow-x-auto">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Batch No</th>
+                        <th>Expiry</th>
+                        <th className="text-right">Qty Available</th>
+                        <th className="text-right">Unit Cost</th>
+                        <th className="text-right">MRP</th>
+                        <th className="text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {existingBatches.map((batch) => (
+                        <EditableBatchRow
+                          key={batch.id}
+                          batch={batch}
+                          onSaved={() =>
+                            Promise.all([
+                              existingBatchesQuery.refetch(),
+                              queryClient.invalidateQueries({ queryKey: ['inventory', 'stock'] }),
+                            ])
+                          }
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className={styles.emptyState}>
+                  <Boxes size={31} style={{ color: 'var(--color-text-dim)', marginBottom: 10 }} />
+                  <p style={{ color: 'var(--color-text-primary)', fontSize: 14, fontWeight: 700 }}>
+                    No active batches found for this product
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </section>
     </div>
   )
 }

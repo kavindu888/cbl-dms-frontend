@@ -128,8 +128,13 @@ function toCalendarDateTimeOffset(dateValue) {
 function toInputDate(value) {
   if (!value) return ''
   const text = String(value)
-  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10)
-  return new Date(value).toISOString().slice(0, 10)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
+  const date = new Date(text)
+  if (Number.isNaN(date.getTime())) return ''
+  // Stored timestamps are UTC instants for Colombo (UTC+5:30) midnight, so shift
+  // back into Colombo local time before reading off the calendar date.
+  const colomboMs = date.getTime() + 5.5 * 60 * 60 * 1000
+  return new Date(colomboMs).toISOString().slice(0, 10)
 }
 
 function returnReasonValue(value) {

@@ -23,6 +23,39 @@
   justify-content: center;
 }
 
+.tabs {
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  gap: 4px;
+}
+
+.tabButton {
+  align-items: center;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 750;
+  gap: 7px;
+  margin-bottom: -1px;
+  padding: 10px 14px;
+  transition:
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.tabButton:hover,
+.tabButton:focus-visible {
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.activeTab {
+  border-bottom-color: var(--color-teal);
+  color: var(--color-teal);
+}
+
 .contentGrid {
   align-items: start;
   display: grid;
@@ -51,6 +84,39 @@
   flex-direction: column;
   gap: 15px;
   padding: 16px;
+}
+
+.editBody {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px;
+}
+
+.batchSection {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.editHint {
+  background: color-mix(in srgb, var(--color-teal) 7%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-teal) 20%, var(--color-border));
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px 12px;
+}
+
+.priceInput {
+  margin-left: auto;
+  min-width: 110px;
+  width: 130px;
+}
+
+.updatedRow > td {
+  background: color-mix(in srgb, var(--color-teal) 15%, transparent) !important;
+  transition: background-color 300ms ease;
 }
 
 .formGrid {
