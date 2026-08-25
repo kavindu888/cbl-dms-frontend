@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, PackageX, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, PackageX, Search, X, XCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -13,8 +13,6 @@ import { formatLKR } from '@/utils/formatCurrency'
 import {
   formatNumber,
   movementStatusLabel,
-  returnReasonLabel,
-  unloadingTypeLabel,
   vehicleLabel,
 } from './vehicleMovementUtils'
 
@@ -73,6 +71,7 @@ export default function VehicleMovementDetailPage({
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false)
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+  const [lineSearch, setLineSearch] = useState('')
   const vehicle = vehicles.find((item) => item.id === movement?.vehicleLocationId)
   const status = movementStatusLabel(movement?.status)
   const isUnloading = kind === 'Unloading'
@@ -80,6 +79,31 @@ export default function VehicleMovementDetailPage({
     () => Object.fromEntries(deliveryRuns.map((run) => [run.id, run])),
     [deliveryRuns]
   )
+  const filteredLines = useMemo(() => {
+    const lines = movement?.lines || []
+    const query = lineSearch.trim().toLowerCase()
+    if (!query) return lines
+
+    return lines.filter((line) => {
+      const product = productById[line.productId]
+      return [
+        line.productName,
+        line.productSku,
+        line.productId,
+        line.batchNo,
+        line.batchNumber,
+        line.stockBatchId,
+        product?.name,
+        product?.sku,
+        product?.barcode,
+      ].some((value) => String(value || '').toLowerCase().includes(query))
+    })
+  }, [lineSearch, movement?.lines, productById])
+
+  useEffect(() => {
+    setLineSearch('')
+  }, [id])
+
   useEffect(() => {
     let active = true
 
@@ -404,22 +428,86 @@ export default function VehicleMovementDetailPage({
       </section>
 
       <section className="panel" style={{ padding: 18 }}>
-        <div style={{ marginBottom: 14 }}>
-          <p className="eyebrow">Stock Lines</p>
-          <h2
-            style={{
-              color: 'var(--color-text-primary)',
-              fontSize: 16,
-              fontWeight: 750,
-              marginTop: 4,
-            }}
-          >
-            Batch Movement Lines
-          </h2>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 4 }}>
-            {movement.lines?.length || 0} batch line{movement.lines?.length === 1 ? '' : 's'} in
-            this draft
-          </p>
+        <div
+          style={{
+            alignItems: 'flex-end',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 14,
+            justifyContent: 'space-between',
+            marginBottom: 14,
+          }}
+        >
+          <div>
+            <p className="eyebrow">Stock Lines</p>
+            <h2
+              style={{
+                color: 'var(--color-text-primary)',
+                fontSize: 16,
+                fontWeight: 750,
+                marginTop: 4,
+              }}
+            >
+              Batch Movement Lines
+            </h2>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 4 }}>
+              {lineSearch.trim()
+                ? `${filteredLines.length} of ${movement.lines?.length || 0} batch lines match`
+                : `${movement.lines?.length || 0} batch line${movement.lines?.length === 1 ? '' : 's'} in this ${kind.toLowerCase()}`}
+            </p>
+          </div>
+          {movement.lines?.length ? (
+            <div
+              style={{ minWidth: 240, position: 'relative', width: 'min(100%, 360px)' }}
+            >
+              <Search
+                aria-hidden="true"
+                size={15}
+                style={{
+                  color: 'var(--color-text-muted)',
+                  left: 11,
+                  pointerEvents: 'none',
+                  position: 'absolute',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                }}
+              />
+              <input
+                aria-label="Search batch movement lines"
+                className="form-input"
+                type="text"
+                value={lineSearch}
+                onChange={(event) => setLineSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') setLineSearch('')
+                }}
+                placeholder="Search product name, SKU, or batch..."
+                style={{ height: 38, paddingLeft: 34, paddingRight: lineSearch ? 34 : 10 }}
+              />
+              {lineSearch ? (
+                <button
+                  aria-label="Clear stock line search"
+                  type="button"
+                  onClick={() => setLineSearch('')}
+                  style={{
+                    alignItems: 'center',
+                    background: 'transparent',
+                    border: 0,
+                    color: 'var(--color-text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    padding: 4,
+                    position: 'absolute',
+                    right: 7,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                  }}
+                >
+                  <X size={15} />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         {movement.lines?.length ? (
           <div className="responsive-table-shell" style={{ overflowX: 'auto' }}>
@@ -444,7 +532,7 @@ export default function VehicleMovementDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {movement.lines.map((line) => {
+                {filteredLines.map((line) => {
                   const productName = line.productName || productById[line.productId]?.name
                   const unitCost = Number(line.unitCostSmallest || 0)
                   const qty = Number(line.qtySmallest || 0)
@@ -475,6 +563,16 @@ export default function VehicleMovementDetailPage({
                     </tr>
                   )
                 })}
+                {!filteredLines.length ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      style={{ color: 'var(--color-text-muted)', padding: 24, textAlign: 'center' }}
+                    >
+                      No stock lines match &ldquo;{lineSearch.trim()}&rdquo;.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
