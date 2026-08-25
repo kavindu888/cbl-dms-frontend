@@ -441,7 +441,10 @@ export default function StockOverviewPage() {
       setIsLoadingProducts(true)
       try {
         const allProducts = await masterService.listAllProducts({ pageSize: 100 })
-        if (active) setProducts(allProducts)
+
+        if (active) {
+          setProducts(allProducts)
+        }
       } catch (error) {
         if (active) {
           setProducts([])

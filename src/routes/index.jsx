@@ -39,6 +39,7 @@ import SupplierSettlementPage from '@pages/purchasing/settlement/SupplierSettlem
 import SupplierListPage from '@pages/master/SupplierListPage'
 import ReportHubPage from '@pages/reports/ReportHubPage'
 import ReportPreviewPage from '@pages/reports/ReportPreviewPage'
+import StockReportPage from '@pages/reports/StockReportPage'
 import CustomerDetailPage from '@pages/sales/CustomerDetailPage'
 import CustomerGroupListPage from '@pages/sales/CustomerGroupListPage'
 import InvoiceCreatorPage from '@pages/sales/InvoiceCreatorPage'
@@ -538,6 +539,10 @@ export const router = createBrowserRouter([
       {
         path: 'reports',
         element: requirePermission(<ReportHubPage />, PERMISSIONS.reporting.viewReports),
+      },
+      {
+        path: 'reports/stock',
+        element: requirePermission(<StockReportPage />, PERMISSIONS.reporting.viewReports),
       },
       {
         path: 'reports/:type',

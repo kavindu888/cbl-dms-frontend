@@ -101,12 +101,28 @@ const returnReasonOptions = [
   { value: 4, label: 'Unwanted' },
 ]
 
+const invalidQuantityKeys = new Set(['.', ',', 'e', 'E', '+', '-'])
+
+function integerQuantity(value) {
+  const quantity = Number(value)
+  return Number.isFinite(quantity) ? Math.trunc(quantity) : 0
+}
+
+function isPositiveIntegerInput(value) {
+  return value === '' || /^[1-9]\d*$/.test(value)
+}
+
+function preventInvalidQuantityPaste(event) {
+  const pastedValue = event.clipboardData.getData('text').trim()
+  if (!/^[1-9]\d*$/.test(pastedValue)) event.preventDefault()
+}
+
 function todayInputDate() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function toColomboDateTimeOffset(dateValue) {
-  return new Date(`${dateValue || todayInputDate()}T00:00:00+05:30`).toISOString()
+function toCalendarDateTimeOffset(dateValue) {
+  return `${dateValue || todayInputDate()}T00:00:00.000Z`
 }
 
 function toInputDate(value) {
@@ -134,6 +150,8 @@ function returnReasonValue(value) {
 function SearchablePicker({
   value,
   onChange,
+  onEnter,
+  inputRef,
   options,
   getLabel,
   getMeta = () => '',
@@ -208,6 +226,7 @@ function SearchablePicker({
         }}
       />
       <input
+        ref={inputRef}
         className="form-input"
         type="text"
         role="combobox"
@@ -229,8 +248,14 @@ function SearchablePicker({
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault()
+            if (event.nativeEvent.isComposing) return
+
             if (isOpen && filteredOptions[highlightedIndex]) {
+              const selectedId = filteredOptions[highlightedIndex].id
               selectOption(filteredOptions[highlightedIndex])
+              onEnter?.(selectedId)
+            } else if (value) {
+              onEnter?.(value)
             }
           } else if (event.key === 'ArrowDown') {
             event.preventDefault()
@@ -354,6 +379,13 @@ export default function InvoiceCreatorPage() {
   const [draftStatus, setDraftStatus] = useState(routeInvoiceId ? 'saved' : 'idle')
   const [lastSavedAt, setLastSavedAt] = useState(null)
   const serialCheckTimeout = useRef(null)
+  const productInputRefs = useRef([])
+  const quantityInputRefs = useRef([])
+  const pendingProductFocusIndexRef = useRef(null)
+  const returnProductInputRef = useRef(null)
+  const returnQuantityInputRef = useRef(null)
+  const returnReasonInputRef = useRef(null)
+  const returnButtonRef = useRef(null)
 
   const {
     register,
@@ -389,6 +421,22 @@ export default function InvoiceCreatorPage() {
     const totalPages = Math.max(1, Math.ceil(fields.length / linePageSize))
     if (linePage > totalPages) setLinePage(totalPages)
   }, [linePage, fields.length])
+
+  useEffect(() => {
+    const pendingIndex = pendingProductFocusIndexRef.current
+    if (pendingIndex === null) return undefined
+
+    const input = productInputRefs.current[pendingIndex]
+    if (!input) return undefined
+
+    pendingProductFocusIndexRef.current = null
+    const animationFrame = requestAnimationFrame(() => {
+      input.focus()
+      input.select()
+    })
+
+    return () => cancelAnimationFrame(animationFrame)
+  }, [fields.length, linePage])
 
   const productById = useMemo(() => {
     return products.reduce((map, product) => {
@@ -528,13 +576,18 @@ export default function InvoiceCreatorPage() {
         const normalLines = orderLines.filter((line) => !line.isReturnLine)
         const orderReturnLines = orderLines.filter((line) => line.isReturnLine)
 
-        setReturnLines(orderReturnLines)
+        setReturnLines(
+          orderReturnLines.map((line) => ({
+            ...line,
+            quantity: integerQuantity(line.quantity),
+          }))
+        )
 
         const prefilledLines = normalLines.map((line) => ({
           productId: line.productId || '',
           unitId: line.unitId || line.smallestUnitCode || line.smallestUnitName || line.unitName || '',
           unitName: line.smallestUnitName || line.smallestUnitCode || line.unitName || '',
-          quantity: Number(line.quantity || 0),
+          quantity: integerQuantity(line.quantity),
           mrp: Number(line.mrp || 0),
           categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
           skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
@@ -617,7 +670,7 @@ export default function InvoiceCreatorPage() {
                 productId: line.productId || '',
                 unitId: line.unitId || line.smallestUnitCode || '',
                 unitName: line.smallestUnitCode || line.unitId || '',
-                quantity: Number(line.quantity || 0),
+                quantity: integerQuantity(line.quantity),
                 mrp: Number(line.mrp || 0),
                 categoryDiscountPercent: Number(line.categoryDiscountPercent || 0),
                 skuDiscountAvailable: Number(line.skuDiscountPercent || 0) > 0,
@@ -636,7 +689,7 @@ export default function InvoiceCreatorPage() {
           invoiceReturnLines.map((line) => ({
             id: line.id,
             productId: line.productId,
-            quantity: Number(line.quantity || 0),
+            quantity: integerQuantity(line.quantity),
             reason: returnReasonValue(line.returnReason),
             returnReason: returnReasonValue(line.returnReason),
             mrp: Number(line.mrp || 0),
@@ -802,6 +855,11 @@ export default function InvoiceCreatorPage() {
       return
     }
 
+    setReturnDraftLine((current) => ({
+      ...current,
+      productId,
+    }))
+
     try {
       const [product, prices] = await Promise.all([
         masterService.getProduct(productId),
@@ -832,14 +890,24 @@ export default function InvoiceCreatorPage() {
     }
   }
 
+  function handleAddInvoiceLine() {
+    const nextIndex = fields.length
+    pendingProductFocusIndexRef.current = nextIndex
+    append({ ...emptyLine })
+    setLinePage(Math.floor(nextIndex / linePageSize) + 1)
+  }
+
   function handleAddReturnLine() {
     if (!returnDraftLine.productId) {
       toast.error('Return product is required.')
       return
     }
 
-    if (Number(returnDraftLine.quantity) <= 0) {
-      toast.error('Return quantity must be greater than zero.')
+    if (
+      Number(returnDraftLine.quantity) <= 0 ||
+      !Number.isInteger(Number(returnDraftLine.quantity))
+    ) {
+      toast.error('Return quantity must be a whole number greater than zero.')
       return
     }
 
@@ -864,6 +932,10 @@ export default function InvoiceCreatorPage() {
       mrp: 0,
       categoryDiscountPercent: 0,
       discountPercent: 0,
+    })
+
+    requestAnimationFrame(() => {
+      returnProductInputRef.current?.focus()
     })
   }
 
@@ -943,6 +1015,7 @@ export default function InvoiceCreatorPage() {
       (line) =>
         !line.productId ||
         Number(line.quantity) <= 0 ||
+        !Number.isInteger(Number(line.quantity)) ||
         Number(line.skuDiscountPercent || 0) < 0 ||
         Number(line.skuDiscountPercent || 0) > Number(line.skuDiscountMax || 0) ||
         Number(line.specialDiscountPercent || 0) < 0 ||
@@ -955,7 +1028,7 @@ export default function InvoiceCreatorPage() {
     )
 
     if (invalidLine) {
-      return 'Each line needs a product, quantity, and discounts within their allowed maximums.'
+      return 'Each line needs a product, a whole-number quantity greater than zero, and discounts within their allowed maximums.'
     }
 
     const maxManualDiscount = Math.max(0, totals.gross - totals.categoryDiscount)
@@ -1004,7 +1077,7 @@ export default function InvoiceCreatorPage() {
       customerId: values.customerId,
       salesRouteId: values.salesRouteId,
       serialNumber: serialNumber.trim(),
-      invoiceDate: toColomboDateTimeOffset(invoiceDate),
+      invoiceDate: toCalendarDateTimeOffset(invoiceDate),
       dueDate: null,
       isTaxInvoice: isCustomerVatRegistered,
       customerVatTin: selectedCustomerDetails?.taxNumber || null,
@@ -1277,11 +1350,7 @@ export default function InvoiceCreatorPage() {
             <button
               type="button"
               className="button-secondary"
-              onClick={() => {
-                append({ ...emptyLine })
-                const nextCount = fields.length + 1
-                setLinePage(Math.ceil(nextCount / linePageSize))
-              }}
+              onClick={handleAddInvoiceLine}
               style={{ height: 34 }}
             >
               <Plus style={{ width: 14, height: 14 }} />
@@ -1308,8 +1377,13 @@ export default function InvoiceCreatorPage() {
                   Return Product
                 </label>
                 <SearchablePicker
+                  inputRef={returnProductInputRef}
                   value={returnDraftLine.productId}
                   onChange={handleReturnProductChange}
+                  onEnter={() => {
+                    returnQuantityInputRef.current?.focus()
+                    returnQuantityInputRef.current?.select()
+                  }}
                   options={products}
                   getLabel={(product) =>
                     [product.sku, product.name].filter(Boolean).join(' - ') ||
@@ -1331,17 +1405,33 @@ export default function InvoiceCreatorPage() {
                   Qty
                 </label>
                 <input
+                  ref={returnQuantityInputRef}
                   className="form-input mono text-right"
                   type="number"
-                  min="0.01"
-                  step="0.01"
+                  min="1"
+                  step="1"
                   value={returnDraftLine.quantity}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    if (!isPositiveIntegerInput(event.target.value)) return
                     setReturnDraftLine((current) => ({
                       ...current,
                       quantity: event.target.value,
                     }))
-                  }
+                  }}
+                  onBlur={() => {
+                    if (returnDraftLine.quantity !== '') return
+                    setReturnDraftLine((current) => ({ ...current, quantity: 1 }))
+                  }}
+                  onPaste={preventInvalidQuantityPaste}
+                  onKeyDown={(event) => {
+                    if (invalidQuantityKeys.has(event.key)) {
+                      event.preventDefault()
+                      return
+                    }
+                    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                    event.preventDefault()
+                    returnReasonInputRef.current?.focus()
+                  }}
                 />
               </div>
               <div>
@@ -1349,6 +1439,7 @@ export default function InvoiceCreatorPage() {
                   Reason
                 </label>
                 <select
+                  ref={returnReasonInputRef}
                   className="form-input"
                   value={returnDraftLine.reason}
                   onChange={(event) =>
@@ -1357,6 +1448,11 @@ export default function InvoiceCreatorPage() {
                       reason: Number(event.target.value),
                     }))
                   }
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                    event.preventDefault()
+                    returnButtonRef.current?.focus()
+                  }}
                   style={{ height: 38 }}
                 >
                   {returnReasonOptions.map((reason) => (
@@ -1382,6 +1478,7 @@ export default function InvoiceCreatorPage() {
                 </div>
               </div>
               <button
+                ref={returnButtonRef}
                 type="button"
                 className="button-secondary"
                 onClick={handleAddReturnLine}
@@ -1409,7 +1506,7 @@ export default function InvoiceCreatorPage() {
                 <col style={{ width: 90 }} />  {/* MRP */}
                 <col style={{ width: 80 }} />  {/* QTY */}
                 <col style={{ width: 110 }} /> {/* Category Discount */}
-                <col style={{ width: 120 }} /> {/* Unit Price */}
+                <col style={{ width: 120 }} /> {/* Selling Price */}
                 <col style={{ width: 130 }} /> {/* Total */}
                 <col style={{ width: 50 }} />  {/* Delete */}
               </colgroup>
@@ -1424,7 +1521,7 @@ export default function InvoiceCreatorPage() {
                   </th>
 
                   <th style={{ textAlign: 'right', paddingRight: 16 }}>
-                    Unit Price
+                    Selling Price
                   </th>
 
                   <th style={{ textAlign: 'right', paddingRight: 16 }}>
@@ -1437,12 +1534,20 @@ export default function InvoiceCreatorPage() {
                 {pagedFields.map(({ field, index }) => {
                   const line = lines[index] || emptyLine
                   const { unitPrice, lineTotal } = getLineAmounts(line)
+                  const quantityPath = `lines.${index}.quantity`
+                  const quantityField = register(quantityPath, {
+                    min: 1,
+                    validate: (value) => Number.isInteger(Number(value)),
+                  })
 
                   return (
                     <tr key={field.id}>
                       <td>
                         <input type="hidden" {...register(`lines.${index}.productId`)} />
                         <SearchablePicker
+                          inputRef={(element) => {
+                            productInputRefs.current[index] = element
+                          }}
                           value={line.productId}
                           onChange={(productId) => {
                             setValue(`lines.${index}.productId`, productId, {
@@ -1450,6 +1555,10 @@ export default function InvoiceCreatorPage() {
                               shouldValidate: true,
                             })
                             handleProductChange(index, productId)
+                          }}
+                          onEnter={() => {
+                            quantityInputRefs.current[index]?.focus()
+                            quantityInputRefs.current[index]?.select()
                           }}
                           options={products}
                           getLabel={(product) =>
@@ -1515,8 +1624,44 @@ export default function InvoiceCreatorPage() {
                         <input
                           className="form-input mono text-right"
                           type="number"
-                          step="0.01"
-                          {...register(`lines.${index}.quantity`)}
+                          min="1"
+                          step="1"
+                          {...quantityField}
+                          ref={(element) => {
+                            quantityField.ref(element)
+                            quantityInputRefs.current[index] = element
+                          }}
+                          value={line.quantity ?? ''}
+                          onChange={(event) => {
+                            if (!isPositiveIntegerInput(event.target.value)) return
+                            setValue(
+                              quantityPath,
+                              event.target.value === '' ? '' : Number(event.target.value),
+                              { shouldDirty: true, shouldValidate: true }
+                            )
+                          }}
+                          onBlur={(event) => {
+                            quantityField.onBlur(event)
+                            if (event.target.value !== '') return
+                            setValue(quantityPath, 1, { shouldDirty: true, shouldValidate: true })
+                          }}
+                          onPaste={preventInvalidQuantityPaste}
+                          onKeyDown={(event) => {
+                            if (invalidQuantityKeys.has(event.key)) {
+                              event.preventDefault()
+                              return
+                            }
+                            if (
+                              event.key !== 'Enter' ||
+                              event.repeat ||
+                              event.nativeEvent.isComposing
+                            ) {
+                              return
+                            }
+
+                            event.preventDefault()
+                            handleAddInvoiceLine()
+                          }}
                           style={{
                             width: '100%',
                             minWidth: 0,

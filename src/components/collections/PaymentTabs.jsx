@@ -19,7 +19,7 @@ const payloadAllocations = (rows) =>
   rows
     .filter((row) => Number(row.allocated) > 0)
     .map((row) => ({ invoiceId: row.invoiceId, amount: Number(row.allocated) }))
-const apiDate = (date) => new Date(`${date}T00:00:00+05:30`).toISOString()
+const apiDate = (date) => `${date}T00:00:00.000Z`
 
 function AllocationSection({ customer, total, allocations, setAllocations }) {
   const invoices = useOutstandingInvoices(customer?.id)
