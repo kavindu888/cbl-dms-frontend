@@ -504,17 +504,11 @@ export default function VehicleMovementDetailPage({
     setProductById({})
     setIsLoadingProducts(true)
 
-    Promise.allSettled(productIds.map((productId) => masterService.getProduct(productId)))
-      .then((results) => {
+    masterService
+      .getProductsByIds(productIds)
+      .then((fetchedProducts) => {
         if (!active) return
-
-        const products = {}
-        results.forEach((result, index) => {
-          if (result.status === 'fulfilled' && result.value) {
-            products[productIds[index]] = result.value
-          }
-        })
-        setProductById(products)
+        setProductById(Object.fromEntries(fetchedProducts.map((product) => [product.id, product])))
       })
       .finally(() => {
         if (active) setIsLoadingProducts(false)

@@ -266,15 +266,9 @@ export default function SalesOrderList() {
         )
 
         if (productIds.length) {
-          const productResponses = await Promise.allSettled(
-            productIds.map((productId) => masterService.getProduct(productId))
-          )
+          const fetchedProducts = await masterService.getProductsByIds(productIds)
           if (!isCurrent) return
-          setProducts(
-            productResponses.flatMap((response) =>
-              response.status === 'fulfilled' && response.value ? [response.value] : []
-            )
-          )
+          setProducts(fetchedProducts)
         }
       } catch (requestError) {
         if (!isCurrent) return

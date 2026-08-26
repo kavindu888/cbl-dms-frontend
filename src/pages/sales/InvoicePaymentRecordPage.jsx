@@ -185,14 +185,7 @@ export default function InvoicePaymentRecordPage() {
       const productIds = Array.from(
         new Set((invoiceDetail.lines || []).map((line) => line.productId).filter(Boolean))
       )
-      const productResults = await Promise.allSettled(
-        productIds.map((productId) => masterService.getProduct(productId))
-      )
-      setProducts(
-        productResults.flatMap((result) =>
-          result.status === 'fulfilled' && result.value ? [result.value] : []
-        )
-      )
+      setProducts(await masterService.getProductsByIds(productIds))
 
       return invoiceDetail
     } catch (requestError) {

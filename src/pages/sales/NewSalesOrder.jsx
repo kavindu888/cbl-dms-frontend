@@ -313,10 +313,7 @@ export default function NewSalesOrder() {
     const missingIds = productIds.filter((id) => !productById[id])
     if (!missingIds.length) return
 
-    const responses = await Promise.allSettled(missingIds.map((id) => masterService.getProduct(id)))
-    const loadedProducts = responses.flatMap((response) =>
-      response.status === 'fulfilled' && response.value ? [response.value] : []
-    )
+    const loadedProducts = await masterService.getProductsByIds(missingIds)
     if (loadedProducts.length) {
       setProductById((current) => ({
         ...current,
@@ -413,13 +410,8 @@ export default function NewSalesOrder() {
           new Set((order.lines || []).map((line) => line.productId).filter(Boolean))
         )
         if (productIds.length) {
-          const responses = await Promise.allSettled(
-            productIds.map((productId) => masterService.getProduct(productId))
-          )
+          const loadedProducts = await masterService.getProductsByIds(productIds)
           if (!isCurrent) return
-          const loadedProducts = responses.flatMap((response) =>
-            response.status === 'fulfilled' && response.value ? [response.value] : []
-          )
           setProductById((current) => ({
             ...current,
             ...loadedProducts.reduce((map, product) => {

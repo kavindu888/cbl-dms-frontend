@@ -26,10 +26,10 @@ function VehicleStockRepairPanel({ vehicleById }) {
     const unknown = [...new Set(productIds)].filter((id) => id && !productById[id])
     if (!unknown.length) return productById
 
-    const results = await Promise.allSettled(unknown.map((id) => masterService.getProduct(id)))
+    const products = await masterService.getProductsByIds(unknown)
     const merged = { ...productById }
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled' && result.value) merged[unknown[index]] = result.value
+    products.forEach((product) => {
+      merged[product.id] = product
     })
     setProductById(merged)
     return merged

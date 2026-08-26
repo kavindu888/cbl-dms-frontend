@@ -572,6 +572,17 @@ export const masterService = {
     return formatProduct(getValue(response, 'Unable to load product.'))
   },
 
+  // Batch product fetch — use instead of calling getProduct in a loop/Promise.all.
+  async getProductsByIds(ids) {
+    const distinctIds = [...new Set((ids || []).filter(Boolean))]
+    if (!distinctIds.length) return []
+
+    const response = await getOnce('/api/v1/master-data/products/by-ids', {
+      params: { ids: distinctIds.join(',') },
+    })
+    return (getValue(response, 'Unable to load products.') || []).map(formatProduct)
+  },
+
   async getCategoryDiscount(categoryId) {
     if (!categoryId) return null
 

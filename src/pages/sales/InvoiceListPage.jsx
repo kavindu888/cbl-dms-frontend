@@ -228,23 +228,16 @@ export default function InvoiceListPage() {
         if (productIds.length || returnLines.length) {
           detailRequests.push(
             Promise.all([
-              Promise.allSettled(
-                productIds.map((productId) => masterService.getProduct(productId))
-              ),
+              masterService.getProductsByIds(productIds).catch(() => []),
               returnLines.length
                 ? masterService
                     .listAllProducts({ pageSize: 1000, status: 'Active' })
                     .catch(() => [])
                 : Promise.resolve([]),
             ])
-              .then(([directResponses, catalogProducts]) => {
+              .then(([directProducts, catalogProducts]) => {
                 if (!isCurrent) return
-                const resolvedProducts = [
-                  ...directResponses.flatMap((response) =>
-                    response.status === 'fulfilled' && response.value ? [response.value] : []
-                  ),
-                  ...(catalogProducts || []),
-                ]
+                const resolvedProducts = [...(directProducts || []), ...(catalogProducts || [])]
                 setProducts(
                   Array.from(
                     new Map(resolvedProducts.map((product) => [product.id, product])).values()
