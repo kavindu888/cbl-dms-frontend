@@ -20,6 +20,20 @@ function VehicleStockRepairPanel({ vehicleById }) {
   const [flagged, setFlagged] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [isRepairing, setIsRepairing] = useState(false)
+  const [productById, setProductById] = useState({})
+
+  async function resolveProductNames(productIds) {
+    const unknown = [...new Set(productIds)].filter((id) => id && !productById[id])
+    if (!unknown.length) return productById
+
+    const results = await Promise.allSettled(unknown.map((id) => masterService.getProduct(id)))
+    const merged = { ...productById }
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value) merged[unknown[index]] = result.value
+    })
+    setProductById(merged)
+    return merged
+  }
 
   async function loadFlagged() {
     setIsLoading(true)
@@ -38,14 +52,20 @@ function VehicleStockRepairPanel({ vehicleById }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function reportResult(result) {
+  function productLabel(namesMap, line) {
+    return namesMap[line.productId]?.name || line.productSku
+  }
+
+  function reportResult(result, namesMap) {
     const failed = result.failedLines || []
     if (result.linesRepaired > 0) {
       toast.success(`${result.loadingNo}: ${result.linesRepaired} line(s) repaired.`)
     }
     if (failed.length > 0) {
       failed.forEach((line) => {
-        toast.error(`${result.loadingNo} — ${line.productSku}: ${line.reason}`, { duration: 12000 })
+        toast.error(`${result.loadingNo} — ${productLabel(namesMap, line)}: ${line.reason}`, {
+          duration: 12000,
+        })
       })
     }
     if (result.linesRepaired === 0 && failed.length === 0) {
@@ -57,7 +77,8 @@ function VehicleStockRepairPanel({ vehicleById }) {
     setIsRepairing(true)
     try {
       const result = await inventoryService.repairVehicleLoadingStock(id)
-      reportResult(result)
+      const namesMap = await resolveProductNames((result.failedLines || []).map((l) => l.productId))
+      reportResult(result, namesMap)
       await loadFlagged()
     } catch (error) {
       toast.error(error?.message || 'Unable to repair this loading.')
@@ -73,7 +94,10 @@ function VehicleStockRepairPanel({ vehicleById }) {
       if (!results.length) {
         toast.success('Nothing needed repair.')
       } else {
-        results.forEach(reportResult)
+        const namesMap = await resolveProductNames(
+          results.flatMap((r) => (r.failedLines || []).map((l) => l.productId))
+        )
+        results.forEach((result) => reportResult(result, namesMap))
         const totalLines = results.reduce((sum, r) => sum + (r.linesRepaired || 0), 0)
         const totalFailed = results.reduce((sum, r) => sum + (r.failedLines?.length || 0), 0)
         toast.message(

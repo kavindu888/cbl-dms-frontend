@@ -511,6 +511,20 @@ export const inventoryService = {
     const response = await api.post('/api/v1/inventory/vehicle-loadings/repair-all')
     return asList(getValue(response, 'Unable to repair vehicle loading stock.'))
   },
+  async adminAddAppliedLoadingLine(id, payload) {
+    const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/applied-lines`, payload)
+    return getValue(response, 'Unable to add loading line.')
+  },
+  async adminRemoveAppliedLoadingLine(id, lineId) {
+    const response = await api.delete(`/api/v1/inventory/vehicle-loadings/${id}/applied-lines/${lineId}`)
+    return getValue(response, 'Unable to remove loading line.')
+  },
+  async adminUpdateAppliedLoadingLineQty(id, lineId, qtySmallest) {
+    const response = await api.put(`/api/v1/inventory/vehicle-loadings/${id}/applied-lines/${lineId}`, {
+      qtySmallest,
+    })
+    return getValue(response, 'Unable to update loading line.')
+  },
 
   async createVehicleUnloading(payload) {
     const response = await api.post('/api/v1/inventory/vehicle-unloadings', payload)

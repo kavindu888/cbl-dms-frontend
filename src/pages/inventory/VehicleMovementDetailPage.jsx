@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, PackageX, Pencil, Search, Trash2, X, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, PackageX, Pencil, Plus, Search, Trash2, X, XCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -6,10 +6,14 @@ import EmptyState from '@components/ui/EmptyState'
 import Modal from '@components/ui/Modal'
 import StatusBadge from '@components/ui/StatusBadge'
 import {
+  useAdminAddAppliedLoadingLine,
+  useAdminRemoveAppliedLoadingLine,
   useAdminRemoveAppliedUnloadingLine,
+  useAdminUpdateAppliedLoadingLineQty,
   useAdminUpdateAppliedUnloadingLineQty,
   useVehicles,
 } from '@/hooks/useVehicle'
+import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
 import { usersService } from '@/services/api/usersService'
 import { useAuthStore } from '@stores/authStore'
@@ -18,9 +22,285 @@ import { formatDateTime } from '@/utils/formatDate'
 import { formatLKR } from '@/utils/formatCurrency'
 import {
   formatNumber,
+  getQtyAvailable,
+  getMrp,
+  getUnitCost,
   movementStatusLabel,
   vehicleLabel,
 } from './vehicleMovementUtils'
+
+function AdminAddLoadingLineModal({ open, onOpenChange, onAdd, isSubmitting }) {
+  const [products, setProducts] = useState([])
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+  const [productSearch, setProductSearch] = useState('')
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [batches, setBatches] = useState([])
+  const [isLoadingBatches, setIsLoadingBatches] = useState(false)
+  const [selectedBatch, setSelectedBatch] = useState(null)
+  const [qty, setQty] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setProductSearch('')
+    setSelectedProduct(null)
+    setBatches([])
+    setSelectedBatch(null)
+    setQty('')
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return undefined
+    let active = true
+    setIsLoadingProducts(true)
+    masterService
+      .listAllProducts({ pageSize: 100, status: 'Active' })
+      .then((items) => {
+        if (active) setProducts(items || [])
+      })
+      .catch(() => {
+        if (active) setProducts([])
+      })
+      .finally(() => {
+        if (active) setIsLoadingProducts(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!selectedProduct) {
+      setBatches([])
+      setSelectedBatch(null)
+      return undefined
+    }
+    let active = true
+    setIsLoadingBatches(true)
+    inventoryService
+      .listStockBatches(selectedProduct.id, {})
+      .then((rows) => {
+        if (active) setBatches((rows || []).filter((batch) => getQtyAvailable(batch) > 0))
+      })
+      .catch(() => {
+        if (active) setBatches([])
+      })
+      .finally(() => {
+        if (active) setIsLoadingBatches(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [selectedProduct])
+
+  const filteredProducts = useMemo(() => {
+    const term = productSearch.trim().toLowerCase()
+    if (!term) return products.slice(0, 30)
+    return products
+      .filter((product) =>
+        `${product.name} ${product.sku} ${product.barcode || ''}`.toLowerCase().includes(term)
+      )
+      .slice(0, 30)
+  }, [productSearch, products])
+
+  async function handleSubmit() {
+    const requestedQty = Number(qty)
+    if (!selectedProduct || !selectedBatch) {
+      toast.error('Select a product and a main-stock batch first.')
+      return
+    }
+    if (!requestedQty || requestedQty <= 0) {
+      toast.error('Enter a quantity greater than zero.')
+      return
+    }
+    if (requestedQty > getQtyAvailable(selectedBatch)) {
+      toast.error('Quantity cannot exceed the available batch quantity.')
+      return
+    }
+    await onAdd({
+      productId: selectedProduct.id,
+      productSku: selectedProduct.sku,
+      sourceBatchId: selectedBatch.id,
+      qtySmallest: requestedQty,
+    })
+  }
+
+  return (
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Add Line to Applied Loading"
+      description="Pick a product and a main-stock batch. Stock moves to the vehicle immediately."
+      maxWidth="620px"
+      contentStyle={{ borderRadius: 12, overflow: 'hidden', padding: 24 }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <label>
+          <span className="form-label">Product</span>
+          <input
+            className="form-input"
+            value={productSearch}
+            onChange={(event) => {
+              setProductSearch(event.target.value)
+              setSelectedProduct(null)
+            }}
+            placeholder="Search SKU, barcode, or product name"
+          />
+        </label>
+        {!selectedProduct && productSearch.trim() ? (
+          <div
+            style={{
+              border: '1px solid var(--color-border)',
+              borderRadius: 8,
+              maxHeight: 200,
+              overflowY: 'auto',
+            }}
+          >
+            {isLoadingProducts ? (
+              <div style={{ color: 'var(--color-text-muted)', padding: 12 }}>Loading products...</div>
+            ) : filteredProducts.length ? (
+              filteredProducts.map((product) => (
+                <button
+                  key={product.id}
+                  type="button"
+                  onClick={() => setSelectedProduct(product)}
+                  style={{
+                    borderBottom: '1px solid var(--color-border)',
+                    display: 'block',
+                    padding: '9px 12px',
+                    textAlign: 'left',
+                    width: '100%',
+                  }}
+                >
+                  <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
+                    {product.name}
+                  </strong>
+                  <span className="mono" style={{ color: 'var(--color-teal)', fontSize: 11 }}>
+                    {product.sku}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <div style={{ color: 'var(--color-text-muted)', padding: 12 }}>No products found.</div>
+            )}
+          </div>
+        ) : null}
+        {selectedProduct ? (
+          <>
+            <div
+              style={{
+                alignItems: 'center',
+                background: 'var(--color-bg-hover)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                display: 'flex',
+                gap: 10,
+                padding: '9px 12px',
+              }}
+            >
+              <span className="product-sku-badge mono">{selectedProduct.sku}</span>
+              <strong style={{ color: 'var(--color-text-primary)', flex: 1 }}>{selectedProduct.name}</strong>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => {
+                  setSelectedProduct(null)
+                  setProductSearch('')
+                }}
+                style={{ height: 28 }}
+              >
+                Change
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Batch No</th>
+                    <th className="text-right">Available Qty</th>
+                    <th className="text-right">Unit Cost</th>
+                    <th className="text-right">MRP</th>
+                    <th className="text-right">Select</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoadingBatches ? (
+                    <tr>
+                      <td colSpan={5}>Loading batches...</td>
+                    </tr>
+                  ) : batches.length ? (
+                    batches.map((batch) => (
+                      <tr
+                        key={batch.id}
+                        style={{
+                          boxShadow:
+                            selectedBatch?.id === batch.id ? 'inset 3px 0 var(--color-teal)' : 'none',
+                        }}
+                      >
+                        <td className="mono">{batch.batchNo || '—'}</td>
+                        <td className="mono text-right">{formatNumber(getQtyAvailable(batch))}</td>
+                        <td className="mono text-right">{formatLKR(getUnitCost(batch))}</td>
+                        <td className="mono text-right">{formatLKR(getMrp(batch))}</td>
+                        <td className="text-right">
+                          <button
+                            type="button"
+                            className={selectedBatch?.id === batch.id ? 'button-primary' : 'button-secondary'}
+                            onClick={() => setSelectedBatch(batch)}
+                            style={{ height: 28 }}
+                          >
+                            Select
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5}>No available main-stock batches for this product.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
+        {selectedBatch ? (
+          <label>
+            <span className="form-label">Quantity *</span>
+            <input
+              className="form-input mono"
+              type="number"
+              min="0.0001"
+              step="0.0001"
+              max={getQtyAvailable(selectedBatch)}
+              value={qty}
+              onChange={(event) => setQty(event.target.value)}
+            />
+            <small className="mono" style={{ color: 'var(--color-text-muted)' }}>
+              Max available: {formatNumber(getQtyAvailable(selectedBatch))}
+            </small>
+          </label>
+        ) : null}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button
+            type="button"
+            className="button-secondary"
+            disabled={isSubmitting}
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="button-primary"
+            disabled={isSubmitting || !selectedBatch || !qty}
+            onClick={handleSubmit}
+          >
+            {isSubmitting ? 'Adding...' : 'Add Line'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
 
 function InfoTile({ label, value, mono = false }) {
   return (
@@ -72,8 +352,11 @@ export default function VehicleMovementDetailPage({
   const cancelMovement = useCancel()
   const { user } = useAuthStore()
   const canManageVehicles = userHasPermission(user, PERMISSIONS.inventory.vehicleManage)
-  const removeAppliedLine = useAdminRemoveAppliedUnloadingLine(id)
-  const updateAppliedLineQty = useAdminUpdateAppliedUnloadingLineQty(id)
+  const removeAppliedUnloadingLine = useAdminRemoveAppliedUnloadingLine(id)
+  const updateAppliedUnloadingLineQty = useAdminUpdateAppliedUnloadingLineQty(id)
+  const removeAppliedLoadingLine = useAdminRemoveAppliedLoadingLine(id)
+  const updateAppliedLoadingLineQty = useAdminUpdateAppliedLoadingLineQty(id)
+  const addAppliedLoadingLine = useAdminAddAppliedLoadingLine(id)
   const [deliveryRuns, setDeliveryRuns] = useState([])
   const [productById, setProductById] = useState({})
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
@@ -84,11 +367,15 @@ export default function VehicleMovementDetailPage({
   const [lineSearch, setLineSearch] = useState('')
   const [editingLineId, setEditingLineId] = useState(null)
   const [editingQty, setEditingQty] = useState('')
+  const [isAddLineModalOpen, setIsAddLineModalOpen] = useState(false)
   const vehicle = vehicles.find((item) => item.id === movement?.vehicleLocationId)
   const status = movementStatusLabel(movement?.status)
   const isUnloading = kind === 'Unloading'
-  const showAdminLineControls = isUnloading && status === 'Applied' && canManageVehicles
-  const adminLineActionPending = removeAppliedLine.isPending || updateAppliedLineQty.isPending
+  const showAdminLineControls = status === 'Applied' && canManageVehicles
+  const removeAppliedLine = isUnloading ? removeAppliedUnloadingLine : removeAppliedLoadingLine
+  const updateAppliedLineQty = isUnloading ? updateAppliedUnloadingLineQty : updateAppliedLoadingLineQty
+  const adminLineActionPending =
+    removeAppliedLine.isPending || updateAppliedLineQty.isPending || addAppliedLoadingLine.isPending
 
   function startEditingLine(line) {
     setEditingLineId(line.id)
@@ -119,6 +406,15 @@ export default function VehicleMovementDetailPage({
       return
     try {
       await removeAppliedLine.mutateAsync(lineId)
+    } catch {
+      /* The mutation hook displays the API error. */
+    }
+  }
+
+  async function addAppliedLine(payload) {
+    try {
+      await addAppliedLoadingLine.mutateAsync(payload)
+      setIsAddLineModalOpen(false)
     } catch {
       /* The mutation hook displays the API error. */
     }
@@ -405,8 +701,9 @@ export default function VehicleMovementDetailPage({
         <section className="rounded-lg border border-amber-700/50 bg-amber-500/10 p-4 text-sm text-amber-300">
           <p className="font-semibold">Admin override</p>
           <p className="mt-1 text-amber-200/80">
-            You can edit or remove lines on this applied unloading. Doing so reverses the
-            associated stock movement — it's blocked if that stock has already moved on elsewhere.
+            {isUnloading
+              ? "You can edit or remove lines on this applied unloading. Doing so reverses the associated stock movement — it's blocked if that stock has already moved on elsewhere."
+              : "You can add, edit, or remove lines on this applied loading. Adding or editing moves real stock from main to the vehicle immediately; editing or removing an existing line reverses its movement first — it's blocked if that stock has already moved on elsewhere."}
           </p>
         </section>
       ) : null}
@@ -514,7 +811,19 @@ export default function VehicleMovementDetailPage({
                 : `${movement.lines?.length || 0} batch line${movement.lines?.length === 1 ? '' : 's'} in this ${kind.toLowerCase()}`}
             </p>
           </div>
-          {movement.lines?.length ? (
+          <div style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
+            {!isUnloading && showAdminLineControls ? (
+              <button
+                type="button"
+                className="button-primary"
+                disabled={adminLineActionPending}
+                onClick={() => setIsAddLineModalOpen(true)}
+                style={{ height: 38, whiteSpace: 'nowrap' }}
+              >
+                <Plus size={15} /> Add Line
+              </button>
+            ) : null}
+            {movement.lines?.length ? (
             <div
               style={{ minWidth: 240, position: 'relative', width: 'min(100%, 360px)' }}
             >
@@ -566,6 +875,7 @@ export default function VehicleMovementDetailPage({
               ) : null}
             </div>
           ) : null}
+          </div>
         </div>
         {movement.lines?.length ? (
           <div className="responsive-table-shell" style={{ overflowX: 'auto' }}>
@@ -838,6 +1148,15 @@ export default function VehicleMovementDetailPage({
             </div>
           </form>
         </Modal>
+      ) : null}
+
+      {!isUnloading && showAdminLineControls ? (
+        <AdminAddLoadingLineModal
+          open={isAddLineModalOpen}
+          onOpenChange={setIsAddLineModalOpen}
+          onAdd={addAppliedLine}
+          isSubmitting={addAppliedLoadingLine.isPending}
+        />
       ) : null}
     </div>
   )

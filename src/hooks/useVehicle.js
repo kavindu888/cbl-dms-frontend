@@ -100,6 +100,43 @@ export function useCancelVehicleLoading() {
   })
 }
 
+export function useAdminAddAppliedLoadingLine(id) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload) => inventoryService.adminAddAppliedLoadingLine(id, payload),
+    onSuccess: () => {
+      toast.success('Line added and stock moved to the vehicle.')
+      invalidateMovement(queryClient, loadingListKey, loadingDetailKey, id)
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Unable to add this line.')),
+  })
+}
+
+export function useAdminRemoveAppliedLoadingLine(id) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (lineId) => inventoryService.adminRemoveAppliedLoadingLine(id, lineId),
+    onSuccess: () => {
+      toast.success('Line removed and stock reversed.')
+      invalidateMovement(queryClient, loadingListKey, loadingDetailKey, id)
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Unable to remove this line.')),
+  })
+}
+
+export function useAdminUpdateAppliedLoadingLineQty(id) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ lineId, qtySmallest }) =>
+      inventoryService.adminUpdateAppliedLoadingLineQty(id, lineId, qtySmallest),
+    onSuccess: () => {
+      toast.success('Line quantity updated.')
+      invalidateMovement(queryClient, loadingListKey, loadingDetailKey, id)
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Unable to update this line.')),
+  })
+}
+
 export function useVehicleUnloadings(params = {}) {
   return useQuery({
     queryKey: [...unloadingListKey, params],
