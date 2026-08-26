@@ -499,6 +499,18 @@ export const inventoryService = {
     const response = await getOnce('/api/v1/inventory/vehicle-loadings', { params })
     return asList(getValue(response, 'Unable to load vehicle loadings.')).map(formatVehicleMovement)
   },
+  async listVehicleLoadingsNeedingRepair() {
+    const response = await getOnce('/api/v1/inventory/vehicle-loadings/needs-repair')
+    return asList(getValue(response, 'Unable to check vehicle loadings for repair.'))
+  },
+  async repairVehicleLoadingStock(id) {
+    const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/repair-stock`)
+    return getValue(response, 'Unable to repair vehicle loading stock.')
+  },
+  async repairAllVehicleLoadingStock() {
+    const response = await api.post('/api/v1/inventory/vehicle-loadings/repair-all')
+    return asList(getValue(response, 'Unable to repair vehicle loading stock.'))
+  },
 
   async createVehicleUnloading(payload) {
     const response = await api.post('/api/v1/inventory/vehicle-unloadings', payload)
@@ -529,6 +541,16 @@ export const inventoryService = {
     return asList(getValue(response, 'Unable to load vehicle unloadings.')).map(
       formatVehicleMovement
     )
+  },
+  async adminRemoveAppliedUnloadingLine(id, lineId) {
+    const response = await api.delete(`/api/v1/inventory/vehicle-unloadings/${id}/applied-lines/${lineId}`)
+    return getValue(response, 'Unable to remove unloading line.')
+  },
+  async adminUpdateAppliedUnloadingLineQty(id, lineId, qtySmallest) {
+    const response = await api.put(`/api/v1/inventory/vehicle-unloadings/${id}/applied-lines/${lineId}`, {
+      qtySmallest,
+    })
+    return getValue(response, 'Unable to update unloading line.')
   },
 
   async getLastBatchCost(productId) {

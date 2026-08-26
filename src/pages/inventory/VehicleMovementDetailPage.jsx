@@ -1,13 +1,19 @@
-import { ArrowLeft, CheckCircle2, PackageX, Search, X, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, PackageX, Pencil, Search, Trash2, X, XCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import EmptyState from '@components/ui/EmptyState'
 import Modal from '@components/ui/Modal'
 import StatusBadge from '@components/ui/StatusBadge'
-import { useVehicles } from '@/hooks/useVehicle'
+import {
+  useAdminRemoveAppliedUnloadingLine,
+  useAdminUpdateAppliedUnloadingLineQty,
+  useVehicles,
+} from '@/hooks/useVehicle'
 import { masterService } from '@/services/api/masterService'
 import { usersService } from '@/services/api/usersService'
+import { useAuthStore } from '@stores/authStore'
+import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import { formatDateTime } from '@/utils/formatDate'
 import { formatLKR } from '@/utils/formatCurrency'
 import {
@@ -64,6 +70,10 @@ export default function VehicleMovementDetailPage({
   const { data: vehicles = [] } = useVehicles()
   const applyMovement = useApply()
   const cancelMovement = useCancel()
+  const { user } = useAuthStore()
+  const canManageVehicles = userHasPermission(user, PERMISSIONS.inventory.vehicleManage)
+  const removeAppliedLine = useAdminRemoveAppliedUnloadingLine(id)
+  const updateAppliedLineQty = useAdminUpdateAppliedUnloadingLineQty(id)
   const [deliveryRuns, setDeliveryRuns] = useState([])
   const [productById, setProductById] = useState({})
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
@@ -72,9 +82,47 @@ export default function VehicleMovementDetailPage({
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [lineSearch, setLineSearch] = useState('')
+  const [editingLineId, setEditingLineId] = useState(null)
+  const [editingQty, setEditingQty] = useState('')
   const vehicle = vehicles.find((item) => item.id === movement?.vehicleLocationId)
   const status = movementStatusLabel(movement?.status)
   const isUnloading = kind === 'Unloading'
+  const showAdminLineControls = isUnloading && status === 'Applied' && canManageVehicles
+  const adminLineActionPending = removeAppliedLine.isPending || updateAppliedLineQty.isPending
+
+  function startEditingLine(line) {
+    setEditingLineId(line.id)
+    setEditingQty(String(line.qtySmallest))
+  }
+
+  function cancelEditingLine() {
+    setEditingLineId(null)
+    setEditingQty('')
+  }
+
+  async function saveEditingLine(lineId) {
+    const qty = Number(editingQty)
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.error('Enter a quantity greater than zero.')
+      return
+    }
+    try {
+      await updateAppliedLineQty.mutateAsync({ lineId, qtySmallest: qty })
+      cancelEditingLine()
+    } catch {
+      /* The mutation hook displays the API error. */
+    }
+  }
+
+  async function deleteAppliedLine(lineId) {
+    if (!window.confirm('Remove this line and reverse its stock movement? This cannot be undone.'))
+      return
+    try {
+      await removeAppliedLine.mutateAsync(lineId)
+    } catch {
+      /* The mutation hook displays the API error. */
+    }
+  }
   const deliveryRunById = useMemo(
     () => Object.fromEntries(deliveryRuns.map((run) => [run.id, run])),
     [deliveryRuns]
@@ -353,6 +401,16 @@ export default function VehicleMovementDetailPage({
         </section>
       ) : null}
 
+      {showAdminLineControls ? (
+        <section className="rounded-lg border border-amber-700/50 bg-amber-500/10 p-4 text-sm text-amber-300">
+          <p className="font-semibold">Admin override</p>
+          <p className="mt-1 text-amber-200/80">
+            You can edit or remove lines on this applied unloading. Doing so reverses the
+            associated stock movement — it's blocked if that stock has already moved on elsewhere.
+          </p>
+        </section>
+      ) : null}
+
       <section className="panel" style={{ padding: 18 }}>
         <div style={{ marginBottom: 14 }}>
           <p className="eyebrow">Movement Details</p>
@@ -516,11 +574,12 @@ export default function VehicleMovementDetailPage({
               style={{ minWidth: 760, tableLayout: 'fixed', width: '100%' }}
             >
               <colgroup>
-                <col style={{ width: '30%' }} />
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '20%' }} />
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '20%' }} />
+                <col style={{ width: showAdminLineControls ? '26%' : '30%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '18%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '18%' }} />
+                {showAdminLineControls ? <col style={{ width: '12%' }} /> : null}
               </colgroup>
               <thead>
                 <tr>
@@ -529,6 +588,7 @@ export default function VehicleMovementDetailPage({
                   <th style={{ textAlign: 'right' }}>Selling Price</th>
                   <th style={{ textAlign: 'right' }}>MRP</th>
                   <th style={{ textAlign: 'right' }}>Value</th>
+                  {showAdminLineControls ? <th style={{ textAlign: 'right' }}>Admin</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -538,6 +598,7 @@ export default function VehicleMovementDetailPage({
                   const qty = Number(line.qtySmallest || 0)
                   const sellingPrice = unitCost + (unitCost * 0.067)
                   const value = sellingPrice * qty
+                  const isEditingThisLine = editingLineId === line.id
 
                   return (
                     <tr key={line.id}>
@@ -549,7 +610,19 @@ export default function VehicleMovementDetailPage({
                         <span className="product-sku-badge mono">{line.productSku}</span>
                       </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-                        {formatNumber(qty)}
+                        {isEditingThisLine ? (
+                          <input
+                            type="number"
+                            min="1"
+                            className="form-input"
+                            autoFocus
+                            value={editingQty}
+                            onChange={(event) => setEditingQty(event.target.value)}
+                            style={{ height: 30, textAlign: 'right', width: 90 }}
+                          />
+                        ) : (
+                          formatNumber(qty)
+                        )}
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {formatLKR(sellingPrice)}
@@ -560,13 +633,62 @@ export default function VehicleMovementDetailPage({
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
                         {formatLKR(value)}
                       </td>
+                      {showAdminLineControls ? (
+                        <td style={{ textAlign: 'right' }}>
+                          {isEditingThisLine ? (
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                              <button
+                                type="button"
+                                className="button-primary"
+                                disabled={adminLineActionPending}
+                                onClick={() => saveEditingLine(line.id)}
+                                style={{ height: 28, fontSize: 11, padding: '0 8px' }}
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                className="button-secondary"
+                                disabled={adminLineActionPending}
+                                onClick={cancelEditingLine}
+                                style={{ height: 28, fontSize: 11, padding: '0 8px' }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                              <button
+                                type="button"
+                                aria-label="Edit line quantity"
+                                className="button-secondary"
+                                disabled={adminLineActionPending}
+                                onClick={() => startEditingLine(line)}
+                                style={{ height: 28, padding: '0 8px' }}
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="Remove line"
+                                className="button-secondary"
+                                disabled={adminLineActionPending}
+                                onClick={() => deleteAppliedLine(line.id)}
+                                style={{ color: 'var(--color-danger)', height: 28, padding: '0 8px' }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      ) : null}
                     </tr>
                   )
                 })}
                 {!filteredLines.length ? (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={showAdminLineControls ? 6 : 5}
                       style={{ color: 'var(--color-text-muted)', padding: 24, textAlign: 'center' }}
                     >
                       No stock lines match &ldquo;{lineSearch.trim()}&rdquo;.

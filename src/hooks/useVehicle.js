@@ -174,3 +174,28 @@ export function useCancelVehicleUnloading() {
     onError: (error) => toast.error(errorMessage(error, 'Unable to cancel vehicle unloading.')),
   })
 }
+
+export function useAdminRemoveAppliedUnloadingLine(id) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (lineId) => inventoryService.adminRemoveAppliedUnloadingLine(id, lineId),
+    onSuccess: () => {
+      toast.success('Line removed and stock reversed.')
+      invalidateMovement(queryClient, unloadingListKey, unloadingDetailKey, id)
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Unable to remove this line.')),
+  })
+}
+
+export function useAdminUpdateAppliedUnloadingLineQty(id) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ lineId, qtySmallest }) =>
+      inventoryService.adminUpdateAppliedUnloadingLineQty(id, lineId, qtySmallest),
+    onSuccess: () => {
+      toast.success('Line quantity updated.')
+      invalidateMovement(queryClient, unloadingListKey, unloadingDetailKey, id)
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Unable to update this line.')),
+  })
+}
