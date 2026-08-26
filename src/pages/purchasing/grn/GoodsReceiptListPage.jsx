@@ -3,6 +3,7 @@ import {
   CalendarDays,
   ChevronRight,
   ClipboardCheck,
+  Pencil,
   Search,
   X,
   Building2,
@@ -15,6 +16,8 @@ import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
+import { useAuthStore } from '@stores/authStore'
+import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import { GrnStatus } from '@/types/purchasing.types'
 import { formatDate } from '@/utils'
 
@@ -91,6 +94,8 @@ function getDateRange(range) {
 
 export default function GoodsReceiptListPage() {
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
+  const canAdjust = userHasPermission(user, PERMISSIONS.purchasing.grnAdjust)
   const [receipts, setReceipts] = useState([])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
@@ -104,6 +109,10 @@ export default function GoodsReceiptListPage() {
   const [error, setError] = useState('')
   const [receiptPage, setReceiptPage] = useState(1)
   const [itemPage, setItemPage] = useState(1)
+  const [isEditingAdjustment, setIsEditingAdjustment] = useState(false)
+  const [adjustmentAmount, setAdjustmentAmount] = useState('')
+  const [adjustmentReason, setAdjustmentReason] = useState('')
+  const [isSavingAdjustment, setIsSavingAdjustment] = useState(false)
 
   const loadReceipts = useCallback(async () => {
     setIsLoading(true)
@@ -126,27 +135,56 @@ export default function GoodsReceiptListPage() {
     loadReceipts()
   }, [loadReceipts])
 
+  const loadReceiptDetail = useCallback(async (id) => {
+    setIsLoadingDetail(true)
+    try {
+      const detail = await purchasingService.getGoodsReceipt(id)
+      setSelectedReceipt(detail)
+    } catch (requestError) {
+      toast.error(`Unable to load goods receipt details: ${requestError.message}`)
+      setSelectedReceipt(null)
+    } finally {
+      setIsLoadingDetail(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (!selectedId) {
       setSelectedReceipt(null)
       return
     }
+    loadReceiptDetail(selectedId)
+  }, [loadReceiptDetail, selectedId])
 
-    async function loadReceiptDetail() {
-      setIsLoadingDetail(true)
-      try {
-        const detail = await purchasingService.getGoodsReceipt(selectedId)
-        setSelectedReceipt(detail)
-      } catch (requestError) {
-        toast.error(`Unable to load goods receipt details: ${requestError.message}`)
-        setSelectedReceipt(null)
-      } finally {
-        setIsLoadingDetail(false)
-      }
-    }
-
-    loadReceiptDetail()
+  useEffect(() => {
+    setIsEditingAdjustment(false)
   }, [selectedId])
+
+  function startEditingAdjustment() {
+    setAdjustmentAmount(String(selectedReceipt?.adjustmentAmount || 0))
+    setAdjustmentReason(selectedReceipt?.adjustmentReason || '')
+    setIsEditingAdjustment(true)
+  }
+
+  async function saveAdjustment() {
+    const amount = Number(adjustmentAmount)
+    if (!Number.isFinite(amount)) {
+      toast.error('Enter a valid adjustment amount.')
+      return
+    }
+    setIsSavingAdjustment(true)
+    try {
+      await purchasingService.adminAdjustGoodsReceipt(selectedId, amount, adjustmentReason.trim() || null)
+      toast.success('Points adjustment saved.')
+      setIsEditingAdjustment(false)
+      await loadReceiptDetail(selectedId)
+      await loadReceipts()
+    } catch (requestError) {
+      toast.error(requestError.message || 'Unable to save the adjustment.')
+    } finally {
+      setIsSavingAdjustment(false)
+    }
+  }
 
   const filteredReceipts = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -832,6 +870,95 @@ export default function GoodsReceiptListPage() {
                   <SummaryRow label="Sub total" value={formatMoney(selectedReceipt.billTotal)} />
                   <SummaryRow label="Discount" value={formatMoney(selectedReceipt.discount)} />
                   <SummaryRow label="VAT" value={formatMoney(selectedReceipt.vatAmount)} />
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span className="text-xs text-text-muted">Points adjustment</span>
+                    {!isEditingAdjustment ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span
+                          className="mono text-xs"
+                          style={{
+                            color:
+                              Number(selectedReceipt.adjustmentAmount) !== 0
+                                ? 'var(--color-teal)'
+                                : undefined,
+                          }}
+                        >
+                          {formatMoney(selectedReceipt.adjustmentAmount)}
+                        </span>
+                        {canAdjust && Number(selectedReceipt.status) !== Number(GrnStatus.Rejected) ? (
+                          <button
+                            type="button"
+                            aria-label="Edit points adjustment"
+                            onClick={startEditingAdjustment}
+                            style={{
+                              alignItems: 'center',
+                              background: 'transparent',
+                              border: 0,
+                              color: 'var(--color-text-dim)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              padding: 2,
+                            }}
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  {isEditingAdjustment ? (
+                    <div
+                      style={{
+                        background: 'var(--color-bg-base)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 6,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                        padding: 8,
+                      }}
+                    >
+                      <input
+                        className="form-input mono"
+                        type="number"
+                        step="0.01"
+                        value={adjustmentAmount}
+                        onChange={(event) => setAdjustmentAmount(event.target.value)}
+                        placeholder="Amount"
+                        style={{ height: 30, fontSize: 12 }}
+                      />
+                      <input
+                        className="form-input"
+                        type="text"
+                        value={adjustmentReason}
+                        onChange={(event) => setAdjustmentReason(event.target.value)}
+                        placeholder="Reason (optional)"
+                        style={{ height: 30, fontSize: 12 }}
+                      />
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          disabled={isSavingAdjustment}
+                          onClick={() => setIsEditingAdjustment(false)}
+                          style={{ height: 26, fontSize: 11, padding: '0 8px' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="button-primary"
+                          disabled={isSavingAdjustment}
+                          onClick={saveAdjustment}
+                          style={{ height: 26, fontSize: 11, padding: '0 8px' }}
+                        >
+                          {isSavingAdjustment ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div
                     style={{
                       paddingTop: 10,

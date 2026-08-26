@@ -144,6 +144,14 @@ export const purchasingService = {
     return getValue(response, 'Unable to verify the goods receipt.')
   },
 
+  async adminAdjustGoodsReceipt(id, adjustmentAmount, reason) {
+    const response = await api.put(`/api/v1/goods-receipts/${id}/adjustment`, {
+      adjustmentAmount,
+      reason,
+    })
+    return getValue(response, 'Unable to update the goods receipt adjustment.')
+  },
+
   async rejectGoodsReceipt(id, reason) {
     const response = await api.post(`/api/v1/goods-receipts/${id}/reject`, { reason })
     return getValue(response, 'Unable to reject the goods receipt.')

@@ -186,6 +186,7 @@ function getReceiptHeaderPayload(selectedOrder, receiptHeader) {
     discount: toNumber(receiptHeader.discount),
     supplierInvoiceNo: normalizeText(receiptHeader.supplierInvoiceNo),
     notes: normalizeText(receiptHeader.notes),
+    adjustmentAmount: toNumber(receiptHeader.adjustmentAmount),
   }
 }
 
@@ -212,6 +213,7 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
     supplierInvoiceNo: '',
     discount: 0,
     notes: '',
+    adjustmentAmount: 0,
   })
   const [receiptLines, setReceiptLines] = useState([])
   const [orderPage, setOrderPage] = useState(1)
@@ -229,6 +231,7 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
       supplierInvoiceNo: '',
       discount: 0,
       notes: '',
+      adjustmentAmount: 0,
     })
     setReceiptLines([])
     setDraftReceipt(null)
@@ -361,6 +364,7 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
         supplierInvoiceNo: '',
         discount: 0,
         notes: '',
+        adjustmentAmount: 0,
       })
       setReceiptLines([])
       setDraftReceipt(null)
@@ -378,6 +382,7 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
           supplierInvoiceNo: '',
           discount: 0,
           notes: '',
+          adjustmentAmount: 0,
         })
         let draft = null
         let pending = null
@@ -424,6 +429,7 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
           supplierInvoiceNo: draft?.supplierInvoiceNo || '',
           discount: draft?.discount || 0,
           notes: draft?.notes || '',
+          adjustmentAmount: draft?.adjustmentAmount || 0,
         })
 
         const grnLinesByPoLine = new Map(
@@ -515,13 +521,15 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
     const valueOfSupply = Math.max(billTotal - discount, 0)
     const vatRate = selectedOrder?.vatRate == null ? defaultGrnVatRate : toNumber(selectedOrder.vatRate)
     const vatAmount = Math.round(valueOfSupply * (vatRate / 100) * 100) / 100
+    const adjustmentAmount = toNumber(receiptHeader.adjustmentAmount)
 
     return {
       billTotal,
       vatAmount,
-      netAmount: valueOfSupply + vatAmount,
+      adjustmentAmount,
+      netAmount: valueOfSupply + vatAmount + adjustmentAmount,
     }
-  }, [receiptHeader.discount, receiptLines, selectedOrder])
+  }, [receiptHeader.adjustmentAmount, receiptHeader.discount, receiptLines, selectedOrder])
 
   useEffect(() => {
     setOrderPage(1)
@@ -1507,6 +1515,34 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
                   <div className="flex justify-between text-xs">
                     <span className="text-text-muted">VAT (18%)</span>
                     <span className="mono">{formatMoney(receiptTotals.vatAmount)}</span>
+                  </div>
+                  <div
+                    className="flex justify-between items-center text-xs"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span className="text-text-muted" title="Corrects the GRN's total to match what was actually paid to the supplier.">
+                      Points adjustment
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      disabled={Boolean(pendingReceipt)}
+                      value={receiptHeader.adjustmentAmount}
+                      onChange={(event) => updateReceiptHeader('adjustmentAmount', event.target.value)}
+                      style={{
+                        width: '100px',
+                        height: '24px',
+                        padding: '0 8px',
+                        textAlign: 'right',
+                        fontSize: '11px',
+                        borderRadius: '4px',
+                      }}
+                    />
                   </div>
                   <div
                     style={{

@@ -24,6 +24,7 @@
     supplierManage: 'purchasing:supplier:manage',
     grnCreate: 'purchasing:grn:create',
     grnVerify: 'purchasing:grn:verify',
+    grnAdjust: 'purchasing:grn:adjust',
     returnNoteCreate: 'purchasing:returnnote:create',
     returnNoteApprove: 'purchasing:returnnote:approve',
     returnNoteComplete: 'purchasing:returnnote:complete',
