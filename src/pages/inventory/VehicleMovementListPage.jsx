@@ -38,11 +38,26 @@ function VehicleStockRepairPanel({ vehicleById }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  function reportResult(result) {
+    const failed = result.failedLines || []
+    if (result.linesRepaired > 0) {
+      toast.success(`${result.loadingNo}: ${result.linesRepaired} line(s) repaired.`)
+    }
+    if (failed.length > 0) {
+      failed.forEach((line) => {
+        toast.error(`${result.loadingNo} — ${line.productSku}: ${line.reason}`, { duration: 12000 })
+      })
+    }
+    if (result.linesRepaired === 0 && failed.length === 0) {
+      toast.success(`${result.loadingNo}: nothing needed repair.`)
+    }
+  }
+
   async function repairOne(id) {
     setIsRepairing(true)
     try {
       const result = await inventoryService.repairVehicleLoadingStock(id)
-      toast.success(`${result.loadingNo}: ${result.linesRepaired} line(s) repaired.`)
+      reportResult(result)
       await loadFlagged()
     } catch (error) {
       toast.error(error?.message || 'Unable to repair this loading.')
@@ -58,8 +73,12 @@ function VehicleStockRepairPanel({ vehicleById }) {
       if (!results.length) {
         toast.success('Nothing needed repair.')
       } else {
+        results.forEach(reportResult)
         const totalLines = results.reduce((sum, r) => sum + (r.linesRepaired || 0), 0)
-        toast.success(`Repaired ${results.length} loading(s), ${totalLines} line(s) total.`)
+        const totalFailed = results.reduce((sum, r) => sum + (r.failedLines?.length || 0), 0)
+        toast.message(
+          `Repair run: ${results.length} loading(s) processed, ${totalLines} line(s) fixed${totalFailed ? `, ${totalFailed} line(s) need manual attention` : ''}.`
+        )
       }
       await loadFlagged()
     } catch (error) {
