@@ -1680,15 +1680,13 @@ export default function Product() {
         sortDir: 'asc',
       })
       const listItems = result.items || []
-      const detailedItems = await Promise.all(
-        listItems.map(async (item) => {
-          try {
-            return await masterService.getProduct(item.id)
-          } catch {
-            return item
-          }
-        })
+      const detailsById = Object.fromEntries(
+        (await masterService.getProductsByIds(listItems.map((item) => item.id))).map((product) => [
+          product.id,
+          product,
+        ])
       )
+      const detailedItems = listItems.map((item) => detailsById[item.id] ?? item)
       setProducts(detailedItems)
       setTotalPages(Math.max(1, result.totalPages || 1))
       setTotalItems(result.totalItems || 0)

@@ -250,17 +250,22 @@ export default function CustomerListPage() {
     setIsLoadingLookups(true)
 
     try {
-      // listSalesRoutes requires territoryId — we cannot load all routes globally.
-      // allRoutes is not needed for the list view (CustomerSummaryDto has no salesRouteId).
-      const [groupResult, territoryResult, businessUnitResult] = await Promise.all([
+      const [groupResult, territoryResult, businessUnitResult, allRoutes] = await Promise.all([
         salesService.listCustomerGroups({ page: 1, pageSize: 100 }),
         masterService.listTerritories(),
         masterService.listBusinessUnits(),
+        masterService.listAllSalesRoutes(),
       ])
 
       setGroups(groupResult.items || [])
       setTerritories(territoryResult || [])
       setBusinessUnits(businessUnitResult || [])
+
+      // Seed the route cache with every route up front so resolveRoutes never
+      // needs to fan out a getSalesRoute call per distinct customer.salesRouteId.
+      const routesById = Object.fromEntries((allRoutes || []).map((route) => [route.id, route]))
+      routeCacheRef.current = { ...routeCacheRef.current, ...routesById }
+      setRouteCache((prev) => ({ ...prev, ...routesById }))
     } catch (loadError) {
       toast.error(getErrorMessage(loadError, 'Unable to load customer lookups.'))
     } finally {

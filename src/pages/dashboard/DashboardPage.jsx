@@ -3,7 +3,6 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter'
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
 import minMax from 'dayjs/plugin/minMax'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowRight } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -22,11 +21,8 @@ import { useNavigate } from 'react-router-dom'
 import { salesService } from '@/services/api/salesService'
 import { collectionsService } from '@/services/api/collectionsService'
 import { inventoryService } from '@/services/api/inventoryService'
-import { masterService } from '@/services/api/masterService'
 import { useVehicles } from '@/hooks/useVehicle'
 import { useCustomerById } from '@/hooks/useCustomers'
-import { useProductsByIds } from '@/hooks/useProducts'
-import { vehicleLabel } from '@/pages/inventory/vehicleMovementUtils'
 
 dayjs.extend(isSameOrAfter)
 dayjs.extend(isSameOrBefore)
@@ -254,9 +250,7 @@ function useDashboardData() {
     sessions: [],
     customerAccounts: [],
     activeBatches: [],
-    lowStockLevels: [],
     appliedLoadings: [],
-    deliveryRuns: [],
   })
 
   useEffect(() => {
@@ -266,15 +260,7 @@ function useDashboardData() {
     const { from, to } = isoRange(windowStart, today)
 
     async function load() {
-      const [
-        invoices,
-        sessions,
-        customerAccounts,
-        activeBatches,
-        lowStockLevels,
-        appliedLoadings,
-        deliveryRuns,
-      ] = await Promise.all([
+      const [invoices, sessions, customerAccounts, activeBatches, appliedLoadings] = await Promise.all([
         safe(salesService.listInvoices({ from, to, pageSize: 1000 }), []),
         safe(
           collectionsService.listCollectionSessions({
@@ -286,9 +272,7 @@ function useDashboardData() {
         ),
         safe(collectionsService.listCustomerAccounts({ pageSize: 200 }), []),
         safe(inventoryService.listActiveStockBatches(), []),
-        safe(inventoryService.listStockLevels({ lowStockOnly: true }), []),
         safe(inventoryService.listVehicleLoadings({ status: 2 }), []),
-        safe(masterService.listAllDeliveryRuns({ pageSize: 100 }), []),
       ])
 
       if (!active) return
@@ -298,9 +282,7 @@ function useDashboardData() {
         sessions,
         customerAccounts,
         activeBatches,
-        lowStockLevels,
         appliedLoadings,
-        deliveryRuns,
       })
     }
 
@@ -450,19 +432,6 @@ export default function DashboardPage() {
   const cashToday = todaySessions.reduce((sum, s) => sum + (s.totalCash || 0), 0)
   const chequeToday = todaySessions.reduce((sum, s) => sum + (s.totalCheques || 0), 0)
   const cashChequeTotal = cashToday + chequeToday || 1
-
-  const lowStockTop = useMemo(
-    () => [...data.lowStockLevels].sort((a, b) => (a.sellable || 0) - (b.sellable || 0)).slice(0, 5),
-    [data.lowStockLevels]
-  )
-  const { data: lowStockProducts = [] } = useProductsByIds(lowStockTop.map((l) => l.productId))
-  const lowStockProductById = Object.fromEntries(lowStockProducts.map((p) => [p.id, p]))
-
-  const deliveryRunById = useMemo(
-    () => Object.fromEntries(data.deliveryRuns.map((run) => [run.id, run])),
-    [data.deliveryRuns]
-  )
-  const vehicleById = useMemo(() => Object.fromEntries(vehicles.map((v) => [v.id, v])), [vehicles])
 
   const isLoading = data.isLoading
 
@@ -770,112 +739,6 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* Fourth Row (Low Stock & Fleet Alerts side by side) */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-8" style={{ padding: '8px 0' }}>
-        {/* Low Stock Alerts */}
-        <div className="relative">
-          <SectionPanel
-            title="Low Stock Alerts"
-            subtitle="Inventory balances requiring immediate replenishment"
-            action={<AlertTriangle size={18} style={{ color: 'var(--color-danger)' }} />}
-          >
-            {lowStockTop.length ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {lowStockTop.map((item) => {
-                  const product = lowStockProductById[item.productId]
-                  const sellable = Math.max(0, item.sellable || 0)
-                  return (
-                    <div
-                      key={item.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 10,
-                        paddingBottom: 10,
-                        borderBottom: '1px solid var(--color-border)',
-                      }}
-                    >
-                      <div>
-                        <p style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13 }}>
-                          {product?.name || item.productSku}
-                        </p>
-                        <p style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 12 }}>
-                          {sellable} {item.smallestUnitCode || 'units'} sellable ({item.productSku})
-                        </p>
-                      </div>
-                      <StatusPill status={sellable <= 0 ? 'Critical' : 'Low'} />
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <EmptyRow>{isLoading ? 'Loading...' : 'No low-stock products right now.'}</EmptyRow>
-            )}
-            <button
-              type="button"
-              onClick={() => navigate('/inventory/stock')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                marginTop: 18,
-                color: 'var(--color-amber)',
-                fontSize: 12,
-                fontWeight: 700,
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
-              }}
-            >
-              View Full Stock Ledger
-              <ArrowRight size={14} />
-            </button>
-          </SectionPanel>
-          <DividerRight className="hidden md:block -right-4" />
-          <DividerBottom />
-        </div>
-
-        {/* Fleet Dispatch Status */}
-        <div className="relative">
-          <SectionPanel title="Active Dispatch Fleet" subtitle="Vehicles with an applied load today">
-            {todaysAppliedLoadings.length ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {todaysAppliedLoadings.slice(0, 5).map((loading) => {
-                  const vehicle = vehicleById[loading.vehicleLocationId]
-                  const run = deliveryRunById[loading.deliveryRunId]
-                  return (
-                    <div
-                      key={loading.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'space-between',
-                        gap: 10,
-                        paddingBottom: 10,
-                        borderBottom: '1px solid var(--color-border)',
-                      }}
-                    >
-                      <div>
-                        <p className="mono" style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13 }}>
-                          {vehicle ? vehicleLabel(vehicle) : loading.vehicleLocationId}
-                        </p>
-                        <p style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 12 }}>
-                          {run ? `${run.code} - ${run.name}` : 'Delivery run not assigned'}
-                        </p>
-                      </div>
-                      <StatusPill status="On Route" />
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <EmptyRow>{isLoading ? 'Loading...' : 'No vehicles loaded today yet.'}</EmptyRow>
-            )}
-          </SectionPanel>
-        </div>
-      </section>
     </div>
   )
 }

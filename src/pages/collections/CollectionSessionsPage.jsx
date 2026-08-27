@@ -43,20 +43,15 @@ export default function CollectionSessionsPage() {
   const routes = useQuery({
     queryKey: ['master', 'sales-routes', 'collections'],
     queryFn: async () => {
-      const territories = (await masterService.listTerritories()).filter(
-        (territory) => territory.isActive
-      )
-      const pages = await Promise.all(
-        territories.map((territory) =>
-          masterService.listSalesRoutes({ territoryId: territory.id, page: 1, pageSize: 100 })
-        )
-      )
+      const [territories, allRoutes] = await Promise.all([
+        masterService.listTerritories(),
+        masterService.listAllSalesRoutes(),
+      ])
       const territoryById = Object.fromEntries(
-        territories.map((territory) => [territory.id, territory])
+        territories.filter((territory) => territory.isActive).map((territory) => [territory.id, territory])
       )
-      return pages
-        .flatMap((result) => result.items || [])
-        .filter((route) => route.isActive)
+      return allRoutes
+        .filter((route) => route.isActive && territoryById[route.territoryId])
         .map((route) => ({ ...route, territory: territoryById[route.territoryId] }))
     },
     staleTime: 60_000,

@@ -209,23 +209,14 @@ export default function SalesOrderList() {
 
     async function loadReferenceData() {
       try {
-        const [customerResult, territoriesList] = await Promise.all([
+        const [customerResult, routes] = await Promise.all([
           salesService.listCustomers({ page: 1, pageSize: 100, isActive: true }),
-          masterService.listTerritories(),
+          masterService.listAllSalesRoutes().catch(() => []),
         ])
         if (!isCurrent) return
 
         setCustomers(customerResult.items || [])
-
-        const routeResults = await Promise.all(
-          territoriesList.map((territory) =>
-            masterService
-              .listSalesRoutes({ territoryId: territory.id, page: 1, pageSize: 100 })
-              .catch(() => ({ items: [] }))
-          )
-        )
-        if (!isCurrent) return
-        setAllRoutes(routeResults.flatMap((result) => result.items || []))
+        setAllRoutes(routes)
       } catch (requestError) {
         if (isCurrent) setError(requestError.message)
       }

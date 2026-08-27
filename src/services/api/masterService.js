@@ -416,6 +416,29 @@ export const masterService = {
     }
   },
 
+  // Sales Routes List (all pages, all territories — one call instead of one per territory)
+  async listAllSalesRoutes(params = {}) {
+    const pageSize = Math.min(Number(params.pageSize || 100), 100)
+    const firstPage = await this.listSalesRoutes({ ...params, page: 1, pageSize })
+    const items = [...(firstPage.items || [])]
+    const fallbackTotalPages =
+      Math.ceil(Number(firstPage.totalItems || items.length) / pageSize) || 1
+    const totalPages = Number(firstPage.totalPages ?? fallbackTotalPages)
+
+    if (totalPages <= 1) return items
+
+    const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2)
+    const remainingResults = await Promise.all(
+      remainingPages.map((page) => this.listSalesRoutes({ ...params, page, pageSize }))
+    )
+
+    remainingResults.forEach((page) => {
+      items.push(...(page.items || []))
+    })
+
+    return items
+  },
+
   // Sales Routes Get By Id
   async getSalesRoute(id) {
     const response = await getOnce(`/api/v1/master/sales-routes/${id}`)
