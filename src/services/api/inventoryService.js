@@ -511,6 +511,13 @@ export const inventoryService = {
     const response = await api.post('/api/v1/inventory/vehicle-loadings/repair-all')
     return asList(getValue(response, 'Unable to repair vehicle loading stock.'))
   },
+  // Draft-only: auto-repairs any line whose pinned source batch has been drained below what it
+  // needs (by something else, after the line was added) by re-picking FEFO batch(es) at Main that
+  // currently have real stock, swapping the line over to them, and releasing the stale reservation.
+  async autoRepairVehicleLoadingLines(id) {
+    const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/auto-repair-lines`)
+    return getValue(response, 'Unable to auto-repair vehicle loading lines.')
+  },
   async adminAddAppliedLoadingLine(id, payload) {
     const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/applied-lines`, payload)
     return getValue(response, 'Unable to add loading line.')

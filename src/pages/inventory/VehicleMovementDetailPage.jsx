@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, PackageX, Pencil, Plus, Search, Trash2, X, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, PackageX, Pencil, Plus, Search, Trash2, Wrench, X, XCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -11,6 +11,7 @@ import {
   useAdminRemoveAppliedUnloadingLine,
   useAdminUpdateAppliedLoadingLineQty,
   useAdminUpdateAppliedUnloadingLineQty,
+  useAutoRepairVehicleLoadingLines,
   useVehicles,
 } from '@/hooks/useVehicle'
 import { inventoryService } from '@/services/api/inventoryService'
@@ -357,6 +358,7 @@ export default function VehicleMovementDetailPage({
   const removeAppliedLoadingLine = useAdminRemoveAppliedLoadingLine(id)
   const updateAppliedLoadingLineQty = useAdminUpdateAppliedLoadingLineQty(id)
   const addAppliedLoadingLine = useAdminAddAppliedLoadingLine(id)
+  const autoRepairLoadingLines = useAutoRepairVehicleLoadingLines(id)
   const [deliveryRuns, setDeliveryRuns] = useState([])
   const [productById, setProductById] = useState({})
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
@@ -540,6 +542,14 @@ export default function VehicleMovementDetailPage({
     }
   }
 
+  async function handleAutoRepair() {
+    try {
+      await autoRepairLoadingLines.mutateAsync()
+    } catch {
+      /* The mutation hook displays the API error. */
+    }
+  }
+
   async function handleCancel(event) {
     event.preventDefault()
     if (!cancelReason.trim()) return toast.error('A cancellation reason is required.')
@@ -575,7 +585,8 @@ export default function VehicleMovementDetailPage({
     ? `${deliveryRun.code} - ${deliveryRun.name}`
     : movement.deliveryRunId || 'Not assigned'
   const isDraft = status === 'Draft'
-  const actionPending = applyMovement.isPending || cancelMovement.isPending
+  const actionPending =
+    applyMovement.isPending || cancelMovement.isPending || autoRepairLoadingLines.isPending
   const totalQty = (movement.lines || []).reduce(
     (sum, line) => sum + Number(line.qtySmallest || 0),
     0
@@ -626,6 +637,18 @@ export default function VehicleMovementDetailPage({
                 <CheckCircle2 size={16} />
                 {isUnloading ? 'Unload to Main Inventory' : 'Load to Vehicle'}
               </button>
+              {!isUnloading && canManageVehicles ? (
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={actionPending || !movement.lines?.length}
+                  onClick={handleAutoRepair}
+                  title="Fix lines whose batch has been drawn down since it was reserved, by moving them to another batch that currently has stock."
+                  style={{ height: 38, padding: '0 16px' }}
+                >
+                  <Wrench size={16} /> Auto-repair Lines
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="button-secondary"
