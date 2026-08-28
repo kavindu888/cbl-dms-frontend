@@ -620,7 +620,8 @@ export const salesService = {
   // Admin: add/edit-quantity/remove lines on an already-issued invoice (any status except
   // Cancelled, including Paid). Inventory is synced to the net quantity change automatically —
   // a further deduction if a line went up, a credited-back batch if it went down.
-  // linesToAdd: [{ productId, quantity, mrp, skuDiscountPercent? }]
+  // linesToAdd: [{ productId, quantity, mrp?, skuDiscountPercent? }] — mrp omitted/undefined auto-resolves
+  // from the product's actual last-received stock batch MRP (not the static catalog MRP).
   // linesToUpdate: [{ lineId, newQuantity, newMrp?, skuDiscountPercent? }]
   // lineIdsToRemove: [lineId, ...]
   async adminEditInvoiceLines(id, { reason, linesToAdd, linesToUpdate, lineIdsToRemove } = {}) {

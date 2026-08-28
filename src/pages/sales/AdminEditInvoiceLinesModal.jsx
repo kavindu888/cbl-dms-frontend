@@ -78,7 +78,7 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
         productSku: product.sku,
         productName: product.name,
         quantity: 1,
-        mrp: Number(product.mrp || product.sellingPrice || 0),
+        mrp: '',
       },
     ])
     setProductSearch('')
@@ -123,7 +123,7 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
     const linesToAdd = newLines.map((line) => ({
       productId: line.productId,
       quantity: Number(line.quantity),
-      mrp: Number(line.mrp),
+      mrp: line.mrp === '' || line.mrp === null || line.mrp === undefined ? undefined : Number(line.mrp),
     }))
     for (const line of linesToAdd) {
       if (!(line.quantity > 0)) return toast.error('New line quantity must be greater than zero.')
@@ -291,7 +291,7 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
                   step="0.01"
                   value={line.mrp}
                   onChange={(event) => updateNewLine(line.tempId, 'mrp', event.target.value)}
-                  placeholder="MRP"
+                  placeholder="Auto (last stock MRP)"
                   style={{ height: 32, textAlign: 'right' }}
                 />
                 <button
