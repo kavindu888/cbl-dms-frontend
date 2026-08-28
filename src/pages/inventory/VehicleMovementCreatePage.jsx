@@ -68,6 +68,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [isLoadingBatches, setIsLoadingBatches] = useState(false)
   const [isAddingLine, setIsAddingLine] = useState(false)
+  const [batchRefreshToken, setBatchRefreshToken] = useState(0)
   const [deliveryRuns, setDeliveryRuns] = useState([])
   const [appliedLoadings, setAppliedLoadings] = useState([])
   const [hydrateLinesFromServer, setHydrateLinesFromServer] = useState(Boolean(routeDraftId))
@@ -219,7 +220,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     return () => {
       active = false
     }
-  }, [appliedLoadings, isUnloading, selectedProductId, vehicleId, vehicleLoadingId])
+  }, [appliedLoadings, isUnloading, selectedProductId, vehicleId, vehicleLoadingId, batchRefreshToken])
 
   useEffect(() => {
     if (!isUnloading) return
@@ -360,6 +361,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       setQty('')
       setReturnReason('')
       setUnloadingType(1)
+      setBatchRefreshToken((token) => token + 1)
     } catch (error) {
       toast.error(error.message || `Unable to add ${kind.toLowerCase()} line.`)
     } finally {
@@ -374,6 +376,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       setLines((current) => current.filter((line) => line.id !== lineId))
       invalidateMovementQueries(draftId)
       toast.success('Stock line removed.')
+      setBatchRefreshToken((token) => token + 1)
     } catch (error) {
       toast.error(error.message || 'Unable to remove stock line.')
     }

@@ -1,4 +1,8 @@
-import { Package } from 'lucide-react'
+import { Package, Wrench } from 'lucide-react'
+import { useState } from 'react'
+import { useAuthStore } from '@stores/authStore'
+import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
+import RecalculateInvoiceDiscountsModal from './RecalculateInvoiceDiscountsModal'
 
 function formatMoney(value) {
   return `Rs. ${Number(value || 0).toLocaleString('en-LK', {
@@ -24,7 +28,10 @@ function billReturnReasonLabel(value) {
   return value ? String(value) : 'RETURNS:'
 }
 
-export default function InvoiceDetailPanel({ invoice, productById }) {
+export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) {
+  const currentUser = useAuthStore((state) => state.user)
+  const canAdjustDiscounts = userHasPermission(currentUser, PERMISSIONS.sales.invoiceAdjustDiscounts)
+  const [isRecalculateOpen, setIsRecalculateOpen] = useState(false)
   const normalLines = (invoice.lines || []).filter((line) => !line.isReturnLine)
   const saleNetBeforeReturn = normalLines.reduce(
     (sum, line) => sum + Number(line.lineTotal || 0),
@@ -70,6 +77,16 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
           <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
             {normalLines.length} item{normalLines.length === 1 ? '' : 's'}
           </span>
+          {canAdjustDiscounts && invoice.status !== 'Cancelled' ? (
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => setIsRecalculateOpen(true)}
+              style={{ marginLeft: 'auto', height: 26, fontSize: 11, padding: '0 10px' }}
+            >
+              <Wrench size={12} /> Recalculate Discounts
+            </button>
+          ) : null}
         </div>
         <div
           className="responsive-table-shell"
@@ -246,6 +263,13 @@ export default function InvoiceDetailPanel({ invoice, productById }) {
           valueColor={amountTone(invoice.outstandingAmount)}
         />
       </div>
+
+      <RecalculateInvoiceDiscountsModal
+        isOpen={isRecalculateOpen}
+        invoice={invoice}
+        onClose={() => setIsRecalculateOpen(false)}
+        onDone={onRefresh}
+      />
     </div>
   )
 }

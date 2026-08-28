@@ -56,6 +56,7 @@
     invoiceCancel: 'sales:invoice:cancel',
     invoiceAddPayment: 'sales:invoice:addpayment',
     invoiceAssignTaxNumber: 'sales:invoice:assigntaxnumber',
+    invoiceAdjustDiscounts: 'sales:invoice:adjustdiscounts',
     customerManage: 'sales:customer:manage',
     customerRead: 'sales:customer:read',
     priceListManage: 'sales:pricelist:manage',

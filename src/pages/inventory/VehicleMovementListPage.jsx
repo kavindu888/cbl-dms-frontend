@@ -15,12 +15,15 @@ import {
   movementStatusLabel,
   vehicleLabel,
 } from './vehicleMovementUtils'
+import RepairWithAnotherBatchModal from './RepairWithAnotherBatchModal'
 
 function VehicleStockRepairPanel({ vehicleById }) {
   const [flagged, setFlagged] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [isRepairing, setIsRepairing] = useState(false)
   const [productById, setProductById] = useState({})
+  const [failedByLoading, setFailedByLoading] = useState({})
+  const [fixTarget, setFixTarget] = useState(null)
 
   async function resolveProductNames(productIds) {
     const unknown = [...new Set(productIds)].filter((id) => id && !productById[id])
@@ -56,7 +59,7 @@ function VehicleStockRepairPanel({ vehicleById }) {
     return namesMap[line.productId]?.name || line.productSku
   }
 
-  function reportResult(result, namesMap) {
+  function reportResult(result, namesMap, mainLocationId) {
     const failed = result.failedLines || []
     if (result.linesRepaired > 0) {
       toast.success(`${result.loadingNo}: ${result.linesRepaired} line(s) repaired.`)
@@ -67,18 +70,34 @@ function VehicleStockRepairPanel({ vehicleById }) {
           duration: 12000,
         })
       })
+      setFailedByLoading((current) => ({
+        ...current,
+        [result.vehicleLoadingId]: {
+          loadingId: result.vehicleLoadingId,
+          loadingNo: result.loadingNo,
+          mainLocationId,
+          lines: failed.map((line) => ({ ...line, productName: productLabel(namesMap, line) })),
+        },
+      }))
+    } else {
+      setFailedByLoading((current) => {
+        if (!(result.vehicleLoadingId in current)) return current
+        const next = { ...current }
+        delete next[result.vehicleLoadingId]
+        return next
+      })
     }
     if (result.linesRepaired === 0 && failed.length === 0) {
       toast.success(`${result.loadingNo}: nothing needed repair.`)
     }
   }
 
-  async function repairOne(id) {
+  async function repairOne(row) {
     setIsRepairing(true)
     try {
-      const result = await inventoryService.repairVehicleLoadingStock(id)
+      const result = await inventoryService.repairVehicleLoadingStock(row.id)
       const namesMap = await resolveProductNames((result.failedLines || []).map((l) => l.productId))
-      reportResult(result, namesMap)
+      reportResult(result, namesMap, row.mainLocationId)
       await loadFlagged()
     } catch (error) {
       toast.error(error?.message || 'Unable to repair this loading.')
@@ -97,7 +116,10 @@ function VehicleStockRepairPanel({ vehicleById }) {
         const namesMap = await resolveProductNames(
           results.flatMap((r) => (r.failedLines || []).map((l) => l.productId))
         )
-        results.forEach((result) => reportResult(result, namesMap))
+        results.forEach((result) => {
+          const row = flagged.find((f) => f.id === result.vehicleLoadingId)
+          reportResult(result, namesMap, row?.mainLocationId)
+        })
         const totalLines = results.reduce((sum, r) => sum + (r.linesRepaired || 0), 0)
         const totalFailed = results.reduce((sum, r) => sum + (r.failedLines?.length || 0), 0)
         toast.message(
@@ -112,66 +134,138 @@ function VehicleStockRepairPanel({ vehicleById }) {
     }
   }
 
-  if (!isLoading && flagged.length === 0) return null
+  function handleLineFixed(loadingId, productId) {
+    setFailedByLoading((current) => {
+      const entry = current[loadingId]
+      if (!entry) return current
+      const remaining = entry.lines.filter((line) => line.productId !== productId)
+      const next = { ...current }
+      if (remaining.length) next[loadingId] = { ...entry, lines: remaining }
+      else delete next[loadingId]
+      return next
+    })
+    loadFlagged()
+  }
+
+  const failedEntries = Object.values(failedByLoading)
+
+  if (!isLoading && flagged.length === 0 && failedEntries.length === 0) return null
 
   return (
-    <section
-      className="panel"
-      style={{
-        alignItems: 'flex-start',
-        background: 'rgba(245, 158, 11, 0.08)',
-        border: '1px solid rgba(245, 158, 11, 0.35)',
-        display: 'flex',
-        gap: 14,
-        justifyContent: 'space-between',
-        padding: 16,
-      }}
-    >
-      <div style={{ display: 'flex', gap: 10 }}>
-        <TriangleAlert size={18} style={{ color: 'var(--color-amber)', marginTop: 2 }} />
-        <div>
-          <p style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 14 }}>
-            {isLoading
-              ? 'Checking vehicle loadings for missing stock...'
-              : `${flagged.length} applied loading(s) are missing their vehicle-side stock`}
-          </p>
+    <>
+      <section
+        className="panel"
+        style={{
+          alignItems: 'flex-start',
+          background: 'rgba(245, 158, 11, 0.08)',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+          padding: 16,
+        }}
+      >
+        <div style={{ display: 'flex', width: '100%', gap: 14, justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <TriangleAlert size={18} style={{ color: 'var(--color-amber)', marginTop: 2 }} />
+            <div>
+              <p style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 14 }}>
+                {isLoading
+                  ? 'Checking vehicle loadings for missing stock...'
+                  : `${flagged.length} applied loading(s) are missing their vehicle-side stock`}
+              </p>
+              {!isLoading && flagged.length > 0 ? (
+                <ul style={{ color: 'var(--color-text-muted)', fontSize: 12.5, marginTop: 6, paddingLeft: 18 }}>
+                  {flagged.map((row) => (
+                    <li key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                      <span>
+                        {row.loadingNo} —{' '}
+                        {vehicleById[row.vehicleLocationId]
+                          ? vehicleLabel(vehicleById[row.vehicleLocationId])
+                          : row.vehicleLocationId}
+                      </span>
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        disabled={isRepairing}
+                        onClick={() => repairOne(row)}
+                        style={{ height: 24, fontSize: 11, padding: '0 8px' }}
+                      >
+                        Repair
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </div>
           {!isLoading && flagged.length > 0 ? (
-            <ul style={{ color: 'var(--color-text-muted)', fontSize: 12.5, marginTop: 6, paddingLeft: 18 }}>
-              {flagged.map((row) => (
-                <li key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
-                  <span>
-                    {row.loadingNo} —{' '}
-                    {vehicleById[row.vehicleLocationId]
-                      ? vehicleLabel(vehicleById[row.vehicleLocationId])
-                      : row.vehicleLocationId}
-                  </span>
-                  <button
-                    type="button"
-                    className="button-secondary"
-                    disabled={isRepairing}
-                    onClick={() => repairOne(row.id)}
-                    style={{ height: 24, fontSize: 11, padding: '0 8px' }}
-                  >
-                    Repair
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <button
+              type="button"
+              className="button-primary"
+              disabled={isRepairing}
+              onClick={repairAll}
+              style={{ height: 34, whiteSpace: 'nowrap' }}
+            >
+              <Wrench size={14} /> {isRepairing ? 'Repairing...' : `Repair All (${flagged.length})`}
+            </button>
           ) : null}
         </div>
-      </div>
-      {!isLoading && flagged.length > 0 ? (
-        <button
-          type="button"
-          className="button-primary"
-          disabled={isRepairing}
-          onClick={repairAll}
-          style={{ height: 34, whiteSpace: 'nowrap' }}
-        >
-          <Wrench size={14} /> {isRepairing ? 'Repairing...' : `Repair All (${flagged.length})`}
-        </button>
-      ) : null}
-    </section>
+
+        {failedEntries.length > 0 ? (
+          <div style={{ width: '100%', borderTop: '1px solid rgba(245, 158, 11, 0.3)', paddingTop: 12 }}>
+            <p style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+              Lines that couldn't be auto-repaired — the original batch no longer has enough stock
+            </p>
+            <ul style={{ display: 'grid', gap: 6, paddingLeft: 18 }}>
+              {failedEntries.flatMap((entry) =>
+                entry.lines.map((line) => (
+                  <li
+                    key={`${entry.loadingId}-${line.productId}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      color: 'var(--color-text-muted)',
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <span>
+                      {entry.loadingNo} — {line.productName || line.productSku}: {line.reason}
+                    </span>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() =>
+                        setFixTarget({
+                          loadingId: entry.loadingId,
+                          loadingNo: entry.loadingNo,
+                          mainLocationId: entry.mainLocationId,
+                          productId: line.productId,
+                          productSku: line.productSku,
+                          qtySmallest: line.qtySmallest,
+                        })
+                      }
+                      style={{ height: 24, fontSize: 11, padding: '0 8px', whiteSpace: 'nowrap' }}
+                    >
+                      Fix with another batch
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        ) : null}
+      </section>
+
+      <RepairWithAnotherBatchModal
+        isOpen={Boolean(fixTarget)}
+        failedLine={fixTarget}
+        onClose={() => setFixTarget(null)}
+        onFixed={() => fixTarget && handleLineFixed(fixTarget.loadingId, fixTarget.productId)}
+      />
+    </>
   )
 }
 

@@ -596,6 +596,16 @@ export const salesService = {
     await api.put(`/api/v1/sales/invoices/${id}/tax-invoice-number`, { taxInvoiceNumber })
   },
 
+  // Admin: retroactively recompute SKU/category discounts and totals on an issued invoice.
+  // overrides: [{ lineId, skuDiscountPercent }] for lines the admin wants to set manually;
+  // any line not listed gets its SKU discount auto-resolved from current active discount rules.
+  async recalculateInvoiceDiscounts(id, { reason, overrides } = {}) {
+    await api.put(`/api/v1/sales/invoices/${id}/recalculate-discounts`, {
+      reason: reason || null,
+      overrides: overrides || null,
+    })
+  },
+
   // Customer Return Notes (CRN)
   async createCrn(payload) {
     const response = await api.post('/api/sales/return-notes', payload)
