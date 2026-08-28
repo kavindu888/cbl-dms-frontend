@@ -1103,6 +1103,7 @@ export default function InvoiceCreatorPage() {
             specialDiscountPercent: 0,
             isReturnLine: true,
             returnReason: returnReasonValue(line.returnReason || line.reason),
+            mrp: Number(line.mrp) > 0 ? Number(line.mrp) : null,
           })),
       ],
     }
@@ -1755,7 +1756,27 @@ export default function InvoiceCreatorPage() {
                         </div>
                       </td>
                       <td className="mono" style={{ color: 'var(--color-text-muted)' }}>RET</td>
-                      <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{mrp.toFixed(2)}</td>
+                      <td className="mono text-right">
+                        <input
+                          className="form-input mono text-right"
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={mrp}
+                          disabled={isSaving}
+                          onChange={(event) => {
+                            const nextMrp = event.target.value
+                            setReturnLines((current) =>
+                              current.map((item) =>
+                                item.id === line.id
+                                  ? { ...item, mrp: nextMrp === '' ? 0 : Number(nextMrp) }
+                                  : item
+                              )
+                            )
+                          }}
+                          style={{ height: 30, padding: '0 8px' }}
+                        />
+                      </td>
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>-{quantity}</td>
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{discountPercent.toFixed(2)}%</td>
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{unitPrice.toFixed(2)}</td>

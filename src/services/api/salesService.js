@@ -475,6 +475,8 @@ export const salesService = {
         specialDiscountPercent: Number(line.specialDiscountPercent || 0),
         isReturnLine: Boolean(line.isReturnLine),
         returnReason: line.returnReason ?? null,
+        // Admin MRP override — only meaningful (and only sent) for return lines.
+        mrp: line.isReturnLine && Number(line.mrp) > 0 ? Number(line.mrp) : null,
       })),
     })
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
@@ -515,6 +517,8 @@ export const salesService = {
         specialDiscountPercent: Number(line.specialDiscountPercent || 0),
         isReturnLine: Boolean(line.isReturnLine),
         returnReason: line.returnReason ?? null,
+        // Admin MRP override — only meaningful (and only sent) for return lines.
+        mrp: line.isReturnLine && Number(line.mrp) > 0 ? Number(line.mrp) : null,
       })),
     })
   },
