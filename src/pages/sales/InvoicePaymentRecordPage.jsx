@@ -763,7 +763,10 @@ export default function InvoicePaymentRecordPage() {
             {selectedInvoice ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <AmountLine label="Gross" value={selectedInvoice.grossAmount} />
-                <AmountLine label="Discount" value={selectedInvoice.totalDiscountAmount} />
+                <AmountLine label="Category Discount" value={selectedInvoice.totalCategoryDiscountAmount} />
+                <AmountLine label="SKU Discount" value={selectedInvoice.totalSkuDiscountAmount} />
+                <AmountLine label="Special Discount" value={selectedInvoice.totalSpecialDiscountAmount} />
+                <AmountLine label="Discount (Total)" value={selectedInvoice.totalDiscountAmount} />
                 <AmountLine
                   label="Supplier Discount"
                   value={selectedInvoice.totalSupplierDiscountAmount}
