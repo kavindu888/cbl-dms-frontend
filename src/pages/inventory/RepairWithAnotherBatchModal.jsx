@@ -48,6 +48,21 @@ export default function RepairWithAnotherBatchModal({ isOpen, onClose, failedLin
         sourceBatchId: selectedBatch.id,
         qtySmallest: shortfall,
       })
+      // The original line that failed repair never got its stock effects (that's why it failed),
+      // so it must be removed now that the replacement line covers it — otherwise it stays flagged
+      // as needing repair forever, and clicking "fix" again would double up the stock.
+      if (failedLine.lineId) {
+        try {
+          await inventoryService.adminRemoveAppliedLoadingLine(failedLine.loadingId, failedLine.lineId)
+        } catch (cleanupError) {
+          toast.error(
+            `Replacement batch added, but the original line couldn't be removed automatically: ${
+              cleanupError.message || 'unknown error'
+            }. Remove it manually from the loading detail page.`,
+            { duration: 15000 }
+          )
+        }
+      }
       toast.success(`${failedLine.productSku}: fixed from batch ${selectedBatch.batchNo}.`)
       onFixed?.()
       onClose()

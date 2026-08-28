@@ -242,6 +242,7 @@ function VehicleStockRepairPanel({ vehicleById }) {
                           loadingId: entry.loadingId,
                           loadingNo: entry.loadingNo,
                           mainLocationId: entry.mainLocationId,
+                          lineId: line.lineId,
                           productId: line.productId,
                           productSku: line.productSku,
                           qtySmallest: line.qtySmallest,
