@@ -434,6 +434,8 @@ export default function VehicleMovementDetailPage({
         line.productName,
         line.productSku,
         line.productId,
+        line.sourceBatchNo,
+        line.sourceBatchId,
         line.batchNo,
         line.batchNumber,
         line.stockBatchId,
@@ -443,6 +445,14 @@ export default function VehicleMovementDetailPage({
       ].some((value) => String(value || '').toLowerCase().includes(query))
     })
   }, [lineSearch, movement?.lines, productById])
+
+  const duplicateProductIds = useMemo(() => {
+    const counts = {}
+    for (const line of movement?.lines || []) {
+      counts[line.productId] = (counts[line.productId] || 0) + 1
+    }
+    return new Set(Object.keys(counts).filter((productId) => counts[productId] > 1))
+  }, [movement?.lines])
 
   useEffect(() => {
     setLineSearch('')
@@ -804,6 +814,12 @@ export default function VehicleMovementDetailPage({
                 ? `${filteredLines.length} of ${movement.lines?.length || 0} batch lines match`
                 : `${movement.lines?.length || 0} batch line${movement.lines?.length === 1 ? '' : 's'} in this ${kind.toLowerCase()}`}
             </p>
+            {duplicateProductIds.size > 0 ? (
+              <p style={{ color: 'var(--color-amber)', fontSize: 12, marginTop: 4, fontWeight: 700 }}>
+                ⚠ {duplicateProductIds.size} product{duplicateProductIds.size === 1 ? ' has' : 's have'} more
+                than one line (highlighted below) — check the Batch No column and remove the extra one(s).
+              </p>
+            ) : null}
           </div>
           <div style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
             {!isUnloading && showAdminLineControls ? (
@@ -878,16 +894,18 @@ export default function VehicleMovementDetailPage({
               style={{ minWidth: 760, tableLayout: 'fixed', width: '100%' }}
             >
               <colgroup>
-                <col style={{ width: showAdminLineControls ? '26%' : '30%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '18%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '18%' }} />
+                <col style={{ width: showAdminLineControls ? '22%' : '26%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '16%' }} />
                 {showAdminLineControls ? <col style={{ width: '12%' }} /> : null}
               </colgroup>
               <thead>
                 <tr>
                   <th>Product</th>
+                  <th>Batch No</th>
                   <th style={{ textAlign: 'right' }}>Qty</th>
                   <th style={{ textAlign: 'right' }}>Selling Price</th>
                   <th style={{ textAlign: 'right' }}>MRP</th>
@@ -903,15 +921,39 @@ export default function VehicleMovementDetailPage({
                   const sellingPrice = unitCost + (unitCost * 0.067)
                   const value = sellingPrice * qty
                   const isEditingThisLine = editingLineId === line.id
+                  const isPossibleDuplicate = duplicateProductIds.has(line.productId)
 
                   return (
-                    <tr key={line.id}>
+                    <tr
+                      key={line.id}
+                      style={
+                        isPossibleDuplicate
+                          ? { background: 'rgba(245, 158, 11, 0.08)' }
+                          : undefined
+                      }
+                    >
                       <td>
                         <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
                           {productName ||
                             (isLoadingProducts ? 'Loading product...' : 'Product name unavailable')}
                         </strong>
                         <span className="product-sku-badge mono">{line.productSku}</span>
+                        {isPossibleDuplicate ? (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              marginTop: 4,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              color: 'var(--color-amber)',
+                            }}
+                          >
+                            ⚠ multiple lines for this product
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="mono" style={{ fontSize: 12 }}>
+                        {line.sourceBatchNo || line.batchNo || '—'}
                       </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
                         {isEditingThisLine ? (
@@ -992,7 +1034,7 @@ export default function VehicleMovementDetailPage({
                 {!filteredLines.length ? (
                   <tr>
                     <td
-                      colSpan={showAdminLineControls ? 6 : 5}
+                      colSpan={showAdminLineControls ? 7 : 6}
                       style={{ color: 'var(--color-text-muted)', padding: 24, textAlign: 'center' }}
                     >
                       No stock lines match &ldquo;{lineSearch.trim()}&rdquo;.
