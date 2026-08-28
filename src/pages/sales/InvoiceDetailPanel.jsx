@@ -1,9 +1,10 @@
-import { Package, Pencil, Wrench } from 'lucide-react'
+import { Package, Pencil, Tags, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import { useAuthStore } from '@stores/authStore'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import RecalculateInvoiceDiscountsModal from './RecalculateInvoiceDiscountsModal'
 import AdminEditInvoiceLinesModal from './AdminEditInvoiceLinesModal'
+import SetInvoiceOrderDiscountsModal from './SetInvoiceOrderDiscountsModal'
 
 function formatMoney(value) {
   return `Rs. ${Number(value || 0).toLocaleString('en-LK', {
@@ -35,6 +36,7 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
   const canAdminEditLines = userHasPermission(currentUser, PERMISSIONS.sales.invoiceAdminEditLines)
   const [isRecalculateOpen, setIsRecalculateOpen] = useState(false)
   const [isAdminEditOpen, setIsAdminEditOpen] = useState(false)
+  const [isSetOrderDiscountsOpen, setIsSetOrderDiscountsOpen] = useState(false)
   const normalLines = (invoice.lines || []).filter((line) => !line.isReturnLine)
   const saleNetBeforeReturn = normalLines.reduce(
     (sum, line) => sum + Number(line.lineTotal || 0),
@@ -100,6 +102,16 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                   style={{ height: 26, fontSize: 11, padding: '0 10px' }}
                 >
                   <Wrench size={12} /> Recalculate Discounts
+                </button>
+              ) : null}
+              {canAdjustDiscounts ? (
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => setIsSetOrderDiscountsOpen(true)}
+                  style={{ height: 26, fontSize: 11, padding: '0 10px' }}
+                >
+                  <Tags size={12} /> Set Order Discounts
                 </button>
               ) : null}
             </div>
@@ -293,6 +305,13 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
         invoice={invoice}
         productById={productById}
         onClose={() => setIsAdminEditOpen(false)}
+        onDone={onRefresh}
+      />
+
+      <SetInvoiceOrderDiscountsModal
+        isOpen={isSetOrderDiscountsOpen}
+        invoice={invoice}
+        onClose={() => setIsSetOrderDiscountsOpen(false)}
         onDone={onRefresh}
       />
     </div>

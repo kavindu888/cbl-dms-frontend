@@ -606,6 +606,17 @@ export const salesService = {
     })
   },
 
+  // Admin recovery tool: directly (re)set the order-level SKU/Special discount Rs amount on an
+  // already-issued invoice (any status except Cancelled). Use this to restore discounts that were
+  // entered on the draft but lost when it was finalized (a since-fixed bug), or to correct them.
+  async setInvoiceOrderDiscounts(id, { reason, skuDiscountAmount, specialDiscountAmount } = {}) {
+    await api.put(`/api/v1/sales/invoices/${id}/set-order-discounts`, {
+      reason: reason || null,
+      skuDiscountAmount: Number(skuDiscountAmount || 0),
+      specialDiscountAmount: Number(specialDiscountAmount || 0),
+    })
+  },
+
   // Admin: add/edit-quantity/remove lines on an already-issued invoice (any status except
   // Cancelled, including Paid). Inventory is synced to the net quantity change automatically —
   // a further deduction if a line went up, a credited-back batch if it went down.
