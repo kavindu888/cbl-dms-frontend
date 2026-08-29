@@ -62,6 +62,7 @@ import InStoreReturnListPage from '@pages/inventory/InStoreReturns/InStoreReturn
 import VehicleLoadingListPage from '@pages/inventory/VehicleLoading/VehicleLoadingListPage'
 import VehicleLoadingCreatePage from '@pages/inventory/VehicleLoading/VehicleLoadingCreatePage'
 import VehicleLoadingDetailPage from '@pages/inventory/VehicleLoading/VehicleLoadingDetailPage'
+import VehicleLoadingSalesReportPage from '@pages/inventory/VehicleLoading/VehicleLoadingSalesReportPage'
 import VehicleUnloadingListPage from '@pages/inventory/VehicleUnloading/VehicleUnloadingListPage'
 import VehicleUnloadingCreatePage from '@pages/inventory/VehicleUnloading/VehicleUnloadingCreatePage'
 import VehicleUnloadingDetailPage from '@pages/inventory/VehicleUnloading/VehicleUnloadingDetailPage'
@@ -259,6 +260,10 @@ export const router = createBrowserRouter([
       {
         path: 'inventory/vehicle-loadings/:id/edit',
         element: requirePermission(<VehicleLoadingCreatePage />, PERMISSIONS.inventory.vehicleLoad),
+      },
+      {
+        path: 'inventory/vehicle-loadings/:id/sales-report',
+        element: requirePermission(<VehicleLoadingSalesReportPage />, PERMISSIONS.inventory.vehicleManage),
       },
       {
         path: 'inventory/vehicle-loadings/:id',

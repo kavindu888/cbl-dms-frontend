@@ -521,6 +521,12 @@ export const inventoryService = {
     const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/stock-correction/apply`)
     return getValue(response, 'Unable to apply vehicle stock correction.')
   },
+  // Per-product breakdown of what was sold off this vehicle loading, which invoices it came
+  // from, and how much is left to unload.
+  async getVehicleLoadingSalesReport(id) {
+    const response = await getOnce(`/api/v1/inventory/vehicle-loadings/${id}/sales-report`)
+    return getValue(response, 'Unable to load the vehicle sales report.')
+  },
   // Draft-only: auto-repairs any line whose pinned source batch has been drained below what it
   // needs (by something else, after the line was added) by re-picking FEFO batch(es) at Main that
   // currently have real stock, swapping the line over to them, and releasing the stale reservation.

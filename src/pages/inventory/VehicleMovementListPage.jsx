@@ -1,4 +1,13 @@
-import { ArrowRightLeft, ChevronRight, Plus, RefreshCw, Search, TriangleAlert, Wrench } from 'lucide-react'
+import {
+  ArrowRightLeft,
+  ChevronRight,
+  FileBarChart,
+  Plus,
+  RefreshCw,
+  Search,
+  TriangleAlert,
+  Wrench,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -470,6 +479,20 @@ export default function VehicleMovementListPage({
                       </td>
                       <td className="text-right">
                         <div style={{ display: 'inline-flex', gap: 6 }}>
+                          {kind === 'Loading' && label === 'Applied' && canManageVehicles ? (
+                            <button
+                              type="button"
+                              className="button-secondary"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                navigate(`${basePath}/${row.id}/sales-report`)
+                              }}
+                              style={{ height: 30 }}
+                              title="See what was sold from this vehicle, which invoices, and what's left to unload"
+                            >
+                              <FileBarChart size={15} /> Sales Report
+                            </button>
+                          ) : null}
                           {kind === 'Loading' && label === 'Applied' && canManageVehicles ? (
                             <button
                               type="button"
