@@ -1,4 +1,4 @@
-import { ChevronRight, Plus, RefreshCw, Search, TriangleAlert, Wrench } from 'lucide-react'
+import { ArrowRightLeft, ChevronRight, Plus, RefreshCw, Search, TriangleAlert, Wrench } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -16,6 +16,7 @@ import {
   vehicleLabel,
 } from './vehicleMovementUtils'
 import RepairWithAnotherBatchModal from './RepairWithAnotherBatchModal'
+import VehicleStockCorrectionModal from './VehicleStockCorrectionModal'
 
 function VehicleStockRepairPanel({ vehicleById }) {
   const [flagged, setFlagged] = useState([])
@@ -290,6 +291,7 @@ export default function VehicleMovementListPage({
   const canManageVehicles = userHasPermission(user, PERMISSIONS.inventory.vehicleManage)
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
+  const [correctionTarget, setCorrectionTarget] = useState(null)
   const params = useMemo(() => (status ? { status: Number(status) } : {}), [status])
   const { data: rows = [], isLoading, isFetching, refetch } = useList(params)
   const { data: vehicles = [] } = useVehicles()
@@ -467,19 +469,35 @@ export default function VehicleMovementListPage({
                         </span>
                       </td>
                       <td className="text-right">
-                        <button
-                          type="button"
-                          className="button-secondary"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            navigate(
-                              label === 'Draft' ? `${basePath}/${row.id}/edit` : `${basePath}/${row.id}`
-                            )
-                          }}
-                          style={{ height: 30 }}
-                        >
-                          <ChevronRight size={15} /> {label === 'Draft' ? 'Edit' : 'View'}
-                        </button>
+                        <div style={{ display: 'inline-flex', gap: 6 }}>
+                          {kind === 'Loading' && label === 'Applied' && canManageVehicles ? (
+                            <button
+                              type="button"
+                              className="button-secondary"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setCorrectionTarget(row)
+                              }}
+                              style={{ height: 30 }}
+                              title="Find and fix invoices wrongly deducted from Main instead of this vehicle"
+                            >
+                              <ArrowRightLeft size={15} /> Correct Stock
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              navigate(
+                                label === 'Draft' ? `${basePath}/${row.id}/edit` : `${basePath}/${row.id}`
+                              )
+                            }}
+                            style={{ height: 30 }}
+                          >
+                            <ChevronRight size={15} /> {label === 'Draft' ? 'Edit' : 'View'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -493,6 +511,13 @@ export default function VehicleMovementListPage({
           </table>
         </div>
       </section>
+
+      <VehicleStockCorrectionModal
+        isOpen={Boolean(correctionTarget)}
+        loading={correctionTarget}
+        onClose={() => setCorrectionTarget(null)}
+        onApplied={() => refetch()}
+      />
     </div>
   )
 }

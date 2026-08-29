@@ -511,6 +511,16 @@ export const inventoryService = {
     const response = await api.post('/api/v1/inventory/vehicle-loadings/repair-all')
     return asList(getValue(response, 'Unable to repair vehicle loading stock.'))
   },
+  // Finds invoices that belong to this loading's delivery run/date but were wrongly deducted
+  // from Main instead of the vehicle (e.g. via an admin edit made after the invoice was created).
+  async previewVehicleStockCorrection(id) {
+    const response = await getOnce(`/api/v1/inventory/vehicle-loadings/${id}/stock-correction/preview`)
+    return getValue(response, 'Unable to preview vehicle stock correction.')
+  },
+  async applyVehicleStockCorrection(id) {
+    const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/stock-correction/apply`)
+    return getValue(response, 'Unable to apply vehicle stock correction.')
+  },
   // Draft-only: auto-repairs any line whose pinned source batch has been drained below what it
   // needs (by something else, after the line was added) by re-picking FEFO batch(es) at Main that
   // currently have real stock, swapping the line over to them, and releasing the stale reservation.
