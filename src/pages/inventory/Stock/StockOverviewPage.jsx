@@ -735,9 +735,9 @@ export default function StockOverviewPage() {
 
   const locationTypeKpis = useMemo(() => {
     const result = {
-      Main: { available: 0, value: 0, products: new Set(), locations: new Set() },
-      Vehicle: { available: 0, value: 0, products: new Set(), locations: new Set() },
-      Return: { available: 0, value: 0, products: new Set(), locations: new Set() },
+      Main: { available: 0, value: 0, reserved: 0, products: new Set(), locations: new Set() },
+      Vehicle: { available: 0, value: 0, reserved: 0, products: new Set(), locations: new Set() },
+      Return: { available: 0, value: 0, reserved: 0, products: new Set(), locations: new Set() },
       vehicles: new Map(),
     }
 
@@ -760,6 +760,7 @@ export default function StockOverviewPage() {
           name: location?.name || batch.stockLocationId,
           available: 0,
           value: 0,
+          reserved: 0,
           products: new Set(),
         }
         vehicle.available += available
@@ -769,8 +770,33 @@ export default function StockOverviewPage() {
       }
     }
 
+    // Reserved (stock locked by unconfirmed/pending sales orders) lives on StockLevel, not on
+    // batches, so it needs its own pass over the level rollups.
+    for (const level of rawLevels || []) {
+      const reserved = Number(level.totalReserved || 0)
+      if (reserved <= 0) continue
+
+      const location = locationById[level.stockLocationId]
+      const type = getLocationType(location)
+      result[type].reserved += reserved
+
+      if (type === 'Vehicle') {
+        const vehicle = result.vehicles.get(level.stockLocationId) || {
+          id: level.stockLocationId,
+          code: location?.code || '',
+          name: location?.name || level.stockLocationId,
+          available: 0,
+          value: 0,
+          reserved: 0,
+          products: new Set(),
+        }
+        vehicle.reserved += reserved
+        result.vehicles.set(level.stockLocationId, vehicle)
+      }
+    }
+
     return result
-  }, [activeBatches, locationById])
+  }, [activeBatches, locationById, rawLevels])
 
   const vehicleStockCards = useMemo(
     () =>
@@ -924,6 +950,11 @@ export default function StockOverviewPage() {
               label={`${vehicle.code || 'Vehicle'} stock`}
               value={`${formatNumber(vehicle.available)} units`}
               helper={`${vehicle.name}${vehicle.value ? ` | ${formatLKRShort(vehicle.value)}` : ''}`}
+              detail={
+                vehicle.reserved
+                  ? `Reserved ${formatNumber(vehicle.reserved)} units`
+                  : 'Reserved 0 units'
+              }
               icon={Truck}
               tone="#22d3ee"
             />

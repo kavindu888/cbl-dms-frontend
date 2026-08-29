@@ -73,6 +73,10 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [appliedLoadings, setAppliedLoadings] = useState([])
   const [hydrateLinesFromServer, setHydrateLinesFromServer] = useState(Boolean(routeDraftId))
   const skipResetForVehicleLoadingIdRef = useRef(null)
+  const [allActiveBatches, setAllActiveBatches] = useState([])
+  const [isLoadingAllBatches, setIsLoadingAllBatches] = useState(false)
+  const [selectedRemainingIds, setSelectedRemainingIds] = useState(() => new Set())
+  const [isBulkAdding, setIsBulkAdding] = useState(false)
 
   const { data: resumedLoading, isFetching: isFetchingLoading } = useVehicleLoading(
     !isUnloading && hydrateLinesFromServer ? draftId : undefined
@@ -182,6 +186,31 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   }, [isUnloading])
 
   useEffect(() => {
+    if (!isUnloading) return undefined
+
+    let active = true
+    async function loadAllActiveBatches() {
+      setIsLoadingAllBatches(true)
+      try {
+        const rows = await inventoryService.listActiveStockBatches()
+        if (active) setAllActiveBatches(rows || [])
+      } catch (error) {
+        if (active) {
+          setAllActiveBatches([])
+          toast.error(error.message || 'Unable to load vehicle stock.')
+        }
+      } finally {
+        if (active) setIsLoadingAllBatches(false)
+      }
+    }
+    loadAllActiveBatches()
+
+    return () => {
+      active = false
+    }
+  }, [isUnloading, batchRefreshToken])
+
+  useEffect(() => {
     if (!selectedProductId || (isUnloading && !vehicleId)) {
       setBatches([])
       setSelectedBatchId('')
@@ -233,6 +262,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     setSelectedProductId('')
     setSelectedBatchId('')
     setProductSearch('')
+    setSelectedRemainingIds(new Set())
     if (skipResetForVehicleLoadingIdRef.current === vehicleLoadingId) {
       skipResetForVehicleLoadingIdRef.current = null
       return
@@ -270,6 +300,47 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       )
       .slice(0, 30)
   }, [productSearch, products])
+
+  const remainingVehicleItems = useMemo(() => {
+    if (!isUnloading || !vehicleId) return []
+
+    const loadingBatchPrefix = selectedVehicleLoading?.loadingNo
+      ? `VL-${selectedVehicleLoading.loadingNo}-`
+      : ''
+    const addedBatchNos = new Set(lines.map((line) => line.sourceBatchNo).filter(Boolean))
+
+    return allActiveBatches
+      .filter((batch) => batch.stockLocationId === vehicleId)
+      .filter((batch) => getQtyAvailable(batch) > 0)
+      .filter((batch) =>
+        loadingBatchPrefix ? String(batch.batchNo || '').startsWith(loadingBatchPrefix) : true
+      )
+      .filter((batch) => !addedBatchNos.has(batch.batchNo))
+      .map((batch) => ({
+        ...batch,
+        productName: products.find((product) => product.id === batch.productId)?.name || batch.productSku,
+      }))
+      .sort((a, b) => (a.productName || '').localeCompare(b.productName || ''))
+  }, [isUnloading, vehicleId, allActiveBatches, selectedVehicleLoading, lines, products])
+
+  const allRemainingSelected =
+    remainingVehicleItems.length > 0 &&
+    remainingVehicleItems.every((item) => selectedRemainingIds.has(item.id))
+
+  function toggleSelectAllRemaining() {
+    setSelectedRemainingIds(
+      allRemainingSelected ? new Set() : new Set(remainingVehicleItems.map((item) => item.id))
+    )
+  }
+
+  function toggleRemainingItem(id) {
+    setSelectedRemainingIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const totalQty = lines.reduce((sum, line) => sum + Number(line.qtySmallest || 0), 0)
   const totalValue = lines.reduce(
@@ -366,6 +437,71 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       toast.error(error.message || `Unable to add ${kind.toLowerCase()} line.`)
     } finally {
       setIsAddingLine(false)
+    }
+  }
+
+  async function handleBulkAddRemaining() {
+    if (!selectedRemainingIds.size) return toast.error('Select at least one item to unload.')
+
+    setIsBulkAdding(true)
+    let succeeded = 0
+    let failed = 0
+    try {
+      const id = await ensureDraft()
+      const itemsToAdd = remainingVehicleItems.filter((item) => selectedRemainingIds.has(item.id))
+      const newLines = []
+
+      for (const batch of itemsToAdd) {
+        const requestedQty = getQtyAvailable(batch)
+        if (requestedQty <= 0) continue
+
+        try {
+          const payload = {
+            productId: batch.productId,
+            productSku: batch.productSku,
+            sourceBatchId: batch.id,
+            qtySmallest: requestedQty,
+            unloadingType: 1,
+            returnReason: null,
+          }
+          const result = await inventoryService.addVehicleUnloadingLine(id, payload)
+          const lineId = resultId(result) || `${batch.id}-${Date.now()}`
+          newLines.push({
+            id: lineId,
+            productName: batch.productName,
+            productSku: batch.productSku,
+            sourceBatchNo: batch.batchNo,
+            qtySmallest: requestedQty,
+            unitCostSmallest: getUnitCost(batch),
+            mrp: getMrp(batch),
+            unloadingType: 1,
+            returnReason: null,
+          })
+          succeeded += 1
+        } catch {
+          failed += 1
+        }
+      }
+
+      if (newLines.length) {
+        setLines((current) => [...current, ...newLines])
+        setHydrateLinesFromServer(false)
+        invalidateMovementQueries(id)
+      }
+      setSelectedRemainingIds(new Set())
+      setBatchRefreshToken((token) => token + 1)
+
+      if (succeeded && !failed) {
+        toast.success(`Added ${succeeded} line${succeeded === 1 ? '' : 's'} for unloading.`)
+      } else if (succeeded && failed) {
+        toast.warning(`Added ${succeeded} line${succeeded === 1 ? '' : 's'}, ${failed} failed — try those again.`)
+      } else {
+        toast.error('Unable to add the selected lines.')
+      }
+    } catch (error) {
+      toast.error(error.message || 'Unable to unload selected items.')
+    } finally {
+      setIsBulkAdding(false)
     }
   }
 
@@ -568,6 +704,119 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
               </label>
             </div>
           </section>
+
+          {isUnloading ? (
+            <section className="panel" style={{ padding: 16 }}>
+              <div
+                style={{
+                  alignItems: 'center',
+                  display: 'flex',
+                  gap: 12,
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
+                    Remaining Items in Vehicle
+                  </h2>
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 3 }}>
+                    Everything still loaded on this vehicle from this loading. Select what to unload,
+                    or select all, instead of searching one by one.
+                  </p>
+                </div>
+                {remainingVehicleItems.length ? (
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={toggleSelectAllRemaining}
+                    style={{ height: 32, whiteSpace: 'nowrap' }}
+                  >
+                    {allRemainingSelected ? 'Deselect All' : 'Select All'}
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="overflow-x-auto" style={{ marginTop: 14 }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 36 }}></th>
+                      <th>Product</th>
+                      <th>Batch No</th>
+                      <th className="text-right">Available Qty</th>
+                      <th className="text-right">Unit Cost</th>
+                      <th className="text-right">MRP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!vehicleId ? (
+                      <tr>
+                        <td colSpan={6}>Select an applied loading first.</td>
+                      </tr>
+                    ) : isLoadingAllBatches ? (
+                      <tr>
+                        <td colSpan={6}>Loading vehicle stock...</td>
+                      </tr>
+                    ) : remainingVehicleItems.length ? (
+                      remainingVehicleItems.map((item) => (
+                        <tr
+                          key={item.id}
+                          style={{
+                            boxShadow: selectedRemainingIds.has(item.id)
+                              ? 'inset 3px 0 var(--color-teal)'
+                              : 'none',
+                          }}
+                        >
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectedRemainingIds.has(item.id)}
+                              onChange={() => toggleRemainingItem(item.id)}
+                            />
+                          </td>
+                          <td>
+                            <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
+                              {item.productName}
+                            </strong>
+                            <span className="product-sku-badge mono">{item.productSku}</span>
+                          </td>
+                          <td className="mono">{item.batchNo || '—'}</td>
+                          <td className="mono text-right">{formatNumber(getQtyAvailable(item))}</td>
+                          <td className="mono text-right">{formatLKR(getUnitCost(item))}</td>
+                          <td className="mono text-right">{formatLKR(getMrp(item))}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6}>
+                          Nothing left in this vehicle for this loading — everything has already
+                          been unloaded or added below.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {remainingVehicleItems.length ? (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="button-primary"
+                    disabled={!selectedRemainingIds.size || isBulkAdding}
+                    onClick={handleBulkAddRemaining}
+                    style={{ height: 38 }}
+                  >
+                    {isBulkAdding
+                      ? 'Adding...'
+                      : selectedRemainingIds.size
+                        ? `Add ${selectedRemainingIds.size} Selected Line${selectedRemainingIds.size === 1 ? '' : 's'}`
+                        : 'Add Selected Lines'}
+                  </button>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           <section className="panel" style={{ padding: 16 }}>
             <div>
