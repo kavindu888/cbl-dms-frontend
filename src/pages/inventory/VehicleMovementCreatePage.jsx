@@ -251,6 +251,52 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     }
   }, [appliedLoadings, isUnloading, selectedProductId, vehicleId, vehicleLoadingId, batchRefreshToken])
 
+  // Manual + periodic refresh that only updates the numbers — unlike the effect above, this never
+  // resets selectedBatchId/qty, so it's safe to call while the user has a batch picked and is mid-way
+  // through typing a quantity. Lets staff see another concurrent user's reservation/deduction show up
+  // without losing their in-progress input.
+  async function refreshBatches() {
+    if (!selectedProductId || (isUnloading && !vehicleId)) return
+    setIsLoadingBatches(true)
+    try {
+      const rows = await inventoryService.listStockBatches(
+        selectedProductId,
+        isUnloading ? { locationId: vehicleId } : {}
+      )
+      const loading = appliedLoadings.find((item) => item.id === vehicleLoadingId)
+      const loadingBatchPrefix = loading?.loadingNo ? `VL-${loading.loadingNo}-` : ''
+      const availableRows = rows.filter((batch) => getQtyAvailable(batch) > 0)
+      const scopedRows =
+        isUnloading && loadingBatchPrefix
+          ? availableRows.filter((batch) => String(batch.batchNo || '').startsWith(loadingBatchPrefix))
+          : availableRows
+      setBatches(scopedRows)
+    } catch (error) {
+      toast.error(error.message || 'Unable to refresh batches.')
+    } finally {
+      setIsLoadingBatches(false)
+    }
+  }
+
+  async function refreshAllActiveBatches() {
+    if (!isUnloading) return
+    try {
+      const rows = await inventoryService.listActiveStockBatches()
+      setAllActiveBatches(rows || [])
+    } catch {
+      /* Keep showing the last known list on a transient refresh failure. */
+    }
+  }
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshBatches()
+      refreshAllActiveBatches()
+    }, 15000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUnloading, selectedProductId, vehicleId, vehicleLoadingId, appliedLoadings])
+
   useEffect(() => {
     if (!isUnloading) return
     const loading = appliedLoadings.find((item) => item.id === vehicleLoadingId)
@@ -390,8 +436,8 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       return toast.error('Select a vehicle, product, and batch first.')
     const requestedQty = Number(qty)
     if (requestedQty <= 0) return toast.error('Enter a quantity greater than zero.')
-    if (requestedQty > getQtyAvailable(selectedBatch))
-      return toast.error('Quantity cannot exceed available batch quantity.')
+    if (requestedQty > getQtyFree(selectedBatch))
+      return toast.error('Quantity cannot exceed sellable (available minus reserved) batch quantity.')
     if (isUnloading && unloadingType === 2 && !returnReason)
       return toast.error('Labelled unloading requires a return reason.')
 
@@ -452,7 +498,9 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       const newLines = []
 
       for (const batch of itemsToAdd) {
-        const requestedQty = getQtyAvailable(batch)
+        // Sellable, not full available — a batch that's partly reserved for a pending sales order
+        // must not have that reserved portion swept up in a bulk unload.
+        const requestedQty = getQtyFree(batch)
         if (requestedQty <= 0) continue
 
         try {
@@ -724,16 +772,27 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                     or select all, instead of searching one by one.
                   </p>
                 </div>
-                {remainingVehicleItems.length ? (
+                <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     type="button"
                     className="button-secondary"
-                    onClick={toggleSelectAllRemaining}
+                    onClick={refreshAllActiveBatches}
+                    title="Refresh stock availability"
                     style={{ height: 32, whiteSpace: 'nowrap' }}
                   >
-                    {allRemainingSelected ? 'Deselect All' : 'Select All'}
+                    Refresh
                   </button>
-                ) : null}
+                  {remainingVehicleItems.length ? (
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={toggleSelectAllRemaining}
+                      style={{ height: 32, whiteSpace: 'nowrap' }}
+                    >
+                      {allRemainingSelected ? 'Deselect All' : 'Select All'}
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
               <div className="overflow-x-auto" style={{ marginTop: 14 }}>
@@ -744,6 +803,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       <th>Product</th>
                       <th>Batch No</th>
                       <th className="text-right">Available Qty</th>
+                      <th className="text-right">Reserved Qty</th>
                       <th className="text-right">Unit Cost</th>
                       <th className="text-right">MRP</th>
                     </tr>
@@ -751,11 +811,11 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                   <tbody>
                     {!vehicleId ? (
                       <tr>
-                        <td colSpan={6}>Select an applied loading first.</td>
+                        <td colSpan={7}>Select an applied loading first.</td>
                       </tr>
                     ) : isLoadingAllBatches ? (
                       <tr>
-                        <td colSpan={6}>Loading vehicle stock...</td>
+                        <td colSpan={7}>Loading vehicle stock...</td>
                       </tr>
                     ) : remainingVehicleItems.length ? (
                       remainingVehicleItems.map((item) => (
@@ -782,13 +842,21 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                           </td>
                           <td className="mono">{item.batchNo || '—'}</td>
                           <td className="mono text-right">{formatNumber(getQtyAvailable(item))}</td>
+                          <td
+                            className="mono text-right"
+                            style={{
+                              color: getQtyReserved(item) ? 'var(--color-amber)' : 'var(--color-text-muted)',
+                            }}
+                          >
+                            {formatNumber(getQtyReserved(item))}
+                          </td>
                           <td className="mono text-right">{formatLKR(getUnitCost(item))}</td>
                           <td className="mono text-right">{formatLKR(getMrp(item))}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6}>
+                        <td colSpan={7}>
                           Nothing left in this vehicle for this loading — everything has already
                           been unloaded or added below.
                         </td>
@@ -797,6 +865,10 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                   </tbody>
                 </table>
               </div>
+              <p style={{ color: 'var(--color-text-dim)', fontSize: 11, marginTop: 8 }}>
+                Bulk-adding unloads the sellable quantity (available minus reserved) so a batch
+                reserved for a pending sales order isn't pulled off the vehicle.
+              </p>
 
               {remainingVehicleItems.length ? (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
@@ -926,6 +998,25 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       Change
                     </button>
                   </div>
+                  <div
+                    style={{
+                      alignItems: 'center',
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={refreshBatches}
+                      disabled={isLoadingBatches}
+                      title="Refresh stock availability"
+                      style={{ height: 28, fontSize: 12 }}
+                    >
+                      Refresh
+                    </button>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="data-table">
                       <thead>
@@ -934,12 +1025,8 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                           <th className="text-right">
                             {isUnloading ? 'Available Qty' : 'Physical Qty'}
                           </th>
-                          {!isUnloading ? (
-                            <>
-                              <th className="text-right">Reserved Qty</th>
-                              <th className="text-right">Free Qty</th>
-                            </>
-                          ) : null}
+                          <th className="text-right">Reserved Qty</th>
+                          <th className="text-right">Free Qty</th>
                           <th className="text-right">Unit Cost</th>
                           <th className="text-right">MRP</th>
                           <th>Expiry</th>
@@ -949,7 +1036,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       <tbody>
                         {isLoadingBatches ? (
                           <tr>
-                            <td colSpan={isUnloading ? 6 : 8}>Loading batches...</td>
+                            <td colSpan={8}>Loading batches...</td>
                           </tr>
                         ) : batches.length ? (
                           batches.map((batch) => (
@@ -966,26 +1053,22 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                               <td className="mono text-right">
                                 {formatNumber(getQtyAvailable(batch))}
                               </td>
-                              {!isUnloading ? (
-                                <>
-                                  <td
-                                    className="mono text-right"
-                                    style={{
-                                      color: getQtyReserved(batch)
-                                        ? 'var(--color-amber)'
-                                        : 'var(--color-text-muted)',
-                                    }}
-                                  >
-                                    {formatNumber(getQtyReserved(batch))}
-                                  </td>
-                                  <td
-                                    className="mono text-right"
-                                    style={{ color: 'var(--color-teal)' }}
-                                  >
-                                    {formatNumber(getQtyFree(batch))}
-                                  </td>
-                                </>
-                              ) : null}
+                              <td
+                                className="mono text-right"
+                                style={{
+                                  color: getQtyReserved(batch)
+                                    ? 'var(--color-amber)'
+                                    : 'var(--color-text-muted)',
+                                }}
+                              >
+                                {formatNumber(getQtyReserved(batch))}
+                              </td>
+                              <td
+                                className="mono text-right"
+                                style={{ color: 'var(--color-teal)' }}
+                              >
+                                {formatNumber(getQtyFree(batch))}
+                              </td>
                               <td className="mono text-right">{formatLKR(getUnitCost(batch))}</td>
                               <td className="mono text-right">{formatLKR(getMrp(batch))}</td>
                               <td className="mono">{formatDate(batch.expiryDate)}</td>
@@ -1007,7 +1090,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={isUnloading ? 6 : 8}>
+                            <td colSpan={8}>
                               No available {isUnloading ? 'vehicle' : 'main stock'} batches found.
                             </td>
                           </tr>
@@ -1036,15 +1119,14 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       type="number"
                       min="0.0001"
                       step="0.0001"
-                      max={getQtyAvailable(selectedBatch)}
+                      max={getQtyFree(selectedBatch)}
                       value={qty}
                       onChange={(event) => setQty(event.target.value)}
                     />
                     <small className="mono" style={{ color: 'var(--color-text-muted)' }}>
-                      Max physical: {formatNumber(getQtyAvailable(selectedBatch))}
-                      {!isUnloading
-                        ? ` | Reserved: ${formatNumber(getQtyReserved(selectedBatch))} | Free: ${formatNumber(getQtyFree(selectedBatch))}`
-                        : ''}
+                      Available: {formatNumber(getQtyAvailable(selectedBatch))} | Reserved:{' '}
+                      {formatNumber(getQtyReserved(selectedBatch))} | Free:{' '}
+                      {formatNumber(getQtyFree(selectedBatch))}
                     </small>
                   </label>
                   {isUnloading ? (

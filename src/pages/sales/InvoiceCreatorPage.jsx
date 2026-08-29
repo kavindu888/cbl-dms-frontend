@@ -1,4 +1,4 @@
-import { ArrowLeft, Info, Plus, RotateCcw, Save, Search, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Info, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -363,6 +363,8 @@ export default function InvoiceCreatorPage() {
   const [invoiceDate, setInvoiceDate] = useState(todayInputDate())
   const [serialNumberWarning, setSerialNumberWarning] = useState(false)
   const [serialNumberChecking, setSerialNumberChecking] = useState(false)
+  const [availabilityByIndex, setAvailabilityByIndex] = useState({})
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState({})
   const [returnLines, setReturnLines] = useState([])
   const [returnDraftLine, setReturnDraftLine] = useState({
     productId: '',
@@ -768,6 +770,19 @@ export default function InvoiceCreatorPage() {
     }
   }, [selectedSalesRouteId, selectedCustomerDetails])
 
+  async function refreshAvailability(index, productId) {
+    if (!productId) return
+    setIsLoadingAvailability((current) => ({ ...current, [index]: true }))
+    try {
+      const availability = await inventoryService.getStockAvailability(productId)
+      setAvailabilityByIndex((current) => ({ ...current, [index]: availability }))
+    } catch {
+      setAvailabilityByIndex((current) => ({ ...current, [index]: null }))
+    } finally {
+      setIsLoadingAvailability((current) => ({ ...current, [index]: false }))
+    }
+  }
+
   async function handleProductChange(index, productId) {
     if (!productId) {
       setValue(`lines.${index}.unitId`, '', { shouldDirty: true })
@@ -780,8 +795,15 @@ export default function InvoiceCreatorPage() {
       setValue(`lines.${index}.specialDiscountAvailable`, false, { shouldDirty: true })
       setValue(`lines.${index}.specialDiscountMax`, 0, { shouldDirty: true })
       setValue(`lines.${index}.specialDiscountPercent`, 0, { shouldDirty: true })
+      setAvailabilityByIndex((current) => {
+        const next = { ...current }
+        delete next[index]
+        return next
+      })
       return
     }
+
+    refreshAvailability(index, productId)
 
     try {
       const [product, uomChain, prices] = await Promise.all([
@@ -1593,6 +1615,56 @@ export default function InvoiceCreatorPage() {
                           emptyLabel="No matching active products"
                           disabled={isLoadingData || isSaving}
                         />
+                        {line.productId ? (
+                          <div
+                            style={{
+                              alignItems: 'center',
+                              display: 'flex',
+                              gap: 6,
+                              marginTop: 4,
+                              fontSize: 11,
+                            }}
+                          >
+                            {isLoadingAvailability[index] ? (
+                              <span style={{ color: 'var(--color-text-muted)' }}>Checking stock...</span>
+                            ) : availabilityByIndex[index] ? (
+                              <span
+                                className="mono"
+                                style={{
+                                  color:
+                                    Number(availabilityByIndex[index].sellable) <= 0
+                                      ? 'var(--color-danger)'
+                                      : 'var(--color-text-muted)',
+                                }}
+                              >
+                                Available {Number(availabilityByIndex[index].totalAvailable || 0).toLocaleString()}
+                                {Number(availabilityByIndex[index].totalReserved) > 0 ? (
+                                  <span style={{ color: 'var(--color-amber)' }}>
+                                    {' '}
+                                    (Reserved {Number(availabilityByIndex[index].totalReserved || 0).toLocaleString()})
+                                  </span>
+                                ) : null}
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--color-text-dim)' }}>Stock unknown</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => refreshAvailability(index, line.productId)}
+                              title="Refresh stock availability"
+                              style={{
+                                background: 'transparent',
+                                border: 0,
+                                color: 'var(--color-text-dim)',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                padding: 0,
+                              }}
+                            >
+                              <RefreshCw size={11} />
+                            </button>
+                          </div>
+                        ) : null}
                       </td>
                       <td>
                         <input
