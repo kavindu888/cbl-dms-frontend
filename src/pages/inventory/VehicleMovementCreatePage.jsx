@@ -109,7 +109,10 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     setLines(
       (movement.lines || []).map((line) => ({
         id: line.id,
-        productName: line.productName || line.productSku,
+        productId: line.productId,
+        // The loading/unloading line DTO doesn't carry a product name (only sku/id) — resolved
+        // against the loaded product catalog at render time instead, see resolveLineProductName.
+        productName: line.productName || '',
         productSku: line.productSku,
         sourceBatchNo: line.sourceBatchNo,
         qtySmallest: line.qtySmallest,
@@ -336,7 +339,67 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
           ? `${unloadingDeliveryRun.code} - ${unloadingDeliveryRun.name}`
           : unloadingDeliveryRunIds[0]
   const selectedProduct = products.find((product) => product.id === selectedProductId)
-  const selectedBatch = batches.find((batch) => batch.id === selectedBatchId)
+  // Repeated unloading creates a fresh batch each time, so the same product/MRP fragments into
+  // many near-identical rows (same price, different batch no). Group by MRP for picking — a
+  // group's "Free Qty" is the sum across its batches, and adding a line draws across them (FEFO
+  // by expiry) until the requested quantity is covered, so the picker acts like one combined
+  // batch even though each resulting stock line still references its real source batch.
+  const groupedBatches = useMemo(() => {
+    const groups = new Map()
+    for (const batch of batches) {
+      const key = Number(getMrp(batch)).toFixed(2)
+      if (!groups.has(key)) groups.set(key, { mrp: getMrp(batch), batches: [] })
+      groups.get(key).batches.push(batch)
+    }
+    return Array.from(groups.entries())
+      .map(([key, group]) => {
+        const available = group.batches.reduce((sum, b) => sum + getQtyAvailable(b), 0)
+        const reserved = group.batches.reduce((sum, b) => sum + getQtyReserved(b), 0)
+        const free = group.batches.reduce((sum, b) => sum + getQtyFree(b), 0)
+        const costs = new Set(group.batches.map((b) => getUnitCost(b)))
+        const expiry = group.batches.reduce(
+          (earliest, b) =>
+            b.expiryDate && (!earliest || new Date(b.expiryDate) < new Date(earliest))
+              ? b.expiryDate
+              : earliest,
+          null
+        )
+        return {
+          id: `mrp-${key}`,
+          batchNo:
+            group.batches.length > 1
+              ? `${group.batches.length} batches`
+              : group.batches[0].batchNo,
+          batchNos: group.batches.map((b) => b.batchNo).join(', '),
+          qtyAvailable: available,
+          qtyReserved: reserved,
+          sellableQty: free,
+          unitCostSmallest: costs.size === 1 ? [...costs][0] : null,
+          unitCostVaries: costs.size > 1,
+          mrp: group.mrp,
+          expiryDate: expiry,
+          batches: group.batches,
+        }
+      })
+      .sort((a, b) => (a.expiryDate || '').localeCompare(b.expiryDate || ''))
+  }, [batches])
+  const selectedBatch = groupedBatches.find((group) => group.id === selectedBatchId)
+  const productById = useMemo(
+    () => Object.fromEntries(products.map((product) => [product.id, product])),
+    [products]
+  )
+  const productBySku = useMemo(
+    () => Object.fromEntries(products.map((product) => [product.sku, product])),
+    [products]
+  )
+  function resolveLineProductName(line) {
+    return (
+      line.productName ||
+      (line.productId && productById[line.productId]?.name) ||
+      productBySku[line.productSku]?.name ||
+      line.productSku
+    )
+  }
   const filteredProducts = useMemo(() => {
     const term = productSearch.trim().toLowerCase()
     if (!term) return products.slice(0, 30)
@@ -444,36 +507,82 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     setIsAddingLine(true)
     try {
       const id = await ensureDraft()
-      const payload = {
-        productId: selectedProduct.id,
-        productSku: selectedProduct.sku,
-        sourceBatchId: selectedBatch.id,
-        qtySmallest: requestedQty,
-        ...(isUnloading
-          ? { unloadingType, returnReason: unloadingType === 2 ? Number(returnReason) : null }
-          : {}),
-      }
-      const result = isUnloading
-        ? await inventoryService.addVehicleUnloadingLine(id, payload)
-        : await inventoryService.addVehicleLoadingLine(id, payload)
-      const lineId = resultId(result) || `${selectedBatch.id}-${Date.now()}`
-      setLines((current) => [
-        ...current,
-        {
-          id: lineId,
-          productName: selectedProduct.name,
+
+      // The picker shows one merged row per MRP, but each backend line still needs a single real
+      // batch — draw across the group's underlying batches (soonest-expiry first) until the
+      // requested quantity is covered. Each resulting line keeps its own batch's true cost/MRP.
+      const sortedBatches = [...selectedBatch.batches].sort((a, b) => {
+        if (!a.expiryDate) return 1
+        if (!b.expiryDate) return -1
+        return new Date(a.expiryDate) - new Date(b.expiryDate)
+      })
+
+      let remaining = requestedQty
+      const addedLines = []
+      let anyFailed = false
+      for (const batch of sortedBatches) {
+        if (remaining <= 0) break
+        const drawQty = Math.min(remaining, getQtyFree(batch))
+        if (drawQty <= 0) continue
+
+        const payload = {
+          productId: selectedProduct.id,
           productSku: selectedProduct.sku,
-          sourceBatchNo: selectedBatch.batchNo,
-          qtySmallest: requestedQty,
-          unitCostSmallest: getUnitCost(selectedBatch),
-          mrp: getMrp(selectedBatch),
-          unloadingType,
-          returnReason: unloadingType === 2 ? Number(returnReason) : null,
-        },
-      ])
-      setHydrateLinesFromServer(false)
-      invalidateMovementQueries(id)
-      toast.success(isUnloading ? 'Unloading line added.' : 'Stock line added.')
+          sourceBatchId: batch.id,
+          qtySmallest: drawQty,
+          ...(isUnloading
+            ? { unloadingType, returnReason: unloadingType === 2 ? Number(returnReason) : null }
+            : {}),
+        }
+        try {
+          const result = isUnloading
+            ? await inventoryService.addVehicleUnloadingLine(id, payload)
+            : await inventoryService.addVehicleLoadingLine(id, payload)
+          const lineId = resultId(result) || `${batch.id}-${Date.now()}`
+          addedLines.push({
+            id: lineId,
+            productId: selectedProduct.id,
+            productName: selectedProduct.name,
+            productSku: selectedProduct.sku,
+            sourceBatchNo: batch.batchNo,
+            qtySmallest: drawQty,
+            unitCostSmallest: getUnitCost(batch),
+            mrp: getMrp(batch),
+            unloadingType,
+            returnReason: unloadingType === 2 ? Number(returnReason) : null,
+          })
+          remaining -= drawQty
+        } catch (batchError) {
+          anyFailed = true
+          toast.error(
+            `${batch.batchNo || 'A batch'}: ${batchError.message || 'failed to add.'}`,
+            { duration: 8000 }
+          )
+        }
+      }
+
+      if (addedLines.length) {
+        setLines((current) => [...current, ...addedLines])
+        setHydrateLinesFromServer(false)
+        invalidateMovementQueries(id)
+      }
+
+      if (addedLines.length && !anyFailed && remaining <= 0) {
+        toast.success(
+          addedLines.length > 1
+            ? `Added across ${addedLines.length} batches.`
+            : isUnloading
+              ? 'Unloading line added.'
+              : 'Stock line added.'
+        )
+      } else if (addedLines.length && remaining > 0) {
+        toast.warning(
+          `Only ${formatNumber(requestedQty - remaining)} of ${formatNumber(requestedQty)} could be added — refresh and try the rest again.`
+        )
+      } else if (!addedLines.length) {
+        toast.error(`Unable to add ${kind.toLowerCase()} line.`)
+      }
+
       setSelectedBatchId('')
       setQty('')
       setReturnReason('')
@@ -516,6 +625,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
           const lineId = resultId(result) || `${batch.id}-${Date.now()}`
           newLines.push({
             id: lineId,
+            productId: batch.productId,
             productName: batch.productName,
             productSku: batch.productSku,
             sourceBatchNo: batch.batchNo,
@@ -1038,49 +1148,53 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                           <tr>
                             <td colSpan={8}>Loading batches...</td>
                           </tr>
-                        ) : batches.length ? (
-                          batches.map((batch) => (
+                        ) : groupedBatches.length ? (
+                          groupedBatches.map((group) => (
                             <tr
-                              key={batch.id}
+                              key={group.id}
                               style={{
                                 boxShadow:
-                                  selectedBatchId === batch.id
+                                  selectedBatchId === group.id
                                     ? 'inset 3px 0 var(--color-teal)'
                                     : 'none',
                               }}
                             >
-                              <td className="mono">{batch.batchNo || '—'}</td>
+                              <td className="mono" title={group.batchNos}>
+                                {group.batchNo || '—'}
+                              </td>
                               <td className="mono text-right">
-                                {formatNumber(getQtyAvailable(batch))}
+                                {formatNumber(getQtyAvailable(group))}
                               </td>
                               <td
                                 className="mono text-right"
                                 style={{
-                                  color: getQtyReserved(batch)
+                                  color: getQtyReserved(group)
                                     ? 'var(--color-amber)'
                                     : 'var(--color-text-muted)',
                                 }}
                               >
-                                {formatNumber(getQtyReserved(batch))}
+                                {formatNumber(getQtyReserved(group))}
                               </td>
                               <td
                                 className="mono text-right"
                                 style={{ color: 'var(--color-teal)' }}
                               >
-                                {formatNumber(getQtyFree(batch))}
+                                {formatNumber(getQtyFree(group))}
                               </td>
-                              <td className="mono text-right">{formatLKR(getUnitCost(batch))}</td>
-                              <td className="mono text-right">{formatLKR(getMrp(batch))}</td>
-                              <td className="mono">{formatDate(batch.expiryDate)}</td>
+                              <td className="mono text-right">
+                                {group.unitCostVaries ? 'Varies' : formatLKR(getUnitCost(group))}
+                              </td>
+                              <td className="mono text-right">{formatLKR(getMrp(group))}</td>
+                              <td className="mono">{formatDate(group.expiryDate)}</td>
                               <td className="text-right">
                                 <button
                                   type="button"
                                   className={
-                                    selectedBatchId === batch.id
+                                    selectedBatchId === group.id
                                       ? 'button-primary'
                                       : 'button-secondary'
                                   }
-                                  onClick={() => setSelectedBatchId(batch.id)}
+                                  onClick={() => setSelectedBatchId(group.id)}
                                   style={{ height: 30 }}
                                 >
                                   Select
@@ -1217,7 +1331,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       <tr key={line.id}>
                         <td>
                           <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
-                            {line.productName}
+                            {resolveLineProductName(line)}
                           </strong>
                           <span className="product-sku-badge mono">{line.productSku}</span>
                         </td>
