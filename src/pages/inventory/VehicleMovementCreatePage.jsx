@@ -67,6 +67,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [returnReason, setReturnReason] = useState('')
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [isLoadingBatches, setIsLoadingBatches] = useState(false)
+  const [isSoftRefreshingBatches, setIsSoftRefreshingBatches] = useState(false)
   const [isAddingLine, setIsAddingLine] = useState(false)
   const [batchRefreshToken, setBatchRefreshToken] = useState(0)
   const [deliveryRuns, setDeliveryRuns] = useState([])
@@ -258,9 +259,12 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   // resets selectedBatchId/qty, so it's safe to call while the user has a batch picked and is mid-way
   // through typing a quantity. Lets staff see another concurrent user's reservation/deduction show up
   // without losing their in-progress input.
+  // Uses its own loading flag (not isLoadingBatches) so this background/periodic refresh doesn't
+  // blank the table's rows out to a "Loading batches..." row every 15s — that flag is reserved for
+  // the initial fetch, where replacing the table is expected.
   async function refreshBatches() {
     if (!selectedProductId || (isUnloading && !vehicleId)) return
-    setIsLoadingBatches(true)
+    setIsSoftRefreshingBatches(true)
     try {
       const rows = await inventoryService.listStockBatches(
         selectedProductId,
@@ -277,7 +281,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     } catch (error) {
       toast.error(error.message || 'Unable to refresh batches.')
     } finally {
-      setIsLoadingBatches(false)
+      setIsSoftRefreshingBatches(false)
     }
   }
 
@@ -1120,7 +1124,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       type="button"
                       className="button-secondary"
                       onClick={refreshBatches}
-                      disabled={isLoadingBatches}
+                      disabled={isLoadingBatches || isSoftRefreshingBatches}
                       title="Refresh stock availability"
                       style={{ height: 28, fontSize: 12 }}
                     >
