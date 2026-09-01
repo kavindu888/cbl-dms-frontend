@@ -17,6 +17,9 @@ import { masterService } from '@/services/api/masterService'
 import { formatDate } from '@/utils/formatDate'
 import { formatLKR } from '@/utils/formatCurrency'
 import {
+  calculateVehicleSellingPrice,
+  calculateVehicleSellingValue,
+  calculateVehicleUnitCostValue,
   formatNumber,
   getMrp,
   getQtyAvailable,
@@ -456,8 +459,14 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   }
 
   const totalQty = lines.reduce((sum, line) => sum + Number(line.qtySmallest || 0), 0)
-  const totalValue = lines.reduce(
-    (sum, line) => sum + Number(line.qtySmallest || 0) * Number(line.unitCostSmallest || 0),
+  const totalSellingValue = lines.reduce(
+    (sum, line) =>
+      sum + calculateVehicleSellingValue(line.unitCostSmallest, line.qtySmallest),
+    0
+  )
+  const totalUnitCostValue = lines.reduce(
+    (sum, line) =>
+      sum + calculateVehicleUnitCostValue(line.unitCostSmallest, line.qtySmallest),
     0
   )
   const normalCount = lines.filter(
@@ -1310,23 +1319,16 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
             </div>
             {lines.length ? (
               <div className="overflow-x-auto">
-                <table className="data-table">
+                <table className="data-table" style={{ minWidth: 1100 }}>
                   <thead>
                     <tr>
                       <th>Product</th>
-                      <th>Source Batch</th>
                       <th className="text-right">Qty</th>
-                      {isUnloading ? (
-                        <>
-                          <th>Type</th>
-                          <th>Reason</th>
-                        </>
-                      ) : (
-                        <>
-                          <th className="text-right">Unit Cost</th>
-                          <th className="text-right">MRP</th>
-                        </>
-                      )}
+                      <th className="text-right">Unit Cost</th>
+                      <th className="text-right">Selling Price</th>
+                      <th className="text-right">MRP</th>
+                      <th className="text-right">Selling Value</th>
+                      <th className="text-right">Unit Cost Value</th>
                       <th className="text-right">Remove</th>
                     </tr>
                   </thead>
@@ -1338,26 +1340,38 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                             {resolveLineProductName(line)}
                           </strong>
                           <span className="product-sku-badge mono">{line.productSku}</span>
+                          {isUnloading ? (
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
+                              style={{ display: 'inline-flex', marginLeft: 6 }}
+                              title={returnReasonLabel(line.returnReason)}
+                            >
+                              {unloadingTypeLabel(line.unloadingType).toUpperCase()}
+                            </span>
+                          ) : null}
                         </td>
-                        <td className="mono">{line.sourceBatchNo || '—'}</td>
                         <td className="mono text-right">{formatNumber(line.qtySmallest)}</td>
-                        {isUnloading ? (
-                          <>
-                            <td>
-                              <span
-                                className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
-                              >
-                                {unloadingTypeLabel(line.unloadingType).toUpperCase()}
-                              </span>
-                            </td>
-                            <td>{returnReasonLabel(line.returnReason)}</td>
-                          </>
-                        ) : (
-                          <>
-                            <td className="mono text-right">{formatLKR(line.unitCostSmallest)}</td>
-                            <td className="mono text-right">{formatLKR(line.mrp)}</td>
-                          </>
-                        )}
+                        <td className="mono text-right">{formatLKR(line.unitCostSmallest)}</td>
+                        <td className="mono text-right">
+                          {formatLKR(calculateVehicleSellingPrice(line.unitCostSmallest))}
+                        </td>
+                        <td className="mono text-right">{formatLKR(line.mrp)}</td>
+                        <td className="mono text-right">
+                          {formatLKR(
+                            calculateVehicleSellingValue(
+                              line.unitCostSmallest,
+                              line.qtySmallest
+                            )
+                          )}
+                        </td>
+                        <td className="mono text-right">
+                          {formatLKR(
+                            calculateVehicleUnitCostValue(
+                              line.unitCostSmallest,
+                              line.qtySmallest
+                            )
+                          )}
+                        </td>
                         <td className="text-right">
                           <button
                             type="button"
@@ -1431,12 +1445,18 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
               <SummaryRow label="Labelled" value={labelledCount} mono />
             </>
           ) : (
-            <>
-              <SummaryRow label="Total Qty" value={formatNumber(totalQty)} mono />
-              <SummaryRow label="Total Value" value={formatLKR(totalValue)} mono />
-            </>
+            <SummaryRow label="Total Qty" value={formatNumber(totalQty)} mono />
           )}
-          {isUnloading ? <SummaryRow label="Total Value" value={formatLKR(totalValue)} mono /> : null}
+          <SummaryRow
+            label="Total Selling Value"
+            value={formatLKR(totalSellingValue)}
+            mono
+          />
+          <SummaryRow
+            label="Total Unit Cost Value"
+            value={formatLKR(totalUnitCostValue)}
+            mono
+          />
           <div
             style={{
               background: 'rgba(245, 158, 11, 0.1)',
