@@ -21,6 +21,7 @@ import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import { useEffect } from 'react'
 import {
   VEHICLE_MOVEMENT_STATUSES,
+  calculateVehicleSellingPrice,
   movementStatusLabel,
   vehicleLabel,
 } from './vehicleMovementUtils'
@@ -420,7 +421,10 @@ export default function VehicleMovementListPage({
 
       <section className="panel" style={{ overflow: 'hidden', padding: 0 }}>
         <div className="overflow-x-auto">
-          <table className="data-table">
+          <table
+            className="data-table"
+            style={{ minWidth: kind === 'Loading' ? 1300 : 1050 }}
+          >
             <thead>
               <tr>
                 <th>{kind.toUpperCase()} #</th>
@@ -428,7 +432,8 @@ export default function VehicleMovementListPage({
                 <th>Vehicle</th>
                 {kind === 'Loading' ? <th>Delivery Run</th> : null}
                 <th className="text-right">Lines</th>
-                <th className="text-right">Total Value</th>
+                <th className="text-right">Total Selling Value</th>
+                <th className="text-right">Total Unit Cost Value</th>
                 <th>Status</th>
                 <th className="text-right">Action</th>
               </tr>
@@ -436,7 +441,7 @@ export default function VehicleMovementListPage({
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={kind === 'Loading' ? 8 : 7}>Loading {title.toLowerCase()}...</td>
+                  <td colSpan={kind === 'Loading' ? 9 : 8}>Loading {title.toLowerCase()}...</td>
                 </tr>
               ) : filteredRows.length ? (
                 filteredRows.map((row) => {
@@ -469,6 +474,9 @@ export default function VehicleMovementListPage({
                         </td>
                       ) : null}
                       <td className="mono text-right">{row.lineCount ?? row.lines?.length ?? 0}</td>
+                      <td className="mono text-right">
+                        {formatLKR(calculateVehicleSellingPrice(row.totalValue))}
+                      </td>
                       <td className="mono text-right">{formatLKR(row.totalValue)}</td>
                       <td>
                         <span
@@ -527,7 +535,7 @@ export default function VehicleMovementListPage({
                 })
               ) : (
                 <tr>
-                  <td colSpan={kind === 'Loading' ? 8 : 7}>No {title.toLowerCase()} found.</td>
+                  <td colSpan={kind === 'Loading' ? 9 : 8}>No {title.toLowerCase()} found.</td>
                 </tr>
               )}
             </tbody>
