@@ -88,6 +88,30 @@ export function useApplyVehicleLoading() {
   })
 }
 
+export function useAutoRepairVehicleLoadingLines(id) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => inventoryService.autoRepairVehicleLoadingLines(id),
+    onSuccess: (result) => {
+      const repaired = result?.linesRepaired ?? 0
+      const failed = result?.failedLines?.length ?? 0
+      if (repaired > 0 && failed === 0) {
+        toast.success(`Repaired ${repaired} line${repaired === 1 ? '' : 's'} — moved to batches with real stock.`)
+      } else if (repaired > 0 && failed > 0) {
+        toast.warning(
+          `Repaired ${repaired} line${repaired === 1 ? '' : 's'}, but ${failed} still can't be covered — not enough stock at Main.`
+        )
+      } else if (failed > 0) {
+        toast.error(`Couldn't repair ${failed} line${failed === 1 ? '' : 's'} — not enough stock at Main.`)
+      } else {
+        toast.success('All lines already have valid stock — nothing to repair.')
+      }
+      invalidateMovement(queryClient, loadingListKey, loadingDetailKey, id)
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Unable to auto-repair this loading.')),
+  })
+}
+
 export function useCancelVehicleLoading() {
   const queryClient = useQueryClient()
   return useMutation({

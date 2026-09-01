@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, PackageSearch, Trash2 } from 'lucide-react'
+import { ArrowLeft, PackageSearch, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -17,6 +17,9 @@ import { masterService } from '@/services/api/masterService'
 import { formatDate } from '@/utils/formatDate'
 import { formatLKR } from '@/utils/formatCurrency'
 import {
+  calculateVehicleSellingPrice,
+  calculateVehicleSellingValue,
+  calculateVehicleUnitCostValue,
   formatNumber,
   getMrp,
   getQtyAvailable,
@@ -57,6 +60,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [notes, setNotes] = useState('')
   const [draftId, setDraftId] = useState(routeDraftId || '')
   const [lines, setLines] = useState([])
+  const [stockLineSearch, setStockLineSearch] = useState('')
   const [products, setProducts] = useState([])
   const [productSearch, setProductSearch] = useState('')
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -67,11 +71,17 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [returnReason, setReturnReason] = useState('')
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [isLoadingBatches, setIsLoadingBatches] = useState(false)
+  const [isSoftRefreshingBatches, setIsSoftRefreshingBatches] = useState(false)
   const [isAddingLine, setIsAddingLine] = useState(false)
+  const [batchRefreshToken, setBatchRefreshToken] = useState(0)
   const [deliveryRuns, setDeliveryRuns] = useState([])
   const [appliedLoadings, setAppliedLoadings] = useState([])
   const [hydrateLinesFromServer, setHydrateLinesFromServer] = useState(Boolean(routeDraftId))
   const skipResetForVehicleLoadingIdRef = useRef(null)
+  const [allActiveBatches, setAllActiveBatches] = useState([])
+  const [isLoadingAllBatches, setIsLoadingAllBatches] = useState(false)
+  const [selectedRemainingIds, setSelectedRemainingIds] = useState(() => new Set())
+  const [isBulkAdding, setIsBulkAdding] = useState(false)
 
   const { data: resumedLoading, isFetching: isFetchingLoading } = useVehicleLoading(
     !isUnloading && hydrateLinesFromServer ? draftId : undefined
@@ -104,7 +114,10 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     setLines(
       (movement.lines || []).map((line) => ({
         id: line.id,
-        productName: line.productName || line.productSku,
+        productId: line.productId,
+        // The loading/unloading line DTO doesn't carry a product name (only sku/id) — resolved
+        // against the loaded product catalog at render time instead, see resolveLineProductName.
+        productName: line.productName || '',
         productSku: line.productSku,
         sourceBatchNo: line.sourceBatchNo,
         qtySmallest: line.qtySmallest,
@@ -181,6 +194,31 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   }, [isUnloading])
 
   useEffect(() => {
+    if (!isUnloading) return undefined
+
+    let active = true
+    async function loadAllActiveBatches() {
+      setIsLoadingAllBatches(true)
+      try {
+        const rows = await inventoryService.listActiveStockBatches()
+        if (active) setAllActiveBatches(rows || [])
+      } catch (error) {
+        if (active) {
+          setAllActiveBatches([])
+          toast.error(error.message || 'Unable to load vehicle stock.')
+        }
+      } finally {
+        if (active) setIsLoadingAllBatches(false)
+      }
+    }
+    loadAllActiveBatches()
+
+    return () => {
+      active = false
+    }
+  }, [isUnloading, batchRefreshToken])
+
+  useEffect(() => {
     if (!selectedProductId || (isUnloading && !vehicleId)) {
       setBatches([])
       setSelectedBatchId('')
@@ -219,7 +257,56 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     return () => {
       active = false
     }
-  }, [appliedLoadings, isUnloading, selectedProductId, vehicleId, vehicleLoadingId])
+  }, [appliedLoadings, isUnloading, selectedProductId, vehicleId, vehicleLoadingId, batchRefreshToken])
+
+  // Manual + periodic refresh that only updates the numbers — unlike the effect above, this never
+  // resets selectedBatchId/qty, so it's safe to call while the user has a batch picked and is mid-way
+  // through typing a quantity. Lets staff see another concurrent user's reservation/deduction show up
+  // without losing their in-progress input.
+  // Uses its own loading flag (not isLoadingBatches) so this background/periodic refresh doesn't
+  // blank the table's rows out to a "Loading batches..." row every 15s — that flag is reserved for
+  // the initial fetch, where replacing the table is expected.
+  async function refreshBatches() {
+    if (!selectedProductId || (isUnloading && !vehicleId)) return
+    setIsSoftRefreshingBatches(true)
+    try {
+      const rows = await inventoryService.listStockBatches(
+        selectedProductId,
+        isUnloading ? { locationId: vehicleId } : {}
+      )
+      const loading = appliedLoadings.find((item) => item.id === vehicleLoadingId)
+      const loadingBatchPrefix = loading?.loadingNo ? `VL-${loading.loadingNo}-` : ''
+      const availableRows = rows.filter((batch) => getQtyAvailable(batch) > 0)
+      const scopedRows =
+        isUnloading && loadingBatchPrefix
+          ? availableRows.filter((batch) => String(batch.batchNo || '').startsWith(loadingBatchPrefix))
+          : availableRows
+      setBatches(scopedRows)
+    } catch (error) {
+      toast.error(error.message || 'Unable to refresh batches.')
+    } finally {
+      setIsSoftRefreshingBatches(false)
+    }
+  }
+
+  async function refreshAllActiveBatches() {
+    if (!isUnloading) return
+    try {
+      const rows = await inventoryService.listActiveStockBatches()
+      setAllActiveBatches(rows || [])
+    } catch {
+      /* Keep showing the last known list on a transient refresh failure. */
+    }
+  }
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshBatches()
+      refreshAllActiveBatches()
+    }, 15000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUnloading, selectedProductId, vehicleId, vehicleLoadingId, appliedLoadings])
 
   useEffect(() => {
     if (!isUnloading) return
@@ -232,6 +319,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     setSelectedProductId('')
     setSelectedBatchId('')
     setProductSearch('')
+    setSelectedRemainingIds(new Set())
     if (skipResetForVehicleLoadingIdRef.current === vehicleLoadingId) {
       skipResetForVehicleLoadingIdRef.current = null
       return
@@ -259,7 +347,101 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
           ? `${unloadingDeliveryRun.code} - ${unloadingDeliveryRun.name}`
           : unloadingDeliveryRunIds[0]
   const selectedProduct = products.find((product) => product.id === selectedProductId)
-  const selectedBatch = batches.find((batch) => batch.id === selectedBatchId)
+  // Repeated unloading creates a fresh batch each time, so the same product/MRP fragments into
+  // many near-identical rows (same price, different batch no). Group by MRP for picking — a
+  // group's "Free Qty" is the sum across its batches, and adding a line draws across them (FEFO
+  // by expiry) until the requested quantity is covered, so the picker acts like one combined
+  // batch even though each resulting stock line still references its real source batch.
+  const groupedBatches = useMemo(() => {
+    const groups = new Map()
+    for (const batch of batches) {
+      const key = Number(getMrp(batch)).toFixed(2)
+      if (!groups.has(key)) groups.set(key, { mrp: getMrp(batch), batches: [] })
+      groups.get(key).batches.push(batch)
+    }
+    return Array.from(groups.entries())
+      .map(([key, group]) => {
+        const available = group.batches.reduce((sum, b) => sum + getQtyAvailable(b), 0)
+        const reserved = group.batches.reduce((sum, b) => sum + getQtyReserved(b), 0)
+        const free = group.batches.reduce((sum, b) => sum + getQtyFree(b), 0)
+        const costs = new Set(group.batches.map((b) => getUnitCost(b)))
+        const expiry = group.batches.reduce(
+          (earliest, b) =>
+            b.expiryDate && (!earliest || new Date(b.expiryDate) < new Date(earliest))
+              ? b.expiryDate
+              : earliest,
+          null
+        )
+        return {
+          id: `mrp-${key}`,
+          batchNo:
+            group.batches.length > 1
+              ? `${group.batches.length} batches`
+              : group.batches[0].batchNo,
+          batchNos: group.batches.map((b) => b.batchNo).join(', '),
+          qtyAvailable: available,
+          qtyReserved: reserved,
+          sellableQty: free,
+          unitCostSmallest: costs.size === 1 ? [...costs][0] : null,
+          unitCostVaries: costs.size > 1,
+          mrp: group.mrp,
+          expiryDate: expiry,
+          batches: group.batches,
+        }
+      })
+      .sort((a, b) => (a.expiryDate || '').localeCompare(b.expiryDate || ''))
+  }, [batches])
+  const selectedBatch = groupedBatches.find((group) => group.id === selectedBatchId)
+  const productById = useMemo(
+    () => Object.fromEntries(products.map((product) => [product.id, product])),
+    [products]
+  )
+  const productBySku = useMemo(
+    () => Object.fromEntries(products.map((product) => [product.sku, product])),
+    [products]
+  )
+  function resolveLineProductName(line) {
+    return (
+      line.productName ||
+      (line.productId && productById[line.productId]?.name) ||
+      productBySku[line.productSku]?.name ||
+      line.productSku
+    )
+  }
+  const filteredStockLines = useMemo(() => {
+    const term = stockLineSearch.trim().toLowerCase()
+    if (!term) return lines
+
+    return lines.filter((line) => {
+      const unitCost = Number(line.unitCostSmallest || 0)
+      const lineQty = Number(line.qtySmallest || 0)
+      const sellingPrice = calculateVehicleSellingPrice(unitCost)
+      const sellingValue = calculateVehicleSellingValue(unitCost, lineQty)
+
+      return [
+        JSON.stringify(line),
+        line.productName ||
+          (line.productId && productById[line.productId]?.name) ||
+          productBySku[line.productSku]?.name ||
+          line.productSku,
+        line.productSku,
+        line.productId,
+        line.sourceBatchNo,
+        lineQty,
+        formatNumber(lineQty),
+        unitCost,
+        formatLKR(unitCost),
+        sellingPrice,
+        formatLKR(sellingPrice),
+        line.mrp,
+        formatLKR(line.mrp),
+        sellingValue,
+        formatLKR(sellingValue),
+        unloadingTypeLabel(line.unloadingType),
+        returnReasonLabel(line.returnReason),
+      ].some((value) => String(value ?? '').toLowerCase().includes(term))
+    })
+  }, [lines, productById, productBySku, stockLineSearch])
   const filteredProducts = useMemo(() => {
     const term = productSearch.trim().toLowerCase()
     if (!term) return products.slice(0, 30)
@@ -270,9 +452,56 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       .slice(0, 30)
   }, [productSearch, products])
 
+  const remainingVehicleItems = useMemo(() => {
+    if (!isUnloading || !vehicleId) return []
+
+    const loadingBatchPrefix = selectedVehicleLoading?.loadingNo
+      ? `VL-${selectedVehicleLoading.loadingNo}-`
+      : ''
+    const addedBatchNos = new Set(lines.map((line) => line.sourceBatchNo).filter(Boolean))
+
+    return allActiveBatches
+      .filter((batch) => batch.stockLocationId === vehicleId)
+      .filter((batch) => getQtyAvailable(batch) > 0)
+      .filter((batch) =>
+        loadingBatchPrefix ? String(batch.batchNo || '').startsWith(loadingBatchPrefix) : true
+      )
+      .filter((batch) => !addedBatchNos.has(batch.batchNo))
+      .map((batch) => ({
+        ...batch,
+        productName: products.find((product) => product.id === batch.productId)?.name || batch.productSku,
+      }))
+      .sort((a, b) => (a.productName || '').localeCompare(b.productName || ''))
+  }, [isUnloading, vehicleId, allActiveBatches, selectedVehicleLoading, lines, products])
+
+  const allRemainingSelected =
+    remainingVehicleItems.length > 0 &&
+    remainingVehicleItems.every((item) => selectedRemainingIds.has(item.id))
+
+  function toggleSelectAllRemaining() {
+    setSelectedRemainingIds(
+      allRemainingSelected ? new Set() : new Set(remainingVehicleItems.map((item) => item.id))
+    )
+  }
+
+  function toggleRemainingItem(id) {
+    setSelectedRemainingIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const totalQty = lines.reduce((sum, line) => sum + Number(line.qtySmallest || 0), 0)
-  const totalValue = lines.reduce(
-    (sum, line) => sum + Number(line.qtySmallest || 0) * Number(line.unitCostSmallest || 0),
+  const totalSellingValue = lines.reduce(
+    (sum, line) =>
+      sum + calculateVehicleSellingValue(line.unitCostSmallest, line.qtySmallest),
+    0
+  )
+  const totalUnitCostValue = lines.reduce(
+    (sum, line) =>
+      sum + calculateVehicleUnitCostValue(line.unitCostSmallest, line.qtySmallest),
     0
   )
   const normalCount = lines.filter(
@@ -318,52 +547,167 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       return toast.error('Select a vehicle, product, and batch first.')
     const requestedQty = Number(qty)
     if (requestedQty <= 0) return toast.error('Enter a quantity greater than zero.')
-    if (requestedQty > getQtyAvailable(selectedBatch))
-      return toast.error('Quantity cannot exceed available batch quantity.')
+    if (requestedQty > getQtyFree(selectedBatch))
+      return toast.error('Quantity cannot exceed sellable (available minus reserved) batch quantity.')
     if (isUnloading && unloadingType === 2 && !returnReason)
       return toast.error('Labelled unloading requires a return reason.')
 
     setIsAddingLine(true)
     try {
       const id = await ensureDraft()
-      const payload = {
-        productId: selectedProduct.id,
-        productSku: selectedProduct.sku,
-        sourceBatchId: selectedBatch.id,
-        qtySmallest: requestedQty,
-        ...(isUnloading
-          ? { unloadingType, returnReason: unloadingType === 2 ? Number(returnReason) : null }
-          : {}),
-      }
-      const result = isUnloading
-        ? await inventoryService.addVehicleUnloadingLine(id, payload)
-        : await inventoryService.addVehicleLoadingLine(id, payload)
-      const lineId = resultId(result) || `${selectedBatch.id}-${Date.now()}`
-      setLines((current) => [
-        ...current,
-        {
-          id: lineId,
-          productName: selectedProduct.name,
+
+      // The picker shows one merged row per MRP, but each backend line still needs a single real
+      // batch — draw across the group's underlying batches (soonest-expiry first) until the
+      // requested quantity is covered. Each resulting line keeps its own batch's true cost/MRP.
+      const sortedBatches = [...selectedBatch.batches].sort((a, b) => {
+        if (!a.expiryDate) return 1
+        if (!b.expiryDate) return -1
+        return new Date(a.expiryDate) - new Date(b.expiryDate)
+      })
+
+      let remaining = requestedQty
+      const addedLines = []
+      let anyFailed = false
+      for (const batch of sortedBatches) {
+        if (remaining <= 0) break
+        const drawQty = Math.min(remaining, getQtyFree(batch))
+        if (drawQty <= 0) continue
+
+        const payload = {
+          productId: selectedProduct.id,
           productSku: selectedProduct.sku,
-          sourceBatchNo: selectedBatch.batchNo,
-          qtySmallest: requestedQty,
-          unitCostSmallest: getUnitCost(selectedBatch),
-          mrp: getMrp(selectedBatch),
-          unloadingType,
-          returnReason: unloadingType === 2 ? Number(returnReason) : null,
-        },
-      ])
-      setHydrateLinesFromServer(false)
-      invalidateMovementQueries(id)
-      toast.success(isUnloading ? 'Unloading line added.' : 'Stock line added.')
+          sourceBatchId: batch.id,
+          qtySmallest: drawQty,
+          ...(isUnloading
+            ? { unloadingType, returnReason: unloadingType === 2 ? Number(returnReason) : null }
+            : {}),
+        }
+        try {
+          const result = isUnloading
+            ? await inventoryService.addVehicleUnloadingLine(id, payload)
+            : await inventoryService.addVehicleLoadingLine(id, payload)
+          const lineId = resultId(result) || `${batch.id}-${Date.now()}`
+          addedLines.push({
+            id: lineId,
+            productId: selectedProduct.id,
+            productName: selectedProduct.name,
+            productSku: selectedProduct.sku,
+            sourceBatchNo: batch.batchNo,
+            qtySmallest: drawQty,
+            unitCostSmallest: getUnitCost(batch),
+            mrp: getMrp(batch),
+            unloadingType,
+            returnReason: unloadingType === 2 ? Number(returnReason) : null,
+          })
+          remaining -= drawQty
+        } catch (batchError) {
+          anyFailed = true
+          toast.error(
+            `${batch.batchNo || 'A batch'}: ${batchError.message || 'failed to add.'}`,
+            { duration: 8000 }
+          )
+        }
+      }
+
+      if (addedLines.length) {
+        setLines((current) => [...current, ...addedLines])
+        setHydrateLinesFromServer(false)
+        invalidateMovementQueries(id)
+      }
+
+      if (addedLines.length && !anyFailed && remaining <= 0) {
+        toast.success(
+          addedLines.length > 1
+            ? `Added across ${addedLines.length} batches.`
+            : isUnloading
+              ? 'Unloading line added.'
+              : 'Stock line added.'
+        )
+      } else if (addedLines.length && remaining > 0) {
+        toast.warning(
+          `Only ${formatNumber(requestedQty - remaining)} of ${formatNumber(requestedQty)} could be added — refresh and try the rest again.`
+        )
+      } else if (!addedLines.length) {
+        toast.error(`Unable to add ${kind.toLowerCase()} line.`)
+      }
+
       setSelectedBatchId('')
       setQty('')
       setReturnReason('')
       setUnloadingType(1)
+      setBatchRefreshToken((token) => token + 1)
     } catch (error) {
       toast.error(error.message || `Unable to add ${kind.toLowerCase()} line.`)
     } finally {
       setIsAddingLine(false)
+    }
+  }
+
+  async function handleBulkAddRemaining() {
+    if (!selectedRemainingIds.size) return toast.error('Select at least one item to unload.')
+
+    setIsBulkAdding(true)
+    let succeeded = 0
+    let failed = 0
+    try {
+      const id = await ensureDraft()
+      const itemsToAdd = remainingVehicleItems.filter((item) => selectedRemainingIds.has(item.id))
+      const newLines = []
+
+      for (const batch of itemsToAdd) {
+        // Sellable, not full available — a batch that's partly reserved for a pending sales order
+        // must not have that reserved portion swept up in a bulk unload.
+        const requestedQty = getQtyFree(batch)
+        if (requestedQty <= 0) continue
+
+        try {
+          const payload = {
+            productId: batch.productId,
+            productSku: batch.productSku,
+            sourceBatchId: batch.id,
+            qtySmallest: requestedQty,
+            unloadingType: 1,
+            returnReason: null,
+          }
+          const result = await inventoryService.addVehicleUnloadingLine(id, payload)
+          const lineId = resultId(result) || `${batch.id}-${Date.now()}`
+          newLines.push({
+            id: lineId,
+            productId: batch.productId,
+            productName: batch.productName,
+            productSku: batch.productSku,
+            sourceBatchNo: batch.batchNo,
+            qtySmallest: requestedQty,
+            unitCostSmallest: getUnitCost(batch),
+            mrp: getMrp(batch),
+            unloadingType: 1,
+            returnReason: null,
+          })
+          succeeded += 1
+        } catch {
+          failed += 1
+        }
+      }
+
+      if (newLines.length) {
+        setLines((current) => [...current, ...newLines])
+        setHydrateLinesFromServer(false)
+        invalidateMovementQueries(id)
+      }
+      setSelectedRemainingIds(new Set())
+      setBatchRefreshToken((token) => token + 1)
+
+      if (succeeded && !failed) {
+        toast.success(`Added ${succeeded} line${succeeded === 1 ? '' : 's'} for unloading.`)
+      } else if (succeeded && failed) {
+        toast.warning(`Added ${succeeded} line${succeeded === 1 ? '' : 's'}, ${failed} failed — try those again.`)
+      } else {
+        toast.error('Unable to add the selected lines.')
+      }
+    } catch (error) {
+      toast.error(error.message || 'Unable to unload selected items.')
+    } finally {
+      setIsBulkAdding(false)
     }
   }
 
@@ -374,6 +718,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       setLines((current) => current.filter((line) => line.id !== lineId))
       invalidateMovementQueries(draftId)
       toast.success('Stock line removed.')
+      setBatchRefreshToken((token) => token + 1)
     } catch (error) {
       toast.error(error.message || 'Unable to remove stock line.')
     }
@@ -566,6 +911,143 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
             </div>
           </section>
 
+          {isUnloading ? (
+            <section className="panel" style={{ padding: 16 }}>
+              <div
+                style={{
+                  alignItems: 'center',
+                  display: 'flex',
+                  gap: 12,
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
+                    Remaining Items in Vehicle
+                  </h2>
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 3 }}>
+                    Everything still loaded on this vehicle from this loading. Select what to unload,
+                    or select all, instead of searching one by one.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={refreshAllActiveBatches}
+                    title="Refresh stock availability"
+                    style={{ height: 32, whiteSpace: 'nowrap' }}
+                  >
+                    Refresh
+                  </button>
+                  {remainingVehicleItems.length ? (
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={toggleSelectAllRemaining}
+                      style={{ height: 32, whiteSpace: 'nowrap' }}
+                    >
+                      {allRemainingSelected ? 'Deselect All' : 'Select All'}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto" style={{ marginTop: 14 }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 36 }}></th>
+                      <th>Product</th>
+                      <th>Batch No</th>
+                      <th className="text-right">Available Qty</th>
+                      <th className="text-right">Reserved Qty</th>
+                      <th className="text-right">Unit Cost</th>
+                      <th className="text-right">MRP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!vehicleId ? (
+                      <tr>
+                        <td colSpan={7}>Select an applied loading first.</td>
+                      </tr>
+                    ) : isLoadingAllBatches ? (
+                      <tr>
+                        <td colSpan={7}>Loading vehicle stock...</td>
+                      </tr>
+                    ) : remainingVehicleItems.length ? (
+                      remainingVehicleItems.map((item) => (
+                        <tr
+                          key={item.id}
+                          style={{
+                            boxShadow: selectedRemainingIds.has(item.id)
+                              ? 'inset 3px 0 var(--color-teal)'
+                              : 'none',
+                          }}
+                        >
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectedRemainingIds.has(item.id)}
+                              onChange={() => toggleRemainingItem(item.id)}
+                            />
+                          </td>
+                          <td>
+                            <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
+                              {item.productName}
+                            </strong>
+                            <span className="product-sku-badge mono">{item.productSku}</span>
+                          </td>
+                          <td className="mono">{item.batchNo || '—'}</td>
+                          <td className="mono text-right">{formatNumber(getQtyAvailable(item))}</td>
+                          <td
+                            className="mono text-right"
+                            style={{
+                              color: getQtyReserved(item) ? 'var(--color-amber)' : 'var(--color-text-muted)',
+                            }}
+                          >
+                            {formatNumber(getQtyReserved(item))}
+                          </td>
+                          <td className="mono text-right">{formatLKR(getUnitCost(item))}</td>
+                          <td className="mono text-right">{formatLKR(getMrp(item))}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7}>
+                          Nothing left in this vehicle for this loading — everything has already
+                          been unloaded or added below.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p style={{ color: 'var(--color-text-dim)', fontSize: 11, marginTop: 8 }}>
+                Bulk-adding unloads the sellable quantity (available minus reserved) so a batch
+                reserved for a pending sales order isn't pulled off the vehicle.
+              </p>
+
+              {remainingVehicleItems.length ? (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="button-primary"
+                    disabled={!selectedRemainingIds.size || isBulkAdding}
+                    onClick={handleBulkAddRemaining}
+                    style={{ height: 38 }}
+                  >
+                    {isBulkAdding
+                      ? 'Adding...'
+                      : selectedRemainingIds.size
+                        ? `Add ${selectedRemainingIds.size} Selected Line${selectedRemainingIds.size === 1 ? '' : 's'}`
+                        : 'Add Selected Lines'}
+                  </button>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
           <section className="panel" style={{ padding: 16 }}>
             <div>
               <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
@@ -674,6 +1156,25 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       Change
                     </button>
                   </div>
+                  <div
+                    style={{
+                      alignItems: 'center',
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={refreshBatches}
+                      disabled={isLoadingBatches || isSoftRefreshingBatches}
+                      title="Refresh stock availability"
+                      style={{ height: 28, fontSize: 12 }}
+                    >
+                      Refresh
+                    </button>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="data-table">
                       <thead>
@@ -682,12 +1183,8 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                           <th className="text-right">
                             {isUnloading ? 'Available Qty' : 'Physical Qty'}
                           </th>
-                          {!isUnloading ? (
-                            <>
-                              <th className="text-right">Reserved Qty</th>
-                              <th className="text-right">Free Qty</th>
-                            </>
-                          ) : null}
+                          <th className="text-right">Reserved Qty</th>
+                          <th className="text-right">Free Qty</th>
                           <th className="text-right">Unit Cost</th>
                           <th className="text-right">MRP</th>
                           <th>Expiry</th>
@@ -697,55 +1194,55 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       <tbody>
                         {isLoadingBatches ? (
                           <tr>
-                            <td colSpan={isUnloading ? 6 : 8}>Loading batches...</td>
+                            <td colSpan={8}>Loading batches...</td>
                           </tr>
-                        ) : batches.length ? (
-                          batches.map((batch) => (
+                        ) : groupedBatches.length ? (
+                          groupedBatches.map((group) => (
                             <tr
-                              key={batch.id}
+                              key={group.id}
                               style={{
                                 boxShadow:
-                                  selectedBatchId === batch.id
+                                  selectedBatchId === group.id
                                     ? 'inset 3px 0 var(--color-teal)'
                                     : 'none',
                               }}
                             >
-                              <td className="mono">{batch.batchNo || '—'}</td>
-                              <td className="mono text-right">
-                                {formatNumber(getQtyAvailable(batch))}
+                              <td className="mono" title={group.batchNos}>
+                                {group.batchNo || '—'}
                               </td>
-                              {!isUnloading ? (
-                                <>
-                                  <td
-                                    className="mono text-right"
-                                    style={{
-                                      color: getQtyReserved(batch)
-                                        ? 'var(--color-amber)'
-                                        : 'var(--color-text-muted)',
-                                    }}
-                                  >
-                                    {formatNumber(getQtyReserved(batch))}
-                                  </td>
-                                  <td
-                                    className="mono text-right"
-                                    style={{ color: 'var(--color-teal)' }}
-                                  >
-                                    {formatNumber(getQtyFree(batch))}
-                                  </td>
-                                </>
-                              ) : null}
-                              <td className="mono text-right">{formatLKR(getUnitCost(batch))}</td>
-                              <td className="mono text-right">{formatLKR(getMrp(batch))}</td>
-                              <td className="mono">{formatDate(batch.expiryDate)}</td>
+                              <td className="mono text-right">
+                                {formatNumber(getQtyAvailable(group))}
+                              </td>
+                              <td
+                                className="mono text-right"
+                                style={{
+                                  color: getQtyReserved(group)
+                                    ? 'var(--color-amber)'
+                                    : 'var(--color-text-muted)',
+                                }}
+                              >
+                                {formatNumber(getQtyReserved(group))}
+                              </td>
+                              <td
+                                className="mono text-right"
+                                style={{ color: 'var(--color-teal)' }}
+                              >
+                                {formatNumber(getQtyFree(group))}
+                              </td>
+                              <td className="mono text-right">
+                                {group.unitCostVaries ? 'Varies' : formatLKR(getUnitCost(group))}
+                              </td>
+                              <td className="mono text-right">{formatLKR(getMrp(group))}</td>
+                              <td className="mono">{formatDate(group.expiryDate)}</td>
                               <td className="text-right">
                                 <button
                                   type="button"
                                   className={
-                                    selectedBatchId === batch.id
+                                    selectedBatchId === group.id
                                       ? 'button-primary'
                                       : 'button-secondary'
                                   }
-                                  onClick={() => setSelectedBatchId(batch.id)}
+                                  onClick={() => setSelectedBatchId(group.id)}
                                   style={{ height: 30 }}
                                 >
                                   Select
@@ -755,7 +1252,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={isUnloading ? 6 : 8}>
+                            <td colSpan={8}>
                               No available {isUnloading ? 'vehicle' : 'main stock'} batches found.
                             </td>
                           </tr>
@@ -784,15 +1281,14 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       type="number"
                       min="0.0001"
                       step="0.0001"
-                      max={getQtyAvailable(selectedBatch)}
+                      max={getQtyFree(selectedBatch)}
                       value={qty}
                       onChange={(event) => setQty(event.target.value)}
                     />
                     <small className="mono" style={{ color: 'var(--color-text-muted)' }}>
-                      Max physical: {formatNumber(getQtyAvailable(selectedBatch))}
-                      {!isUnloading
-                        ? ` | Reserved: ${formatNumber(getQtyReserved(selectedBatch))} | Free: ${formatNumber(getQtyFree(selectedBatch))}`
-                        : ''}
+                      Available: {formatNumber(getQtyAvailable(selectedBatch))} | Reserved:{' '}
+                      {formatNumber(getQtyReserved(selectedBatch))} | Free:{' '}
+                      {formatNumber(getQtyFree(selectedBatch))}
                     </small>
                   </label>
                   {isUnloading ? (
@@ -851,61 +1347,124 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
           </section>
 
           <section className="panel" style={{ overflow: 'hidden', padding: 0 }}>
-            <div style={{ borderBottom: '1px solid var(--color-border)', padding: '14px 16px' }}>
-              <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
-                {isUnloading ? 'Unloading Lines' : 'Stock Lines'}
-              </h2>
+            <div
+              style={{
+                alignItems: 'center',
+                borderBottom: '1px solid var(--color-border)',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 12,
+                justifyContent: 'space-between',
+                padding: '14px 16px',
+              }}
+            >
+              <div>
+                <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
+                  {isUnloading ? 'Unloading Lines' : 'Stock Lines'}
+                </h2>
+                {lines.length ? (
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: 11, marginTop: 3 }}>
+                    {filteredStockLines.length} of {lines.length} line{lines.length === 1 ? '' : 's'}
+                  </p>
+                ) : null}
+              </div>
+              {lines.length ? (
+                <div style={{ maxWidth: 420, position: 'relative', width: '100%' }}>
+                  <Search
+                    aria-hidden="true"
+                    size={15}
+                    style={{
+                      color: 'var(--color-text-muted)',
+                      left: 11,
+                      pointerEvents: 'none',
+                      position: 'absolute',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                    }}
+                  />
+                  <input
+                    aria-label={`Search ${kind.toLowerCase()} stock lines`}
+                    className="form-input"
+                    type="text"
+                    value={stockLineSearch}
+                    onChange={(event) => setStockLineSearch(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setStockLineSearch('')
+                    }}
+                    placeholder="Search any stock line detail..."
+                    style={{ height: 36, paddingLeft: 34, paddingRight: stockLineSearch ? 34 : 10 }}
+                  />
+                  {stockLineSearch ? (
+                    <button
+                      aria-label="Clear stock line search"
+                      type="button"
+                      onClick={() => setStockLineSearch('')}
+                      style={{
+                        alignItems: 'center',
+                        background: 'transparent',
+                        border: 0,
+                        color: 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        padding: 4,
+                        position: 'absolute',
+                        right: 7,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                      }}
+                    >
+                      <X size={15} />
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             {lines.length ? (
               <div className="overflow-x-auto">
-                <table className="data-table">
+                <table className="data-table" style={{ minWidth: 950 }}>
                   <thead>
                     <tr>
                       <th>Product</th>
-                      <th>Source Batch</th>
                       <th className="text-right">Qty</th>
-                      {isUnloading ? (
-                        <>
-                          <th>Type</th>
-                          <th>Reason</th>
-                        </>
-                      ) : (
-                        <>
-                          <th className="text-right">Unit Cost</th>
-                          <th className="text-right">MRP</th>
-                        </>
-                      )}
+                      <th className="text-right">Unit Cost</th>
+                      <th className="text-right">Selling Price</th>
+                      <th className="text-right">MRP</th>
+                      <th className="text-right">Selling Value</th>
                       <th className="text-right">Remove</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {lines.map((line) => (
+                    {filteredStockLines.map((line) => (
                       <tr key={line.id}>
                         <td>
                           <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
-                            {line.productName}
+                            {resolveLineProductName(line)}
                           </strong>
                           <span className="product-sku-badge mono">{line.productSku}</span>
+                          {isUnloading ? (
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
+                              style={{ display: 'inline-flex', marginLeft: 6 }}
+                              title={returnReasonLabel(line.returnReason)}
+                            >
+                              {unloadingTypeLabel(line.unloadingType).toUpperCase()}
+                            </span>
+                          ) : null}
                         </td>
-                        <td className="mono">{line.sourceBatchNo || '—'}</td>
                         <td className="mono text-right">{formatNumber(line.qtySmallest)}</td>
-                        {isUnloading ? (
-                          <>
-                            <td>
-                              <span
-                                className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
-                              >
-                                {unloadingTypeLabel(line.unloadingType).toUpperCase()}
-                              </span>
-                            </td>
-                            <td>{returnReasonLabel(line.returnReason)}</td>
-                          </>
-                        ) : (
-                          <>
-                            <td className="mono text-right">{formatLKR(line.unitCostSmallest)}</td>
-                            <td className="mono text-right">{formatLKR(line.mrp)}</td>
-                          </>
-                        )}
+                        <td className="mono text-right">{formatLKR(line.unitCostSmallest)}</td>
+                        <td className="mono text-right">
+                          {formatLKR(calculateVehicleSellingPrice(line.unitCostSmallest))}
+                        </td>
+                        <td className="mono text-right">{formatLKR(line.mrp)}</td>
+                        <td className="mono text-right">
+                          {formatLKR(
+                            calculateVehicleSellingValue(
+                              line.unitCostSmallest,
+                              line.qtySmallest
+                            )
+                          )}
+                        </td>
                         <td className="text-right">
                           <button
                             type="button"
@@ -918,6 +1477,16 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                         </td>
                       </tr>
                     ))}
+                    {!filteredStockLines.length ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          style={{ color: 'var(--color-text-muted)', padding: 24, textAlign: 'center' }}
+                        >
+                          No stock lines match &ldquo;{stockLineSearch.trim()}&rdquo;.
+                        </td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>
@@ -979,12 +1548,18 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
               <SummaryRow label="Labelled" value={labelledCount} mono />
             </>
           ) : (
-            <>
-              <SummaryRow label="Total Qty" value={formatNumber(totalQty)} mono />
-              <SummaryRow label="Total Value" value={formatLKR(totalValue)} mono />
-            </>
+            <SummaryRow label="Total Qty" value={formatNumber(totalQty)} mono />
           )}
-          {isUnloading ? <SummaryRow label="Total Value" value={formatLKR(totalValue)} mono /> : null}
+          <SummaryRow
+            label="Total Selling Value"
+            value={formatLKR(totalSellingValue)}
+            mono
+          />
+          <SummaryRow
+            label="Total Unit Cost Value"
+            value={formatLKR(totalUnitCostValue)}
+            mono
+          />
           <div
             style={{
               background: 'rgba(245, 158, 11, 0.1)',

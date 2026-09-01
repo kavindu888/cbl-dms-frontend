@@ -61,6 +61,7 @@ export default function InvoiceListPage() {
   const [products, setProducts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
+  const [detailRefreshToken, setDetailRefreshToken] = useState(0)
   const [error, setError] = useState('')
   const [invoicePage, setInvoicePage] = useState(1)
   const [allRoutes, setAllRoutes] = useState([])
@@ -265,7 +266,7 @@ export default function InvoiceListPage() {
     return () => {
       isCurrent = false
     }
-  }, [selectedId])
+  }, [selectedId, detailRefreshToken])
 
   const filteredInvoices = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -789,6 +790,7 @@ export default function InvoiceListPage() {
                 routeNameById[selectedInvoice.salesRouteId] ||
                 selectedInvoice.salesRouteName
               }
+              onRefresh={() => setDetailRefreshToken((token) => token + 1)}
             />
           ) : error ? (
             <DetailMessage>{error}</DetailMessage>

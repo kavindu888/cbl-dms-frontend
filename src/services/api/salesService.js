@@ -475,6 +475,8 @@ export const salesService = {
         specialDiscountPercent: Number(line.specialDiscountPercent || 0),
         isReturnLine: Boolean(line.isReturnLine),
         returnReason: line.returnReason ?? null,
+        // Admin MRP override — only meaningful (and only sent) for return lines.
+        mrp: line.isReturnLine && Number(line.mrp) > 0 ? Number(line.mrp) : null,
       })),
     })
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
@@ -515,6 +517,8 @@ export const salesService = {
         specialDiscountPercent: Number(line.specialDiscountPercent || 0),
         isReturnLine: Boolean(line.isReturnLine),
         returnReason: line.returnReason ?? null,
+        // Admin MRP override — only meaningful (and only sent) for return lines.
+        mrp: line.isReturnLine && Number(line.mrp) > 0 ? Number(line.mrp) : null,
       })),
     })
   },
@@ -594,6 +598,43 @@ export const salesService = {
   // Assign or update the tax invoice number for an invoice
   async assignTaxInvoiceNumber(id, taxInvoiceNumber) {
     await api.put(`/api/v1/sales/invoices/${id}/tax-invoice-number`, { taxInvoiceNumber })
+  },
+
+  // Admin: retroactively recompute SKU/category discounts and totals on an issued invoice.
+  // overrides: [{ lineId, skuDiscountPercent }] for lines the admin wants to set manually;
+  // any line not listed gets its SKU discount auto-resolved from current active discount rules.
+  async recalculateInvoiceDiscounts(id, { reason, overrides } = {}) {
+    await api.put(`/api/v1/sales/invoices/${id}/recalculate-discounts`, {
+      reason: reason || null,
+      overrides: overrides || null,
+    })
+  },
+
+  // Admin recovery tool: directly (re)set the order-level SKU/Special discount Rs amount on an
+  // already-issued invoice (any status except Cancelled). Use this to restore discounts that were
+  // entered on the draft but lost when it was finalized (a since-fixed bug), or to correct them.
+  async setInvoiceOrderDiscounts(id, { reason, skuDiscountAmount, specialDiscountAmount } = {}) {
+    await api.put(`/api/v1/sales/invoices/${id}/set-order-discounts`, {
+      reason: reason || null,
+      skuDiscountAmount: Number(skuDiscountAmount || 0),
+      specialDiscountAmount: Number(specialDiscountAmount || 0),
+    })
+  },
+
+  // Admin: add/edit-quantity/remove lines on an already-issued invoice (any status except
+  // Cancelled, including Paid). Inventory is synced to the net quantity change automatically —
+  // a further deduction if a line went up, a credited-back batch if it went down.
+  // linesToAdd: [{ productId, quantity, mrp?, skuDiscountPercent? }] — mrp omitted/undefined auto-resolves
+  // from the product's actual last-received stock batch MRP (not the static catalog MRP).
+  // linesToUpdate: [{ lineId, newQuantity, newMrp?, skuDiscountPercent? }]
+  // lineIdsToRemove: [lineId, ...]
+  async adminEditInvoiceLines(id, { reason, linesToAdd, linesToUpdate, lineIdsToRemove } = {}) {
+    await api.put(`/api/v1/sales/invoices/${id}/admin-edit-lines`, {
+      reason: reason || null,
+      linesToAdd: linesToAdd?.length ? linesToAdd : null,
+      linesToUpdate: linesToUpdate?.length ? linesToUpdate : null,
+      lineIdsToRemove: lineIdsToRemove?.length ? lineIdsToRemove : null,
+    })
   },
 
   // Customer Return Notes (CRN)

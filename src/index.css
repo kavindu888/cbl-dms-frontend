@@ -369,6 +369,19 @@ select.form-input option {
   text-align: left;
 }
 
+/* .data-table th's text-align above is unlayered CSS, which beats Tailwind's .text-right utility
+   (emitted inside @layer utilities) even when .text-right is applied directly on a <th> — cascade
+   layers ignore source order and specificity ties always go to the unlayered rule. Restated here,
+   scoped to the same unlayered context, so right-aligned header cells actually line up with their
+   right-aligned numeric column data instead of silently staying left-aligned. */
+.data-table th.text-right {
+  text-align: right;
+}
+
+.data-table th.text-center {
+  text-align: center;
+}
+
 .data-table td {
   padding: 11px 12px;
   font-size: 13px;

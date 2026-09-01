@@ -27,6 +27,7 @@ import { formatDate, formatTime } from '@/utils'
 import { formatLKR, formatLKRShort } from '@/utils/formatCurrency'
 
 const pageSize = 12
+const STOCK_SELLING_MARKUP_RATE = 0.067
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString('en-LK', { maximumFractionDigits: 2 })
@@ -146,6 +147,27 @@ function LocationTypeBadge({ type, vehicleCode }) {
   )
 }
 
+function MrpCell({ summary }) {
+  if (!summary || !summary.batchCount) {
+    return <span style={{ color: 'var(--color-text-dim)' }}>-</span>
+  }
+
+  const hasMultipleMrps = summary.mrpCount > 1
+
+  return (
+    <div style={{ textAlign: 'right' }}>
+      <div className="mono" style={{ fontWeight: 800 }}>
+        {formatLKR(summary.weightedMrp)}
+      </div>
+      {hasMultipleMrps ? (
+        <div style={{ marginTop: 2, fontSize: 10, color: 'var(--color-amber)' }}>
+          {summary.mrpCount} different MRPs
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function StockByLocationPanel({ productName, rows, unitCode }) {
   const totals = rows.reduce(
     (result, row) => ({
@@ -190,6 +212,7 @@ function StockByLocationPanel({ productName, rows, unitCode }) {
                 <th style={{ textAlign: 'right' }}>Available</th>
                 <th style={{ textAlign: 'right' }}>Reserved</th>
                 <th style={{ textAlign: 'right' }}>Sellable</th>
+                <th style={{ textAlign: 'right' }}>MRP</th>
               </tr>
             </thead>
             <tbody>
@@ -231,6 +254,9 @@ function StockByLocationPanel({ productName, rows, unitCode }) {
                   >
                     {formatNumber(row.sellable)} <small>{row.smallestUnitCode}</small>
                   </td>
+                  <td>
+                    <MrpCell summary={row.mrpSummary} />
+                  </td>
                 </tr>
               ))}
               <tr
@@ -253,6 +279,7 @@ function StockByLocationPanel({ productName, rows, unitCode }) {
                 >
                   {formatNumber(totals.sellable)} <small>{unitCode}</small>
                 </td>
+                <td></td>
               </tr>
             </tbody>
           </table>
@@ -336,6 +363,7 @@ function BatchValuationPanel({ productName, rows, totalValue, unitCode }) {
                 <th>Location</th>
                 <th style={{ textAlign: 'right' }}>Qty</th>
                 <th style={{ textAlign: 'right' }}>Unit cost</th>
+                <th style={{ textAlign: 'right' }}>MRP</th>
                 <th style={{ textAlign: 'right' }}>Stock value</th>
                 <th>Received</th>
               </tr>
@@ -367,6 +395,9 @@ function BatchValuationPanel({ productName, rows, totalValue, unitCode }) {
                     {formatLKR(row.unitCostSmallest)}
                   </td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                    {formatLKR(row.mrp)}
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                     {formatLKR(row.stockValue)}
                   </td>
                   <td>
@@ -395,6 +426,13 @@ function BatchValuationPanel({ productName, rows, totalValue, unitCode }) {
                 </td>
                 <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                   {totalQty > 0 ? formatLKR(totalValue / totalQty) : formatLKR(0)}
+                </td>
+                <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                  {totalQty > 0
+                    ? formatLKR(
+                        rows.reduce((sum, row) => sum + row.qtyAvailable * row.mrp, 0) / totalQty
+                      )
+                    : formatLKR(0)}
                 </td>
                 <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                   {formatLKR(totalValue)}
@@ -591,6 +629,33 @@ export default function StockOverviewPage() {
     return result
   }, [batchRowsByProductId])
 
+  const mrpSummaryByProductAndLocation = useMemo(() => {
+    const result = new Map()
+
+    for (const [productId, rows] of batchRowsByProductId.entries()) {
+      const byLocation = new Map()
+      for (const row of rows) {
+        const list = byLocation.get(row.stockLocationId) || []
+        list.push(row)
+        byLocation.set(row.stockLocationId, list)
+      }
+
+      for (const [locationId, locationRows] of byLocation.entries()) {
+        const totalQty = locationRows.reduce((sum, row) => sum + row.qtyAvailable, 0)
+        const totalMrpValue = locationRows.reduce((sum, row) => sum + row.qtyAvailable * row.mrp, 0)
+        const mrps = new Set(locationRows.map((row) => Number(row.mrp || 0).toFixed(2)))
+
+        result.set(`${productId}|${locationId}`, {
+          batchCount: locationRows.length,
+          mrpCount: mrps.size,
+          weightedMrp: totalQty > 0 ? totalMrpValue / totalQty : 0,
+        })
+      }
+    }
+
+    return result
+  }, [batchRowsByProductId])
+
   const stockRows = useMemo(() => {
     const grouped = new Map()
 
@@ -641,6 +706,9 @@ export default function StockOverviewPage() {
                 ? `${locationCode}${locationName !== locationCode ? ` (${locationName})` : ''}`
                 : locationName,
             smallestUnitCode: level.smallestUnitCode || row.smallestUnitCode,
+            mrpSummary:
+              mrpSummaryByProductAndLocation.get(`${row.productId}|${level.stockLocationId}`) ||
+              null,
           }
         })
         .filter((level) => level.totalAvailable > 0 || level.totalReserved > 0)
@@ -663,6 +731,7 @@ export default function StockOverviewPage() {
     batchCostSummaryByProductId,
     batchRowsByProductId,
     locationById,
+    mrpSummaryByProductAndLocation,
     productById,
     rawLevels,
     stockValueByProductId,
@@ -670,9 +739,30 @@ export default function StockOverviewPage() {
 
   const locationTypeKpis = useMemo(() => {
     const result = {
-      Main: { available: 0, value: 0, products: new Set(), locations: new Set() },
-      Vehicle: { available: 0, value: 0, products: new Set(), locations: new Set() },
-      Return: { available: 0, value: 0, products: new Set(), locations: new Set() },
+      Main: {
+        available: 0,
+        value: 0,
+        sellingValue: 0,
+        reserved: 0,
+        products: new Set(),
+        locations: new Set(),
+      },
+      Vehicle: {
+        available: 0,
+        value: 0,
+        sellingValue: 0,
+        reserved: 0,
+        products: new Set(),
+        locations: new Set(),
+      },
+      Return: {
+        available: 0,
+        value: 0,
+        sellingValue: 0,
+        reserved: 0,
+        products: new Set(),
+        locations: new Set(),
+      },
       vehicles: new Map(),
     }
 
@@ -682,9 +772,12 @@ export default function StockOverviewPage() {
 
       const location = locationById[batch.stockLocationId]
       const type = getLocationType(location)
-      const value = available * Number(batch.unitCostSmallest || 0)
+      const unitCost = Number(batch.unitCostSmallest || 0)
+      const value = available * unitCost
+      const sellingValue = available * (unitCost + unitCost * STOCK_SELLING_MARKUP_RATE)
       result[type].available += available
       result[type].value += value
+      result[type].sellingValue += sellingValue
       result[type].products.add(batch.productId)
       result[type].locations.add(batch.stockLocationId)
 
@@ -695,6 +788,7 @@ export default function StockOverviewPage() {
           name: location?.name || batch.stockLocationId,
           available: 0,
           value: 0,
+          reserved: 0,
           products: new Set(),
         }
         vehicle.available += available
@@ -704,8 +798,33 @@ export default function StockOverviewPage() {
       }
     }
 
+    // Reserved (stock locked by unconfirmed/pending sales orders) lives on StockLevel, not on
+    // batches, so it needs its own pass over the level rollups.
+    for (const level of rawLevels || []) {
+      const reserved = Number(level.totalReserved || 0)
+      if (reserved <= 0) continue
+
+      const location = locationById[level.stockLocationId]
+      const type = getLocationType(location)
+      result[type].reserved += reserved
+
+      if (type === 'Vehicle') {
+        const vehicle = result.vehicles.get(level.stockLocationId) || {
+          id: level.stockLocationId,
+          code: location?.code || '',
+          name: location?.name || level.stockLocationId,
+          available: 0,
+          value: 0,
+          reserved: 0,
+          products: new Set(),
+        }
+        vehicle.reserved += reserved
+        result.vehicles.set(level.stockLocationId, vehicle)
+      }
+    }
+
     return result
-  }, [activeBatches, locationById])
+  }, [activeBatches, locationById, rawLevels])
 
   const vehicleStockCards = useMemo(
     () =>
@@ -765,7 +884,8 @@ export default function StockOverviewPage() {
     refetchActiveBatches()
   }
 
-  const isLoading = isLoadingLevels || isLoadingProducts || isLoadingLocations || isLoadingActiveBatches
+  const isLoading =
+    isLoadingLevels || isLoadingProducts || isLoadingLocations || isLoadingActiveBatches
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -801,7 +921,7 @@ export default function StockOverviewPage() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Products in stock"
           value={formatNumber(locationTypeKpis.Main.products.size)}
@@ -823,6 +943,14 @@ export default function StockOverviewPage() {
           detail={`Full value ${formatLKR(locationTypeKpis.Main.value)}`}
           icon={Banknote}
           tone="var(--color-teal)"
+        />
+        <MetricCard
+          label="Stock selling value"
+          value={formatLKRShort(locationTypeKpis.Main.sellingValue)}
+          helper="Main stock at batch cost + 6.7%"
+          detail={`Full value ${formatLKR(locationTypeKpis.Main.sellingValue)}`}
+          icon={Banknote}
+          tone="var(--color-blue)"
         />
       </div>
 
@@ -859,6 +987,11 @@ export default function StockOverviewPage() {
               label={`${vehicle.code || 'Vehicle'} stock`}
               value={`${formatNumber(vehicle.available)} units`}
               helper={`${vehicle.name}${vehicle.value ? ` | ${formatLKRShort(vehicle.value)}` : ''}`}
+              detail={
+                vehicle.reserved
+                  ? `Reserved ${formatNumber(vehicle.reserved)} units`
+                  : 'Reserved 0 units'
+              }
               icon={Truck}
               tone="#22d3ee"
             />
