@@ -1319,7 +1319,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
             </div>
             {lines.length ? (
               <div className="overflow-x-auto">
-                <table className="data-table" style={{ minWidth: 1100 }}>
+                <table className="data-table" style={{ minWidth: 950 }}>
                   <thead>
                     <tr>
                       <th>Product</th>
@@ -1328,7 +1328,6 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       <th className="text-right">Selling Price</th>
                       <th className="text-right">MRP</th>
                       <th className="text-right">Selling Value</th>
-                      <th className="text-right">Unit Cost Value</th>
                       <th className="text-right">Remove</th>
                     </tr>
                   </thead>
@@ -1359,14 +1358,6 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                         <td className="mono text-right">
                           {formatLKR(
                             calculateVehicleSellingValue(
-                              line.unitCostSmallest,
-                              line.qtySmallest
-                            )
-                          )}
-                        </td>
-                        <td className="mono text-right">
-                          {formatLKR(
-                            calculateVehicleUnitCostValue(
                               line.unitCostSmallest,
                               line.qtySmallest
                             )

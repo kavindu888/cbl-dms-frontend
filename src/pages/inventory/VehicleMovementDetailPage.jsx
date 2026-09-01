@@ -922,7 +922,7 @@ export default function VehicleMovementDetailPage({
           <div className="responsive-table-shell" style={{ overflowX: 'auto' }}>
             <table
               className="data-table master-table-compact"
-              style={{ minWidth: showAdminLineControls ? 1180 : 1050, width: '100%' }}
+              style={{ minWidth: showAdminLineControls ? 1030 : 900, width: '100%' }}
             >
               <thead>
                 <tr>
@@ -932,7 +932,6 @@ export default function VehicleMovementDetailPage({
                   <th style={{ textAlign: 'right' }}>Selling Price</th>
                   <th style={{ textAlign: 'right' }}>MRP</th>
                   <th style={{ textAlign: 'right' }}>Selling Value</th>
-                  <th style={{ textAlign: 'right' }}>Unit Cost Value</th>
                   {showAdminLineControls ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
                 </tr>
               </thead>
@@ -943,7 +942,6 @@ export default function VehicleMovementDetailPage({
                   const qty = Number(line.qtySmallest || 0)
                   const sellingPrice = calculateVehicleSellingPrice(unitCost)
                   const sellingValue = calculateVehicleSellingValue(unitCost, qty)
-                  const unitCostValue = calculateVehicleUnitCostValue(unitCost, qty)
                   const isEditingThisLine = editingLineId === line.id
                   const isPossibleDuplicate = duplicateProductIds.has(line.productId)
 
@@ -1003,9 +1001,6 @@ export default function VehicleMovementDetailPage({
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
                         {formatLKR(sellingValue)}
                       </td>
-                      <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-                        {formatLKR(unitCostValue)}
-                      </td>
                       {showAdminLineControls ? (
                         <td style={{ textAlign: 'right' }}>
                           {isEditingThisLine ? (
@@ -1061,7 +1056,7 @@ export default function VehicleMovementDetailPage({
                 {!filteredLines.length ? (
                   <tr>
                     <td
-                      colSpan={showAdminLineControls ? 8 : 7}
+                      colSpan={showAdminLineControls ? 7 : 6}
                       style={{ color: 'var(--color-text-muted)', padding: 24, textAlign: 'center' }}
                     >
                       No stock lines match &ldquo;{lineSearch.trim()}&rdquo;.
