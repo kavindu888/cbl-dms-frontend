@@ -435,7 +435,13 @@ export default function VehicleMovementDetailPage({
 
     return lines.filter((line) => {
       const product = productById[line.productId]
+      const qty = Number(line.qtySmallest || 0)
+      const unitCost = Number(line.unitCostSmallest || 0)
+      const sellingPrice = calculateVehicleSellingPrice(unitCost)
+      const sellingValue = calculateVehicleSellingValue(unitCost, qty)
+
       return [
+        JSON.stringify(line),
         line.productName,
         line.productSku,
         line.productId,
@@ -447,6 +453,16 @@ export default function VehicleMovementDetailPage({
         product?.name,
         product?.sku,
         product?.barcode,
+        qty,
+        formatNumber(qty),
+        unitCost,
+        formatLKR(unitCost),
+        sellingPrice,
+        formatLKR(sellingPrice),
+        line.mrp,
+        formatLKR(line.mrp),
+        sellingValue,
+        formatLKR(sellingValue),
       ].some((value) => String(value || '').toLowerCase().includes(query))
     })
   }, [lineSearch, movement?.lines, productById])
@@ -889,7 +905,7 @@ export default function VehicleMovementDetailPage({
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') setLineSearch('')
                 }}
-                placeholder="Search product name, SKU, or barcode..."
+                placeholder="Search any stock line detail..."
                 style={{ height: 38, paddingLeft: 34, paddingRight: lineSearch ? 34 : 10 }}
               />
               {lineSearch ? (
