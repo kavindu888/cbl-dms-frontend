@@ -27,6 +27,7 @@ import { formatDate, formatTime } from '@/utils'
 import { formatLKR, formatLKRShort } from '@/utils/formatCurrency'
 
 const pageSize = 12
+const STOCK_SELLING_MARKUP_RATE = 0.067
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString('en-LK', { maximumFractionDigits: 2 })
@@ -428,7 +429,9 @@ function BatchValuationPanel({ productName, rows, totalValue, unitCode }) {
                 </td>
                 <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                   {totalQty > 0
-                    ? formatLKR(rows.reduce((sum, row) => sum + row.qtyAvailable * row.mrp, 0) / totalQty)
+                    ? formatLKR(
+                        rows.reduce((sum, row) => sum + row.qtyAvailable * row.mrp, 0) / totalQty
+                      )
                     : formatLKR(0)}
                 </td>
                 <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
@@ -704,7 +707,8 @@ export default function StockOverviewPage() {
                 : locationName,
             smallestUnitCode: level.smallestUnitCode || row.smallestUnitCode,
             mrpSummary:
-              mrpSummaryByProductAndLocation.get(`${row.productId}|${level.stockLocationId}`) || null,
+              mrpSummaryByProductAndLocation.get(`${row.productId}|${level.stockLocationId}`) ||
+              null,
           }
         })
         .filter((level) => level.totalAvailable > 0 || level.totalReserved > 0)
@@ -735,9 +739,30 @@ export default function StockOverviewPage() {
 
   const locationTypeKpis = useMemo(() => {
     const result = {
-      Main: { available: 0, value: 0, reserved: 0, products: new Set(), locations: new Set() },
-      Vehicle: { available: 0, value: 0, reserved: 0, products: new Set(), locations: new Set() },
-      Return: { available: 0, value: 0, reserved: 0, products: new Set(), locations: new Set() },
+      Main: {
+        available: 0,
+        value: 0,
+        sellingValue: 0,
+        reserved: 0,
+        products: new Set(),
+        locations: new Set(),
+      },
+      Vehicle: {
+        available: 0,
+        value: 0,
+        sellingValue: 0,
+        reserved: 0,
+        products: new Set(),
+        locations: new Set(),
+      },
+      Return: {
+        available: 0,
+        value: 0,
+        sellingValue: 0,
+        reserved: 0,
+        products: new Set(),
+        locations: new Set(),
+      },
       vehicles: new Map(),
     }
 
@@ -747,9 +772,12 @@ export default function StockOverviewPage() {
 
       const location = locationById[batch.stockLocationId]
       const type = getLocationType(location)
-      const value = available * Number(batch.unitCostSmallest || 0)
+      const unitCost = Number(batch.unitCostSmallest || 0)
+      const value = available * unitCost
+      const sellingValue = available * (unitCost + unitCost * STOCK_SELLING_MARKUP_RATE)
       result[type].available += available
       result[type].value += value
+      result[type].sellingValue += sellingValue
       result[type].products.add(batch.productId)
       result[type].locations.add(batch.stockLocationId)
 
@@ -856,7 +884,8 @@ export default function StockOverviewPage() {
     refetchActiveBatches()
   }
 
-  const isLoading = isLoadingLevels || isLoadingProducts || isLoadingLocations || isLoadingActiveBatches
+  const isLoading =
+    isLoadingLevels || isLoadingProducts || isLoadingLocations || isLoadingActiveBatches
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -892,7 +921,7 @@ export default function StockOverviewPage() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Products in stock"
           value={formatNumber(locationTypeKpis.Main.products.size)}
@@ -914,6 +943,14 @@ export default function StockOverviewPage() {
           detail={`Full value ${formatLKR(locationTypeKpis.Main.value)}`}
           icon={Banknote}
           tone="var(--color-teal)"
+        />
+        <MetricCard
+          label="Stock selling value"
+          value={formatLKRShort(locationTypeKpis.Main.sellingValue)}
+          helper="Main stock at batch cost + 6.7%"
+          detail={`Full value ${formatLKR(locationTypeKpis.Main.sellingValue)}`}
+          icon={Banknote}
+          tone="var(--color-blue)"
         />
       </div>
 
