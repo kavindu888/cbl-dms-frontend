@@ -51,6 +51,11 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
 
   const [vehicleId, setVehicleId] = useState('')
   const [vehicleLoadingId, setVehicleLoadingId] = useState('')
+  // 'loading': unload is linked to one specific applied loading — only that loading's own batches
+  // can be added (server-enforced). 'general': sweeps up everything currently on the vehicle,
+  // regardless of which loading put it there — needed for leftover stock from a loading that never
+  // got its own dedicated unload, which is otherwise invisible/unreachable from this screen.
+  const [unloadMode, setUnloadMode] = useState('loading')
   const [deliveryRunId, setDeliveryRunId] = useState('')
   const [loadingDate, setLoadingDate] = useState(todayInputValue())
   const [unloadingDate, setUnloadingDate] = useState(todayInputValue())
@@ -98,8 +103,15 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     if (!hydrateLinesFromServer || !movement) return
     if (isAddingLine || (isUnloading ? isFetchingUnloading : isFetchingLoading)) return
     if (isUnloading) {
-      skipResetForVehicleLoadingIdRef.current = movement.vehicleLoadingId || ''
-      setVehicleLoadingId(movement.vehicleLoadingId || '')
+      const linkedLoadingId = movement.vehicleLoadingId || ''
+      setUnloadMode(linkedLoadingId ? 'loading' : 'general')
+      if (linkedLoadingId) {
+        skipResetForVehicleLoadingIdRef.current = linkedLoadingId
+        setVehicleLoadingId(linkedLoadingId)
+      } else {
+        skipResetForVehicleLoadingIdRef.current = movement.vehicleLocationId || ''
+        setVehicleId(movement.vehicleLocationId || '')
+      }
       setUnloadingDate(String(movement.unloadingDate || '').slice(0, 10) || todayInputValue())
     } else {
       setVehicleId(movement.vehicleLocationId || '')
@@ -305,13 +317,14 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   }, [isUnloading, selectedProductId, vehicleId, vehicleLoadingId, appliedLoadings])
 
   useEffect(() => {
-    if (!isUnloading) return
+    if (!isUnloading || unloadMode !== 'loading') return
     const loading = appliedLoadings.find((item) => item.id === vehicleLoadingId)
     setVehicleId(loading?.vehicleLocationId || '')
-  }, [appliedLoadings, isUnloading, vehicleLoadingId])
+  }, [appliedLoadings, isUnloading, unloadMode, vehicleLoadingId])
 
+  // Reset in-progress selections when switching applied loading (linked-unload mode).
   useEffect(() => {
-    if (!isUnloading) return
+    if (!isUnloading || unloadMode !== 'loading') return
     setSelectedProductId('')
     setSelectedBatchId('')
     setProductSearch('')
@@ -322,7 +335,38 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     }
     setLines([])
     setDraftId('')
-  }, [isUnloading, vehicleLoadingId])
+  }, [isUnloading, unloadMode, vehicleLoadingId])
+
+  // Same reset, but for switching vehicle directly (general-unload mode).
+  useEffect(() => {
+    if (!isUnloading || unloadMode !== 'general') return
+    setSelectedProductId('')
+    setSelectedBatchId('')
+    setProductSearch('')
+    setSelectedRemainingIds(new Set())
+    if (skipResetForVehicleLoadingIdRef.current === vehicleId) {
+      skipResetForVehicleLoadingIdRef.current = null
+      return
+    }
+    setLines([])
+    setDraftId('')
+  }, [isUnloading, unloadMode, vehicleId])
+
+  // Manual mode switch (not triggered by hydrating an existing draft, which sets unloadMode
+  // itself) — always starts a fresh selection since a linked-loading draft and a general draft
+  // are different underlying records.
+  function switchUnloadMode(mode) {
+    if (mode === unloadMode) return
+    setUnloadMode(mode)
+    setVehicleLoadingId('')
+    setVehicleId('')
+    setSelectedProductId('')
+    setSelectedBatchId('')
+    setProductSearch('')
+    setSelectedRemainingIds(new Set())
+    setLines([])
+    setDraftId('')
+  }
 
   const selectedVehicleLoading = appliedLoadings.find((loading) => loading.id === vehicleLoadingId)
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId)
@@ -335,7 +379,9 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       ? deliveryRuns.find((run) => run.id === unloadingDeliveryRunIds[0])
       : null
   const unloadingDeliveryRunLabel =
-    unloadingDeliveryRunIds.length === 0
+    unloadMode === 'general'
+      ? 'Not linked to one loading'
+      : unloadingDeliveryRunIds.length === 0
       ? 'No applied loading found'
       : unloadingDeliveryRunIds.length > 1
         ? 'Multiple delivery runs'
@@ -474,14 +520,18 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
 
   async function ensureDraft() {
     if (draftId) return draftId
-    if (isUnloading && !vehicleLoadingId) throw new Error('Select an applied loading first.')
-    if (!vehicleId) throw new Error('Select a vehicle first.')
+    if (isUnloading && unloadMode === 'loading' && !vehicleLoadingId)
+      throw new Error('Select an applied loading first.')
+    if (isUnloading && unloadMode === 'general' && !vehicleId)
+      throw new Error('Select a vehicle first.')
+    if (!isUnloading && !vehicleId) throw new Error('Select a vehicle first.')
     if (!isUnloading && !deliveryRunId) throw new Error('Select a delivery run first.')
     if (!isUnloading && !loadingDate) throw new Error('Select a loading date first.')
     if (isUnloading && !unloadingDate) throw new Error('Select an unloading date first.')
     const result = isUnloading
       ? await createUnloading.mutateAsync({
-          vehicleLoadingId,
+          vehicleLoadingId: unloadMode === 'loading' ? vehicleLoadingId : null,
+          vehicleLocationId: unloadMode === 'general' ? vehicleId : null,
           unloadingDate: `${unloadingDate}T00:00:00Z`,
           notes: notes.trim() || null,
         })
@@ -734,6 +784,29 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
             <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
               Header Details
             </h2>
+            {isUnloading ? (
+              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                <button
+                  type="button"
+                  className={unloadMode === 'loading' ? 'button-primary' : 'button-secondary'}
+                  disabled={lines.length > 0 || Boolean(draftId)}
+                  onClick={() => switchUnloadMode('loading')}
+                  style={{ height: 32, flex: 1 }}
+                >
+                  From Applied Loading
+                </button>
+                <button
+                  type="button"
+                  className={unloadMode === 'general' ? 'button-primary' : 'button-secondary'}
+                  disabled={lines.length > 0 || Boolean(draftId)}
+                  onClick={() => switchUnloadMode('general')}
+                  style={{ height: 32, flex: 1 }}
+                  title="Unload everything currently on a vehicle, regardless of which loading put it there"
+                >
+                  General Unload (All Remaining Stock)
+                </button>
+              </div>
+            ) : null}
             <div
               style={{
                 display: 'grid',
@@ -742,7 +815,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                 marginTop: 14,
               }}
             >
-              {isUnloading ? (
+              {isUnloading && unloadMode === 'loading' ? (
                 <>
                   <label>
                     <span className="form-label">Applied Loading *</span>
@@ -780,7 +853,24 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                     />
                   </label>
                 </>
-              ) : (
+              ) : isUnloading && unloadMode === 'general' ? (
+                <label>
+                  <span className="form-label">Vehicle *</span>
+                  <select
+                    className="form-input"
+                    value={vehicleId}
+                    disabled={lines.length > 0 || Boolean(draftId) || isLoadingVehicles}
+                    onChange={(event) => setVehicleId(event.target.value)}
+                  >
+                    <option value="">Select vehicle...</option>
+                    {vehicles.map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {vehicleLabel(vehicle)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : !isUnloading ? (
                 <label>
                   <span className="form-label">Vehicle *</span>
                   <select
@@ -801,7 +891,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                     ))}
                   </select>
                 </label>
-              )}
+              ) : null}
               {!isUnloading ? (
                 <>
                   <label>
@@ -882,8 +972,9 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                     Remaining Items in Vehicle
                   </h2>
                   <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 3 }}>
-                    Everything still loaded on this vehicle from this loading. Select what to unload,
-                    or select all, instead of searching one by one.
+                    {unloadMode === 'general'
+                      ? 'Everything currently on this vehicle, from any loading. Select what to unload, or select all, instead of searching one by one.'
+                      : 'Everything still loaded on this vehicle from this loading. Select what to unload, or select all, instead of searching one by one.'}
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -925,7 +1016,11 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                   <tbody>
                     {!vehicleId ? (
                       <tr>
-                        <td colSpan={7}>Select an applied loading first.</td>
+                        <td colSpan={7}>
+                          {unloadMode === 'general'
+                            ? 'Select a vehicle first.'
+                            : 'Select an applied loading first.'}
+                        </td>
                       </tr>
                     ) : isLoadingAllBatches ? (
                       <tr>
@@ -1027,7 +1122,9 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                   }}
                   placeholder={
                     isUnloading && !vehicleId
-                      ? 'Select an applied loading first'
+                      ? unloadMode === 'general'
+                        ? 'Select a vehicle first'
+                        : 'Select an applied loading first'
                       : 'Search SKU, barcode, or product name'
                   }
                 />
@@ -1417,8 +1514,12 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
             <>
               <SummaryRow
                 label="Applied Loading"
-                value={selectedVehicleLoading?.loadingNo || 'Not selected'}
-                mono={Boolean(selectedVehicleLoading?.loadingNo)}
+                value={
+                  unloadMode === 'general'
+                    ? 'General Unload'
+                    : selectedVehicleLoading?.loadingNo || 'Not selected'
+                }
+                mono={Boolean(selectedVehicleLoading?.loadingNo) && unloadMode === 'loading'}
               />
               <SummaryRow label="Delivery Run" value={unloadingDeliveryRunLabel} />
               <SummaryRow label="Unloading Date" value={unloadingDate || 'Not selected'} mono />
@@ -1458,7 +1559,8 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
             disabled={
               !vehicleId ||
               (!isUnloading && (!deliveryRunId || !loadingDate)) ||
-              (isUnloading && (!vehicleLoadingId || !unloadingDate)) ||
+              (isUnloading && unloadMode === 'loading' && !vehicleLoadingId) ||
+              (isUnloading && !unloadingDate) ||
               !lines.length ||
               applyPending
             }
