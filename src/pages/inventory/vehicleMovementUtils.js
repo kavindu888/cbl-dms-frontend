@@ -35,14 +35,16 @@ export const getUnitCost = (batch) => Number(batch?.unitCostSmallest ?? batch?.u
 export const getMrp = (batch) => Number(batch?.mrp ?? batch?.MRP ?? 0)
 
 // Selling price must match invoicing exactly: InvoiceLine.ComputeAmounts (Sales domain) prices a
-// line at MRP with 0% discount by default (discounts are only known once a customer/order applies
-// them, which hasn't happened yet at load/unload time) — GrossAmount = mrp * quantity, UnitPrice =
-// mrp * (1 - 0%) = mrp. There is no cost-plus-markup anywhere in the real pricing model; a vehicle
-// line's selling price is simply its batch's MRP.
-export const calculateVehicleSellingPrice = (mrp) => Number(mrp || 0)
+// line at UnitPrice = mrp * (1 - totalDiscountPercent / 100), where totalDiscountPercent =
+// categoryDiscountPercent + skuDiscountPercent + specialDiscountPercent. SKU and special discounts
+// are only known once a customer/sales order applies them, which hasn't happened yet at
+// load/unload time — but category discount is a standing, category-wide rate (not customer- or
+// order-specific), so it's already knowable and should be applied here, same as invoicing would.
+export const calculateVehicleSellingPrice = (mrp, categoryDiscountPercent = 0) =>
+  Number(mrp || 0) * (1 - Number(categoryDiscountPercent || 0) / 100)
 
-export const calculateVehicleSellingValue = (mrp, qty) =>
-  calculateVehicleSellingPrice(mrp) * Number(qty || 0)
+export const calculateVehicleSellingValue = (mrp, qty, categoryDiscountPercent = 0) =>
+  calculateVehicleSellingPrice(mrp, categoryDiscountPercent) * Number(qty || 0)
 
 export const calculateVehicleUnitCostValue = (unitCost, qty) =>
   Number(unitCost || 0) * Number(qty || 0)

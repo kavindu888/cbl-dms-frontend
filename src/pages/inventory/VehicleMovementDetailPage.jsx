@@ -364,6 +364,7 @@ export default function VehicleMovementDetailPage({
   const autoRepairLoadingLines = useAutoRepairVehicleLoadingLines(id)
   const [deliveryRuns, setDeliveryRuns] = useState([])
   const [productById, setProductById] = useState({})
+  const [categoryDiscounts, setCategoryDiscounts] = useState([])
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [createdByName, setCreatedByName] = useState('')
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false)
@@ -428,6 +429,19 @@ export default function VehicleMovementDetailPage({
     () => Object.fromEntries(deliveryRuns.map((run) => [run.id, run])),
     [deliveryRuns]
   )
+  const categoryDiscountByCategoryId = useMemo(
+    () =>
+      Object.fromEntries(
+        categoryDiscounts
+          .filter((discount) => discount.isActive !== false)
+          .map((discount) => [discount.categoryId, Number(discount.discountPercent || 0)])
+      ),
+    [categoryDiscounts]
+  )
+  function resolveLineCategoryDiscount(line) {
+    const categoryId = productById[line.productId]?.categoryId
+    return categoryId ? categoryDiscountByCategoryId[categoryId] || 0 : 0
+  }
   const filteredLines = useMemo(() => {
     const lines = movement?.lines || []
     const query = lineSearch.trim().toLowerCase()
@@ -437,8 +451,9 @@ export default function VehicleMovementDetailPage({
       const product = productById[line.productId]
       const qty = Number(line.qtySmallest || 0)
       const unitCost = Number(line.unitCostSmallest || 0)
-      const sellingPrice = calculateVehicleSellingPrice(line.mrp)
-      const sellingValue = calculateVehicleSellingValue(line.mrp, qty)
+      const categoryDiscountPercent = resolveLineCategoryDiscount(line)
+      const sellingPrice = calculateVehicleSellingPrice(line.mrp, categoryDiscountPercent)
+      const sellingValue = calculateVehicleSellingValue(line.mrp, qty, categoryDiscountPercent)
 
       return [
         JSON.stringify(line),
@@ -465,7 +480,7 @@ export default function VehicleMovementDetailPage({
         formatLKR(sellingValue),
       ].some((value) => String(value || '').toLowerCase().includes(query))
     })
-  }, [lineSearch, movement?.lines, productById])
+  }, [lineSearch, movement?.lines, productById, categoryDiscountByCategoryId])
 
   const duplicateProductIds = useMemo(() => {
     const counts = {}
@@ -550,6 +565,24 @@ export default function VehicleMovementDetailPage({
     }
   }, [movement?.lines])
 
+  // Category discount is a standing, category-wide rate (not tied to a customer/order), so unlike
+  // SKU/special discounts it's already knowable at load/unload time — pull it in once so selling
+  // price can reflect it the same way an invoice line would.
+  useEffect(() => {
+    let active = true
+    masterService
+      .listCategoryDiscounts()
+      .then((items) => {
+        if (active) setCategoryDiscounts(items || [])
+      })
+      .catch(() => {
+        if (active) setCategoryDiscounts([])
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   async function handleApply(event) {
     event.preventDefault()
     try {
@@ -612,7 +645,7 @@ export default function VehicleMovementDetailPage({
   )
   const totalSellingValue = (movement.lines || []).reduce(
     (sum, line) =>
-      sum + calculateVehicleSellingValue(line.mrp, line.qtySmallest),
+      sum + calculateVehicleSellingValue(line.mrp, line.qtySmallest, resolveLineCategoryDiscount(line)),
     0
   )
   const totalUnitCostValue = (movement.lines || []).reduce(
@@ -945,6 +978,7 @@ export default function VehicleMovementDetailPage({
                   <th>Product</th>
                   <th style={{ textAlign: 'right' }}>Qty</th>
                   <th style={{ textAlign: 'right' }}>Unit Cost</th>
+                  <th style={{ textAlign: 'right' }}>Cat. Disc %</th>
                   <th style={{ textAlign: 'right' }}>Selling Price</th>
                   <th style={{ textAlign: 'right' }}>MRP</th>
                   <th style={{ textAlign: 'right' }}>Selling Value</th>
@@ -956,8 +990,9 @@ export default function VehicleMovementDetailPage({
                   const productName = line.productName || productById[line.productId]?.name
                   const unitCost = Number(line.unitCostSmallest || 0)
                   const qty = Number(line.qtySmallest || 0)
-                  const sellingPrice = calculateVehicleSellingPrice(line.mrp)
-                  const sellingValue = calculateVehicleSellingValue(line.mrp, qty)
+                  const categoryDiscountPercent = resolveLineCategoryDiscount(line)
+                  const sellingPrice = calculateVehicleSellingPrice(line.mrp, categoryDiscountPercent)
+                  const sellingValue = calculateVehicleSellingValue(line.mrp, qty, categoryDiscountPercent)
                   const isEditingThisLine = editingLineId === line.id
                   const isPossibleDuplicate = duplicateProductIds.has(line.productId)
 
@@ -1007,6 +1042,15 @@ export default function VehicleMovementDetailPage({
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {formatLKR(unitCost)}
+                      </td>
+                      <td
+                        className="mono"
+                        style={{
+                          textAlign: 'right',
+                          color: categoryDiscountPercent ? 'var(--color-teal)' : 'var(--color-text-muted)',
+                        }}
+                      >
+                        {categoryDiscountPercent ? `${formatNumber(categoryDiscountPercent)}%` : '—'}
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {formatLKR(sellingPrice)}

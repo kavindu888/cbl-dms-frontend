@@ -67,6 +67,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [lines, setLines] = useState([])
   const [stockLineSearch, setStockLineSearch] = useState('')
   const [products, setProducts] = useState([])
+  const [categoryDiscounts, setCategoryDiscounts] = useState([])
   const [productSearch, setProductSearch] = useState('')
   const [selectedProductId, setSelectedProductId] = useState('')
   const [batches, setBatches] = useState([])
@@ -164,6 +165,24 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       }
     }
     loadProducts()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Category discount is a standing, category-wide rate (not tied to a customer/order), so unlike
+  // SKU/special discounts it's already knowable at load/unload time — pull it in once so selling
+  // price can reflect it the same way an invoice line would.
+  useEffect(() => {
+    let active = true
+    masterService
+      .listCategoryDiscounts()
+      .then((items) => {
+        if (active) setCategoryDiscounts(items || [])
+      })
+      .catch(() => {
+        if (active) setCategoryDiscounts([])
+      })
     return () => {
       active = false
     }
@@ -446,6 +465,21 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     () => Object.fromEntries(products.map((product) => [product.sku, product])),
     [products]
   )
+  const categoryDiscountByCategoryId = useMemo(
+    () =>
+      Object.fromEntries(
+        categoryDiscounts
+          .filter((discount) => discount.isActive !== false)
+          .map((discount) => [discount.categoryId, Number(discount.discountPercent || 0)])
+      ),
+    [categoryDiscounts]
+  )
+  function resolveLineCategoryDiscount(line) {
+    const product =
+      (line.productId && productById[line.productId]) || productBySku[line.productSku]
+    const categoryId = product?.categoryId
+    return categoryId ? categoryDiscountByCategoryId[categoryId] || 0 : 0
+  }
   function resolveLineProductName(line) {
     return (
       line.productName ||
@@ -461,8 +495,9 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     return lines.filter((line) => {
       const unitCost = Number(line.unitCostSmallest || 0)
       const lineQty = Number(line.qtySmallest || 0)
-      const sellingPrice = calculateVehicleSellingPrice(line.mrp)
-      const sellingValue = calculateVehicleSellingValue(line.mrp, lineQty)
+      const categoryDiscountPercent = resolveLineCategoryDiscount(line)
+      const sellingPrice = calculateVehicleSellingPrice(line.mrp, categoryDiscountPercent)
+      const sellingValue = calculateVehicleSellingValue(line.mrp, lineQty, categoryDiscountPercent)
 
       return [
         JSON.stringify(line),
@@ -542,7 +577,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const totalQty = lines.reduce((sum, line) => sum + Number(line.qtySmallest || 0), 0)
   const totalSellingValue = lines.reduce(
     (sum, line) =>
-      sum + calculateVehicleSellingValue(line.mrp, line.qtySmallest),
+      sum + calculateVehicleSellingValue(line.mrp, line.qtySmallest, resolveLineCategoryDiscount(line)),
     0
   )
   const totalUnitCostValue = lines.reduce(
@@ -1524,6 +1559,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       <th>Product</th>
                       <th className="text-right">Qty</th>
                       <th className="text-right">Unit Cost</th>
+                      <th className="text-right">Cat. Disc %</th>
                       <th className="text-right">Selling Price</th>
                       <th className="text-right">MRP</th>
                       <th className="text-right">Selling Value</th>
@@ -1531,7 +1567,9 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredStockLines.map((line) => (
+                    {filteredStockLines.map((line) => {
+                      const categoryDiscountPercent = resolveLineCategoryDiscount(line)
+                      return (
                       <tr key={line.id}>
                         <td>
                           <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
@@ -1550,15 +1588,22 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                         </td>
                         <td className="mono text-right">{formatNumber(line.qtySmallest)}</td>
                         <td className="mono text-right">{formatLKR(line.unitCostSmallest)}</td>
+                        <td
+                          className="mono text-right"
+                          style={{ color: categoryDiscountPercent ? 'var(--color-teal)' : 'var(--color-text-muted)' }}
+                        >
+                          {categoryDiscountPercent ? `${formatNumber(categoryDiscountPercent)}%` : '—'}
+                        </td>
                         <td className="mono text-right">
-                          {formatLKR(calculateVehicleSellingPrice(line.mrp))}
+                          {formatLKR(calculateVehicleSellingPrice(line.mrp, categoryDiscountPercent))}
                         </td>
                         <td className="mono text-right">{formatLKR(line.mrp)}</td>
                         <td className="mono text-right">
                           {formatLKR(
                             calculateVehicleSellingValue(
                               line.mrp,
-                              line.qtySmallest
+                              line.qtySmallest,
+                              categoryDiscountPercent
                             )
                           )}
                         </td>
@@ -1573,11 +1618,12 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                     {!filteredStockLines.length ? (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           style={{ color: 'var(--color-text-muted)', padding: 24, textAlign: 'center' }}
                         >
                           No stock lines match &ldquo;{stockLineSearch.trim()}&rdquo;.
