@@ -533,6 +533,17 @@ export const inventoryService = {
     const response = await getOnce(`/api/v1/inventory/vehicle-loadings/${id}/sales-report`)
     return getValue(response, 'Unable to load the vehicle sales report.')
   },
+  // Admin correction for a loading that was actually unloaded but never got marked (e.g. a
+  // general unload not linked to this specific loading, or historical data). New unloads linked
+  // to a loading mark it automatically when applied — this is only for the exceptions.
+  async markVehicleLoadingUnloaded(id) {
+    const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/mark-unloaded`)
+    return getValue(response, 'Unable to mark loading as unloaded.')
+  },
+  async unmarkVehicleLoadingUnloaded(id) {
+    const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/unmark-unloaded`)
+    return getValue(response, 'Unable to unmark loading as unloaded.')
+  },
   // Draft-only: auto-repairs any line whose pinned source batch has been drained below what it
   // needs (by something else, after the line was added) by re-picking FEFO batch(es) at Main that
   // currently have real stock, swapping the line over to them, and releasing the stale reservation.

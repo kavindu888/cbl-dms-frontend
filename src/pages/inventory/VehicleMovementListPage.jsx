@@ -1,11 +1,13 @@
 import {
   ArrowRightLeft,
+  CheckCircle2,
   ChevronRight,
   FileBarChart,
   Plus,
   RefreshCw,
   Search,
   TriangleAlert,
+  Undo2,
   Wrench,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -283,6 +285,7 @@ function VehicleStockRepairPanel({ vehicleById }) {
 const statusColors = {
   Draft: 'bg-amber-500/10 text-amber-400 border border-amber-700/50',
   Applied: 'bg-green-500/10 text-green-400 border border-green-700/50',
+  Unloaded: 'bg-cyan-500/10 text-cyan-400 border border-cyan-700/50',
   Cancelled: 'bg-gray-700/30 text-gray-500 border border-gray-700/30',
 }
 
@@ -301,6 +304,7 @@ export default function VehicleMovementListPage({
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
   const [correctionTarget, setCorrectionTarget] = useState(null)
+  const [markUnloadedPendingId, setMarkUnloadedPendingId] = useState('')
   const params = useMemo(() => (status ? { status: Number(status) } : {}), [status])
   const { data: rows = [], isLoading, isFetching, refetch } = useList(params)
   const { data: vehicles = [] } = useVehicles()
@@ -343,6 +347,24 @@ export default function VehicleMovementListPage({
         .includes(term)
     )
   }, [deliveryRunById, numberField, rows, search])
+
+  async function handleMarkUnloaded(row, unload) {
+    setMarkUnloadedPendingId(row.id)
+    try {
+      if (unload) {
+        await inventoryService.markVehicleLoadingUnloaded(row.id)
+        toast.success(`${row.loadingNo}: marked as unloaded.`)
+      } else {
+        await inventoryService.unmarkVehicleLoadingUnloaded(row.id)
+        toast.success(`${row.loadingNo}: unloaded mark removed.`)
+      }
+      refetch()
+    } catch (error) {
+      toast.error(error?.message || 'Unable to update unloaded status.')
+    } finally {
+      setMarkUnloadedPendingId('')
+    }
+  }
 
   return (
     <div className="responsive-page" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -445,6 +467,11 @@ export default function VehicleMovementListPage({
               ) : filteredRows.length ? (
                 filteredRows.map((row) => {
                   const label = movementStatusLabel(row.status)
+                  // Status itself never changes on unload (Applied stays Applied — that gates other
+                  // behavior elsewhere) — this is purely a display overlay so staff can tell "still
+                  // out on the road" from "closed out" at a glance.
+                  const badgeLabel =
+                    kind === 'Loading' && label === 'Applied' && row.unloadedOn ? 'Unloaded' : label
                   return (
                     <tr
                       key={row.id}
@@ -477,9 +504,9 @@ export default function VehicleMovementListPage({
                       <td className="mono text-right">{formatLKR(row.totalValue)}</td>
                       <td>
                         <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusColors[label] || statusColors.Draft}`}
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusColors[badgeLabel] || statusColors.Draft}`}
                         >
-                          {label}
+                          {badgeLabel}
                         </span>
                       </td>
                       <td className="text-right">
@@ -510,6 +537,26 @@ export default function VehicleMovementListPage({
                               title="Find and fix invoices wrongly deducted from Main instead of this vehicle"
                             >
                               <ArrowRightLeft size={15} /> Correct Stock
+                            </button>
+                          ) : null}
+                          {kind === 'Loading' && label === 'Applied' && canManageVehicles ? (
+                            <button
+                              type="button"
+                              className="button-secondary"
+                              disabled={markUnloadedPendingId === row.id}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                handleMarkUnloaded(row, !row.unloadedOn)
+                              }}
+                              style={{ height: 30 }}
+                              title={
+                                row.unloadedOn
+                                  ? 'Remove the unloaded mark (admin correction)'
+                                  : 'Mark this loading as unloaded — for stock unloaded outside a linked unload (e.g. a general unload) or historical data'
+                              }
+                            >
+                              {row.unloadedOn ? <Undo2 size={15} /> : <CheckCircle2 size={15} />}{' '}
+                              {row.unloadedOn ? 'Unmark' : 'Mark Unloaded'}
                             </button>
                           ) : null}
                           <button
