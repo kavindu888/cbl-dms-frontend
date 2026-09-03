@@ -437,8 +437,8 @@ export default function VehicleMovementDetailPage({
       const product = productById[line.productId]
       const qty = Number(line.qtySmallest || 0)
       const unitCost = Number(line.unitCostSmallest || 0)
-      const sellingPrice = calculateVehicleSellingPrice(unitCost)
-      const sellingValue = calculateVehicleSellingValue(unitCost, qty)
+      const sellingPrice = calculateVehicleSellingPrice(line.mrp)
+      const sellingValue = calculateVehicleSellingValue(line.mrp, qty)
 
       return [
         JSON.stringify(line),
@@ -612,7 +612,7 @@ export default function VehicleMovementDetailPage({
   )
   const totalSellingValue = (movement.lines || []).reduce(
     (sum, line) =>
-      sum + calculateVehicleSellingValue(line.unitCostSmallest, line.qtySmallest),
+      sum + calculateVehicleSellingValue(line.mrp, line.qtySmallest),
     0
   )
   const totalUnitCostValue = (movement.lines || []).reduce(
@@ -956,8 +956,8 @@ export default function VehicleMovementDetailPage({
                   const productName = line.productName || productById[line.productId]?.name
                   const unitCost = Number(line.unitCostSmallest || 0)
                   const qty = Number(line.qtySmallest || 0)
-                  const sellingPrice = calculateVehicleSellingPrice(unitCost)
-                  const sellingValue = calculateVehicleSellingValue(unitCost, qty)
+                  const sellingPrice = calculateVehicleSellingPrice(line.mrp)
+                  const sellingValue = calculateVehicleSellingValue(line.mrp, qty)
                   const isEditingThisLine = editingLineId === line.id
                   const isPossibleDuplicate = duplicateProductIds.has(line.productId)
 

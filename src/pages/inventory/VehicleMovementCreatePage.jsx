@@ -461,8 +461,8 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     return lines.filter((line) => {
       const unitCost = Number(line.unitCostSmallest || 0)
       const lineQty = Number(line.qtySmallest || 0)
-      const sellingPrice = calculateVehicleSellingPrice(unitCost)
-      const sellingValue = calculateVehicleSellingValue(unitCost, lineQty)
+      const sellingPrice = calculateVehicleSellingPrice(line.mrp)
+      const sellingValue = calculateVehicleSellingValue(line.mrp, lineQty)
 
       return [
         JSON.stringify(line),
@@ -542,7 +542,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const totalQty = lines.reduce((sum, line) => sum + Number(line.qtySmallest || 0), 0)
   const totalSellingValue = lines.reduce(
     (sum, line) =>
-      sum + calculateVehicleSellingValue(line.unitCostSmallest, line.qtySmallest),
+      sum + calculateVehicleSellingValue(line.mrp, line.qtySmallest),
     0
   )
   const totalUnitCostValue = lines.reduce(
@@ -1551,13 +1551,13 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                         <td className="mono text-right">{formatNumber(line.qtySmallest)}</td>
                         <td className="mono text-right">{formatLKR(line.unitCostSmallest)}</td>
                         <td className="mono text-right">
-                          {formatLKR(calculateVehicleSellingPrice(line.unitCostSmallest))}
+                          {formatLKR(calculateVehicleSellingPrice(line.mrp))}
                         </td>
                         <td className="mono text-right">{formatLKR(line.mrp)}</td>
                         <td className="mono text-right">
                           {formatLKR(
                             calculateVehicleSellingValue(
-                              line.unitCostSmallest,
+                              line.mrp,
                               line.qtySmallest
                             )
                           )}

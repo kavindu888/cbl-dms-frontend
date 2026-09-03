@@ -34,15 +34,15 @@ export const getQtyFree = (batch) =>
 export const getUnitCost = (batch) => Number(batch?.unitCostSmallest ?? batch?.unitCost ?? 0)
 export const getMrp = (batch) => Number(batch?.mrp ?? batch?.MRP ?? 0)
 
-export const VEHICLE_STOCK_SELLING_MARKUP_RATE = 0.067
+// Selling price must match invoicing exactly: InvoiceLine.ComputeAmounts (Sales domain) prices a
+// line at MRP with 0% discount by default (discounts are only known once a customer/order applies
+// them, which hasn't happened yet at load/unload time) — GrossAmount = mrp * quantity, UnitPrice =
+// mrp * (1 - 0%) = mrp. There is no cost-plus-markup anywhere in the real pricing model; a vehicle
+// line's selling price is simply its batch's MRP.
+export const calculateVehicleSellingPrice = (mrp) => Number(mrp || 0)
 
-export const calculateVehicleSellingPrice = (unitCost) => {
-  const normalizedUnitCost = Number(unitCost || 0)
-  return normalizedUnitCost + normalizedUnitCost * VEHICLE_STOCK_SELLING_MARKUP_RATE
-}
-
-export const calculateVehicleSellingValue = (unitCost, qty) =>
-  calculateVehicleSellingPrice(unitCost) * Number(qty || 0)
+export const calculateVehicleSellingValue = (mrp, qty) =>
+  calculateVehicleSellingPrice(mrp) * Number(qty || 0)
 
 export const calculateVehicleUnitCostValue = (unitCost, qty) =>
   Number(unitCost || 0) * Number(qty || 0)

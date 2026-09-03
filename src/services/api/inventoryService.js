@@ -145,12 +145,18 @@ function formatVehicleMovement(item) {
         sum + Number(line.qtySmallest || 0) * Number(line.unitCostSmallest || line.unitCost || 0),
       0
     )
+  // Selling value must match invoicing: a line's selling price is its MRP (no discount known yet
+  // at load/unload time), so selling value = mrp * qty — same as InvoiceLine's GrossAmount.
+  const totalSellingValue =
+    item.totalSellingValue ??
+    lines.reduce((sum, line) => sum + Number(line.qtySmallest || 0) * Number(line.mrp || 0), 0)
   return {
     ...item,
     status: enumLabel(item.status, vehicleMovementStatusLabels),
     lines,
     lineCount: item.lineCount ?? lines.length,
     totalValue: Number(totalValue || 0),
+    totalSellingValue: Number(totalSellingValue || 0),
   }
 }
 

@@ -21,7 +21,6 @@ import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import { useEffect } from 'react'
 import {
   VEHICLE_MOVEMENT_STATUSES,
-  calculateVehicleSellingPrice,
   movementStatusLabel,
   vehicleLabel,
 } from './vehicleMovementUtils'
@@ -474,9 +473,7 @@ export default function VehicleMovementListPage({
                         </td>
                       ) : null}
                       <td className="mono text-right">{row.lineCount ?? row.lines?.length ?? 0}</td>
-                      <td className="mono text-right">
-                        {formatLKR(calculateVehicleSellingPrice(row.totalValue))}
-                      </td>
+                      <td className="mono text-right">{formatLKR(row.totalSellingValue)}</td>
                       <td className="mono text-right">{formatLKR(row.totalValue)}</td>
                       <td>
                         <span
