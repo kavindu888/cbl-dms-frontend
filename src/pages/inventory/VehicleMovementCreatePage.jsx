@@ -180,8 +180,11 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       .then((items) => {
         if (active) setCategoryDiscounts(items || [])
       })
-      .catch(() => {
-        if (active) setCategoryDiscounts([])
+      .catch((error) => {
+        if (active) {
+          setCategoryDiscounts([])
+          toast.error(error.message || 'Unable to load category discounts.')
+        }
       })
     return () => {
       active = false
