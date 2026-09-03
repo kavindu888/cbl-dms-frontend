@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, PackageSearch, Trash2 } from 'lucide-react'
+import { ArrowLeft, PackageSearch, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -17,6 +17,9 @@ import { masterService } from '@/services/api/masterService'
 import { formatDate } from '@/utils/formatDate'
 import { formatLKR } from '@/utils/formatCurrency'
 import {
+  calculateVehicleSellingPrice,
+  calculateVehicleSellingValue,
+  calculateVehicleUnitCostValue,
   formatNumber,
   getMrp,
   getQtyAvailable,
@@ -57,6 +60,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [notes, setNotes] = useState('')
   const [draftId, setDraftId] = useState(routeDraftId || '')
   const [lines, setLines] = useState([])
+  const [stockLineSearch, setStockLineSearch] = useState('')
   const [products, setProducts] = useState([])
   const [productSearch, setProductSearch] = useState('')
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -404,6 +408,40 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       line.productSku
     )
   }
+  const filteredStockLines = useMemo(() => {
+    const term = stockLineSearch.trim().toLowerCase()
+    if (!term) return lines
+
+    return lines.filter((line) => {
+      const unitCost = Number(line.unitCostSmallest || 0)
+      const lineQty = Number(line.qtySmallest || 0)
+      const sellingPrice = calculateVehicleSellingPrice(unitCost)
+      const sellingValue = calculateVehicleSellingValue(unitCost, lineQty)
+
+      return [
+        JSON.stringify(line),
+        line.productName ||
+          (line.productId && productById[line.productId]?.name) ||
+          productBySku[line.productSku]?.name ||
+          line.productSku,
+        line.productSku,
+        line.productId,
+        line.sourceBatchNo,
+        lineQty,
+        formatNumber(lineQty),
+        unitCost,
+        formatLKR(unitCost),
+        sellingPrice,
+        formatLKR(sellingPrice),
+        line.mrp,
+        formatLKR(line.mrp),
+        sellingValue,
+        formatLKR(sellingValue),
+        unloadingTypeLabel(line.unloadingType),
+        returnReasonLabel(line.returnReason),
+      ].some((value) => String(value ?? '').toLowerCase().includes(term))
+    })
+  }, [lines, productById, productBySku, stockLineSearch])
   const filteredProducts = useMemo(() => {
     const term = productSearch.trim().toLowerCase()
     if (!term) return products.slice(0, 30)
@@ -456,8 +494,14 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   }
 
   const totalQty = lines.reduce((sum, line) => sum + Number(line.qtySmallest || 0), 0)
-  const totalValue = lines.reduce(
-    (sum, line) => sum + Number(line.qtySmallest || 0) * Number(line.unitCostSmallest || 0),
+  const totalSellingValue = lines.reduce(
+    (sum, line) =>
+      sum + calculateVehicleSellingValue(line.unitCostSmallest, line.qtySmallest),
+    0
+  )
+  const totalUnitCostValue = lines.reduce(
+    (sum, line) =>
+      sum + calculateVehicleUnitCostValue(line.unitCostSmallest, line.qtySmallest),
     0
   )
   const normalCount = lines.filter(
@@ -1303,61 +1347,124 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
           </section>
 
           <section className="panel" style={{ overflow: 'hidden', padding: 0 }}>
-            <div style={{ borderBottom: '1px solid var(--color-border)', padding: '14px 16px' }}>
-              <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
-                {isUnloading ? 'Unloading Lines' : 'Stock Lines'}
-              </h2>
+            <div
+              style={{
+                alignItems: 'center',
+                borderBottom: '1px solid var(--color-border)',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 12,
+                justifyContent: 'space-between',
+                padding: '14px 16px',
+              }}
+            >
+              <div>
+                <h2 style={{ color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800 }}>
+                  {isUnloading ? 'Unloading Lines' : 'Stock Lines'}
+                </h2>
+                {lines.length ? (
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: 11, marginTop: 3 }}>
+                    {filteredStockLines.length} of {lines.length} line{lines.length === 1 ? '' : 's'}
+                  </p>
+                ) : null}
+              </div>
+              {lines.length ? (
+                <div style={{ maxWidth: 420, position: 'relative', width: '100%' }}>
+                  <Search
+                    aria-hidden="true"
+                    size={15}
+                    style={{
+                      color: 'var(--color-text-muted)',
+                      left: 11,
+                      pointerEvents: 'none',
+                      position: 'absolute',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                    }}
+                  />
+                  <input
+                    aria-label={`Search ${kind.toLowerCase()} stock lines`}
+                    className="form-input"
+                    type="text"
+                    value={stockLineSearch}
+                    onChange={(event) => setStockLineSearch(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setStockLineSearch('')
+                    }}
+                    placeholder="Search any stock line detail..."
+                    style={{ height: 36, paddingLeft: 34, paddingRight: stockLineSearch ? 34 : 10 }}
+                  />
+                  {stockLineSearch ? (
+                    <button
+                      aria-label="Clear stock line search"
+                      type="button"
+                      onClick={() => setStockLineSearch('')}
+                      style={{
+                        alignItems: 'center',
+                        background: 'transparent',
+                        border: 0,
+                        color: 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        padding: 4,
+                        position: 'absolute',
+                        right: 7,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                      }}
+                    >
+                      <X size={15} />
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             {lines.length ? (
               <div className="overflow-x-auto">
-                <table className="data-table">
+                <table className="data-table" style={{ minWidth: 950 }}>
                   <thead>
                     <tr>
                       <th>Product</th>
-                      <th>Source Batch</th>
                       <th className="text-right">Qty</th>
-                      {isUnloading ? (
-                        <>
-                          <th>Type</th>
-                          <th>Reason</th>
-                        </>
-                      ) : (
-                        <>
-                          <th className="text-right">Unit Cost</th>
-                          <th className="text-right">MRP</th>
-                        </>
-                      )}
+                      <th className="text-right">Unit Cost</th>
+                      <th className="text-right">Selling Price</th>
+                      <th className="text-right">MRP</th>
+                      <th className="text-right">Selling Value</th>
                       <th className="text-right">Remove</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {lines.map((line) => (
+                    {filteredStockLines.map((line) => (
                       <tr key={line.id}>
                         <td>
                           <strong style={{ color: 'var(--color-text-primary)', display: 'block' }}>
                             {resolveLineProductName(line)}
                           </strong>
                           <span className="product-sku-badge mono">{line.productSku}</span>
+                          {isUnloading ? (
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
+                              style={{ display: 'inline-flex', marginLeft: 6 }}
+                              title={returnReasonLabel(line.returnReason)}
+                            >
+                              {unloadingTypeLabel(line.unloadingType).toUpperCase()}
+                            </span>
+                          ) : null}
                         </td>
-                        <td className="mono">{line.sourceBatchNo || '—'}</td>
                         <td className="mono text-right">{formatNumber(line.qtySmallest)}</td>
-                        {isUnloading ? (
-                          <>
-                            <td>
-                              <span
-                                className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
-                              >
-                                {unloadingTypeLabel(line.unloadingType).toUpperCase()}
-                              </span>
-                            </td>
-                            <td>{returnReasonLabel(line.returnReason)}</td>
-                          </>
-                        ) : (
-                          <>
-                            <td className="mono text-right">{formatLKR(line.unitCostSmallest)}</td>
-                            <td className="mono text-right">{formatLKR(line.mrp)}</td>
-                          </>
-                        )}
+                        <td className="mono text-right">{formatLKR(line.unitCostSmallest)}</td>
+                        <td className="mono text-right">
+                          {formatLKR(calculateVehicleSellingPrice(line.unitCostSmallest))}
+                        </td>
+                        <td className="mono text-right">{formatLKR(line.mrp)}</td>
+                        <td className="mono text-right">
+                          {formatLKR(
+                            calculateVehicleSellingValue(
+                              line.unitCostSmallest,
+                              line.qtySmallest
+                            )
+                          )}
+                        </td>
                         <td className="text-right">
                           <button
                             type="button"
@@ -1370,6 +1477,16 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                         </td>
                       </tr>
                     ))}
+                    {!filteredStockLines.length ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          style={{ color: 'var(--color-text-muted)', padding: 24, textAlign: 'center' }}
+                        >
+                          No stock lines match &ldquo;{stockLineSearch.trim()}&rdquo;.
+                        </td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>
@@ -1431,12 +1548,18 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
               <SummaryRow label="Labelled" value={labelledCount} mono />
             </>
           ) : (
-            <>
-              <SummaryRow label="Total Qty" value={formatNumber(totalQty)} mono />
-              <SummaryRow label="Total Value" value={formatLKR(totalValue)} mono />
-            </>
+            <SummaryRow label="Total Qty" value={formatNumber(totalQty)} mono />
           )}
-          {isUnloading ? <SummaryRow label="Total Value" value={formatLKR(totalValue)} mono /> : null}
+          <SummaryRow
+            label="Total Selling Value"
+            value={formatLKR(totalSellingValue)}
+            mono
+          />
+          <SummaryRow
+            label="Total Unit Cost Value"
+            value={formatLKR(totalUnitCostValue)}
+            mono
+          />
           <div
             style={{
               background: 'rgba(245, 158, 11, 0.1)',

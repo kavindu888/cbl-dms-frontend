@@ -22,6 +22,9 @@ import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import { formatDateTime } from '@/utils/formatDate'
 import { formatLKR } from '@/utils/formatCurrency'
 import {
+  calculateVehicleSellingPrice,
+  calculateVehicleSellingValue,
+  calculateVehicleUnitCostValue,
   formatNumber,
   getQtyAvailable,
   getMrp,
@@ -432,7 +435,13 @@ export default function VehicleMovementDetailPage({
 
     return lines.filter((line) => {
       const product = productById[line.productId]
+      const qty = Number(line.qtySmallest || 0)
+      const unitCost = Number(line.unitCostSmallest || 0)
+      const sellingPrice = calculateVehicleSellingPrice(unitCost)
+      const sellingValue = calculateVehicleSellingValue(unitCost, qty)
+
       return [
+        JSON.stringify(line),
         line.productName,
         line.productSku,
         line.productId,
@@ -444,6 +453,16 @@ export default function VehicleMovementDetailPage({
         product?.name,
         product?.sku,
         product?.barcode,
+        qty,
+        formatNumber(qty),
+        unitCost,
+        formatLKR(unitCost),
+        sellingPrice,
+        formatLKR(sellingPrice),
+        line.mrp,
+        formatLKR(line.mrp),
+        sellingValue,
+        formatLKR(sellingValue),
       ].some((value) => String(value || '').toLowerCase().includes(query))
     })
   }, [lineSearch, movement?.lines, productById])
@@ -591,12 +610,16 @@ export default function VehicleMovementDetailPage({
     (sum, line) => sum + Number(line.qtySmallest || 0),
     0
   )
-  const totalValue = (movement.lines || []).reduce((sum, line) => {
-    const unitCost = Number(line.unitCostSmallest || 0)
-    const qty = Number(line.qtySmallest || 0)
-    const sellingPrice = unitCost + (unitCost * 0.067)
-    return sum + (sellingPrice * qty)
-  }, 0)
+  const totalSellingValue = (movement.lines || []).reduce(
+    (sum, line) =>
+      sum + calculateVehicleSellingValue(line.unitCostSmallest, line.qtySmallest),
+    0
+  )
+  const totalUnitCostValue = (movement.lines || []).reduce(
+    (sum, line) =>
+      sum + calculateVehicleUnitCostValue(line.unitCostSmallest, line.qtySmallest),
+    0
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -777,7 +800,8 @@ export default function VehicleMovementDetailPage({
           />
           <InfoTile label="Applied On" value={formatDateTime(movement.appliedOn)} mono />
           <InfoTile label="Total Lines" value={movement.lines?.length ?? 0} mono />
-          <InfoTile label="Total Value" value={formatLKR(totalValue)} mono />
+          <InfoTile label="Total Selling Value" value={formatLKR(totalSellingValue)} mono />
+          <InfoTile label="Total Unit Cost Value" value={formatLKR(totalUnitCostValue)} mono />
         </div>
         <div
           style={{
@@ -830,17 +854,17 @@ export default function VehicleMovementDetailPage({
                 marginTop: 4,
               }}
             >
-              Batch Movement Lines
+              Stock Movement Lines
             </h2>
             <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 4 }}>
               {lineSearch.trim()
-                ? `${filteredLines.length} of ${movement.lines?.length || 0} batch lines match`
-                : `${movement.lines?.length || 0} batch line${movement.lines?.length === 1 ? '' : 's'} in this ${kind.toLowerCase()}`}
+                ? `${filteredLines.length} of ${movement.lines?.length || 0} stock lines match`
+                : `${movement.lines?.length || 0} stock line${movement.lines?.length === 1 ? '' : 's'} in this ${kind.toLowerCase()}`}
             </p>
             {duplicateProductIds.size > 0 ? (
               <p style={{ color: 'var(--color-amber)', fontSize: 12, marginTop: 4, fontWeight: 700 }}>
                 ⚠ {duplicateProductIds.size} product{duplicateProductIds.size === 1 ? ' has' : 's have'} more
-                than one line (highlighted below) — check the Batch No column and remove the extra one(s).
+                than one line (highlighted below) — review and remove any duplicate line(s).
               </p>
             ) : null}
           </div>
@@ -873,7 +897,7 @@ export default function VehicleMovementDetailPage({
                 }}
               />
               <input
-                aria-label="Search batch movement lines"
+                aria-label="Search stock movement lines"
                 className="form-input"
                 type="text"
                 value={lineSearch}
@@ -881,7 +905,7 @@ export default function VehicleMovementDetailPage({
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') setLineSearch('')
                 }}
-                placeholder="Search product name, SKU, or batch..."
+                placeholder="Search any stock line detail..."
                 style={{ height: 38, paddingLeft: 34, paddingRight: lineSearch ? 34 : 10 }}
               />
               {lineSearch ? (
@@ -914,26 +938,17 @@ export default function VehicleMovementDetailPage({
           <div className="responsive-table-shell" style={{ overflowX: 'auto' }}>
             <table
               className="data-table master-table-compact"
-              style={{ minWidth: 760, tableLayout: 'fixed', width: '100%' }}
+              style={{ minWidth: showAdminLineControls ? 1030 : 900, width: '100%' }}
             >
-              <colgroup>
-                <col style={{ width: showAdminLineControls ? '22%' : '26%' }} />
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '16%' }} />
-                {showAdminLineControls ? <col style={{ width: '12%' }} /> : null}
-              </colgroup>
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th>Batch No</th>
                   <th style={{ textAlign: 'right' }}>Qty</th>
+                  <th style={{ textAlign: 'right' }}>Unit Cost</th>
                   <th style={{ textAlign: 'right' }}>Selling Price</th>
                   <th style={{ textAlign: 'right' }}>MRP</th>
-                  <th style={{ textAlign: 'right' }}>Value</th>
-                  {showAdminLineControls ? <th style={{ textAlign: 'right' }}>Admin</th> : null}
+                  <th style={{ textAlign: 'right' }}>Selling Value</th>
+                  {showAdminLineControls ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -941,8 +956,8 @@ export default function VehicleMovementDetailPage({
                   const productName = line.productName || productById[line.productId]?.name
                   const unitCost = Number(line.unitCostSmallest || 0)
                   const qty = Number(line.qtySmallest || 0)
-                  const sellingPrice = unitCost + (unitCost * 0.067)
-                  const value = sellingPrice * qty
+                  const sellingPrice = calculateVehicleSellingPrice(unitCost)
+                  const sellingValue = calculateVehicleSellingValue(unitCost, qty)
                   const isEditingThisLine = editingLineId === line.id
                   const isPossibleDuplicate = duplicateProductIds.has(line.productId)
 
@@ -975,9 +990,6 @@ export default function VehicleMovementDetailPage({
                           </span>
                         ) : null}
                       </td>
-                      <td className="mono" style={{ fontSize: 12 }}>
-                        {line.sourceBatchNo || line.batchNo || '—'}
-                      </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
                         {isEditingThisLine ? (
                           <input
@@ -994,13 +1006,16 @@ export default function VehicleMovementDetailPage({
                         )}
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>
+                        {formatLKR(unitCost)}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
                         {formatLKR(sellingPrice)}
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {formatLKR(line.mrp)}
                       </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-                        {formatLKR(value)}
+                        {formatLKR(sellingValue)}
                       </td>
                       {showAdminLineControls ? (
                         <td style={{ textAlign: 'right' }}>
@@ -1071,7 +1086,7 @@ export default function VehicleMovementDetailPage({
           <EmptyState
             icon={<PackageX className="size-8" />}
             title="No stock lines"
-            description="No batch movement lines were recorded."
+            description="No stock movement lines were recorded."
           />
         )}
       </section>
