@@ -34,6 +34,19 @@ export const getQtyFree = (batch) =>
 export const getUnitCost = (batch) => Number(batch?.unitCostSmallest ?? batch?.unitCost ?? 0)
 export const getMrp = (batch) => Number(batch?.mrp ?? batch?.MRP ?? 0)
 
+export const VEHICLE_STOCK_SELLING_MARKUP_RATE = 0.067
+
+export const calculateVehicleSellingPrice = (unitCost) => {
+  const normalizedUnitCost = Number(unitCost || 0)
+  return normalizedUnitCost + normalizedUnitCost * VEHICLE_STOCK_SELLING_MARKUP_RATE
+}
+
+export const calculateVehicleSellingValue = (unitCost, qty) =>
+  calculateVehicleSellingPrice(unitCost) * Number(qty || 0)
+
+export const calculateVehicleUnitCostValue = (unitCost, qty) =>
+  Number(unitCost || 0) * Number(qty || 0)
+
 export const vehicleLabel = (vehicle) =>
   vehicle ? `${vehicle.vehicleCode || vehicle.code || vehicle.id} — ${vehicle.name}` : '—'
 

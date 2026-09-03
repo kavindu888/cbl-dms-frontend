@@ -23,6 +23,7 @@ import { collectionsService } from '@/services/api/collectionsService'
 import { inventoryService } from '@/services/api/inventoryService'
 import { useVehicles } from '@/hooks/useVehicle'
 import { useCustomerById } from '@/hooks/useCustomers'
+import { formatLKR, formatLKRShort } from '@/utils/formatCurrency'
 
 dayjs.extend(isSameOrAfter)
 dayjs.extend(isSameOrBefore)
@@ -30,6 +31,7 @@ dayjs.extend(minMax)
 
 const ROUTE_COLORS = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#64748B']
 const INVOICE_ACTIVE_STATUSES = new Set(['Unpaid', 'PartiallyPaid', 'Paid'])
+const STOCK_SELLING_MARKUP_RATE = 0.067
 
 const panelStyle = {
   background: 'transparent',
@@ -243,6 +245,23 @@ async function safe(promise, fallback) {
   }
 }
 
+async function loadAllStockLocations() {
+  const firstPage = await inventoryService.listStockLocations({ page: 1, pageSize: 100 })
+  const locations = [...(firstPage.items || [])]
+  const totalPages = Number(firstPage.totalPages || 1)
+
+  if (totalPages > 1) {
+    const remainingPages = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, index) =>
+        inventoryService.listStockLocations({ page: index + 2, pageSize: 100 })
+      )
+    )
+    remainingPages.forEach((page) => locations.push(...(page.items || [])))
+  }
+
+  return locations
+}
+
 function useDashboardData() {
   const [state, setState] = useState({
     isLoading: true,
@@ -250,6 +269,7 @@ function useDashboardData() {
     sessions: [],
     customerAccounts: [],
     activeBatches: [],
+    stockLocations: [],
     appliedLoadings: [],
   })
 
@@ -260,20 +280,22 @@ function useDashboardData() {
     const { from, to } = isoRange(windowStart, today)
 
     async function load() {
-      const [invoices, sessions, customerAccounts, activeBatches, appliedLoadings] = await Promise.all([
-        safe(salesService.listInvoices({ from, to, pageSize: 1000 }), []),
-        safe(
-          collectionsService.listCollectionSessions({
-            from: windowStart.format('YYYY-MM-DD'),
-            to: today.format('YYYY-MM-DD'),
-            pageSize: 500,
-          }),
-          []
-        ),
-        safe(collectionsService.listCustomerAccounts({ pageSize: 200 }), []),
-        safe(inventoryService.listActiveStockBatches(), []),
-        safe(inventoryService.listVehicleLoadings({ status: 2 }), []),
-      ])
+      const [invoices, sessions, customerAccounts, activeBatches, stockLocations, appliedLoadings] =
+        await Promise.all([
+          safe(salesService.listInvoices({ from, to, pageSize: 1000 }), []),
+          safe(
+            collectionsService.listCollectionSessions({
+              from: windowStart.format('YYYY-MM-DD'),
+              to: today.format('YYYY-MM-DD'),
+              pageSize: 500,
+            }),
+            []
+          ),
+          safe(collectionsService.listCustomerAccounts({ pageSize: 200 }), []),
+          safe(inventoryService.listActiveStockBatches(), []),
+          safe(loadAllStockLocations(), []),
+          safe(inventoryService.listVehicleLoadings({ status: 2 }), []),
+        ])
 
       if (!active) return
       setState({
@@ -282,6 +304,7 @@ function useDashboardData() {
         sessions,
         customerAccounts,
         activeBatches,
+        stockLocations,
         appliedLoadings,
       })
     }
@@ -404,15 +427,28 @@ export default function DashboardPage() {
 
   const stockStats = useMemo(() => {
     const byProduct = new Map()
+    const locationById = new Map(
+      data.stockLocations.map((location) => [location.id, location])
+    )
     let value = 0
+    let sellingValue = 0
+
     for (const batch of data.activeBatches) {
       const qty = Number(batch.qtyAvailable || 0)
       if (qty <= 0) continue
-      value += qty * Number(batch.unitCostSmallest || 0)
+
+      const unitCost = Number(batch.unitCostSmallest || 0)
+      const location = locationById.get(batch.stockLocationId)
+      const isMainStock = !location?.isVehicle && !location?.isReturnLocation
+
+      value += qty * unitCost
+      if (isMainStock) {
+        sellingValue += qty * (unitCost + unitCost * STOCK_SELLING_MARKUP_RATE)
+      }
       byProduct.set(batch.productId, (byProduct.get(batch.productId) || 0) + qty)
     }
-    return { value, skuCount: byProduct.size }
-  }, [data.activeBatches])
+    return { value, sellingValue, skuCount: byProduct.size }
+  }, [data.activeBatches, data.stockLocations])
 
   const todaysAppliedLoadings = useMemo(
     () => data.appliedLoadings.filter((l) => dayjs(l.loadingDate).format('YYYY-MM-DD') === todayStr),
@@ -458,7 +494,7 @@ export default function DashboardPage() {
 
       {/* Metric Cards Row */}
       <section
-        className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-y-0"
+        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-y-4 xl:gap-y-0"
         style={{ background: 'transparent', padding: '8px 0' }}
       >
         <div className="relative">
@@ -470,8 +506,8 @@ export default function DashboardPage() {
             trend={salesTrend}
             isLoading={isLoading}
           />
-          <DividerRight />
-          <DividerBottom />
+          <DividerRight className="hidden xl:block" />
+          <DividerBottom className="block xl:hidden" />
         </div>
 
         <div className="relative">
@@ -482,8 +518,8 @@ export default function DashboardPage() {
             tone="neutral"
             isLoading={isLoading}
           />
-          <DividerRight />
-          <DividerBottom />
+          <DividerRight className="hidden xl:block" />
+          <DividerBottom className="block xl:hidden" />
         </div>
 
         <div className="relative">
@@ -494,8 +530,20 @@ export default function DashboardPage() {
             tone="neutral"
             isLoading={isLoading}
           />
-          <DividerRight />
-          <DividerBottom />
+          <DividerRight className="hidden xl:block" />
+          <DividerBottom className="block xl:hidden" />
+        </div>
+
+        <div className="relative">
+          <MetricCard
+            title="Stock Selling Value"
+            value={formatLKRShort(stockStats.sellingValue)}
+            detail={`Main stock at batch cost + 6.7% | Full value ${formatLKR(stockStats.sellingValue)}`}
+            tone="neutral"
+            isLoading={isLoading}
+          />
+          <DividerRight className="hidden xl:block" />
+          <DividerBottom className="block xl:hidden" />
         </div>
 
         <div className="relative">
