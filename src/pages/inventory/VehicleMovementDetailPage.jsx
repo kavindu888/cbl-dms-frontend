@@ -1,5 +1,5 @@
 import { ArrowLeft, CheckCircle2, PackageX, Pencil, Plus, Search, Trash2, Wrench, X, XCircle } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import EmptyState from '@components/ui/EmptyState'
@@ -364,7 +364,8 @@ export default function VehicleMovementDetailPage({
   const autoRepairLoadingLines = useAutoRepairVehicleLoadingLines(id)
   const [deliveryRuns, setDeliveryRuns] = useState([])
   const [productById, setProductById] = useState({})
-  const [categoryDiscounts, setCategoryDiscounts] = useState([])
+  const [categoryDiscountByCategoryId, setCategoryDiscountByCategoryId] = useState({})
+  const fetchedCategoryDiscountIdsRef = useRef(new Set())
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [createdByName, setCreatedByName] = useState('')
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false)
@@ -428,15 +429,6 @@ export default function VehicleMovementDetailPage({
   const deliveryRunById = useMemo(
     () => Object.fromEntries(deliveryRuns.map((run) => [run.id, run])),
     [deliveryRuns]
-  )
-  const categoryDiscountByCategoryId = useMemo(
-    () =>
-      Object.fromEntries(
-        categoryDiscounts
-          .filter((discount) => discount.isActive !== false)
-          .map((discount) => [discount.categoryId, Number(discount.discountPercent || 0)])
-      ),
-    [categoryDiscounts]
   )
   function resolveLineCategoryDiscount(line) {
     const categoryId = productById[line.productId]?.categoryId
@@ -566,25 +558,39 @@ export default function VehicleMovementDetailPage({
   }, [movement?.lines])
 
   // Category discount is a standing, category-wide rate (not tied to a customer/order), so unlike
-  // SKU/special discounts it's already knowable at load/unload time — pull it in once so selling
-  // price can reflect it the same way an invoice line would.
+  // SKU/special discounts it's already knowable at load/unload time. Resolved per-category via the
+  // same single-category endpoint InvoiceCreatorPage already uses successfully for real invoicing
+  // (masterService.getCategoryDiscount), rather than listing+matching client-side, cached by
+  // category id so each distinct category is only fetched once.
   useEffect(() => {
+    const neededCategoryIds = new Set()
+    for (const line of movement?.lines || []) {
+      const categoryId = productById[line.productId]?.categoryId
+      if (categoryId) neededCategoryIds.add(categoryId)
+    }
+    const missing = [...neededCategoryIds].filter(
+      (categoryId) => !fetchedCategoryDiscountIdsRef.current.has(categoryId)
+    )
+    if (!missing.length) return undefined
+    missing.forEach((categoryId) => fetchedCategoryDiscountIdsRef.current.add(categoryId))
+
     let active = true
-    masterService
-      .listCategoryDiscounts()
-      .then((items) => {
-        if (active) setCategoryDiscounts(items || [])
+    Promise.all(
+      missing.map((categoryId) => masterService.getCategoryDiscount(categoryId).catch(() => null))
+    ).then((results) => {
+      if (!active) return
+      setCategoryDiscountByCategoryId((current) => {
+        const next = { ...current }
+        missing.forEach((categoryId, index) => {
+          next[categoryId] = results[index] || 0
+        })
+        return next
       })
-      .catch((error) => {
-        if (active) {
-          setCategoryDiscounts([])
-          toast.error(error.message || 'Unable to load category discounts.')
-        }
-      })
+    })
     return () => {
       active = false
     }
-  }, [])
+  }, [movement?.lines, productById])
 
   async function handleApply(event) {
     event.preventDefault()
