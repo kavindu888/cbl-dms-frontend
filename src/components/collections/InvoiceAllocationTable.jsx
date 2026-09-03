@@ -1,6 +1,11 @@
-import { WandSparkles } from 'lucide-react'
+import { Search, WandSparkles } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { formatDate } from '@/utils'
 import { money } from '@/pages/collections/collectionsUi'
+
+// The number a customer actually recognizes is the serial number they were handed on the printed
+// invoice — the system-generated invoice number is an internal reference they rarely quote back.
+const invoiceLabel = (invoice) => invoice.serialNumber || invoice.invoiceNumber
 
 export default function InvoiceAllocationTable({
   invoices = [],
@@ -8,6 +13,16 @@ export default function InvoiceAllocationTable({
   onChange,
   totalPayment,
 }) {
+  const [search, setSearch] = useState('')
+  const filteredInvoices = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return invoices
+    return invoices.filter((invoice) =>
+      [invoice.serialNumber, invoice.invoiceNumber]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(query))
+    )
+  }, [invoices, search])
   const setAllocation = (invoice, amount) => {
     const numeric = Math.max(
       0,
@@ -18,6 +33,7 @@ export default function InvoiceAllocationTable({
       next.push({
         invoiceId: invoice.invoiceId,
         invoiceNumber: invoice.invoiceNumber,
+        serialNumber: invoice.serialNumber,
         outstanding: Number(invoice.outstandingAmount || 0),
         allocated: amount === '' ? '' : String(numeric),
       })
@@ -40,6 +56,7 @@ export default function InvoiceAllocationTable({
           next.push({
             invoiceId: invoice.invoiceId,
             invoiceNumber: invoice.invoiceNumber,
+            serialNumber: invoice.serialNumber,
             outstanding: Number(invoice.outstandingAmount || 0),
             allocated: allocated.toFixed(2),
           })
@@ -72,6 +89,25 @@ export default function InvoiceAllocationTable({
           <WandSparkles size={13} /> Auto-allocate oldest first
         </button>
       </div>
+      <div style={{ position: 'relative', marginBottom: 8 }}>
+        <Search
+          size={14}
+          style={{
+            position: 'absolute',
+            left: 10,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--color-text-dim)',
+          }}
+        />
+        <input
+          className="form-input"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search by serial number..."
+          style={{ paddingLeft: 32, height: 34 }}
+        />
+      </div>
       <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 8 }}>
         <table className="data-table" style={{ minWidth: 720 }}>
           <thead>
@@ -85,13 +121,20 @@ export default function InvoiceAllocationTable({
             </tr>
           </thead>
           <tbody>
-            {invoices.map((invoice) => {
+            {filteredInvoices.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                  No invoices match "{search}".
+                </td>
+              </tr>
+            ) : null}
+            {filteredInvoices.map((invoice) => {
               const allocation = allocations.find((row) => row.invoiceId === invoice.invoiceId)
               return (
                 <tr key={invoice.invoiceId}>
                   <td>
                     <span className="mono" style={{ color: 'var(--color-amber)', fontWeight: 700 }}>
-                      {invoice.invoiceNumber}
+                      {invoiceLabel(invoice)}
                     </span>
                     {invoice.status === 'PartiallyPaid' ? (
                       <span

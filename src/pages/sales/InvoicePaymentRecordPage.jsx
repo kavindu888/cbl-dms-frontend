@@ -136,6 +136,7 @@ export default function InvoicePaymentRecordPage() {
         if (!query) return true
 
         return (
+          invoice.serialNumber?.toLowerCase().includes(query) ||
           invoice.invoiceNumber?.toLowerCase().includes(query) ||
           customerNameById[invoice.customerId]?.toLowerCase().includes(query) ||
           invoice.customerId?.toLowerCase().includes(query) ||
@@ -360,7 +361,7 @@ export default function InvoicePaymentRecordPage() {
                     className="form-input"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search invoice or customer"
+                    placeholder="Search serial number, invoice, or customer"
                     style={{ paddingLeft: 38 }}
                   />
                 </div>
@@ -433,7 +434,7 @@ export default function InvoicePaymentRecordPage() {
                             >
                               <td>
                                 <span className="mono" style={{ fontWeight: 700 }}>
-                                  {invoice.invoiceNumber}
+                                  {invoice.serialNumber || invoice.invoiceNumber}
                                 </span>
                               </td>
                               <td>
@@ -531,7 +532,7 @@ export default function InvoicePaymentRecordPage() {
                         <h2 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>
                           Invoice Details:{' '}
                           <span className="mono" style={{ color: 'var(--color-amber)' }}>
-                            {selectedInvoice.invoiceNumber}
+                            {selectedInvoice.serialNumber || selectedInvoice.invoiceNumber}
                           </span>
                         </h2>
                       </div>
@@ -554,7 +555,10 @@ export default function InvoicePaymentRecordPage() {
                         gap: 10,
                       }}
                     >
-                      <DetailItem label="Invoice No" value={selectedInvoice.invoiceNumber} />
+                      <DetailItem
+                        label="Invoice No"
+                        value={selectedInvoice.serialNumber || selectedInvoice.invoiceNumber}
+                      />
                       <DetailItem
                         label="Customer"
                         value={

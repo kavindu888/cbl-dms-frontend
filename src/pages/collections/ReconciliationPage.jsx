@@ -205,7 +205,7 @@ export default function ReconciliationPage() {
                               <td style={{ paddingLeft: 42 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                                   <span className="mono" style={{ color: 'var(--color-cyan)' }}>
-                                    {invoice.invoiceNumber}
+                                    {invoice.serialNumber || invoice.invoiceNumber}
                                   </span>
                                   <StatusBadge status={invoice.status} />
                                 </div>
