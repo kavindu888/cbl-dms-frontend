@@ -4,7 +4,14 @@ import { Link, useParams } from 'react-router-dom'
 import ConfirmDialog from '@components/ui/ConfirmDialog'
 import StatusBadge from '@components/ui/StatusBadge'
 import { BankTransfersTab, CashTab, ChequesTab } from '@/components/collections/PaymentTabs'
-import { useCloseSession, useCollectionSession, useVerifySession } from '@/hooks/useCollections'
+import {
+  useCloseSession,
+  useCollectionSession,
+  useCollectors,
+  useSalesmen,
+  useVerifySession,
+  useVehicles,
+} from '@/hooks/useCollections'
 import { formatDate, formatDateTime } from '@/utils'
 import { Blank, Busy, Metric, PageTitle, Problem, money } from './collectionsUi'
 
@@ -21,6 +28,9 @@ export default function CollectionSessionDetailPage() {
   const session = useCollectionSession(id)
   const close = useCloseSession()
   const verify = useVerifySession()
+  const collectors = useCollectors()
+  const salesmen = useSalesmen()
+  const vehicles = useVehicles()
 
   if (session.isLoading) return <Busy label="Loading collection session..." />
   if (session.isError) return <Problem error={session.error} />
@@ -28,6 +38,12 @@ export default function CollectionSessionDetailPage() {
 
   const data = session.data
   const isOpen = data.status === 'Open'
+  const collectorName =
+    (collectors.data || []).find((c) => c.id === data.collectorId)?.name || data.collectorId
+  const salesmanName =
+    (salesmen.data || []).find((s) => s.id === data.salesmanId)?.name || data.salesmanId
+  const vehicleName =
+    (vehicles.data || []).find((v) => v.id === data.vehicleId)?.name || data.vehicleId
   const transferEntries = (data.collections || []).filter(
     (entry) => entry.method === 'BankTransfer'
   )
@@ -49,7 +65,7 @@ export default function CollectionSessionDetailPage() {
       </Link>
       <PageTitle
         title={data.sessionNumber}
-        subtitle={`${formatDate(data.sessionDate)} · Route ${data.routeId}`}
+        subtitle={`${formatDate(data.sessionDate)} · Collector ${collectorName} · Salesman ${salesmanName} · Vehicle ${vehicleName}`}
         actions={
           <>
             <StatusBadge status={data.status} />
@@ -119,28 +135,13 @@ export default function CollectionSessionDetailPage() {
             </div>
           ) : null}
           {tab === 'cash' ? (
-            <CashTab
-              sessionId={id}
-              routeId={data.routeId}
-              disabled={!isOpen}
-              onRecorded={session.refetch}
-            />
+            <CashTab sessionId={id} disabled={!isOpen} onRecorded={session.refetch} />
           ) : null}
           {tab === 'cheques' ? (
-            <ChequesTab
-              sessionId={id}
-              routeId={data.routeId}
-              disabled={!isOpen}
-              onRecorded={session.refetch}
-            />
+            <ChequesTab sessionId={id} disabled={!isOpen} onRecorded={session.refetch} />
           ) : null}
           {tab === 'transfers' ? (
-            <BankTransfersTab
-              sessionId={id}
-              routeId={data.routeId}
-              disabled={!isOpen}
-              onRecorded={session.refetch}
-            />
+            <BankTransfersTab sessionId={id} disabled={!isOpen} onRecorded={session.refetch} />
           ) : null}
         </main>
         <aside className="panel" style={{ padding: 16, position: 'sticky', top: 12 }}>

@@ -47,6 +47,26 @@ export const addBankBranch = (bankId, data) =>
 export const deactivateBank = (bankId) =>
   value(collectionsV1Axios.delete(`/banks/${bankId}`), 'Failed to deactivate bank')
 
+// Collectors
+export const listCollectors = () =>
+  value(collectionsV1Axios.get('/collectors'), 'Failed to load collectors')
+export const createCollector = (data) =>
+  value(collectionsV1Axios.post('/collectors', data), 'Failed to add collector')
+export const deactivateCollector = (id) =>
+  value(collectionsV1Axios.post(`/collectors/${id}/deactivate`), 'Failed to deactivate collector')
+export const activateCollector = (id) =>
+  value(collectionsV1Axios.post(`/collectors/${id}/activate`), 'Failed to activate collector')
+
+// Salesmen
+export const listSalesmen = () =>
+  value(collectionsV1Axios.get('/salesmen'), 'Failed to load salesmen')
+export const createSalesman = (data) =>
+  value(collectionsV1Axios.post('/salesmen', data), 'Failed to add salesman')
+export const deactivateSalesman = (id) =>
+  value(collectionsV1Axios.post(`/salesmen/${id}/deactivate`), 'Failed to deactivate salesman')
+export const activateSalesman = (id) =>
+  value(collectionsV1Axios.post(`/salesmen/${id}/activate`), 'Failed to activate salesman')
+
 // Collection sessions
 export const createCollectionSession = (data) =>
   value(collectionsAxios.post('/sessions', data), 'Failed to create session')
@@ -67,6 +87,11 @@ export const getOutstandingInvoices = (customerId, params) =>
   value(
     collectionsV1Axios.get('/outstanding-invoices', { params: { customerId, ...params } }),
     'Failed to load outstanding invoices'
+  )
+export const searchOutstandingInvoices = (search) =>
+  value(
+    collectionsV1Axios.get('/outstanding-invoices/search', { params: { search } }),
+    'Failed to search bills'
   )
 export const recordCashPayment = (data) =>
   value(collectionsV1Axios.post('/payments/cash', data), 'Failed to record cash payment')

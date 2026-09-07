@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import * as api from '@/api/collectionsApi'
+import { inventoryService } from '@/services/api/inventoryService'
 
 const errorMessage = (error, fallback) => error?.message || fallback
 const invalidatePayments = (qc) => {
@@ -44,6 +45,71 @@ export const useAddBankBranch = () => {
     onError: (error) => toast.error(errorMessage(error, 'Failed to add branch')),
   })
 }
+
+// Collectors
+export const useCollectors = () =>
+  useQuery({ queryKey: ['collectors'], queryFn: () => api.listCollectors(), staleTime: 300_000 })
+export const useCreateCollector = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.createCollector,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['collectors'] })
+      toast.success('Collector added')
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to add collector')),
+  })
+}
+export const useSetCollectorActive = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, isActive }) =>
+      isActive ? api.activateCollector(id) : api.deactivateCollector(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['collectors'] })
+      toast.success('Collector updated')
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to update collector')),
+  })
+}
+
+// Salesmen
+export const useSalesmen = () =>
+  useQuery({ queryKey: ['salesmen'], queryFn: () => api.listSalesmen(), staleTime: 300_000 })
+export const useCreateSalesman = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.createSalesman,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['salesmen'] })
+      toast.success('Salesman added')
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to add salesman')),
+  })
+}
+export const useSetSalesmanActive = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, isActive }) =>
+      isActive ? api.activateSalesman(id) : api.deactivateSalesman(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['salesmen'] })
+      toast.success('Salesman updated')
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to update salesman')),
+  })
+}
+
+// Vehicles (stock locations flagged as vehicles in Inventory)
+export const useVehicles = () =>
+  useQuery({
+    queryKey: ['collections-vehicles'],
+    queryFn: async () => {
+      const page = await inventoryService.listStockLocations({ pageSize: 200, isActive: true })
+      return (page.items || []).filter((location) => location.isVehicle)
+    },
+    staleTime: 300_000,
+  })
 
 // Sessions
 export const useCollectionSessions = (params = {}) =>
@@ -111,6 +177,14 @@ export const useOutstandingInvoices = (customerId) =>
     queryKey: ['outstanding-invoices', customerId],
     queryFn: () => api.getOutstandingInvoices(customerId),
     enabled: Boolean(customerId),
+    staleTime: 10_000,
+    retry: false,
+  })
+export const useSearchOutstandingInvoices = (search) =>
+  useQuery({
+    queryKey: ['outstanding-invoices-search', search],
+    queryFn: () => api.searchOutstandingInvoices(search),
+    enabled: Boolean(search && search.trim().length >= 2),
     staleTime: 10_000,
     retry: false,
   })

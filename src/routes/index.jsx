@@ -7,9 +7,11 @@ import BankManagementPage from '@pages/collections/BankManagementPage'
 import ChequesPage from '@pages/collections/ChequesPage'
 import CollectionSessionDetailPage from '@pages/collections/CollectionSessionDetailPage'
 import CollectionSessionsPage from '@pages/collections/CollectionSessionsPage'
+import CollectorsPage from '@pages/collections/CollectorsPage'
 import CustomerAccountPage from '@pages/collections/CustomerAccountPage'
 import DepositBatchesPage from '@pages/collections/DepositBatchesPage'
 import ReconciliationPage from '@pages/collections/ReconciliationPage'
+import SalesmenPage from '@pages/collections/SalesmenPage'
 import DashboardPage from '@pages/dashboard/DashboardPage'
 import FleetOverviewPage from '@pages/fleet/FleetOverviewPage'
 import VehicleDetailPage from '@pages/fleet/VehicleDetailPage'
@@ -532,6 +534,20 @@ export const router = createBrowserRouter([
       {
         path: 'collections/banks',
         element: requirePermission(<BankManagementPage />, PERMISSIONS.collections.bankManage),
+      },
+      {
+        path: 'collections/collectors',
+        element: requirePermission(<CollectorsPage />, [
+          PERMISSIONS.collections.sessionCreate,
+          PERMISSIONS.collections.collectorManage,
+        ]),
+      },
+      {
+        path: 'collections/salesmen',
+        element: requirePermission(<SalesmenPage />, [
+          PERMISSIONS.collections.sessionCreate,
+          PERMISSIONS.collections.salesmanManage,
+        ]),
       },
       {
         path: 'fleet',

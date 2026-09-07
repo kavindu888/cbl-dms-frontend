@@ -99,6 +99,8 @@
     customerAccountManage: 'collections:customeraccount:manage',
     reconciliationRead: 'collections:reconciliation:read',
     bankManage: 'collections:bank:manage',
+    collectorManage: 'collections:collector:manage',
+    salesmanManage: 'collections:salesman:manage',
   },
   fleet: {
     vehicleRead: 'fleet:vehicle:read',

@@ -10,8 +10,11 @@ import {
   useRecordChequePayment,
 } from '@/hooks/useCollections'
 import { colomboToday, inputStyle, isPostDated, money } from '@/pages/collections/collectionsUi'
-import CustomerSelector from './CustomerSelector'
+import BillSearch from './BillSearch'
 import InvoiceAllocationTable from './InvoiceAllocationTable'
+
+const toCustomer = (bill) =>
+  bill ? { id: bill.customerId, name: bill.customerName, code: bill.customerCode } : null
 
 const DENOMINATIONS = [5000, 2000, 1000, 500, 100, 50, 20, 10, 1]
 const allocationTotal = (rows) => rows.reduce((sum, row) => sum + Number(row.allocated || 0), 0)
@@ -63,10 +66,11 @@ function AllocationSection({ customer, total, allocations, setAllocations }) {
   )
 }
 
-export function CashTab({ sessionId, routeId, disabled, onRecorded }) {
+export function CashTab({ sessionId, disabled, onRecorded }) {
   const [counts, setCounts] = useState({})
-  const [customer, setCustomer] = useState(null)
+  const [bill, setBill] = useState(null)
   const [allocations, setAllocations] = useState([])
+  const customer = toCustomer(bill)
   const mutation = useRecordCashPayment()
   const total = DENOMINATIONS.reduce(
     (sum, denomination) => sum + denomination * Number(counts[denomination] || 0),
@@ -89,7 +93,7 @@ export function CashTab({ sessionId, routeId, disabled, onRecorded }) {
       allocations: payloadAllocations(allocations),
     })
     setCounts({})
-    setCustomer(null)
+    setBill(null)
     setAllocations([])
     onRecorded?.()
   }
@@ -159,18 +163,17 @@ export function CashTab({ sessionId, routeId, disabled, onRecorded }) {
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 800 }}>Allocate to invoices</h3>
             <p style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
-              Select a customer and assign cash to their outstanding invoices.
+              Search a bill, then assign cash to that customer's outstanding invoices.
             </p>
           </div>
           <label>
-            <span className="form-label">Customer *</span>
-            <CustomerSelector
-              value={customer}
+            <span className="form-label">Bill *</span>
+            <BillSearch
+              value={bill}
               onChange={(next) => {
-                setCustomer(next)
+                setBill(next)
                 setAllocations([])
               }}
-              routeId={routeId}
             />
           </label>
           {customer ? (
@@ -246,8 +249,9 @@ function BankFields({ bankId, setBankId, branchId, setBranchId, requireBranch = 
   )
 }
 
-export function ChequesTab({ sessionId, routeId, disabled, onRecorded }) {
-  const [customer, setCustomer] = useState(null)
+export function ChequesTab({ sessionId, disabled, onRecorded }) {
+  const [bill, setBill] = useState(null)
+  const customer = toCustomer(bill)
   const [form, setForm] = useState({
     chequeNumber: '',
     drawerName: '',
@@ -284,7 +288,7 @@ export function ChequesTab({ sessionId, routeId, disabled, onRecorded }) {
       branchName: branch?.name || null,
       notes: form.notes || null,
     })
-    setCustomer(null)
+    setBill(null)
     setAllocations([])
     setForm({
       chequeNumber: '',
@@ -302,14 +306,13 @@ export function ChequesTab({ sessionId, routeId, disabled, onRecorded }) {
     <form onSubmit={submit} className="panel" style={{ padding: 16, display: 'grid', gap: 14 }}>
       <h3 style={{ fontSize: 14, fontWeight: 800 }}>Record cheque</h3>
       <label>
-        <span className="form-label">Customer *</span>
-        <CustomerSelector
-          value={customer}
+        <span className="form-label">Bill *</span>
+        <BillSearch
+          value={bill}
           onChange={(next) => {
-            setCustomer(next)
+            setBill(next)
             setAllocations([])
           }}
-          routeId={routeId}
         />
       </label>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -406,8 +409,9 @@ export function ChequesTab({ sessionId, routeId, disabled, onRecorded }) {
   )
 }
 
-export function BankTransfersTab({ sessionId, routeId, disabled, onRecorded }) {
-  const [customer, setCustomer] = useState(null)
+export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
+  const [bill, setBill] = useState(null)
+  const customer = toCustomer(bill)
   const [form, setForm] = useState({
     bankId: '',
     branchId: '',
@@ -435,7 +439,7 @@ export function BankTransfersTab({ sessionId, routeId, disabled, onRecorded }) {
       allocations: payloadAllocations(allocations),
       notes: form.notes || null,
     })
-    setCustomer(null)
+    setBill(null)
     setAllocations([])
     setForm({
       bankId: '',
@@ -451,14 +455,13 @@ export function BankTransfersTab({ sessionId, routeId, disabled, onRecorded }) {
     <form onSubmit={submit} className="panel" style={{ padding: 16, display: 'grid', gap: 14 }}>
       <h3 style={{ fontSize: 14, fontWeight: 800 }}>Record bank transfer</h3>
       <label>
-        <span className="form-label">Customer *</span>
-        <CustomerSelector
-          value={customer}
+        <span className="form-label">Bill *</span>
+        <BillSearch
+          value={bill}
           onChange={(next) => {
-            setCustomer(next)
+            setBill(next)
             setAllocations([])
           }}
-          routeId={routeId}
         />
       </label>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

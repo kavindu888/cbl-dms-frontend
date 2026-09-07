@@ -1,13 +1,12 @@
-import { useQuery } from '@tanstack/react-query'
 import {
   CalendarDays,
   Check,
   ChevronRight,
   LoaderCircle,
-  MapPin,
   Plus,
-  Route,
   Search,
+  Truck,
+  User,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -15,8 +14,13 @@ import { useNavigate } from 'react-router-dom'
 import Modal from '@components/ui/Modal'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
-import { useCollectionSessions, useCreateCollectionSession } from '@/hooks/useCollections'
-import { masterService } from '@/services/api/masterService'
+import {
+  useCollectionSessions,
+  useCollectors,
+  useCreateCollectionSession,
+  useSalesmen,
+  useVehicles,
+} from '@/hooks/useCollections'
 import { formatDate } from '@/utils'
 import {
   Blank,
@@ -30,56 +34,44 @@ import {
 } from './collectionsUi'
 
 const PAGE_SIZE = 12
+const emptyForm = { collectorId: '', salesmanId: '', vehicleId: '', sessionDate: colomboToday() }
 
 export default function CollectionSessionsPage() {
   const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
-  const [routeSearch, setRouteSearch] = useState('')
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ routeId: '', sessionDate: colomboToday() })
+  const [form, setForm] = useState(emptyForm)
   const sessions = useCollectionSessions({ status: status || undefined, page: 1, pageSize: 100 })
-  const routes = useQuery({
-    queryKey: ['master', 'sales-routes', 'collections'],
-    queryFn: async () => {
-      const [territories, allRoutes] = await Promise.all([
-        masterService.listTerritories(),
-        masterService.listAllSalesRoutes(),
-      ])
-      const territoryById = Object.fromEntries(
-        territories.filter((territory) => territory.isActive).map((territory) => [territory.id, territory])
-      )
-      return allRoutes
-        .filter((route) => route.isActive && territoryById[route.territoryId])
-        .map((route) => ({ ...route, territory: territoryById[route.territoryId] }))
-    },
-    staleTime: 60_000,
-  })
+  const collectors = useCollectors()
+  const salesmen = useSalesmen()
+  const vehicles = useVehicles()
   const create = useCreateCollectionSession()
-  const routeById = useMemo(
-    () => Object.fromEntries((routes.data || []).map((route) => [route.id, route])),
-    [routes.data]
+  const collectorById = useMemo(
+    () => Object.fromEntries((collectors.data || []).map((c) => [c.id, c])),
+    [collectors.data]
   )
-  const filteredRoutes = useMemo(() => {
-    const query = routeSearch.trim().toLowerCase()
-    if (!query) return routes.data || []
-    return (routes.data || []).filter((route) =>
-      `${route.code} ${route.name} ${route.territory?.name}`.toLowerCase().includes(query)
-    )
-  }, [routeSearch, routes.data])
+  const salesmanById = useMemo(
+    () => Object.fromEntries((salesmen.data || []).map((s) => [s.id, s])),
+    [salesmen.data]
+  )
+  const vehicleById = useMemo(
+    () => Object.fromEntries((vehicles.data || []).map((v) => [v.id, v])),
+    [vehicles.data]
+  )
   const filtered = useMemo(
     () =>
       (sessions.data || []).filter((row) => {
-        const route = routeById[row.routeId]
+        const collector = collectorById[row.collectorId]
         const q = search.trim().toLowerCase()
         return (
           !q ||
           row.sessionNumber?.toLowerCase().includes(q) ||
-          route?.name?.toLowerCase().includes(q)
+          collector?.name?.toLowerCase().includes(q)
         )
       }),
-    [routeById, search, sessions.data]
+    [collectorById, search, sessions.data]
   )
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const totals = useMemo(
@@ -100,10 +92,10 @@ export default function CollectionSessionsPage() {
     event.preventDefault()
     const id = await create.mutateAsync(form)
     setOpen(false)
-    setRouteSearch('')
-    setForm({ routeId: '', sessionDate: colomboToday() })
+    setForm(emptyForm)
     if (id) navigate(`/collections/sessions/${id}`)
   }
+  const canOpen = form.collectorId && form.salesmanId && form.vehicleId
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -172,8 +164,9 @@ export default function CollectionSessionsPage() {
                 <thead>
                   <tr>
                     <th>Session</th>
-                    <th>Route</th>
-                    <th>Sales rep</th>
+                    <th>Collector</th>
+                    <th>Salesman</th>
+                    <th>Vehicle</th>
                     <th>Date</th>
                     <th>Status</th>
                     <th style={{ textAlign: 'right' }}>Cash</th>
@@ -193,10 +186,9 @@ export default function CollectionSessionsPage() {
                       <td className="mono" style={{ color: 'var(--color-amber)', fontWeight: 700 }}>
                         {row.sessionNumber}
                       </td>
-                      <td>{routeById[row.routeId]?.name || row.routeId}</td>
-                      <td className="mono" style={{ fontSize: 11 }}>
-                        {row.salesRepId || '—'}
-                      </td>
+                      <td>{collectorById[row.collectorId]?.name || row.collectorId}</td>
+                      <td>{salesmanById[row.salesmanId]?.name || row.salesmanId}</td>
+                      <td>{vehicleById[row.vehicleId]?.name || row.vehicleId}</td>
                       <td>
                         <CalendarDays size={13} style={{ display: 'inline', marginRight: 6 }} />
                         {formatDate(row.sessionDate)}
@@ -245,10 +237,10 @@ export default function CollectionSessionsPage() {
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen)
-          if (!nextOpen) setRouteSearch('')
+          if (!nextOpen) setForm(emptyForm)
         }}
         title="Open collection session"
-        description="Start a daily session for a sales route."
+        description="Start a session for a collector, salesman, and vehicle."
         showHeader={false}
         maxWidth="620px"
         contentStyle={{ padding: 0, overflow: 'hidden' }}
@@ -256,13 +248,29 @@ export default function CollectionSessionsPage() {
         <form id="new-session-form" onSubmit={submit}>
           <SessionModalHeader onClose={() => setOpen(false)} />
           <div style={{ padding: '18px 22px 20px', display: 'grid', gap: 18 }}>
-            <RoutePicker
-              query={routeSearch}
-              onQueryChange={setRouteSearch}
-              routesQuery={routes}
-              routes={filteredRoutes}
-              selectedId={form.routeId}
-              onSelect={(routeId) => setForm({ ...form, routeId })}
+            <EntityPicker
+              label="Collector"
+              icon={User}
+              query={collectors}
+              selectedId={form.collectorId}
+              onSelect={(collectorId) => setForm({ ...form, collectorId })}
+              emptyMessage="No active collectors. Register one first."
+            />
+            <EntityPicker
+              label="Salesman"
+              icon={User}
+              query={salesmen}
+              selectedId={form.salesmanId}
+              onSelect={(salesmanId) => setForm({ ...form, salesmanId })}
+              emptyMessage="No active salesmen. Register one first."
+            />
+            <EntityPicker
+              label="Vehicle"
+              icon={Truck}
+              query={vehicles}
+              selectedId={form.vehicleId}
+              onSelect={(vehicleId) => setForm({ ...form, vehicleId })}
+              emptyMessage="No active vehicles. Register a vehicle location first."
             />
             <label>
               <span className="form-label">Session date</span>
@@ -288,16 +296,13 @@ export default function CollectionSessionsPage() {
             }}
           >
             <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-              {form.routeId ? routeById[form.routeId]?.name : 'Select a route to continue'}
+              {canOpen ? 'Ready to open' : 'Select a collector, salesman, and vehicle'}
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" className="button-secondary" onClick={() => setOpen(false)}>
                 Cancel
               </button>
-              <button
-                className="button-primary"
-                disabled={create.isPending || !form.routeId || routes.isLoading}
-              >
+              <button className="button-primary" disabled={create.isPending || !canOpen}>
                 {create.isPending ? 'Opening...' : 'Open session'}
               </button>
             </div>
@@ -336,14 +341,14 @@ function SessionModalHeader({ onClose }) {
             border: '1px solid color-mix(in srgb, var(--color-amber) 24%, var(--color-border))',
           }}
         >
-          <Route size={19} />
+          <User size={19} />
         </div>
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.25 }}>
             Open collection session
           </h2>
           <p style={{ marginTop: 5, fontSize: 12, color: 'var(--color-text-muted)' }}>
-            Choose today&apos;s sales route and collection date.
+            Choose the collector, salesman, vehicle, and collection date.
           </p>
         </div>
       </div>
@@ -360,7 +365,17 @@ function SessionModalHeader({ onClose }) {
   )
 }
 
-function RoutePicker({ query, onQueryChange, routesQuery, routes, selectedId, onSelect }) {
+function EntityPicker({ label, icon: Icon, query, selectedId, onSelect, emptyMessage }) {
+  const [search, setSearch] = useState('')
+  const items = useMemo(() => {
+    const list = query.data || []
+    const q = search.trim().toLowerCase()
+    if (!q) return list
+    return list.filter((item) =>
+      `${item.name} ${item.code || ''}`.toLowerCase().includes(q)
+    )
+  }, [query.data, search])
+
   return (
     <div>
       <div
@@ -373,10 +388,10 @@ function RoutePicker({ query, onQueryChange, routesQuery, routes, selectedId, on
         }}
       >
         <span className="form-label" style={{ margin: 0 }}>
-          Sales route
+          {label}
         </span>
         <span style={{ fontSize: 10, color: 'var(--color-text-dim)' }}>
-          {routesQuery.isLoading ? 'Loading routes…' : `${routesQuery.data?.length || 0} available`}
+          {query.isLoading ? 'Loading…' : `${query.data?.length || 0} available`}
         </span>
       </div>
       <div style={{ position: 'relative' }}>
@@ -392,16 +407,16 @@ function RoutePicker({ query, onQueryChange, routesQuery, routes, selectedId, on
         />
         <input
           className="form-input"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search route, code, or territory"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={`Search ${label.toLowerCase()}`}
           style={{ ...inputStyle, height: 40, paddingLeft: 36 }}
         />
       </div>
       <div
         style={{
-          minHeight: 116,
-          maxHeight: 210,
+          minHeight: 90,
+          maxHeight: 170,
           marginTop: 8,
           padding: 6,
           overflowY: 'auto',
@@ -410,50 +425,45 @@ function RoutePicker({ query, onQueryChange, routesQuery, routes, selectedId, on
           background: 'color-mix(in srgb, var(--color-bg-base) 65%, transparent)',
         }}
       >
-        {routesQuery.isLoading ? (
-          <RouteMessage>
+        {query.isLoading ? (
+          <EntityMessage>
             <LoaderCircle className="customer-code-status-icon--checking" size={16} />
-            Loading sales routes…
-          </RouteMessage>
-        ) : routesQuery.isError ? (
-          <RouteMessage column>
+            Loading {label.toLowerCase()}s…
+          </EntityMessage>
+        ) : query.isError ? (
+          <EntityMessage column>
             <span style={{ color: 'var(--color-danger)' }}>
-              {routesQuery.error?.message || 'Unable to load sales routes.'}
+              {query.error?.message || `Unable to load ${label.toLowerCase()}s.`}
             </span>
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={() => routesQuery.refetch()}
-            >
+            <button type="button" className="button-secondary" onClick={() => query.refetch()}>
               Try again
             </button>
-          </RouteMessage>
-        ) : routes.length ? (
+          </EntityMessage>
+        ) : items.length ? (
           <div style={{ display: 'grid', gap: 5 }}>
-            {routes.map((route) => (
-              <RouteOption
-                key={route.id}
-                route={route}
-                selected={route.id === selectedId}
+            {items.map((item) => (
+              <EntityOption
+                key={item.id}
+                item={item}
+                icon={Icon}
+                selected={item.id === selectedId}
                 onSelect={onSelect}
               />
             ))}
           </div>
         ) : (
-          <RouteMessage>
-            {query ? 'No routes match your search.' : 'No active sales routes found.'}
-          </RouteMessage>
+          <EntityMessage>{search ? `No ${label.toLowerCase()} matches your search.` : emptyMessage}</EntityMessage>
         )}
       </div>
     </div>
   )
 }
 
-function RouteMessage({ children, column = false }) {
+function EntityMessage({ children, column = false }) {
   return (
     <div
       style={{
-        minHeight: 102,
+        minHeight: 78,
         display: 'flex',
         flexDirection: column ? 'column' : 'row',
         alignItems: 'center',
@@ -470,14 +480,14 @@ function RouteMessage({ children, column = false }) {
   )
 }
 
-function RouteOption({ route, selected, onSelect }) {
+function EntityOption({ item, icon: Icon, selected, onSelect }) {
   return (
     <button
       type="button"
-      onClick={() => onSelect(route.id)}
+      onClick={() => onSelect(item.id)}
       style={{
         width: '100%',
-        minHeight: 48,
+        minHeight: 44,
         padding: '8px 10px',
         display: 'flex',
         alignItems: 'center',
@@ -496,8 +506,8 @@ function RouteOption({ route, selected, onSelect }) {
     >
       <div
         style={{
-          width: 30,
-          height: 30,
+          width: 28,
+          height: 28,
           display: 'grid',
           placeItems: 'center',
           flex: '0 0 auto',
@@ -507,7 +517,7 @@ function RouteOption({ route, selected, onSelect }) {
           border: '1px solid var(--color-border)',
         }}
       >
-        <MapPin size={14} />
+        <Icon size={13} />
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
@@ -519,15 +529,16 @@ function RouteOption({ route, selected, onSelect }) {
             fontWeight: 700,
           }}
         >
-          {route.name}
+          {item.name}
         </div>
-        <div
-          className="mono"
-          style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}
-        >
-          {route.code || 'NO CODE'}
-          {route.territory?.name ? ` · ${route.territory.name}` : ''}
-        </div>
+        {item.code || item.phone ? (
+          <div
+            className="mono"
+            style={{ marginTop: 2, fontSize: 10, color: 'var(--color-text-dim)' }}
+          >
+            {item.code || item.phone}
+          </div>
+        ) : null}
       </div>
       {selected ? <Check size={16} color="var(--color-amber)" /> : null}
     </button>

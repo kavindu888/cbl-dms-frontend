@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import AgingBadge from '@/components/collections/AgingBadge'
 import ConfirmDialog from '@components/ui/ConfirmDialog'
 import StatusBadge from '@components/ui/StatusBadge'
-import { useReconciliation, useVerifySession } from '@/hooks/useCollections'
+import { useCollectors, useReconciliation, useVerifySession } from '@/hooks/useCollections'
 import { formatDate } from '@/utils'
 import { Blank, Busy, Metric, PageTitle, Problem, money } from './collectionsUi'
 
@@ -14,6 +14,7 @@ export default function ReconciliationPage() {
   const { id } = useParams()
   const reconciliation = useReconciliation(id)
   const verify = useVerifySession()
+  const collectors = useCollectors()
   const [expandedCustomers, setExpandedCustomers] = useState({})
 
   if (reconciliation.isLoading) return <Busy label="Preparing reconciliation..." />
@@ -21,6 +22,8 @@ export default function ReconciliationPage() {
   const data = reconciliation.data
   if (!data) return <Blank>Session was not found.</Blank>
 
+  const collectorName =
+    (collectors.data || []).find((c) => c.id === data.collectorId)?.name || data.collectorId
   const customers = data.customers || []
   const totalOutstanding = customers.reduce(
     (sum, customer) => sum + Number(customer.outstandingAmount || 0),
@@ -39,7 +42,7 @@ export default function ReconciliationPage() {
     >
       <PageTitle
         title="Daily Reconciliation"
-        subtitle={`${data.sessionNumber} · Route ${data.routeId} · ${formatDate(data.sessionDate)}`}
+        subtitle={`${data.sessionNumber} · Collector ${collectorName} · ${formatDate(data.sessionDate)}`}
         actions={
           <>
             <StatusBadge status={data.status} />

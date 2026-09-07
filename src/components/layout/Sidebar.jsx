@@ -131,6 +131,18 @@ const navGroups = [
         icon: Landmark,
         permissions: PERMISSIONS.collections.bankManage,
       },
+      {
+        label: 'Collectors',
+        to: '/collections/collectors',
+        icon: User,
+        permissions: [PERMISSIONS.collections.sessionCreate, PERMISSIONS.collections.collectorManage],
+      },
+      {
+        label: 'Salesmen',
+        to: '/collections/salesmen',
+        icon: UserCog,
+        permissions: [PERMISSIONS.collections.sessionCreate, PERMISSIONS.collections.salesmanManage],
+      },
     ],
   },
   {
