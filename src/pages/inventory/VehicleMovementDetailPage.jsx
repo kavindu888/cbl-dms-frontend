@@ -378,6 +378,8 @@ export default function VehicleMovementDetailPage({
   const [isAddLineModalOpen, setIsAddLineModalOpen] = useState(false)
   const [reservationsByProductId, setReservationsByProductId] = useState({})
   const [reservationsLoaded, setReservationsLoaded] = useState(false)
+  const [salesReportByProductId, setSalesReportByProductId] = useState({})
+  const [salesReportLoaded, setSalesReportLoaded] = useState(false)
   const [auditProductId, setAuditProductId] = useState(null)
   const vehicle = vehicles.find((item) => item.id === movement?.vehicleLocationId)
   const status = movementStatusLabel(movement?.status)
@@ -546,6 +548,41 @@ export default function VehicleMovementDetailPage({
       active = false
     }
   }, [isUnloading, status, movement?.vehicleLocationId])
+
+  // Audit: which invoices already sold this product off this loading, and how much of what
+  // was loaded is left — the actual consumption ledger, not just live reservations.
+  useEffect(() => {
+    if (isUnloading || status !== 'Applied' || !id) {
+      setSalesReportByProductId({})
+      setSalesReportLoaded(false)
+      return undefined
+    }
+    let active = true
+    inventoryService
+      .getVehicleLoadingSalesReport(id)
+      .then((report) => {
+        if (!active) return
+        const byProduct = {}
+        for (const line of report?.lines || []) {
+          byProduct[line.productId] = {
+            qtySold: line.qtySold,
+            qtyRemaining: line.qtyRemaining,
+            invoices: line.invoices || [],
+          }
+        }
+        setSalesReportByProductId(byProduct)
+        setSalesReportLoaded(true)
+      })
+      .catch(() => {
+        if (active) {
+          setSalesReportByProductId({})
+          setSalesReportLoaded(false)
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [isUnloading, status, id])
 
   useEffect(() => {
     const createdByUserId = movement?.createdByUserId
@@ -1086,12 +1123,14 @@ export default function VehicleMovementDetailPage({
                             }}
                           >
                             🔒 Audit
-                            {(reservationsByProductId[line.productId] || []).length ? (
+                            {(salesReportByProductId[line.productId]?.invoices?.length ||
+                              reservationsByProductId[line.productId]?.length) ? (
                               <span
                                 className="mono"
                                 style={{ color: 'var(--color-amber)', fontWeight: 800 }}
                               >
-                                {reservationsByProductId[line.productId].length}
+                                {(salesReportByProductId[line.productId]?.invoices?.length || 0) +
+                                  (reservationsByProductId[line.productId]?.length || 0)}
                               </span>
                             ) : null}
                           </button>
@@ -1218,33 +1257,95 @@ export default function VehicleMovementDetailPage({
                               <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
                                 Only available once this loading is Applied.
                               </div>
-                            ) : !reservationsLoaded ? (
-                              <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                                Loading reservation data…
-                              </div>
-                            ) : (reservationsByProductId[line.productId] || []).length ? (
-                              <table className="data-table" style={{ minWidth: 320 }}>
-                                <thead>
-                                  <tr>
-                                    <th>Confirmed order</th>
-                                    <th style={{ textAlign: 'right' }}>Qty reserved</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {reservationsByProductId[line.productId].map((r, idx) => (
-                                    <tr key={`${r.orderNumber}-${idx}`}>
-                                      <td className="mono">{r.orderNumber}</td>
-                                      <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-                                        {formatNumber(r.qty)}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
                             ) : (
-                              <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                                No confirmed orders currently hold a reservation against this product
-                                on this vehicle.
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                <div>
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      marginBottom: 6,
+                                    }}
+                                  >
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)' }}>
+                                      Sold via invoices
+                                    </span>
+                                    {salesReportLoaded && salesReportByProductId[line.productId] ? (
+                                      <span className="mono" style={{ fontSize: 11 }}>
+                                        Loaded {formatNumber(qty)} · Sold{' '}
+                                        {formatNumber(salesReportByProductId[line.productId].qtySold)} ·
+                                        Remaining{' '}
+                                        {formatNumber(salesReportByProductId[line.productId].qtyRemaining)}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  {!salesReportLoaded ? (
+                                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                      Loading sales data…
+                                    </div>
+                                  ) : (salesReportByProductId[line.productId]?.invoices || []).length ? (
+                                    <table className="data-table" style={{ minWidth: 420 }}>
+                                      <thead>
+                                        <tr>
+                                          <th>Invoice</th>
+                                          <th>Customer</th>
+                                          <th style={{ textAlign: 'right' }}>Qty sold</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {salesReportByProductId[line.productId].invoices.map((inv) => (
+                                          <tr key={inv.invoiceId}>
+                                            <td className="mono">{inv.invoiceNumber}</td>
+                                            <td>{inv.customerName}</td>
+                                            <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                                              {formatNumber(inv.qty)}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  ) : (
+                                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                      No invoices have sold this product from this loading yet.
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                                    Still reserved (confirmed, not yet invoiced)
+                                  </div>
+                                  {!reservationsLoaded ? (
+                                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                      Loading reservation data…
+                                    </div>
+                                  ) : (reservationsByProductId[line.productId] || []).length ? (
+                                    <table className="data-table" style={{ minWidth: 320 }}>
+                                      <thead>
+                                        <tr>
+                                          <th>Confirmed order</th>
+                                          <th style={{ textAlign: 'right' }}>Qty reserved</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {reservationsByProductId[line.productId].map((r, idx) => (
+                                          <tr key={`${r.orderNumber}-${idx}`}>
+                                            <td className="mono">{r.orderNumber}</td>
+                                            <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                                              {formatNumber(r.qty)}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  ) : (
+                                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                      No confirmed orders currently hold a reservation against this
+                                      product on this vehicle.
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>
