@@ -25,6 +25,7 @@ export default function CollectionSessionDetailPage() {
   const { id } = useParams()
   const [tab, setTab] = useState('cash')
   const [closeNotes, setCloseNotes] = useState('')
+  const [physicalCash, setPhysicalCash] = useState('')
   const session = useCollectionSession(id)
   const close = useCloseSession()
   const verify = useVerifySession()
@@ -176,6 +177,59 @@ export default function CollectionSessionDetailPage() {
                 {money(data.totalAmount)}
               </span>
             </div>
+            {!isOpen && data.physicalCashAmount != null ? (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    fontSize: 12,
+                    paddingTop: 10,
+                    borderTop: '1px solid var(--color-border)',
+                  }}
+                >
+                  <span style={{ color: 'var(--color-text-muted)' }}>Physical cash counted</span>
+                  <span className="mono">{money(data.physicalCashAmount)}</span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    fontSize: 12,
+                    fontWeight: 800,
+                  }}
+                >
+                  <span
+                    style={{
+                      color:
+                        Math.abs(data.cashVariance) < 0.01
+                          ? 'var(--color-teal)'
+                          : 'var(--color-danger)',
+                    }}
+                  >
+                    {Math.abs(data.cashVariance) < 0.01
+                      ? 'Balanced'
+                      : data.cashVariance > 0
+                        ? 'Cash overage'
+                        : 'Cash shortage'}
+                  </span>
+                  <span
+                    className="mono"
+                    style={{
+                      color:
+                        Math.abs(data.cashVariance) < 0.01
+                          ? 'var(--color-teal)'
+                          : 'var(--color-danger)',
+                    }}
+                  >
+                    {data.cashVariance > 0 ? '+' : ''}
+                    {money(data.cashVariance)}
+                  </span>
+                </div>
+              </>
+            ) : null}
           </div>
           <div
             style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--color-border)' }}
@@ -185,15 +239,31 @@ export default function CollectionSessionDetailPage() {
                 title="Close this session?"
                 description="No further payments can be recorded after closing."
                 details={
-                  <textarea
-                    className="form-input"
-                    value={closeNotes}
-                    onChange={(event) => setCloseNotes(event.target.value)}
-                    placeholder="Optional closure notes"
-                  />
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    <label>
+                      <span className="form-label">Physical cash counted</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="form-input mono"
+                        value={physicalCash}
+                        onChange={(event) => setPhysicalCash(event.target.value)}
+                        placeholder={`Expected ${money(data.totalCash)}`}
+                      />
+                    </label>
+                    <textarea
+                      className="form-input"
+                      value={closeNotes}
+                      onChange={(event) => setCloseNotes(event.target.value)}
+                      placeholder="Optional closure notes"
+                    />
+                  </div>
                 }
                 confirmLabel="Close session"
-                onConfirm={() => close.mutateAsync({ id, notes: closeNotes })}
+                onConfirm={() =>
+                  close.mutateAsync({ id, notes: closeNotes, physicalCashAmount: physicalCash })
+                }
                 trigger={
                   <button className="button-danger" style={{ width: '100%' }}>
                     <Lock size={14} /> Close session

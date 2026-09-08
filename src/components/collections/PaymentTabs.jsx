@@ -1,5 +1,5 @@
-import { AlertTriangle, Wallet } from 'lucide-react'
-import { useState } from 'react'
+import { AlertTriangle, Ban, Wallet } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import Modal from '@components/ui/Modal'
 import {
@@ -19,30 +19,46 @@ const toCustomer = (bill) =>
 
 const DENOMINATIONS = [5000, 2000, 1000, 500, 100, 50, 20, 10, 1]
 const allocationTotal = (rows) => rows.reduce((sum, row) => sum + Number(row.allocated || 0), 0)
-const payloadAllocations = (rows) =>
+// writeOffsByInvoiceId: { [invoiceId]: { amount, reason } } for rows the collector chose to
+// permanently forgive the shortfall on, gathered from AllocationReviewModal at submit time.
+const payloadAllocations = (rows, writeOffsByInvoiceId = {}) =>
   rows
     .filter((row) => Number(row.allocated) > 0)
-    .map((row) => ({ invoiceId: row.invoiceId, amount: Number(row.allocated) }))
+    .map((row) => {
+      const writeOff = writeOffsByInvoiceId[row.invoiceId]
+      return {
+        invoiceId: row.invoiceId,
+        amount: Number(row.allocated),
+        ...(writeOff?.amount > 0
+          ? { writeOffAmount: writeOff.amount, writeOffReason: writeOff.reason }
+          : {}),
+      }
+    })
 const apiDate = (date) => `${date}T00:00:00.000Z`
 const overpaidRowsOf = (rows) =>
   rows.filter((row) => Number(row.allocated || 0) > Number(row.outstanding || 0))
+const underpaidRowsOf = (rows) =>
+  rows.filter(
+    (row) => Number(row.allocated || 0) > 0 && Number(row.allocated) < Number(row.outstanding || 0)
+  )
 
-// Gates a submit action behind a confirmation popup whenever one or more bills are being paid
-// beyond their outstanding amount — the excess becomes credit on the customer's account. When
-// nothing is overpaid the action runs immediately with no popup.
-function useOverpaymentGate() {
+// Gates a submit action behind a review popup whenever one or more bills are being paid beyond
+// their outstanding amount (becomes credit) or short of it (the collector may choose to write off
+// the remainder). When nothing is over/underpaid the action runs immediately with no popup.
+function useAllocationReviewGate() {
   const [pending, setPending] = useState(null)
   const [isConfirming, setIsConfirming] = useState(false)
   function requestSubmit(allocations, run) {
-    const overpaid = overpaidRowsOf(allocations)
-    if (overpaid.length) setPending({ rows: overpaid, run })
-    else run()
+    const overpaidRows = overpaidRowsOf(allocations)
+    const underpaidRows = underpaidRowsOf(allocations)
+    if (overpaidRows.length || underpaidRows.length) setPending({ overpaidRows, underpaidRows, run })
+    else run({})
   }
-  async function confirm() {
+  async function confirm(writeOffsByInvoiceId) {
     if (!pending) return
     setIsConfirming(true)
     try {
-      await pending.run()
+      await pending.run(writeOffsByInvoiceId)
       setPending(null)
     } finally {
       setIsConfirming(false)
@@ -55,87 +71,176 @@ function useOverpaymentGate() {
   return { pending, isConfirming, requestSubmit, confirm, cancel }
 }
 
-function OverpaymentConfirmModal({ gate, customerName }) {
+function AllocationReviewModal({ gate, customerName }) {
   const { pending, isConfirming, confirm, cancel } = gate
+  const [writeOffs, setWriteOffs] = useState({})
+  useEffect(() => {
+    if (pending) setWriteOffs({})
+  }, [pending])
   if (!pending) return null
-  const totalCredit = pending.rows.reduce(
+  const { overpaidRows, underpaidRows } = pending
+  const totalCredit = overpaidRows.reduce(
     (sum, row) => sum + (Number(row.allocated) - Number(row.outstanding)),
     0
   )
+
+  function toggleWriteOff(row) {
+    setWriteOffs((current) => {
+      const next = { ...current }
+      if (next[row.invoiceId]) {
+        delete next[row.invoiceId]
+      } else {
+        next[row.invoiceId] = {
+          amount: Number(row.outstanding) - Number(row.allocated),
+          reason: '',
+        }
+      }
+      return next
+    })
+  }
+  function setReason(invoiceId, reason) {
+    setWriteOffs((current) => ({ ...current, [invoiceId]: { ...current[invoiceId], reason } }))
+  }
+
+  const canConfirm = underpaidRows.every((row) => {
+    const writeOff = writeOffs[row.invoiceId]
+    return !writeOff || writeOff.reason.trim().length > 0
+  })
+
+  function handleConfirm() {
+    const payload = Object.fromEntries(
+      Object.entries(writeOffs)
+        .filter(([, writeOff]) => writeOff.reason.trim())
+        .map(([invoiceId, writeOff]) => [invoiceId, { ...writeOff, reason: writeOff.reason.trim() }])
+    )
+    confirm(payload)
+  }
+
   return (
-    <Modal
-      open
-      onOpenChange={(open) => !open && cancel()}
-      title="Overpayment becomes credit"
-      maxWidth="480px"
-    >
-      <div style={{ display: 'grid', gap: 12 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <Wallet size={18} color="var(--color-amber)" style={{ flex: '0 0 auto', marginTop: 2 }} />
-          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
-            You're paying more than what's owed on {pending.rows.length} bill
-            {pending.rows.length === 1 ? '' : 's'}. The excess will be added as credit to{' '}
-            <strong style={{ color: 'var(--color-text-primary)' }}>{customerName}</strong>'s
-            account and can be applied to a future bill.
-          </p>
-        </div>
-        <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
-          <table className="data-table" style={{ width: '100%' }}>
-            <thead>
-              <tr>
-                <th>Bill</th>
-                <th style={{ textAlign: 'right' }}>Outstanding</th>
-                <th style={{ textAlign: 'right' }}>Paying</th>
-                <th style={{ textAlign: 'right' }}>Credit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pending.rows.map((row) => (
-                <tr key={row.invoiceId}>
-                  <td className="mono">{row.serialNumber || row.invoiceNumber}</td>
-                  <td className="mono" style={{ textAlign: 'right' }}>
-                    {money(row.outstanding)}
-                  </td>
-                  <td className="mono" style={{ textAlign: 'right' }}>
-                    {money(row.allocated)}
-                  </td>
-                  <td
-                    className="mono"
-                    style={{ textAlign: 'right', color: 'var(--color-amber)', fontWeight: 700 }}
+    <Modal open onOpenChange={(open) => !open && cancel()} title="Review allocation" maxWidth="560px">
+      <div style={{ display: 'grid', gap: 16 }}>
+        {overpaidRows.length ? (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <Wallet size={18} color="var(--color-amber)" style={{ flex: '0 0 auto', marginTop: 2 }} />
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+                Paying more than what's owed on {overpaidRows.length} bill
+                {overpaidRows.length === 1 ? '' : 's'}. The excess becomes credit on{' '}
+                <strong style={{ color: 'var(--color-text-primary)' }}>{customerName}</strong>'s
+                account, usable on a future bill.
+              </p>
+            </div>
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
+              <table className="data-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>Bill</th>
+                    <th style={{ textAlign: 'right' }}>Outstanding</th>
+                    <th style={{ textAlign: 'right' }}>Paying</th>
+                    <th style={{ textAlign: 'right' }}>Credit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overpaidRows.map((row) => (
+                    <tr key={row.invoiceId}>
+                      <td className="mono">{row.serialNumber || row.invoiceNumber}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {money(row.outstanding)}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {money(row.allocated)}
+                      </td>
+                      <td
+                        className="mono"
+                        style={{ textAlign: 'right', color: 'var(--color-amber)', fontWeight: 700 }}
+                      >
+                        +{money(Number(row.allocated) - Number(row.outstanding))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 13,
+                fontWeight: 700,
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              <span>Total new credit</span>
+              <span className="mono">{money(totalCredit)}</span>
+            </div>
+          </div>
+        ) : null}
+
+        {underpaidRows.length ? (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <Ban size={18} color="var(--color-danger)" style={{ flex: '0 0 auto', marginTop: 2 }} />
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+                Paying less than what's owed on {underpaidRows.length} bill
+                {underpaidRows.length === 1 ? '' : 's'}. Leave it as a partial payment to collect
+                later, or write off the shortfall permanently (e.g. a rounding difference).
+              </p>
+            </div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {underpaidRows.map((row) => {
+                const short = Number(row.outstanding) - Number(row.allocated)
+                const writeOff = writeOffs[row.invoiceId]
+                return (
+                  <div
+                    key={row.invoiceId}
+                    style={{
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 8,
+                      padding: 10,
+                      display: 'grid',
+                      gap: 8,
+                    }}
                   >
-                    +{money(Number(row.allocated) - Number(row.outstanding))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: 13,
-            fontWeight: 700,
-            color: 'var(--color-text-primary)',
-          }}
-        >
-          <span>Total new credit</span>
-          <span className="mono">{money(totalCredit)}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-          <button
-            type="button"
-            className="button-secondary"
-            disabled={isConfirming}
-            onClick={cancel}
-          >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                      <span className="mono">{row.serialNumber || row.invoiceNumber}</span>
+                      <span>
+                        Paying {money(row.allocated)} of {money(row.outstanding)} ·{' '}
+                        <strong style={{ color: 'var(--color-danger)' }}>Short {money(short)}</strong>
+                      </span>
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(writeOff)}
+                        onChange={() => toggleWriteOff(row)}
+                      />
+                      Write off {money(short)} permanently — bill closes as fully paid
+                    </label>
+                    {writeOff ? (
+                      <input
+                        className="form-input"
+                        placeholder="Reason (e.g. rounding difference) *"
+                        value={writeOff.reason}
+                        onChange={(event) => setReason(row.invoiceId, event.target.value)}
+                        style={{ height: 34 }}
+                      />
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button type="button" className="button-secondary" disabled={isConfirming} onClick={cancel}>
             Go back
           </button>
           <button
             type="button"
             className="button-primary"
-            disabled={isConfirming}
-            onClick={confirm}
+            disabled={isConfirming || !canConfirm}
+            onClick={handleConfirm}
           >
             {isConfirming ? 'Recording...' : 'Confirm & record'}
           </button>
@@ -193,14 +298,14 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
   const [allocations, setAllocations] = useState([])
   const customer = toCustomer(bill)
   const mutation = useRecordCashPayment()
-  const gate = useOverpaymentGate()
+  const gate = useAllocationReviewGate()
   const total = DENOMINATIONS.reduce(
     (sum, denomination) => sum + denomination * Number(counts[denomination] || 0),
     0
   )
   const matches = Math.abs(allocationTotal(allocations) - total) < 0.01
 
-  async function doSubmit() {
+  async function doSubmit(writeOffsByInvoiceId = {}) {
     await mutation.mutateAsync({
       sessionId,
       customerId: customer.id,
@@ -208,7 +313,7 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
       denominations: DENOMINATIONS.filter((denomination) => Number(counts[denomination]) > 0).map(
         (denomination) => ({ denomination, count: Number(counts[denomination]) })
       ),
-      allocations: payloadAllocations(allocations),
+      allocations: payloadAllocations(allocations, writeOffsByInvoiceId),
     })
     setCounts({})
     setBill(null)
@@ -332,7 +437,7 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
           ) : null}
         </section>
       ) : null}
-      <OverpaymentConfirmModal gate={gate} customerName={customer?.name} />
+      <AllocationReviewModal gate={gate} customerName={customer?.name} />
     </div>
   )
 }
@@ -397,13 +502,13 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
   const banks = useBanks()
   const branches = useBankBranches(form.bankId)
   const mutation = useRecordChequePayment()
-  const gate = useOverpaymentGate()
+  const gate = useAllocationReviewGate()
   const amount = Number(form.amount || 0)
   const matches = amount > 0 && Math.abs(allocationTotal(allocations) - amount) < 0.01
   const bank = (banks.data || []).find((row) => row.id === form.bankId)
   const branch = (branches.data || []).find((row) => row.id === form.branchId)
 
-  async function doSubmit() {
+  async function doSubmit(writeOffsByInvoiceId = {}) {
     await mutation.mutateAsync({
       sessionId,
       customerId: customer.id,
@@ -411,7 +516,7 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
       chequeNumber: form.chequeNumber,
       drawerName: form.drawerName,
       chequeDate: apiDate(form.chequeDate),
-      allocations: payloadAllocations(allocations),
+      allocations: payloadAllocations(allocations, writeOffsByInvoiceId),
       bankId: form.bankId,
       bankBranchId: form.branchId || null,
       bankName: bank?.name || null,
@@ -542,7 +647,7 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
       >
         {mutation.isPending || gate.isConfirming ? 'Recording...' : 'Record cheque'}
       </button>
-      <OverpaymentConfirmModal gate={gate} customerName={customer?.name} />
+      <AllocationReviewModal gate={gate} customerName={customer?.name} />
     </form>
   )
 }
@@ -560,11 +665,11 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
   })
   const [allocations, setAllocations] = useState([])
   const mutation = useRecordBankTransfer()
-  const gate = useOverpaymentGate()
+  const gate = useAllocationReviewGate()
   const amount = Number(form.amount || 0)
   const matches = amount > 0 && Math.abs(allocationTotal(allocations) - amount) < 0.01
   const valid = customer && form.bankId && form.branchId && form.referenceNumber && matches
-  async function doSubmit() {
+  async function doSubmit(writeOffsByInvoiceId = {}) {
     await mutation.mutateAsync({
       sessionId,
       customerId: customer.id,
@@ -573,7 +678,7 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
       referenceNumber: form.referenceNumber,
       totalAmount: amount,
       transferDate: apiDate(form.transferDate),
-      allocations: payloadAllocations(allocations),
+      allocations: payloadAllocations(allocations, writeOffsByInvoiceId),
       notes: form.notes || null,
     })
     setBill(null)
@@ -674,7 +779,7 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
       >
         {mutation.isPending || gate.isConfirming ? 'Recording...' : 'Record transfer'}
       </button>
-      <OverpaymentConfirmModal gate={gate} customerName={customer?.name} />
+      <AllocationReviewModal gate={gate} customerName={customer?.name} />
     </form>
   )
 }

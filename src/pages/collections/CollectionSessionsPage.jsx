@@ -160,7 +160,7 @@ export default function CollectionSessionsPage() {
         ) : paged.length ? (
           <>
             <div style={{ overflowX: 'auto' }}>
-              <table className="data-table product-table-compact" style={{ minWidth: 900 }}>
+              <table className="data-table product-table-compact" style={{ minWidth: 1020 }}>
                 <thead>
                   <tr>
                     <th>Session</th>
@@ -173,6 +173,7 @@ export default function CollectionSessionsPage() {
                     <th style={{ textAlign: 'right' }}>Cheques</th>
                     <th style={{ textAlign: 'right' }}>Transfers</th>
                     <th style={{ textAlign: 'right' }}>Total</th>
+                    <th style={{ textAlign: 'right' }}>Cash Variance</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -210,6 +211,23 @@ export default function CollectionSessionsPage() {
                       </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                         {money(row.totalAmount)}
+                      </td>
+                      <td
+                        className="mono"
+                        style={{
+                          textAlign: 'right',
+                          fontWeight: 700,
+                          color:
+                            row.cashVariance == null
+                              ? 'var(--color-text-dim)'
+                              : Math.abs(row.cashVariance) < 0.01
+                                ? 'var(--color-teal)'
+                                : 'var(--color-danger)',
+                        }}
+                      >
+                        {row.cashVariance == null
+                          ? '—'
+                          : `${row.cashVariance > 0 ? '+' : ''}${money(row.cashVariance)}`}
                       </td>
                       <td>
                         <ChevronRight size={15} />

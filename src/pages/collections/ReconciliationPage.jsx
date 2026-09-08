@@ -112,6 +112,120 @@ export default function ReconciliationPage() {
           ))}
         </div>
       </section>
+      <section className="panel" style={{ padding: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Scale size={17} color="var(--color-amber)" />
+          <h2 style={{ fontSize: 15, fontWeight: 800 }}>Cash & cheque reconciliation</h2>
+        </div>
+        <div
+          className="grid grid-cols-1 gap-4 md:grid-cols-2"
+          style={{ marginTop: 14 }}
+        >
+          <div>
+            <p className="eyebrow">Cash</p>
+            <div style={{ marginTop: 8, display: 'grid', gap: 7 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Projected cash balance</span>
+                <strong className="mono">{money(data.totalCash)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Physical cash balance</span>
+                <strong className="mono">
+                  {data.physicalCashAmount != null ? money(data.physicalCashAmount) : 'Not counted yet'}
+                </strong>
+              </div>
+              {data.physicalCashAmount != null ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    paddingTop: 7,
+                    borderTop: '1px solid var(--color-border)',
+                    fontWeight: 800,
+                  }}
+                >
+                  <span
+                    style={{
+                      color:
+                        Math.abs(data.cashVariance) < 0.01
+                          ? 'var(--color-teal)'
+                          : 'var(--color-danger)',
+                    }}
+                  >
+                    {Math.abs(data.cashVariance) < 0.01
+                      ? 'Balanced'
+                      : data.cashVariance > 0
+                        ? 'Cash overage'
+                        : 'Cash shortage'}
+                  </span>
+                  <strong
+                    className="mono"
+                    style={{
+                      color:
+                        Math.abs(data.cashVariance) < 0.01
+                          ? 'var(--color-teal)'
+                          : 'var(--color-danger)',
+                    }}
+                  >
+                    {data.cashVariance > 0 ? '+' : ''}
+                    {money(data.cashVariance)}
+                  </strong>
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div>
+            <p className="eyebrow">Cheques</p>
+            <div style={{ marginTop: 8, display: 'grid', gap: 7 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Total cheque collection</span>
+                <strong className="mono">{money(data.totalCheques)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Processed cheques</span>
+                <strong className="mono">{money(data.processedCheques)}</strong>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  paddingTop: 7,
+                  borderTop: '1px solid var(--color-border)',
+                  fontWeight: 800,
+                }}
+              >
+                <span
+                  style={{
+                    color:
+                      Math.abs(data.chequeVariance) < 0.01
+                        ? 'var(--color-teal)'
+                        : 'var(--color-danger)',
+                  }}
+                >
+                  Difference
+                </span>
+                <strong
+                  className="mono"
+                  style={{
+                    color:
+                      Math.abs(data.chequeVariance) < 0.01
+                        ? 'var(--color-teal)'
+                        : 'var(--color-danger)',
+                  }}
+                >
+                  {data.chequeVariance > 0 ? '+' : ''}
+                  {money(data.chequeVariance)}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </div>
+        {data.physicalCashAmount == null ? (
+          <p style={{ marginTop: 12, fontSize: 11, color: 'var(--color-text-dim)' }}>
+            Physical cash is counted when the session is closed.
+          </p>
+        ) : null}
+      </section>
       <section className="panel" style={{ overflow: 'hidden' }}>
         <div
           style={{ padding: 14, borderBottom: '1px solid var(--color-border)', fontWeight: 800 }}

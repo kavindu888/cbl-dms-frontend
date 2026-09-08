@@ -74,9 +74,14 @@ export const getCollectionSession = (id) =>
   value(collectionsAxios.get(`/sessions/${id}`), 'Failed to load session')
 export const listCollectionSessions = (params) =>
   value(collectionsAxios.get('/sessions', { params }), 'Failed to load sessions')
-export const closeCollectionSession = ({ id, notes } = {}) =>
+export const closeCollectionSession = ({ id, notes, physicalCashAmount } = {}) =>
   value(
-    collectionsAxios.post(`/sessions/${id}/close`, { notes: notes || null }),
+    collectionsAxios.post(`/sessions/${id}/close`, {
+      notes: notes || null,
+      physicalCashAmount: physicalCashAmount === '' || physicalCashAmount == null
+        ? null
+        : Number(physicalCashAmount),
+    }),
     'Failed to close session'
   )
 export const verifyCollectionSession = (id) =>
