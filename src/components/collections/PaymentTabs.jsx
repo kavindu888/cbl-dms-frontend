@@ -1,6 +1,7 @@
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import Modal from '@components/ui/Modal'
 import {
   useBankBranches,
   useBanks,
@@ -23,6 +24,126 @@ const payloadAllocations = (rows) =>
     .filter((row) => Number(row.allocated) > 0)
     .map((row) => ({ invoiceId: row.invoiceId, amount: Number(row.allocated) }))
 const apiDate = (date) => `${date}T00:00:00.000Z`
+const overpaidRowsOf = (rows) =>
+  rows.filter((row) => Number(row.allocated || 0) > Number(row.outstanding || 0))
+
+// Gates a submit action behind a confirmation popup whenever one or more bills are being paid
+// beyond their outstanding amount — the excess becomes credit on the customer's account. When
+// nothing is overpaid the action runs immediately with no popup.
+function useOverpaymentGate() {
+  const [pending, setPending] = useState(null)
+  const [isConfirming, setIsConfirming] = useState(false)
+  function requestSubmit(allocations, run) {
+    const overpaid = overpaidRowsOf(allocations)
+    if (overpaid.length) setPending({ rows: overpaid, run })
+    else run()
+  }
+  async function confirm() {
+    if (!pending) return
+    setIsConfirming(true)
+    try {
+      await pending.run()
+      setPending(null)
+    } finally {
+      setIsConfirming(false)
+    }
+  }
+  function cancel() {
+    if (isConfirming) return
+    setPending(null)
+  }
+  return { pending, isConfirming, requestSubmit, confirm, cancel }
+}
+
+function OverpaymentConfirmModal({ gate, customerName }) {
+  const { pending, isConfirming, confirm, cancel } = gate
+  if (!pending) return null
+  const totalCredit = pending.rows.reduce(
+    (sum, row) => sum + (Number(row.allocated) - Number(row.outstanding)),
+    0
+  )
+  return (
+    <Modal
+      open
+      onOpenChange={(open) => !open && cancel()}
+      title="Overpayment becomes credit"
+      maxWidth="480px"
+    >
+      <div style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <Wallet size={18} color="var(--color-amber)" style={{ flex: '0 0 auto', marginTop: 2 }} />
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+            You're paying more than what's owed on {pending.rows.length} bill
+            {pending.rows.length === 1 ? '' : 's'}. The excess will be added as credit to{' '}
+            <strong style={{ color: 'var(--color-text-primary)' }}>{customerName}</strong>'s
+            account and can be applied to a future bill.
+          </p>
+        </div>
+        <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
+          <table className="data-table" style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th>Bill</th>
+                <th style={{ textAlign: 'right' }}>Outstanding</th>
+                <th style={{ textAlign: 'right' }}>Paying</th>
+                <th style={{ textAlign: 'right' }}>Credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pending.rows.map((row) => (
+                <tr key={row.invoiceId}>
+                  <td className="mono">{row.serialNumber || row.invoiceNumber}</td>
+                  <td className="mono" style={{ textAlign: 'right' }}>
+                    {money(row.outstanding)}
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right' }}>
+                    {money(row.allocated)}
+                  </td>
+                  <td
+                    className="mono"
+                    style={{ textAlign: 'right', color: 'var(--color-amber)', fontWeight: 700 }}
+                  >
+                    +{money(Number(row.allocated) - Number(row.outstanding))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: 13,
+            fontWeight: 700,
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          <span>Total new credit</span>
+          <span className="mono">{money(totalCredit)}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+          <button
+            type="button"
+            className="button-secondary"
+            disabled={isConfirming}
+            onClick={cancel}
+          >
+            Go back
+          </button>
+          <button
+            type="button"
+            className="button-primary"
+            disabled={isConfirming}
+            onClick={confirm}
+          >
+            {isConfirming ? 'Recording...' : 'Confirm & record'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
 
 function AllocationSection({ customer, total, allocations, setAllocations }) {
   const invoices = useOutstandingInvoices(customer?.id)
@@ -72,17 +193,14 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
   const [allocations, setAllocations] = useState([])
   const customer = toCustomer(bill)
   const mutation = useRecordCashPayment()
+  const gate = useOverpaymentGate()
   const total = DENOMINATIONS.reduce(
     (sum, denomination) => sum + denomination * Number(counts[denomination] || 0),
     0
   )
   const matches = Math.abs(allocationTotal(allocations) - total) < 0.01
 
-  async function submit() {
-    if (!customer || total <= 0 || !matches) {
-      toast.error('Select a customer and allocate the full cash total.')
-      return
-    }
+  async function doSubmit() {
     await mutation.mutateAsync({
       sessionId,
       customerId: customer.id,
@@ -96,6 +214,14 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
     setBill(null)
     setAllocations([])
     onRecorded?.()
+  }
+
+  function submit() {
+    if (!customer || total <= 0 || !matches) {
+      toast.error('Select a customer and allocate the full cash total.')
+      return
+    }
+    gate.requestSubmit(allocations, doSubmit)
   }
 
   return (
@@ -189,10 +315,15 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
             className="button-primary"
             onClick={submit}
             disabled={
-              disabled || mutation.isPending || !customer || !matches || !allocations.length
+              disabled ||
+              mutation.isPending ||
+              gate.isConfirming ||
+              !customer ||
+              !matches ||
+              !allocations.length
             }
           >
-            {mutation.isPending ? 'Recording...' : `Record ${money(total)} cash`}
+            {mutation.isPending || gate.isConfirming ? 'Recording...' : `Record ${money(total)} cash`}
           </button>
           {!customer ? (
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--color-text-dim)' }}>
@@ -201,6 +332,7 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
           ) : null}
         </section>
       ) : null}
+      <OverpaymentConfirmModal gate={gate} customerName={customer?.name} />
     </div>
   )
 }
@@ -265,15 +397,13 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
   const banks = useBanks()
   const branches = useBankBranches(form.bankId)
   const mutation = useRecordChequePayment()
+  const gate = useOverpaymentGate()
   const amount = Number(form.amount || 0)
   const matches = amount > 0 && Math.abs(allocationTotal(allocations) - amount) < 0.01
   const bank = (banks.data || []).find((row) => row.id === form.bankId)
   const branch = (branches.data || []).find((row) => row.id === form.branchId)
 
-  async function submit(event) {
-    event.preventDefault()
-    if (!customer || !matches)
-      return toast.error('Allocate the full cheque amount before recording.')
+  async function doSubmit() {
     await mutation.mutateAsync({
       sessionId,
       customerId: customer.id,
@@ -300,6 +430,13 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
       notes: '',
     })
     onRecorded?.()
+  }
+
+  function submit(event) {
+    event.preventDefault()
+    if (!customer || !matches)
+      return toast.error('Allocate the full cheque amount before recording.')
+    gate.requestSubmit(allocations, doSubmit)
   }
 
   return (
@@ -401,10 +538,11 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
       </label>
       <button
         className="button-primary"
-        disabled={disabled || mutation.isPending || !customer || !matches}
+        disabled={disabled || mutation.isPending || gate.isConfirming || !customer || !matches}
       >
-        {mutation.isPending ? 'Recording...' : 'Record cheque'}
+        {mutation.isPending || gate.isConfirming ? 'Recording...' : 'Record cheque'}
       </button>
+      <OverpaymentConfirmModal gate={gate} customerName={customer?.name} />
     </form>
   )
 }
@@ -422,12 +560,11 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
   })
   const [allocations, setAllocations] = useState([])
   const mutation = useRecordBankTransfer()
+  const gate = useOverpaymentGate()
   const amount = Number(form.amount || 0)
   const matches = amount > 0 && Math.abs(allocationTotal(allocations) - amount) < 0.01
   const valid = customer && form.bankId && form.branchId && form.referenceNumber && matches
-  async function submit(event) {
-    event.preventDefault()
-    if (!valid) return toast.error('Complete the transfer and allocate its full amount.')
+  async function doSubmit() {
     await mutation.mutateAsync({
       sessionId,
       customerId: customer.id,
@@ -450,6 +587,11 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
       notes: '',
     })
     onRecorded?.()
+  }
+  function submit(event) {
+    event.preventDefault()
+    if (!valid) return toast.error('Complete the transfer and allocate its full amount.')
+    gate.requestSubmit(allocations, doSubmit)
   }
   return (
     <form onSubmit={submit} className="panel" style={{ padding: 16, display: 'grid', gap: 14 }}>
@@ -526,9 +668,13 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
           onChange={(event) => setForm({ ...form, notes: event.target.value })}
         />
       </label>
-      <button className="button-primary" disabled={disabled || mutation.isPending || !valid}>
-        {mutation.isPending ? 'Recording...' : 'Record transfer'}
+      <button
+        className="button-primary"
+        disabled={disabled || mutation.isPending || gate.isConfirming || !valid}
+      >
+        {mutation.isPending || gate.isConfirming ? 'Recording...' : 'Record transfer'}
       </button>
+      <OverpaymentConfirmModal gate={gate} customerName={customer?.name} />
     </form>
   )
 }

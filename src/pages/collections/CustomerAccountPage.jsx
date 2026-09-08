@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { CreditCard, PauseCircle, PlayCircle, Plus, Search } from 'lucide-react'
+import { CreditCard, PauseCircle, PlayCircle, Plus, Search, Wallet } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import ConfirmDialog from '@components/ui/ConfirmDialog'
 import Modal from '@components/ui/Modal'
 import StatusBadge from '@components/ui/StatusBadge'
@@ -14,6 +15,7 @@ import {
   useReinstateCustomerAccount,
   useUpdateCreditLimit,
 } from '@/hooks/useCollections'
+import { useCustomerCreditBalance } from '@/hooks/useCustomerCredit'
 import { salesService } from '@/services/api/salesService'
 import { formatDateTime } from '@/utils'
 import { Blank, Busy, Metric, PageTitle, Problem, inputStyle, money } from './collectionsUi'
@@ -54,6 +56,7 @@ export default function CustomerAccountPage() {
   const reinstate = useReinstateCustomerAccount()
   const data = detail.data
   const existingIds = new Set((accounts.data || []).map((row) => row.customerId))
+  const creditBalance = useCustomerCreditBalance(data?.customerId)
 
   async function submit(event) {
     event.preventDefault()
@@ -160,7 +163,7 @@ export default function CustomerAccountPage() {
               <Problem error={detail.error} />
             ) : data ? (
               <>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                   <Metric label="Credit limit" value={money(data.creditLimit)} />
                   <Metric
                     label="Current balance"
@@ -172,6 +175,32 @@ export default function CustomerAccountPage() {
                     value={money(data.availableCredit)}
                     tone={data.availableCredit >= 0 ? 'var(--color-teal)' : 'var(--color-danger)'}
                   />
+                  <Link
+                    to={`/sales/customer-credit?customerId=${data.customerId}`}
+                    className="panel"
+                    style={{ padding: 14, display: 'block' }}
+                  >
+                    <p className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Wallet size={12} /> Overpayment credit
+                    </p>
+                    <p
+                      className="mono"
+                      style={{
+                        marginTop: 6,
+                        fontSize: 20,
+                        fontWeight: 800,
+                        color:
+                          Number(creditBalance.data?.currentBalance) > 0
+                            ? 'var(--color-teal)'
+                            : 'var(--color-text-primary)',
+                      }}
+                    >
+                      {creditBalance.isLoading ? '…' : money(creditBalance.data?.currentBalance || 0)}
+                    </p>
+                    <p style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-dim)' }}>
+                      From bills paid over the outstanding amount. Apply to a future bill →
+                    </p>
+                  </Link>
                 </div>
                 <section className="panel" style={{ padding: 16 }}>
                   <div

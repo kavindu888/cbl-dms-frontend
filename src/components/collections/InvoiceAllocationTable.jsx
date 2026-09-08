@@ -24,10 +24,10 @@ export default function InvoiceAllocationTable({
     )
   }, [invoices, search])
   const setAllocation = (invoice, amount) => {
-    const numeric = Math.max(
-      0,
-      Math.min(Number(amount || 0), Number(invoice.outstandingAmount || 0))
-    )
+    // No longer capped at the outstanding amount — a bill can be overpaid on purpose, and the
+    // excess becomes credit on the customer's account (see the overpayment confirmation in
+    // PaymentTabs before the payment is actually recorded).
+    const numeric = Math.max(0, Number(amount || 0))
     const next = allocations.filter((row) => row.invoiceId !== invoice.invoiceId)
     if (amount !== '') {
       next.push({
@@ -179,7 +179,6 @@ export default function InvoiceAllocationTable({
                     <input
                       type="number"
                       min="0"
-                      max={invoice.outstandingAmount}
                       step="0.01"
                       className="form-input mono"
                       value={allocation?.allocated || ''}
@@ -192,6 +191,15 @@ export default function InvoiceAllocationTable({
                         background: 'var(--color-bg-base)',
                       }}
                     />
+                    {Number(allocation?.allocated || 0) > Number(invoice.outstandingAmount || 0) ? (
+                      <div
+                        className="mono"
+                        style={{ marginTop: 4, fontSize: 10, color: 'var(--color-amber)' }}
+                      >
+                        +{money(Number(allocation.allocated) - Number(invoice.outstandingAmount || 0))}{' '}
+                        credit
+                      </div>
+                    ) : null}
                   </td>
                 </tr>
               )

@@ -545,6 +545,21 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       .slice(0, 30)
   }, [productSearch, products])
 
+  // Vehicles currently carrying any sellable stock — the "General Unload" vehicle picker only
+  // makes sense for vehicles that actually have something left to unload.
+  const vehicleIdsWithStock = useMemo(() => {
+    if (!isUnloading) return new Set()
+    const ids = new Set()
+    for (const batch of allActiveBatches) {
+      if (getQtyAvailable(batch) > 0) ids.add(batch.stockLocationId)
+    }
+    return ids
+  }, [isUnloading, allActiveBatches])
+  const vehiclesWithStock = useMemo(
+    () => vehicles.filter((vehicle) => vehicleIdsWithStock.has(vehicle.id)),
+    [vehicles, vehicleIdsWithStock]
+  )
+
   const remainingVehicleItems = useMemo(() => {
     if (!isUnloading || !vehicleId) return []
 
@@ -950,11 +965,22 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                   <select
                     className="form-input"
                     value={vehicleId}
-                    disabled={lines.length > 0 || Boolean(draftId) || isLoadingVehicles}
+                    disabled={
+                      lines.length > 0 ||
+                      Boolean(draftId) ||
+                      isLoadingVehicles ||
+                      isLoadingAllBatches
+                    }
                     onChange={(event) => setVehicleId(event.target.value)}
                   >
-                    <option value="">Select vehicle...</option>
-                    {vehicles.map((vehicle) => (
+                    <option value="">
+                      {isLoadingAllBatches
+                        ? 'Checking vehicle stock...'
+                        : vehiclesWithStock.length
+                          ? 'Select vehicle...'
+                          : 'No vehicles have stock to unload'}
+                    </option>
+                    {vehiclesWithStock.map((vehicle) => (
                       <option key={vehicle.id} value={vehicle.id}>
                         {vehicleLabel(vehicle)}
                       </option>
