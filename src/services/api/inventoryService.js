@@ -169,8 +169,10 @@ export const inventoryService = {
   },
 
   //Inventory Stock Availability
-  async getStockAvailability(productId) {
-    const response = await getOnce(`/api/v1/inventory/stock/availability/${productId}`)
+  async getStockAvailability(productId, stockLocationId) {
+    const response = await getOnce(`/api/v1/inventory/stock/availability/${productId}`, {
+      params: stockLocationId ? { stockLocationId } : undefined,
+    })
     return getValue(response, 'Unable to load stock availability.')
   },
 

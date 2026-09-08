@@ -16,6 +16,7 @@ import {
 } from '@/hooks/useVehicle'
 import { inventoryService } from '@/services/api/inventoryService'
 import { masterService } from '@/services/api/masterService'
+import { salesService } from '@/services/api/salesService'
 import { usersService } from '@/services/api/usersService'
 import { useAuthStore } from '@stores/authStore'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
@@ -375,6 +376,7 @@ export default function VehicleMovementDetailPage({
   const [editingLineId, setEditingLineId] = useState(null)
   const [editingQty, setEditingQty] = useState('')
   const [isAddLineModalOpen, setIsAddLineModalOpen] = useState(false)
+  const [reservationsByProductId, setReservationsByProductId] = useState({})
   const vehicle = vehicles.find((item) => item.id === movement?.vehicleLocationId)
   const status = movementStatusLabel(movement?.status)
   const isUnloading = kind === 'Unloading'
@@ -502,6 +504,41 @@ export default function VehicleMovementDetailPage({
       active = false
     }
   }, [])
+
+  // Audit: which confirmed orders (soon-to-be invoices) currently hold a reservation against
+  // this vehicle's stock, per product — so a loading line's real "spoken for" quantity is visible
+  // right where staff are already looking, not just discoverable via Sales > Stuck Reservations.
+  useEffect(() => {
+    if (isUnloading || status !== 'Applied' || !movement?.vehicleLocationId) {
+      setReservationsByProductId({})
+      return undefined
+    }
+    let active = true
+    salesService
+      .listStuckReservations()
+      .then((orders) => {
+        if (!active) return
+        const byProduct = {}
+        for (const order of orders || []) {
+          if (order.vehicleLocationId !== movement.vehicleLocationId) continue
+          for (const line of order.lines || []) {
+            if (!byProduct[line.productId]) byProduct[line.productId] = []
+            byProduct[line.productId].push({
+              orderNumber: order.orderNumber,
+              qty: line.quantityReserved,
+            })
+          }
+        }
+        setReservationsByProductId(byProduct)
+      })
+      .catch(() => {
+        // Not permitted to see this, or the lookup failed — the page still works without it.
+        if (active) setReservationsByProductId({})
+      })
+    return () => {
+      active = false
+    }
+  }, [isUnloading, status, movement?.vehicleLocationId])
 
   useEffect(() => {
     const createdByUserId = movement?.createdByUserId
@@ -1020,6 +1057,24 @@ export default function VehicleMovementDetailPage({
                             (isLoadingProducts ? 'Loading product...' : 'Product name unavailable')}
                         </strong>
                         <span className="product-sku-badge mono">{line.productSku}</span>
+                        {(reservationsByProductId[line.productId] || []).length ? (
+                          <div
+                            style={{
+                              marginTop: 4,
+                              fontSize: 10,
+                              color: 'var(--color-amber)',
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: 4,
+                            }}
+                            title="These confirmed orders have reserved this quantity from this vehicle — it isn't free even though it's physically loaded."
+                          >
+                            🔒 Reserved:{' '}
+                            {reservationsByProductId[line.productId]
+                              .map((r) => `${r.orderNumber} (${formatNumber(r.qty)})`)
+                              .join(', ')}
+                          </div>
+                        ) : null}
                         {isPossibleDuplicate ? (
                           <span
                             style={{

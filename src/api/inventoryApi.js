@@ -75,8 +75,10 @@ export const listStockAdjustments = (params) => inventoryAxios.get('/stock-adjus
 
 // Stock
 export const getStockLevels = (params) => inventoryAxios.get('/stock/levels', { params })
-export const getStockAvailability = (productId) =>
-  inventoryAxios.get(`/stock/availability/${productId}`)
+export const getStockAvailability = (productId, stockLocationId) =>
+  inventoryAxios.get(`/stock/availability/${productId}`, {
+    params: stockLocationId ? { stockLocationId } : undefined,
+  })
 export const getStockBatches = (productId, params) =>
   inventoryAxios.get(`/stock/batches/${productId}`, { params })
 export const updateStockBatchPricing = (batchId, data) =>

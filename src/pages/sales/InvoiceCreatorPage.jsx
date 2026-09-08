@@ -365,6 +365,8 @@ export default function InvoiceCreatorPage() {
   const [serialNumberChecking, setSerialNumberChecking] = useState(false)
   const [availabilityByIndex, setAvailabilityByIndex] = useState({})
   const [isLoadingAvailability, setIsLoadingAvailability] = useState({})
+  const [resolvedVehicleLocationId, setResolvedVehicleLocationId] = useState(null)
+  const [vehicleStockNote, setVehicleStockNote] = useState('')
   const [returnLines, setReturnLines] = useState([])
   const [returnDraftLine, setReturnDraftLine] = useState({
     productId: '',
@@ -774,7 +776,10 @@ export default function InvoiceCreatorPage() {
     if (!productId) return
     setIsLoadingAvailability((current) => ({ ...current, [index]: true }))
     try {
-      const availability = await inventoryService.getStockAvailability(productId)
+      const availability = await inventoryService.getStockAvailability(
+        productId,
+        resolvedVehicleLocationId || undefined
+      )
       setAvailabilityByIndex((current) => ({ ...current, [index]: availability }))
     } catch {
       setAvailabilityByIndex((current) => ({ ...current, [index]: null }))
@@ -1093,6 +1098,61 @@ export default function InvoiceCreatorPage() {
 
     return vehicleLocationIds[0]
   }
+
+  // Live-editing counterpart of resolveVehicleLocationForDirectInvoice() — same lookup, but never
+  // throws (no vehicle resolved yet is a normal, expected state while the customer/route is still
+  // being picked), so the per-line stock check can show real vehicle numbers as early as possible
+  // instead of only finding out "insufficient stock" at finalize time.
+  useEffect(() => {
+    if (isFromSalesOrder || !deliveryRunId) {
+      setResolvedVehicleLocationId(null)
+      setVehicleStockNote('')
+      return undefined
+    }
+    let active = true
+    inventoryService
+      .listVehicleLoadings({ status: 2 })
+      .then((appliedLoadings) => {
+        if (!active) return
+        const matchingLoadings = (appliedLoadings || []).filter(
+          (loading) =>
+            loading.deliveryRunId === deliveryRunId && toInputDate(loading.loadingDate) === invoiceDate
+        )
+        const vehicleLocationIds = Array.from(
+          new Set(matchingLoadings.map((loading) => loading.vehicleLocationId).filter(Boolean))
+        )
+        if (vehicleLocationIds.length === 1) {
+          setResolvedVehicleLocationId(vehicleLocationIds[0])
+          setVehicleStockNote('')
+        } else {
+          setResolvedVehicleLocationId(null)
+          setVehicleStockNote(
+            vehicleLocationIds.length === 0
+              ? `No applied vehicle loading found for ${deliveryRunName || 'this delivery run'} on ${invoiceDate} yet.`
+              : `Multiple vehicles are loaded for ${deliveryRunName || 'this delivery run'} on ${invoiceDate} — showing main stock until this is resolved.`
+          )
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setResolvedVehicleLocationId(null)
+          setVehicleStockNote('')
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [isFromSalesOrder, deliveryRunId, invoiceDate, deliveryRunName])
+
+  // Re-check every line already on the invoice once we learn (or lose) which vehicle this
+  // invoice will actually deduct from, so "Available" always reflects the right location.
+  useEffect(() => {
+    const lines = getValues('lines') || []
+    lines.forEach((line, index) => {
+      if (line.productId) refreshAvailability(index, line.productId)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedVehicleLocationId])
 
   function buildInvoicePayload(values, vehicleLocationId = null) {
     return {
@@ -1637,7 +1697,8 @@ export default function InvoiceCreatorPage() {
                                       : 'var(--color-text-muted)',
                                 }}
                               >
-                                Available {Number(availabilityByIndex[index].totalAvailable || 0).toLocaleString()}
+                                {resolvedVehicleLocationId ? 'Vehicle available ' : 'Main available '}
+                                {Number(availabilityByIndex[index].totalAvailable || 0).toLocaleString()}
                                 {Number(availabilityByIndex[index].totalReserved) > 0 ? (
                                   <span style={{ color: 'var(--color-amber)' }}>
                                     {' '}
@@ -2071,6 +2132,17 @@ export default function InvoiceCreatorPage() {
                   {deliveryRunName ||
                     (selectedSalesRouteId ? 'Not assigned to route' : 'Select a customer first')}
                 </div>
+                {deliveryRunId ? (
+                  resolvedVehicleLocationId ? (
+                    <p style={{ marginTop: 5, fontSize: 11, color: 'var(--color-teal)' }}>
+                      Vehicle stock resolved — line availability below is this vehicle's, not main.
+                    </p>
+                  ) : vehicleStockNote ? (
+                    <p style={{ marginTop: 5, fontSize: 11, color: 'var(--color-amber)' }}>
+                      {vehicleStockNote}
+                    </p>
+                  ) : null
+                ) : null}
               </div>
             </div>
           </div>
