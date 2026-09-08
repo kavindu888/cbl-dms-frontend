@@ -450,6 +450,13 @@ export const salesService = {
     await api.put(`/api/sales/orders/${id}/cancel`, { reason })
   },
 
+  // Confirmed orders still holding a live vehicle stock reservation (never converted or
+  // cancelled) — these are what silently lock up a vehicle's "available" stock.
+  async listStuckReservations() {
+    const response = await getOnce('/api/sales/orders/stuck-reservations')
+    return getResponseData(response, 'Unable to load stuck reservations.') || []
+  },
+
   async convertSalesOrderToInvoice(id, payload) {
     const response = await api.post(`/api/sales/orders/${id}/convert-to-invoice`, payload)
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data

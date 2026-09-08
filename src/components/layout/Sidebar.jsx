@@ -35,6 +35,7 @@ import {
   UserCog,
   Users,
   Undo2,
+  Unlock,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
@@ -98,6 +99,12 @@ const navGroups = [
         to: '/sales/customer-credit',
         icon: Banknote,
         permissions: PERMISSIONS.sales.customerCreditView,
+      },
+      {
+        label: 'Stuck Reservations',
+        to: '/sales/orders/stuck-reservations',
+        icon: Unlock,
+        permissions: PERMISSIONS.sales.orderCancel,
       },
     ],
   },

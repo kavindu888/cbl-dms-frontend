@@ -50,6 +50,7 @@ import InvoiceListPage from '@pages/sales/InvoiceListPage'
 import InvoicePaymentRecordPage from '@pages/sales/InvoicePaymentRecordPage'
 import NewSalesOrder from '@pages/sales/NewSalesOrder'
 import SalesOrderList from '@pages/sales/SalesOrderList'
+import StuckReservationsPage from '@pages/sales/StuckReservationsPage'
 import SettingsPage from '@pages/settings/SettingsPage'
 import RolesPermissionsPage from '@pages/users/RolesPermissionsPage'
 import UserListPage from '@pages/users/UserListPage'
@@ -446,6 +447,10 @@ export const router = createBrowserRouter([
           PERMISSIONS.sales.orderRead,
           PERMISSIONS.sales.orderCreate,
         ]),
+      },
+      {
+        path: 'sales/orders/stuck-reservations',
+        element: requirePermission(<StuckReservationsPage />, PERMISSIONS.sales.orderCancel),
       },
       {
         path: 'sales/orders/new',
