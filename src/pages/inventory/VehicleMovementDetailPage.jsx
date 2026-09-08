@@ -1,5 +1,5 @@
 import { ArrowLeft, CheckCircle2, PackageX, Pencil, Plus, Search, Trash2, Wrench, X, XCircle } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import EmptyState from '@components/ui/EmptyState'
@@ -377,6 +377,8 @@ export default function VehicleMovementDetailPage({
   const [editingQty, setEditingQty] = useState('')
   const [isAddLineModalOpen, setIsAddLineModalOpen] = useState(false)
   const [reservationsByProductId, setReservationsByProductId] = useState({})
+  const [reservationsLoaded, setReservationsLoaded] = useState(false)
+  const [auditProductId, setAuditProductId] = useState(null)
   const vehicle = vehicles.find((item) => item.id === movement?.vehicleLocationId)
   const status = movementStatusLabel(movement?.status)
   const isUnloading = kind === 'Unloading'
@@ -511,6 +513,7 @@ export default function VehicleMovementDetailPage({
   useEffect(() => {
     if (isUnloading || status !== 'Applied' || !movement?.vehicleLocationId) {
       setReservationsByProductId({})
+      setReservationsLoaded(false)
       return undefined
     }
     let active = true
@@ -530,10 +533,14 @@ export default function VehicleMovementDetailPage({
           }
         }
         setReservationsByProductId(byProduct)
+        setReservationsLoaded(true)
       })
       .catch(() => {
         // Not permitted to see this, or the lookup failed — the page still works without it.
-        if (active) setReservationsByProductId({})
+        if (active) {
+          setReservationsByProductId({})
+          setReservationsLoaded(false)
+        }
       })
     return () => {
       active = false
@@ -1043,8 +1050,8 @@ export default function VehicleMovementDetailPage({
                   const isPossibleDuplicate = duplicateProductIds.has(line.productId)
 
                   return (
+                    <Fragment key={line.id}>
                     <tr
-                      key={line.id}
                       style={
                         isPossibleDuplicate
                           ? { background: 'rgba(245, 158, 11, 0.08)' }
@@ -1056,24 +1063,38 @@ export default function VehicleMovementDetailPage({
                           {productName ||
                             (isLoadingProducts ? 'Loading product...' : 'Product name unavailable')}
                         </strong>
-                        <span className="product-sku-badge mono">{line.productSku}</span>
-                        {(reservationsByProductId[line.productId] || []).length ? (
-                          <div
+                        <span className="product-sku-badge mono">{line.productSku}</span>{' '}
+                        {!isUnloading ? (
+                          <button
+                            type="button"
+                            className={
+                              auditProductId === line.productId ? 'button-secondary' : 'button-ghost'
+                            }
+                            onClick={() =>
+                              setAuditProductId((current) =>
+                                current === line.productId ? null : line.productId
+                              )
+                            }
                             style={{
-                              marginTop: 4,
+                              height: 22,
+                              padding: '0 7px',
                               fontSize: 10,
-                              color: 'var(--color-amber)',
-                              display: 'flex',
-                              flexWrap: 'wrap',
+                              marginTop: 4,
+                              display: 'inline-flex',
+                              alignItems: 'center',
                               gap: 4,
                             }}
-                            title="These confirmed orders have reserved this quantity from this vehicle — it isn't free even though it's physically loaded."
                           >
-                            🔒 Reserved:{' '}
-                            {reservationsByProductId[line.productId]
-                              .map((r) => `${r.orderNumber} (${formatNumber(r.qty)})`)
-                              .join(', ')}
-                          </div>
+                            🔒 Audit
+                            {(reservationsByProductId[line.productId] || []).length ? (
+                              <span
+                                className="mono"
+                                style={{ color: 'var(--color-amber)', fontWeight: 800 }}
+                              >
+                                {reservationsByProductId[line.productId].length}
+                              </span>
+                            ) : null}
+                          </button>
                         ) : null}
                         {isPossibleDuplicate ? (
                           <span
@@ -1175,6 +1196,62 @@ export default function VehicleMovementDetailPage({
                         </td>
                       ) : null}
                     </tr>
+                    {auditProductId === line.productId ? (
+                      <tr>
+                        <td
+                          colSpan={showAdminLineControls ? 7 : 6}
+                          style={{ padding: 0, background: 'var(--color-bg-surface)' }}
+                        >
+                          <div
+                            style={{
+                              margin: 8,
+                              padding: 12,
+                              border: '1px solid var(--color-border)',
+                              borderRadius: 8,
+                              background: 'var(--color-bg-base)',
+                            }}
+                          >
+                            <strong style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
+                              {productName || line.productSku} — Reservation audit
+                            </strong>
+                            {status !== 'Applied' ? (
+                              <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                Only available once this loading is Applied.
+                              </div>
+                            ) : !reservationsLoaded ? (
+                              <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                Loading reservation data…
+                              </div>
+                            ) : (reservationsByProductId[line.productId] || []).length ? (
+                              <table className="data-table" style={{ minWidth: 320 }}>
+                                <thead>
+                                  <tr>
+                                    <th>Confirmed order</th>
+                                    <th style={{ textAlign: 'right' }}>Qty reserved</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {reservationsByProductId[line.productId].map((r, idx) => (
+                                    <tr key={`${r.orderNumber}-${idx}`}>
+                                      <td className="mono">{r.orderNumber}</td>
+                                      <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
+                                        {formatNumber(r.qty)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            ) : (
+                              <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                No confirmed orders currently hold a reservation against this product
+                                on this vehicle.
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                   )
                 })}
                 {!filteredLines.length ? (
