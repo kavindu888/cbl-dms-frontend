@@ -65,8 +65,11 @@ function useAllocationReviewGate() {
     setIsConfirming(true)
     try {
       await pending.run(writeOffsByInvoiceId)
-      setPending(null)
     } finally {
+      // Always close, success or failure — leaving it open on failure just shows stale
+      // over/underpaid rows from before the attempt; the mutation's own onError already
+      // surfaces what went wrong via toast, and resubmitting re-opens a fresh review if needed.
+      setPending(null)
       setIsConfirming(false)
     }
   }

@@ -87,6 +87,11 @@ export const closeCollectionSession = ({ id, notes, physicalCashAmount } = {}) =
   )
 export const verifyCollectionSession = (id) =>
   value(collectionsAxios.post(`/sessions/${id}/verify`), 'Failed to verify session')
+export const deleteCollectionSession = (id, reason) =>
+  value(
+    collectionsAxios.delete(`/sessions/${id}`, { data: { reason } }),
+    'Failed to delete session'
+  )
 
 // Outstanding invoices and allocated payments
 export const getOutstandingInvoices = (customerId, params) =>

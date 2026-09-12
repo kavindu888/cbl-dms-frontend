@@ -170,6 +170,24 @@ export const useVerifySession = () => {
     onError: (error) => toast.error(errorMessage(error, 'Failed to verify session')),
   })
 }
+export const useDeleteSession = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reason }) => api.deleteCollectionSession(id, reason),
+    onSuccess: (unreversedCredit) => {
+      qc.invalidateQueries({ queryKey: ['collection-sessions'] })
+      if (Number(unreversedCredit) > 0) {
+        toast.success(
+          `Session deleted. Rs ${Number(unreversedCredit).toLocaleString('en-LK', { minimumFractionDigits: 2 })} in customer credit from this session was NOT auto-reversed — review affected customers' accounts manually.`,
+          { duration: 10000 }
+        )
+      } else {
+        toast.success('Session deleted')
+      }
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to delete session')),
+  })
+}
 
 // Outstanding invoices and payments
 export const useOutstandingInvoices = (customerId) =>
