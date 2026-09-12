@@ -11,6 +11,7 @@ export const collectionsAxios = {
 const collectionsV1Axios = {
   get: (url, config) => api.get(`/api/v1/collections${url}`, config),
   post: (url, data, config) => api.post(`/api/v1/collections${url}`, data, config),
+  put: (url, data, config) => api.put(`/api/v1/collections${url}`, data, config),
   delete: (url, config) => api.delete(`/api/v1/collections${url}`, config),
 }
 
@@ -111,6 +112,8 @@ export const recordChequePayment = (data) =>
   value(collectionsV1Axios.post('/payments/cheque', data), 'Failed to record cheque payment')
 export const recordBankTransferPayment = (data) =>
   value(collectionsV1Axios.post('/payments/bank-transfer', data), 'Failed to record transfer')
+export const updateCashDraft = (id, data) =>
+  value(collectionsV1Axios.put(`/payments/cash/${id}`, data), 'Failed to save draft changes')
 export const submitCashDraft = (id) =>
   value(collectionsV1Axios.post(`/payments/cash/${id}/submit`), 'Failed to submit draft')
 export const discardCashDraft = (id) =>

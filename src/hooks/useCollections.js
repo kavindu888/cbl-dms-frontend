@@ -226,6 +226,16 @@ export const useDraftCollections = (sessionId) =>
     enabled: Boolean(sessionId),
     staleTime: 5_000,
   })
+export const useUpdateCashDraft = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }) => api.updateCashDraft(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['draft-collections'] })
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to save draft changes')),
+  })
+}
 export const useSubmitCashDraft = () => {
   const qc = useQueryClient()
   return useMutation({

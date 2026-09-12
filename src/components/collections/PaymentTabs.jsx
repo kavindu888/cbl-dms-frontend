@@ -2,6 +2,7 @@ import { AlertTriangle, Ban, Wallet } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import Modal from '@components/ui/Modal'
+import { getOutstandingInvoicesByIds } from '@/api/collectionsApi'
 import {
   useBankBranches,
   useBanks,
@@ -12,6 +13,7 @@ import {
   useRecordCashPayment,
   useRecordChequePayment,
   useSubmitCashDraft,
+  useUpdateCashDraft,
 } from '@/hooks/useCollections'
 import { colomboToday, inputStyle, isPostDated, money } from '@/pages/collections/collectionsUi'
 import { formatDateTime } from '@/utils/formatDate'
@@ -303,9 +305,12 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
   const [counts, setCounts] = useState({})
   const [pickedInvoices, setPickedInvoices] = useState([])
   const [allocations, setAllocations] = useState([])
+  const [editingDraftId, setEditingDraftId] = useState(null)
+  const [isLoadingDraft, setIsLoadingDraft] = useState(false)
   const mutation = useRecordCashPayment()
   const gate = useAllocationReviewGate()
   const drafts = useDraftCollections(sessionId)
+  const updateDraft = useUpdateCashDraft()
   const submitDraft = useSubmitCashDraft()
   const discardDraft = useDiscardCashDraft()
   const cashDrafts = (drafts.data || []).filter((draft) => draft.method === 'Cash')
@@ -326,19 +331,64 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
     setAllocations((current) => current.filter((row) => row.invoiceId !== bill.invoiceId))
   }
 
+  function resetForm() {
+    setCounts({})
+    setPickedInvoices([])
+    setAllocations([])
+    setEditingDraftId(null)
+  }
+
+  async function editDraft(draft) {
+    setIsLoadingDraft(true)
+    try {
+      const ids = draft.allocations.map((allocation) => allocation.invoiceId)
+      const bills = await getOutstandingInvoicesByIds(ids)
+      setPickedInvoices(bills)
+      setAllocations(
+        draft.allocations.map((allocation) => {
+          const bill = bills.find((row) => row.invoiceId === allocation.invoiceId)
+          return {
+            invoiceId: allocation.invoiceId,
+            invoiceNumber: bill?.invoiceNumber,
+            serialNumber: bill?.serialNumber,
+            customerName: bill?.customerName,
+            outstanding: Number(bill?.outstandingAmount || 0),
+            allocated: String(allocation.amount),
+          }
+        })
+      )
+      const nextCounts = {}
+      draft.denominations.forEach((d) => {
+        nextCounts[d.denomination] = d.count
+      })
+      setCounts(nextCounts)
+      setEditingDraftId(draft.id)
+    } catch (error) {
+      toast.error(error.message || 'Unable to load draft for editing.')
+    } finally {
+      setIsLoadingDraft(false)
+    }
+  }
+
   async function doSubmit(writeOffsByInvoiceId = {}, saveAsDraft = false) {
-    await mutation.mutateAsync({
-      sessionId,
+    const payload = {
       totalAmount: total,
       denominations: DENOMINATIONS.filter((denomination) => Number(counts[denomination]) > 0).map(
         (denomination) => ({ denomination, count: Number(counts[denomination]) })
       ),
       allocations: payloadAllocations(allocations, writeOffsByInvoiceId),
-      saveAsDraft,
-    })
-    setCounts({})
-    setPickedInvoices([])
-    setAllocations([])
+    }
+    if (editingDraftId) {
+      await updateDraft.mutateAsync({ id: editingDraftId, ...payload })
+      if (saveAsDraft) {
+        toast.success('Draft updated')
+      } else {
+        await submitDraft.mutateAsync(editingDraftId)
+      }
+    } else {
+      await mutation.mutateAsync({ sessionId, ...payload, saveAsDraft })
+    }
+    resetForm()
     onRecorded?.()
   }
 
@@ -357,6 +407,13 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
     }
     doSubmit({}, true)
   }
+
+  const isBusy =
+    mutation.isPending ||
+    gate.isConfirming ||
+    updateDraft.isPending ||
+    submitDraft.isPending ||
+    isLoadingDraft
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -420,12 +477,36 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
       </section>
       {total > 0 ? (
         <section className="panel" style={{ padding: 16, display: 'grid', gap: 14 }}>
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 800 }}>Allocate to invoices</h3>
-            <p style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
-              Search a bill, then assign cash to it — add as many bills as you need, from any
-              customer, until the full cash total is allocated.
-            </p>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 12,
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 800 }}>Allocate to invoices</h3>
+              <p style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                Search a bill, then assign cash to it — add as many bills as you need, from any
+                customer, until the full cash total is allocated.
+              </p>
+            </div>
+            {editingDraftId ? (
+              <span
+                style={{
+                  flex: '0 0 auto',
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--color-amber)',
+                  border: '1px solid var(--color-amber)',
+                }}
+              >
+                Editing draft
+              </span>
+            ) : null}
           </div>
           <label>
             <span className="form-label">Add a bill</span>
@@ -465,24 +546,32 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
             </div>
           ) : null}
           <div style={{ display: 'flex', gap: 10 }}>
+            {editingDraftId ? (
+              <button
+                type="button"
+                className="button-ghost"
+                onClick={resetForm}
+                disabled={disabled || isBusy}
+              >
+                Cancel edit
+              </button>
+            ) : null}
             <button
               type="button"
               className="button-secondary"
               onClick={saveDraft}
-              disabled={disabled || mutation.isPending || total <= 0}
+              disabled={disabled || isBusy || total <= 0}
             >
-              Save as draft
+              {editingDraftId ? 'Save changes' : 'Save as draft'}
             </button>
             <button
               type="button"
               className="button-primary"
               onClick={submit}
               style={{ flex: 1 }}
-              disabled={
-                disabled || mutation.isPending || gate.isConfirming || !matches || !allocations.length
-              }
+              disabled={disabled || isBusy || !matches || !allocations.length}
             >
-              {mutation.isPending || gate.isConfirming ? 'Recording...' : `Record ${money(total)} cash`}
+              {isBusy ? 'Recording...' : `Record ${money(total)} cash`}
             </button>
           </div>
         </section>
@@ -491,7 +580,7 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
         <section className="panel" style={{ padding: 16 }}>
           <h3 style={{ fontSize: 14, fontWeight: 800 }}>Saved drafts</h3>
           <p style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
-            Not yet posted to any invoice — submit when ready, or discard.
+            Not yet posted to any invoice — recheck, edit, submit when ready, or discard.
           </p>
           <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
             {cashDrafts.map((draft) => (
@@ -502,7 +591,10 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   gap: 12,
-                  border: '1px solid var(--color-border)',
+                  border:
+                    editingDraftId === draft.id
+                      ? '1px solid var(--color-amber)'
+                      : '1px solid var(--color-border)',
                   borderRadius: 8,
                   padding: 10,
                 }}
@@ -520,8 +612,16 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
                   <button
                     type="button"
                     className="button-secondary"
+                    onClick={() => editDraft(draft)}
+                    disabled={isBusy}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
                     onClick={() => submitDraft.mutate(draft.id)}
-                    disabled={submitDraft.isPending || discardDraft.isPending}
+                    disabled={isBusy}
                   >
                     Submit
                   </button>
@@ -530,7 +630,7 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
                     className="button-ghost"
                     style={{ color: 'var(--color-danger)' }}
                     onClick={() => discardDraft.mutate(draft.id)}
-                    disabled={submitDraft.isPending || discardDraft.isPending}
+                    disabled={isBusy}
                   >
                     Discard
                   </button>
