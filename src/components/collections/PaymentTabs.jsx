@@ -5,12 +5,16 @@ import Modal from '@components/ui/Modal'
 import {
   useBankBranches,
   useBanks,
+  useDiscardCashDraft,
+  useDraftCollections,
   useOutstandingInvoices,
   useRecordBankTransfer,
   useRecordCashPayment,
   useRecordChequePayment,
+  useSubmitCashDraft,
 } from '@/hooks/useCollections'
 import { colomboToday, inputStyle, isPostDated, money } from '@/pages/collections/collectionsUi'
+import { formatDateTime } from '@/utils/formatDate'
 import BillSearch from './BillSearch'
 import InvoiceAllocationTable from './InvoiceAllocationTable'
 
@@ -125,9 +129,12 @@ function AllocationReviewModal({ gate, customerName }) {
               <Wallet size={18} color="var(--color-amber)" style={{ flex: '0 0 auto', marginTop: 2 }} />
               <p style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
                 Paying more than what's owed on {overpaidRows.length} bill
-                {overpaidRows.length === 1 ? '' : 's'}. The excess becomes credit on{' '}
-                <strong style={{ color: 'var(--color-text-primary)' }}>{customerName}</strong>'s
-                account, usable on a future bill.
+                {overpaidRows.length === 1 ? '' : 's'}. The excess becomes credit on the paying
+                customer's account (
+                {[...new Set(overpaidRows.map((row) => row.customerName || customerName))]
+                  .filter(Boolean)
+                  .join(', ') || 'their account'}
+                ), usable on a future bill.
               </p>
             </div>
             <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
@@ -294,39 +301,61 @@ function AllocationSection({ customer, total, allocations, setAllocations }) {
 
 export function CashTab({ sessionId, disabled, onRecorded }) {
   const [counts, setCounts] = useState({})
-  const [bill, setBill] = useState(null)
+  const [pickedInvoices, setPickedInvoices] = useState([])
   const [allocations, setAllocations] = useState([])
-  const customer = toCustomer(bill)
   const mutation = useRecordCashPayment()
   const gate = useAllocationReviewGate()
+  const drafts = useDraftCollections(sessionId)
+  const submitDraft = useSubmitCashDraft()
+  const discardDraft = useDiscardCashDraft()
+  const cashDrafts = (drafts.data || []).filter((draft) => draft.method === 'Cash')
   const total = DENOMINATIONS.reduce(
     (sum, denomination) => sum + denomination * Number(counts[denomination] || 0),
     0
   )
   const matches = Math.abs(allocationTotal(allocations) - total) < 0.01
 
-  async function doSubmit(writeOffsByInvoiceId = {}) {
+  function addBill(bill) {
+    if (!bill) return
+    setPickedInvoices((current) =>
+      current.some((row) => row.invoiceId === bill.invoiceId) ? current : [...current, bill]
+    )
+  }
+  function removeBill(bill) {
+    setPickedInvoices((current) => current.filter((row) => row.invoiceId !== bill.invoiceId))
+    setAllocations((current) => current.filter((row) => row.invoiceId !== bill.invoiceId))
+  }
+
+  async function doSubmit(writeOffsByInvoiceId = {}, saveAsDraft = false) {
     await mutation.mutateAsync({
       sessionId,
-      customerId: customer.id,
       totalAmount: total,
       denominations: DENOMINATIONS.filter((denomination) => Number(counts[denomination]) > 0).map(
         (denomination) => ({ denomination, count: Number(counts[denomination]) })
       ),
       allocations: payloadAllocations(allocations, writeOffsByInvoiceId),
+      saveAsDraft,
     })
     setCounts({})
-    setBill(null)
+    setPickedInvoices([])
     setAllocations([])
     onRecorded?.()
   }
 
   function submit() {
-    if (!customer || total <= 0 || !matches) {
-      toast.error('Select a customer and allocate the full cash total.')
+    if (total <= 0 || !matches || !allocations.length) {
+      toast.error('Enter the cash total and allocate it fully across at least one bill.')
       return
     }
     gate.requestSubmit(allocations, doSubmit)
+  }
+
+  function saveDraft() {
+    if (total <= 0) {
+      toast.error('Enter the cash total first.')
+      return
+    }
+    doSubmit({}, true)
   }
 
   return (
@@ -394,50 +423,124 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 800 }}>Allocate to invoices</h3>
             <p style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
-              Search a bill, then assign cash to that customer's outstanding invoices.
+              Search a bill, then assign cash to it — add as many bills as you need, from any
+              customer, until the full cash total is allocated.
             </p>
           </div>
           <label>
-            <span className="form-label">Bill *</span>
-            <BillSearch
-              value={bill}
-              onChange={(next) => {
-                setBill(next)
-                setAllocations([])
-              }}
-            />
+            <span className="form-label">Add a bill</span>
+            <BillSearch value={null} onChange={addBill} />
           </label>
-          {customer ? (
-            <AllocationSection
-              customer={customer}
-              total={total}
+          {pickedInvoices.length ? (
+            <InvoiceAllocationTable
+              invoices={pickedInvoices}
               allocations={allocations}
-              setAllocations={setAllocations}
+              onChange={setAllocations}
+              totalPayment={total}
+              onRemove={removeBill}
             />
-          ) : null}
-          <button
-            type="button"
-            className="button-primary"
-            onClick={submit}
-            disabled={
-              disabled ||
-              mutation.isPending ||
-              gate.isConfirming ||
-              !customer ||
-              !matches ||
-              !allocations.length
-            }
-          >
-            {mutation.isPending || gate.isConfirming ? 'Recording...' : `Record ${money(total)} cash`}
-          </button>
-          {!customer ? (
+          ) : (
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--color-text-dim)' }}>
-              Select a customer to enable submission.
+              Search and add at least one bill above.
             </p>
+          )}
+          {pickedInvoices.length ? (
+            <div
+              style={{
+                padding: 10,
+                display: 'flex',
+                justifyContent: 'space-between',
+                border: `1px solid ${matches ? 'var(--color-teal)' : 'var(--color-amber)'}`,
+                borderRadius: 7,
+                color: matches ? 'var(--color-teal)' : 'var(--color-amber)',
+                fontSize: 12,
+              }}
+            >
+              <span>
+                {matches ? 'Allocations match cash total' : 'Allocations must equal cash total'}
+              </span>
+              <span className="mono">
+                {money(allocationTotal(allocations))} / {money(total)}
+              </span>
+            </div>
           ) : null}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={saveDraft}
+              disabled={disabled || mutation.isPending || total <= 0}
+            >
+              Save as draft
+            </button>
+            <button
+              type="button"
+              className="button-primary"
+              onClick={submit}
+              style={{ flex: 1 }}
+              disabled={
+                disabled || mutation.isPending || gate.isConfirming || !matches || !allocations.length
+              }
+            >
+              {mutation.isPending || gate.isConfirming ? 'Recording...' : `Record ${money(total)} cash`}
+            </button>
+          </div>
         </section>
       ) : null}
-      <AllocationReviewModal gate={gate} customerName={customer?.name} />
+      {cashDrafts.length ? (
+        <section className="panel" style={{ padding: 16 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 800 }}>Saved drafts</h3>
+          <p style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
+            Not yet posted to any invoice — submit when ready, or discard.
+          </p>
+          <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+            {cashDrafts.map((draft) => (
+              <div
+                key={draft.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  padding: 10,
+                }}
+              >
+                <div>
+                  <div className="mono" style={{ fontWeight: 700 }}>
+                    {money(draft.totalAmount)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                    {draft.allocations.length} bill{draft.allocations.length === 1 ? '' : 's'} ·
+                    saved {formatDateTime(draft.savedOn)}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => submitDraft.mutate(draft.id)}
+                    disabled={submitDraft.isPending || discardDraft.isPending}
+                  >
+                    Submit
+                  </button>
+                  <button
+                    type="button"
+                    className="button-ghost"
+                    style={{ color: 'var(--color-danger)' }}
+                    onClick={() => discardDraft.mutate(draft.id)}
+                    disabled={submitDraft.isPending || discardDraft.isPending}
+                  >
+                    Discard
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      <AllocationReviewModal gate={gate} customerName={null} />
     </div>
   )
 }

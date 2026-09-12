@@ -12,8 +12,10 @@ export default function InvoiceAllocationTable({
   allocations,
   onChange,
   totalPayment,
+  onRemove,
 }) {
   const [search, setSearch] = useState('')
+  const showCustomerColumn = new Set(invoices.map((invoice) => invoice.customerId)).size > 1
   const filteredInvoices = useMemo(() => {
     const query = search.trim().toLowerCase()
     if (!query) return invoices
@@ -34,6 +36,7 @@ export default function InvoiceAllocationTable({
         invoiceId: invoice.invoiceId,
         invoiceNumber: invoice.invoiceNumber,
         serialNumber: invoice.serialNumber,
+        customerName: invoice.customerName,
         outstanding: Number(invoice.outstandingAmount || 0),
         allocated: amount === '' ? '' : String(numeric),
       })
@@ -57,6 +60,7 @@ export default function InvoiceAllocationTable({
             invoiceId: invoice.invoiceId,
             invoiceNumber: invoice.invoiceNumber,
             serialNumber: invoice.serialNumber,
+            customerName: invoice.customerName,
             outstanding: Number(invoice.outstandingAmount || 0),
             allocated: allocated.toFixed(2),
           })
@@ -113,17 +117,22 @@ export default function InvoiceAllocationTable({
           <thead>
             <tr>
               <th>Invoice</th>
+              {showCustomerColumn ? <th>Customer</th> : null}
               <th>Due</th>
               <th style={{ textAlign: 'right' }}>Total</th>
               <th style={{ textAlign: 'right' }}>Paid</th>
               <th style={{ textAlign: 'right' }}>Outstanding</th>
               <th style={{ textAlign: 'right' }}>Allocate</th>
+              {onRemove ? <th /> : null}
             </tr>
           </thead>
           <tbody>
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                <td
+                  colSpan={showCustomerColumn ? 7 : 6}
+                  style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}
+                >
                   No invoices match "{search}".
                 </td>
               </tr>
@@ -165,6 +174,9 @@ export default function InvoiceAllocationTable({
                       </div>
                     ) : null}
                   </td>
+                  {showCustomerColumn ? (
+                    <td style={{ fontSize: 12 }}>{invoice.customerName || '—'}</td>
+                  ) : null}
                   <td>{formatDate(invoice.dueDate || invoice.invoiceDate)}</td>
                   <td className="mono" style={{ textAlign: 'right' }}>
                     {money(invoice.netAmount)}
@@ -201,6 +213,18 @@ export default function InvoiceAllocationTable({
                       </div>
                     ) : null}
                   </td>
+                  {onRemove ? (
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        className="button-ghost"
+                        onClick={() => onRemove(invoice)}
+                        style={{ height: 28, padding: '0 8px', fontSize: 11 }}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               )
             })}

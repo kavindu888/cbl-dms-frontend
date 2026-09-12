@@ -199,8 +199,56 @@ function usePaymentMutation(mutationFn, successMessage) {
     onError: (error) => toast.error(errorMessage(error, 'Failed to record payment')),
   })
 }
-export const useRecordCashPayment = () =>
-  usePaymentMutation(api.recordCashPayment, 'Cash payment recorded')
+export const useRecordCashPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.recordCashPayment,
+    onSuccess: (_, variables) => {
+      invalidatePayments(qc)
+      qc.invalidateQueries({ queryKey: ['draft-collections'] })
+      toast.success(variables?.saveAsDraft ? 'Saved as draft' : 'Cash payment recorded')
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to record cash payment')),
+  })
+}
+export const useOutstandingInvoicesByIds = (ids) =>
+  useQuery({
+    queryKey: ['outstanding-invoices-by-ids', ids],
+    queryFn: () => api.getOutstandingInvoicesByIds(ids),
+    enabled: Boolean(ids?.length),
+    staleTime: 10_000,
+    retry: false,
+  })
+export const useDraftCollections = (sessionId) =>
+  useQuery({
+    queryKey: ['draft-collections', sessionId],
+    queryFn: () => api.listDraftCollections(sessionId),
+    enabled: Boolean(sessionId),
+    staleTime: 5_000,
+  })
+export const useSubmitCashDraft = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.submitCashDraft,
+    onSuccess: () => {
+      invalidatePayments(qc)
+      qc.invalidateQueries({ queryKey: ['draft-collections'] })
+      toast.success('Draft submitted')
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to submit draft')),
+  })
+}
+export const useDiscardCashDraft = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.discardCashDraft,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['draft-collections'] })
+      toast.success('Draft discarded')
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to discard draft')),
+  })
+}
 export const useRecordChequePayment = () => {
   const qc = useQueryClient()
   return useMutation({
