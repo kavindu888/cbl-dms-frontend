@@ -1,7 +1,16 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
-import { Banknote, FileSpreadsheet, FileText, ReceiptText, Search, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import {
+  Banknote,
+  ChevronDown,
+  ChevronRight,
+  FileSpreadsheet,
+  FileText,
+  ReceiptText,
+  Search,
+  X,
+} from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { inventoryService } from '@/services/api/inventoryService'
@@ -107,35 +116,214 @@ function read(row, camelKey, pascalKey = camelKey.charAt(0).toUpperCase() + came
   return row?.[camelKey] ?? row?.[pascalKey]
 }
 
-function normalizeRow(row) {
+function normalizeSummaryRow(row) {
   return {
-    collectionId: read(row, 'collectionId') ?? '',
     sessionId: read(row, 'sessionId') ?? '',
     sessionNumber: read(row, 'sessionNumber') ?? 'Unknown session',
     vehicleId: read(row, 'vehicleId') ?? '',
     vehicleName: read(row, 'vehicleName') ?? '',
     collectorId: read(row, 'collectorId') ?? '',
-    salesmanId: read(row, 'salesmanId') ?? '',
+    collectorName: read(row, 'collectorName') ?? '',
     sessionDate: read(row, 'sessionDate') ?? null,
     sessionStatusCode: Number(read(row, 'sessionStatusCode') ?? 0),
-    customerId: read(row, 'customerId') ?? '',
-    customerName: read(row, 'customerName') ?? 'Unknown customer',
-    invoiceId: read(row, 'invoiceId') ?? '',
-    invoiceNumber: read(row, 'invoiceNumber') ?? '',
-    methodCode: Number(read(row, 'methodCode') ?? 0),
-    method: read(row, 'method') ?? 'Unknown',
-    amount: Number(read(row, 'amount') ?? 0),
-    collectedOn: read(row, 'collectedOn') ?? null,
-    collectedByUserId: read(row, 'collectedByUserId') ?? '',
-    collectedByUsername: read(row, 'collectedByUsername') ?? '',
-    chequeNumber: read(row, 'chequeNumber') ?? '',
-    chequeStatusCode: read(row, 'chequeStatusCode') ?? null,
-    chequeStatus: read(row, 'chequeStatus') ?? '',
+    deliveryRunId: read(row, 'deliveryRunId') ?? '',
+    deliveryRunName: read(row, 'deliveryRunName') ?? '',
+    totalSalesGross: Number(read(row, 'totalSalesGross') ?? 0),
+    cashToday: Number(read(row, 'cashToday') ?? 0),
+    cashOldInvoice: Number(read(row, 'cashOldInvoice') ?? 0),
+    cashUnclassified: Number(read(row, 'cashUnclassified') ?? 0),
+    chequeToday: Number(read(row, 'chequeToday') ?? 0),
+    chequeOldInvoice: Number(read(row, 'chequeOldInvoice') ?? 0),
+    chequeUnclassified: Number(read(row, 'chequeUnclassified') ?? 0),
+    creditGivenToday: Number(read(row, 'creditGivenToday') ?? 0),
+    chequesProcessedCount: Number(read(row, 'chequesProcessedCount') ?? 0),
+    goodsReturnsTotal: Number(read(row, 'goodsReturnsTotal') ?? 0),
+    physicalCashAmount: read(row, 'physicalCashAmount') ?? null,
+    projectedCashSimplified: Number(read(row, 'projectedCashSimplified') ?? 0),
+    cashDifference: read(row, 'cashDifference') ?? null,
+    cashStatus: read(row, 'cashStatus') ?? 'Not Recorded',
   }
 }
 
 function vehicleLabel(vehicle) {
   return [vehicle.vehicleCode || vehicle.code, vehicle.name].filter(Boolean).join(' - ')
+}
+
+function statusStyles(status) {
+  if (status === 'Balanced') {
+    return { color: '#166534', background: '#dcfce7', border: '#86efac' }
+  }
+  if (status === 'Short') {
+    return { color: '#991b1b', background: '#fee2e2', border: '#fca5a5' }
+  }
+  if (status === 'Excess') {
+    return { color: '#1d4ed8', background: '#dbeafe', border: '#93c5fd' }
+  }
+  return { color: '#4b5563', background: '#f3f4f6', border: '#d1d5db' }
+}
+
+function StatusBadge({ status }) {
+  const styles = statusStyles(status)
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 96,
+        padding: '4px 9px',
+        border: `1px solid ${styles.border}`,
+        borderRadius: 999,
+        background: styles.background,
+        color: styles.color,
+        fontSize: 11,
+        fontWeight: 800,
+        lineHeight: 1,
+      }}
+    >
+      {status}
+    </span>
+  )
+}
+
+function SectionPanel({ title, children, tone }) {
+  return (
+    <div
+      style={{
+        padding: 12,
+        border: '1px solid var(--color-border)',
+        borderRadius: 6,
+        background: tone || 'color-mix(in srgb, var(--color-bg-elevated) 55%, transparent)',
+      }}
+    >
+      <div
+        style={{
+          paddingBottom: 8,
+          marginBottom: 8,
+          borderBottom: '1px solid var(--color-border)',
+          color: 'var(--color-blue, #2563eb)',
+          fontSize: 13,
+          fontWeight: 850,
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ display: 'grid', gap: 7 }}>{children}</div>
+    </div>
+  )
+}
+
+function AmountLine({ label, value }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}>
+      <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+      <strong className="mono" style={{ textAlign: 'right' }}>
+        {formatLKR(value)}
+      </strong>
+    </div>
+  )
+}
+
+function ValueLine({ label, value, valueNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}>
+      <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+      {valueNode || (
+        <strong className="mono" style={{ textAlign: 'right' }}>
+          {value}
+        </strong>
+      )}
+    </div>
+  )
+}
+
+function ExpandedSummary({ row }) {
+  const cashTone = statusStyles(row.cashStatus)
+  const cashDifference = row.cashDifference == null ? null : Number(row.cashDifference)
+  const collector = row.collectorName || row.collectorId || 'Unassigned'
+  return (
+    <div style={{ padding: 14, display: 'grid', gap: 12 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 8,
+          padding: '10px 12px',
+          border: '1px solid var(--color-border)',
+          borderRadius: 6,
+          background: 'color-mix(in srgb, var(--color-bg-elevated) 55%, transparent)',
+          fontSize: 13,
+        }}
+      >
+        <ValueLine label="Collected By" value={collector} />
+        <ValueLine
+          label="Delivery Run"
+          value={row.deliveryRunName || row.deliveryRunId || 'Unassigned'}
+        />
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: 12,
+        }}
+      >
+        <SectionPanel title="Sales & Collection Summary">
+          <AmountLine label="Total Sales (Actual Bill)" value={row.totalSalesGross} />
+          <AmountLine label="Sale Cash Balance" value={row.cashToday} />
+          <AmountLine label="Sale Cheque Collection" value={row.chequeToday} />
+          <AmountLine label="Sale Credits (To-Pays)" value={row.creditGivenToday} />
+          {row.cashUnclassified !== 0 ? (
+            <AmountLine label="Unallocated Cash" value={row.cashUnclassified} />
+          ) : null}
+        </SectionPanel>
+
+        <SectionPanel title="Old Invoice Collections">
+          <AmountLine label="To-Pay Cash Collection" value={row.cashOldInvoice} />
+          <AmountLine label="To-Pay Cheque Collection" value={row.chequeOldInvoice} />
+          {row.chequeUnclassified !== 0 ? (
+            <AmountLine label="Unallocated Cheque" value={row.chequeUnclassified} />
+          ) : null}
+        </SectionPanel>
+
+        <SectionPanel title="Cheque Reconciliation">
+          <ValueLine label="Cheques Recorded" value={row.chequesProcessedCount.toLocaleString()} />
+        </SectionPanel>
+
+        <SectionPanel
+          title="Cash Reconciliation"
+          tone={`color-mix(in srgb, ${cashTone.background} 68%, var(--color-bg-elevated))`}
+        >
+          <AmountLine label="Projected Cash (simplified)" value={row.projectedCashSimplified} />
+          <ValueLine
+            label="Physical Cash"
+            valueNode={
+              row.physicalCashAmount == null ? (
+                <em style={{ color: 'var(--color-text-dim)' }}>Not Recorded</em>
+              ) : (
+                <strong className="mono">{formatLKR(Number(row.physicalCashAmount))}</strong>
+              )
+            }
+          />
+          <ValueLine
+            label="Difference"
+            valueNode={
+              cashDifference == null ? (
+                <strong className="mono">—</strong>
+              ) : (
+                <strong className="mono">{formatLKR(cashDifference)}</strong>
+              )
+            }
+          />
+          <ValueLine label="Status" valueNode={<StatusBadge status={row.cashStatus} />} />
+        </SectionPanel>
+
+        <SectionPanel title="Goods Returns">
+          <AmountLine label="Goods Returns Total" value={row.goodsReturnsTotal} />
+        </SectionPanel>
+      </div>
+    </div>
+  )
 }
 
 export default function DailyCollectionReportPage() {
@@ -149,6 +337,7 @@ export default function DailyCollectionReportPage() {
   const [appliedFilters, setAppliedFilters] = useState(filters)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
   const [isExportingExcel, setIsExportingExcel] = useState(false)
+  const [expandedSessions, setExpandedSessions] = useState({})
 
   const vehiclesQuery = useQuery({
     queryKey: ['reports', 'daily-collection', 'vehicles'],
@@ -168,8 +357,8 @@ export default function DailyCollectionReportPage() {
   }, [page, appliedFilters])
 
   const reportQuery = useQuery({
-    queryKey: ['reports', 'daily-collection', queryParams],
-    queryFn: () => reportsService.getDailyCollectionReport(queryParams),
+    queryKey: ['reports', 'daily-collection-summary', queryParams],
+    queryFn: () => reportsService.getDailyCollectionSummaryReport(queryParams),
     placeholderData: keepPreviousData,
   })
 
@@ -177,7 +366,10 @@ export default function DailyCollectionReportPage() {
     setPage(1)
   }, [appliedFilters])
 
-  const rows = useMemo(() => (reportQuery.data?.items || []).map(normalizeRow), [reportQuery.data])
+  const rows = useMemo(
+    () => (reportQuery.data?.items || []).map(normalizeSummaryRow),
+    [reportQuery.data]
+  )
   const totalItems = Number(reportQuery.data?.totalItems ?? rows.length)
   const isBusy = reportQuery.isLoading || reportQuery.isFetching
 
@@ -194,10 +386,13 @@ export default function DailyCollectionReportPage() {
     () =>
       rows.reduce(
         (totals, row) => {
-          totals.total += row.amount
-          if (row.methodCode === 1 || row.method === 'Cash') totals.cash += row.amount
-          if (row.methodCode === 2 || row.method === 'Cheque') totals.cheque += row.amount
-          if (row.methodCode === 3 || row.method === 'BankTransfer') totals.bankTransfer += row.amount
+          const cash =
+            row.cashToday + row.cashOldInvoice + row.cashUnclassified
+          const cheque =
+            row.chequeToday + row.chequeOldInvoice + row.chequeUnclassified
+          totals.total += cash + cheque
+          totals.cash += cash
+          totals.cheque += cheque
           return totals
         },
         { total: 0, cash: 0, cheque: 0, bankTransfer: 0 }
@@ -236,7 +431,7 @@ export default function DailyCollectionReportPage() {
   async function handleExportPdf() {
     setIsExportingPdf(true)
     try {
-      await openPdfInNewTab('/api/reports/daily-collection/export', {
+      await openPdfInNewTab('/api/reports/daily-collection-summary/export', {
         ...buildExportParams(),
         format: 'pdf',
       })
@@ -260,6 +455,10 @@ export default function DailyCollectionReportPage() {
     } finally {
       setIsExportingExcel(false)
     }
+  }
+
+  function toggleSession(sessionId) {
+    setExpandedSessions((current) => ({ ...current, [sessionId]: !current[sessionId] }))
   }
 
   return (
@@ -398,68 +597,85 @@ export default function DailyCollectionReportPage() {
             <strong style={{ fontSize: 13 }}>Daily collection report</strong>
           </div>
           <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-            {totalItems} row{totalItems === 1 ? '' : 's'}
+            {totalItems} session{totalItems === 1 ? '' : 's'}
           </span>
         </div>
 
         {isBusy ? (
           <div style={{ padding: 36, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-            Loading daily collection report...
+            Loading daily collection summary...
           </div>
         ) : reportQuery.isError ? (
           <div style={{ padding: 42, textAlign: 'center', color: 'var(--color-danger)' }}>
-            {reportQuery.error?.message || 'Unable to load daily collection report.'}
+            {reportQuery.error?.message || 'Unable to load daily collection summary.'}
           </div>
         ) : rows.length ? (
           <div style={{ overflowX: 'auto' }}>
             <table className="data-table product-table-compact">
               <thead>
                 <tr>
+                  <th style={{ width: 42 }} />
                   <th>Session</th>
                   <th>Vehicle</th>
-                  <th>Collected By</th>
+                  <th>Delivery Run</th>
                   <th>Session Date</th>
-                  <th>Customer</th>
-                  <th>Invoice</th>
-                  <th>Method</th>
-                  <th style={{ textAlign: 'right' }}>Amount</th>
-                  <th>Collected On</th>
-                  <th>Cheque No</th>
-                  <th>Cheque Status</th>
+                  <th style={{ textAlign: 'right' }}>Total Sales</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.collectionId || `${row.sessionId}-${row.invoiceId}-${row.amount}`}>
-                    <td>
-                      <span className="mono">{row.sessionNumber}</span>
-                    </td>
-                    <td>{row.vehicleName || row.vehicleId || 'No vehicle'}</td>
-                    <td>{row.collectedByUsername || row.collectedByUserId || 'Unknown'}</td>
-                    <td className="mono">{formatDate(row.sessionDate)}</td>
-                    <td>{row.customerName || row.customerId}</td>
-                    <td>
-                      {row.invoiceNumber ? (
-                        <span className="mono">{row.invoiceNumber}</span>
-                      ) : (
-                        <span style={{ color: 'var(--color-text-dim)' }}>Unallocated</span>
-                      )}
-                    </td>
-                    <td>{row.method}</td>
-                    <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
-                      {formatLKR(row.amount)}
-                    </td>
-                    <td className="mono">{formatDate(row.collectedOn)}</td>
-                    <td>
-                      {row.chequeNumber ? (
-                        <span className="mono">{row.chequeNumber}</span>
-                      ) : (
-                        <span style={{ color: 'var(--color-text-dim)' }}>-</span>
-                      )}
-                    </td>
-                    <td>{row.chequeStatus || '-'}</td>
-                  </tr>
-                ))}
+                {rows.map((row) => {
+                  const expanded = Boolean(expandedSessions[row.sessionId])
+                  return (
+                    <Fragment key={row.sessionId}>
+                      <tr onClick={() => toggleSession(row.sessionId)} style={{ cursor: 'pointer' }}>
+                        <td>
+                          <button
+                            type="button"
+                            aria-label={expanded ? 'Collapse session' : 'Expand session'}
+                            aria-expanded={expanded}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              toggleSession(row.sessionId)
+                            }}
+                            style={{
+                              width: 26,
+                              height: 26,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              border: '1px solid var(--color-border)',
+                              borderRadius: 6,
+                              background: 'transparent',
+                              color: 'var(--color-text-muted)',
+                            }}
+                          >
+                            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </button>
+                        </td>
+                        <td>
+                          <span className="mono">{row.sessionNumber}</span>
+                        </td>
+                        <td>{row.vehicleName || row.vehicleId || 'No vehicle'}</td>
+                        <td>{row.deliveryRunName || row.deliveryRunId || 'Unassigned'}</td>
+                        <td className="mono">{formatDate(row.sessionDate)}</td>
+                        <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                          {formatLKR(row.totalSalesGross)}
+                        </td>
+                        <td>
+                          <StatusBadge status={row.cashStatus} />
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr>
+                          <td colSpan={7} style={{ padding: 0, background: 'var(--color-bg-base)' }}>
+                            <ExpandedSummary row={row} />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>

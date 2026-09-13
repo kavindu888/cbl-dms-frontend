@@ -58,4 +58,13 @@ export const reportsService = {
       items: page?.items || [],
     }
   },
+
+  async getDailyCollectionSummaryReport(params = {}) {
+    const response = await getOnce('/api/reports/daily-collection-summary', { params })
+    const page = getValue(response, 'Unable to load daily collection summary.')
+    return {
+      ...page,
+      items: page?.items || [],
+    }
+  },
 }
