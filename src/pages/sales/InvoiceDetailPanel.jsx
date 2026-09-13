@@ -1,10 +1,11 @@
-import { Package, Pencil, Tags, Wrench } from 'lucide-react'
+import { Ban, Package, Pencil, Tags, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import { useAuthStore } from '@stores/authStore'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import RecalculateInvoiceDiscountsModal from './RecalculateInvoiceDiscountsModal'
 import AdminEditInvoiceLinesModal from './AdminEditInvoiceLinesModal'
 import SetInvoiceOrderDiscountsModal from './SetInvoiceOrderDiscountsModal'
+import CancelInvoiceModal from './CancelInvoiceModal'
 
 function formatMoney(value) {
   return `Rs. ${Number(value || 0).toLocaleString('en-LK', {
@@ -34,9 +35,11 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
   const currentUser = useAuthStore((state) => state.user)
   const canAdjustDiscounts = userHasPermission(currentUser, PERMISSIONS.sales.invoiceAdjustDiscounts)
   const canAdminEditLines = userHasPermission(currentUser, PERMISSIONS.sales.invoiceAdminEditLines)
+  const canCancelInvoice = userHasPermission(currentUser, PERMISSIONS.sales.invoiceCancel)
   const [isRecalculateOpen, setIsRecalculateOpen] = useState(false)
   const [isAdminEditOpen, setIsAdminEditOpen] = useState(false)
   const [isSetOrderDiscountsOpen, setIsSetOrderDiscountsOpen] = useState(false)
+  const [isCancelOpen, setIsCancelOpen] = useState(false)
   const normalLines = (invoice.lines || []).filter((line) => !line.isReturnLine)
   const saleNetBeforeReturn = normalLines.reduce(
     (sum, line) => sum + Number(line.lineTotal || 0),
@@ -82,7 +85,8 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
           <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
             {normalLines.length} item{normalLines.length === 1 ? '' : 's'}
           </span>
-          {(canAdjustDiscounts || canAdminEditLines) && invoice.status !== 'Cancelled' ? (
+          {(canAdjustDiscounts || canAdminEditLines || canCancelInvoice) &&
+          invoice.status !== 'Cancelled' ? (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               {canAdminEditLines ? (
                 <button
@@ -112,6 +116,22 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                   style={{ height: 26, fontSize: 11, padding: '0 10px' }}
                 >
                   <Tags size={12} /> Set Order Discounts
+                </button>
+              ) : null}
+              {canCancelInvoice ? (
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => setIsCancelOpen(true)}
+                  style={{
+                    height: 26,
+                    fontSize: 11,
+                    padding: '0 10px',
+                    color: 'var(--color-danger)',
+                    borderColor: 'var(--color-danger)',
+                  }}
+                >
+                  <Ban size={12} /> Cancel Invoice
                 </button>
               ) : null}
             </div>
@@ -312,6 +332,13 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
         isOpen={isSetOrderDiscountsOpen}
         invoice={invoice}
         onClose={() => setIsSetOrderDiscountsOpen(false)}
+        onDone={onRefresh}
+      />
+
+      <CancelInvoiceModal
+        isOpen={isCancelOpen}
+        invoice={invoice}
+        onClose={() => setIsCancelOpen(false)}
         onDone={onRefresh}
       />
     </div>

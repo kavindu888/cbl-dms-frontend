@@ -88,6 +88,7 @@
     sessionCreate: 'collections:session:create',
     sessionClose: 'collections:session:close',
     sessionVerify: 'collections:session:verify',
+    sessionDelete: 'collections:session:delete',
     sessionRead: 'collections:session:read',
     collectionCreate: 'collections:collection:create',
     collectionRead: 'collections:collection:read',

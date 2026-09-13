@@ -11,6 +11,7 @@ export const collectionsAxios = {
 const collectionsV1Axios = {
   get: (url, config) => api.get(`/api/v1/collections${url}`, config),
   post: (url, data, config) => api.post(`/api/v1/collections${url}`, data, config),
+  put: (url, data, config) => api.put(`/api/v1/collections${url}`, data, config),
   delete: (url, config) => api.delete(`/api/v1/collections${url}`, config),
 }
 
@@ -86,6 +87,11 @@ export const closeCollectionSession = ({ id, notes, physicalCashAmount } = {}) =
   )
 export const verifyCollectionSession = (id) =>
   value(collectionsAxios.post(`/sessions/${id}/verify`), 'Failed to verify session')
+export const deleteCollectionSession = (id, reason) =>
+  value(
+    collectionsAxios.delete(`/sessions/${id}`, { data: { reason } }),
+    'Failed to delete session'
+  )
 
 // Outstanding invoices and allocated payments
 export const getOutstandingInvoices = (customerId, params) =>
@@ -98,12 +104,30 @@ export const searchOutstandingInvoices = (search) =>
     collectionsV1Axios.get('/outstanding-invoices/search', { params: { search } }),
     'Failed to search bills'
   )
+export const getOutstandingInvoicesByIds = (ids) =>
+  ids?.length
+    ? value(
+        collectionsV1Axios.get('/outstanding-invoices/by-ids', { params: { ids: ids.join(',') } }),
+        'Failed to load bill details'
+      )
+    : Promise.resolve([])
 export const recordCashPayment = (data) =>
   value(collectionsV1Axios.post('/payments/cash', data), 'Failed to record cash payment')
 export const recordChequePayment = (data) =>
   value(collectionsV1Axios.post('/payments/cheque', data), 'Failed to record cheque payment')
 export const recordBankTransferPayment = (data) =>
   value(collectionsV1Axios.post('/payments/bank-transfer', data), 'Failed to record transfer')
+export const updateCashDraft = (id, data) =>
+  value(collectionsV1Axios.put(`/payments/cash/${id}`, data), 'Failed to save draft changes')
+export const submitCashDraft = (id) =>
+  value(collectionsV1Axios.post(`/payments/cash/${id}/submit`), 'Failed to submit draft')
+export const discardCashDraft = (id) =>
+  value(collectionsV1Axios.delete(`/payments/cash/${id}`), 'Failed to discard draft')
+export const listDraftCollections = (sessionId) =>
+  value(
+    collectionsV1Axios.get('/payments/drafts', { params: { sessionId } }),
+    'Failed to load drafts'
+  )
 
 // Legacy single-invoice session entry remains available to older collection screens.
 export const recordCashCollection = (sessionId, data) =>

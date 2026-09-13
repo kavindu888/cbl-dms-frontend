@@ -1,6 +1,15 @@
-import { ArrowLeft, Banknote, CheckCircle2, FileCheck2, Landmark, Lock, Scale } from 'lucide-react'
+import {
+  ArrowLeft,
+  Banknote,
+  CheckCircle2,
+  FileCheck2,
+  Landmark,
+  Lock,
+  Scale,
+  Trash2,
+} from 'lucide-react'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import ConfirmDialog from '@components/ui/ConfirmDialog'
 import StatusBadge from '@components/ui/StatusBadge'
 import { BankTransfersTab, CashTab, ChequesTab } from '@/components/collections/PaymentTabs'
@@ -8,10 +17,13 @@ import {
   useCloseSession,
   useCollectionSession,
   useCollectors,
+  useDeleteSession,
   useSalesmen,
   useVerifySession,
   useVehicles,
 } from '@/hooks/useCollections'
+import { useAuthStore } from '@stores/authStore'
+import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import { formatDate, formatDateTime } from '@/utils'
 import { Blank, Busy, Metric, PageTitle, Problem, money } from './collectionsUi'
 
@@ -23,15 +35,20 @@ const TABS = [
 
 export default function CollectionSessionDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [tab, setTab] = useState('cash')
   const [closeNotes, setCloseNotes] = useState('')
   const [physicalCash, setPhysicalCash] = useState('')
+  const [deleteReason, setDeleteReason] = useState('')
   const session = useCollectionSession(id)
   const close = useCloseSession()
   const verify = useVerifySession()
+  const deleteSession = useDeleteSession()
   const collectors = useCollectors()
   const salesmen = useSalesmen()
   const vehicles = useVehicles()
+  const currentUser = useAuthStore((state) => state.user)
+  const canDeleteSession = userHasPermission(currentUser, PERMISSIONS.collections.sessionDelete)
 
   if (session.isLoading) return <Busy label="Loading collection session..." />
   if (session.isError) return <Problem error={session.error} />
@@ -292,6 +309,44 @@ export default function CollectionSessionDetailPage() {
           {data.closedOn ? (
             <div style={{ marginTop: 12, fontSize: 10, color: 'var(--color-text-dim)' }}>
               Closed {formatDateTime(data.closedOn)}
+            </div>
+          ) : null}
+          {canDeleteSession ? (
+            <div
+              style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--color-border)' }}
+            >
+              <ConfirmDialog
+                title="Delete this entire session?"
+                description="This permanently removes every cash, cheque, and bank transfer entry in this session, reverses their effect on invoice balances and customer account balances, and cannot be undone. A cheque that's already been deposited, cleared, or bounced will block this — reverse it manually first. Any overpayment credit this session granted on Sales' customer credit ledger is NOT auto-reversed and must be reviewed separately."
+                details={
+                  <label>
+                    <span className="form-label">
+                      Reason <span style={{ color: 'var(--color-danger)' }}>*</span>
+                    </span>
+                    <textarea
+                      className="form-input"
+                      required
+                      value={deleteReason}
+                      onChange={(event) => setDeleteReason(event.target.value)}
+                      placeholder="e.g. duplicate session created by mistake"
+                    />
+                  </label>
+                }
+                confirmLabel="Delete session"
+                tone="danger"
+                onConfirm={async () => {
+                  await deleteSession.mutateAsync({ id, reason: deleteReason })
+                  navigate('/collections/sessions')
+                }}
+                trigger={
+                  <button
+                    className="button-ghost"
+                    style={{ width: '100%', color: 'var(--color-danger)' }}
+                  >
+                    <Trash2 size={14} /> Delete session (admin)
+                  </button>
+                }
+              />
             </div>
           ) : null}
         </aside>
