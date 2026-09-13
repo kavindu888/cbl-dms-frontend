@@ -41,6 +41,8 @@ import SupplierSettlementPage from '@pages/purchasing/settlement/SupplierSettlem
 import SupplierListPage from '@pages/master/SupplierListPage'
 import ReportHubPage from '@pages/reports/ReportHubPage'
 import ReportPreviewPage from '@pages/reports/ReportPreviewPage'
+import CreditAgingReportPage from '@pages/reports/CreditAgingReportPage'
+import DailyCollectionReportPage from '@pages/reports/DailyCollectionReportPage'
 import StockReportPage from '@pages/reports/StockReportPage'
 import CustomerDetailPage from '@pages/sales/CustomerDetailPage'
 import CustomerGroupListPage from '@pages/sales/CustomerGroupListPage'
@@ -266,7 +268,10 @@ export const router = createBrowserRouter([
       },
       {
         path: 'inventory/vehicle-loadings/:id/sales-report',
-        element: requirePermission(<VehicleLoadingSalesReportPage />, PERMISSIONS.inventory.vehicleManage),
+        element: requirePermission(
+          <VehicleLoadingSalesReportPage />,
+          PERMISSIONS.inventory.vehicleManage
+        ),
       },
       {
         path: 'inventory/vehicle-loadings/:id',
@@ -569,6 +574,14 @@ export const router = createBrowserRouter([
       {
         path: 'reports/stock',
         element: requirePermission(<StockReportPage />, PERMISSIONS.reporting.viewReports),
+      },
+      {
+        path: 'reports/credit-aging',
+        element: requirePermission(<CreditAgingReportPage />, PERMISSIONS.reporting.viewReports),
+      },
+      {
+        path: 'reports/daily-collection',
+        element: requirePermission(<DailyCollectionReportPage />, PERMISSIONS.reporting.viewReports),
       },
       {
         path: 'reports/:type',

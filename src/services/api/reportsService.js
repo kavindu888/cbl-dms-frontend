@@ -40,4 +40,22 @@ export const reportsService = {
       items: page?.items || [],
     }
   },
+
+  async getCreditAgingReport(params = {}) {
+    const response = await getOnce('/api/reports/credit-aging', { params })
+    const page = getValue(response, 'Unable to load credit aging report.')
+    return {
+      ...page,
+      items: page?.items || [],
+    }
+  },
+
+  async getDailyCollectionReport(params = {}) {
+    const response = await getOnce('/api/reports/daily-collection', { params })
+    const page = getValue(response, 'Unable to load daily collection report.')
+    return {
+      ...page,
+      items: page?.items || [],
+    }
+  },
 }

@@ -29,6 +29,7 @@ import {
   // Store,
   Tags,
   Truck,
+  TrendingUp,
   Route,
   Landmark,
   User,
@@ -50,9 +51,7 @@ import styles from './Sidebar.module.css'
 const navGroups = [
   {
     label: 'OPERATIONS',
-    items: [
-      { label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true },
-    ],
+    items: [{ label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true }],
   },
   {
     label: 'SALES',
@@ -142,13 +141,19 @@ const navGroups = [
         label: 'Collectors',
         to: '/collections/collectors',
         icon: User,
-        permissions: [PERMISSIONS.collections.sessionCreate, PERMISSIONS.collections.collectorManage],
+        permissions: [
+          PERMISSIONS.collections.sessionCreate,
+          PERMISSIONS.collections.collectorManage,
+        ],
       },
       {
         label: 'Salesmen',
         to: '/collections/salesmen',
         icon: UserCog,
-        permissions: [PERMISSIONS.collections.sessionCreate, PERMISSIONS.collections.salesmanManage],
+        permissions: [
+          PERMISSIONS.collections.sessionCreate,
+          PERMISSIONS.collections.salesmanManage,
+        ],
       },
     ],
   },
@@ -394,6 +399,20 @@ const navGroups = [
         label: 'Stock Report',
         to: '/reports/stock',
         icon: BarChart3,
+        end: true,
+        permissions: PERMISSIONS.reporting.viewReports,
+      },
+      {
+        label: 'Credit Aging Report',
+        to: '/reports/credit-aging',
+        icon: TrendingUp,
+        end: true,
+        permissions: PERMISSIONS.reporting.viewReports,
+      },
+      {
+        label: 'Daily Collection Report',
+        to: '/reports/daily-collection',
+        icon: Banknote,
         end: true,
         permissions: PERMISSIONS.reporting.viewReports,
       },
