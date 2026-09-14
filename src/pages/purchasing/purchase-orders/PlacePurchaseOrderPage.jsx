@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
@@ -59,6 +59,8 @@ function ProductSearchSelect({
   emptyLabel = 'No matching active products',
 }) {
   const containerRef = useRef(null)
+  const listboxRef = useRef(null)
+  const listboxId = useId()
   const selectedProduct = products.find((product) => product.id === value) || null
   const selectedLabel = productLabel(selectedProduct)
   const [query, setQuery] = useState(selectedLabel)
@@ -103,6 +105,24 @@ function ProductSearchSelect({
     setHighlightedIndex(0)
   }, [query])
 
+  useEffect(() => {
+    if (!isOpen) return
+    const listbox = listboxRef.current
+    const option = listbox?.children.item(highlightedIndex)
+    if (!listbox || !filteredProducts[highlightedIndex] || !option) return
+
+    // Scroll only the dropdown so keyboard navigation does not move the page.
+    const visibleTop = listbox.getBoundingClientRect().top + listbox.clientTop
+    const visibleBottom = visibleTop + listbox.clientHeight
+    const optionBounds = option.getBoundingClientRect()
+
+    if (optionBounds.top < visibleTop) {
+      listbox.scrollTop -= visibleTop - optionBounds.top
+    } else if (optionBounds.bottom > visibleBottom) {
+      listbox.scrollTop += optionBounds.bottom - visibleBottom
+    }
+  }, [highlightedIndex, isOpen, filteredProducts])
+
   function selectProduct(product) {
     const nextLabel = productLabel(product)
     onChange(product.id)
@@ -133,6 +153,12 @@ function ProductSearchSelect({
         role="combobox"
         aria-expanded={isOpen}
         aria-autocomplete="list"
+        aria-controls={isOpen ? listboxId : undefined}
+        aria-activedescendant={
+          isOpen && filteredProducts[highlightedIndex]
+            ? `${listboxId}-option-${highlightedIndex}`
+            : undefined
+        }
         value={query}
         placeholder={placeholder}
         disabled={disabled}
@@ -166,6 +192,7 @@ function ProductSearchSelect({
             )
           } else if (event.key === 'ArrowUp') {
             event.preventDefault()
+            setIsOpen(true)
             setHighlightedIndex((current) => Math.max(current - 1, 0))
           } else if (event.key === 'Escape') {
             setIsOpen(false)
@@ -177,6 +204,8 @@ function ProductSearchSelect({
 
       {isOpen && !disabled ? (
         <div
+          ref={listboxRef}
+          id={listboxId}
           role="listbox"
           style={{
             position: 'absolute',
@@ -200,6 +229,7 @@ function ProductSearchSelect({
               return (
                 <button
                   key={product.id}
+                  id={`${listboxId}-option-${index}`}
                   type="button"
                   role="option"
                   aria-selected={product.id === value}
