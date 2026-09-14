@@ -41,6 +41,8 @@ function normalizeRow(row) {
     batchNo: row.batchNo ?? row.batchNumber ?? '—',
     expiryDate: row.expiryDate ?? null,
     smallestUnitCode: row.smallestUnitCode ?? row.SmallestUnitCode ?? 'PCS',
+    minQty: row.minQty ?? row.minValue ?? null,
+    maxQty: row.maxQty ?? row.maxValue ?? null,
     qtyAvailable: Number(row.qtyAvailable ?? 0),
     qtyReserved: Number(row.qtyReserved ?? 0),
     unitCost: Number(row.unitCost ?? 0),
@@ -234,10 +236,9 @@ export default function StockReportPage() {
         { key: 'product', label: 'Product' },
         { key: 'category', label: 'Category' },
         { key: 'location', label: 'Location' },
-        { key: 'batchNo', label: 'Batch No' },
-        { key: 'expiryDate', label: 'Expiry Date' },
+        { key: 'minQty', label: 'Min Qty', align: 'right' },
+        { key: 'maxQty', label: 'Max Qty', align: 'right' },
         { key: 'qtyAvailable', label: 'Qty Available', align: 'right' },
-        { key: 'status', label: 'Status' },
       ]
     }
     if (reportType === 'valuation') {
@@ -300,6 +301,10 @@ export default function StockReportPage() {
             <span className="uom-badge">{row.smallestUnitCode}</span>
           </>
         )
+      case 'minQty':
+        return row.minQty == null ? '—' : formatNumber(row.minQty)
+      case 'maxQty':
+        return row.maxQty == null ? '—' : formatNumber(row.maxQty)
       case 'unitCost':
         return formatLKR(row.unitCost)
       case 'mrp':
@@ -496,7 +501,14 @@ export default function StockReportPage() {
                               <td
                                 key={column.key}
                                 className={
-                                  ['qtyAvailable', 'unitCost', 'mrp', 'totalValue'].includes(
+                                  [
+                                    'minQty',
+                                    'maxQty',
+                                    'qtyAvailable',
+                                    'unitCost',
+                                    'mrp',
+                                    'totalValue',
+                                  ].includes(
                                     column.key
                                   )
                                     ? 'mono'
@@ -535,7 +547,14 @@ export default function StockReportPage() {
                           <td
                             key={column.key}
                             className={
-                              ['qtyAvailable', 'unitCost', 'mrp', 'totalValue'].includes(column.key)
+                              [
+                                'minQty',
+                                'maxQty',
+                                'qtyAvailable',
+                                'unitCost',
+                                'mrp',
+                                'totalValue',
+                              ].includes(column.key)
                                 ? 'mono'
                                 : undefined
                             }
