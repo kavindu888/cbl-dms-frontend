@@ -1,7 +1,9 @@
-import { Ban, Package, Pencil, Tags, Wrench } from 'lucide-react'
+import { Ban, Package, Pencil, RefreshCw, Tags, Wrench } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useAuthStore } from '@stores/authStore'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
+import { salesService } from '@/services/api/salesService'
 import RecalculateInvoiceDiscountsModal from './RecalculateInvoiceDiscountsModal'
 import AdminEditInvoiceLinesModal from './AdminEditInvoiceLinesModal'
 import SetInvoiceOrderDiscountsModal from './SetInvoiceOrderDiscountsModal'
@@ -40,6 +42,20 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
   const [isAdminEditOpen, setIsAdminEditOpen] = useState(false)
   const [isSetOrderDiscountsOpen, setIsSetOrderDiscountsOpen] = useState(false)
   const [isCancelOpen, setIsCancelOpen] = useState(false)
+  const [isFixingStatus, setIsFixingStatus] = useState(false)
+
+  async function fixPaymentStatus() {
+    setIsFixingStatus(true)
+    try {
+      await salesService.recalculateInvoicePaymentStatus(invoice.id)
+      toast.success('Payment status resynced.')
+      onRefresh?.()
+    } catch (error) {
+      toast.error(error.message || 'Unable to fix payment status.')
+    } finally {
+      setIsFixingStatus(false)
+    }
+  }
   const normalLines = (invoice.lines || []).filter((line) => !line.isReturnLine)
   const saleNetBeforeReturn = normalLines.reduce(
     (sum, line) => sum + Number(line.lineTotal || 0),
@@ -116,6 +132,18 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                   style={{ height: 26, fontSize: 11, padding: '0 10px' }}
                 >
                   <Tags size={12} /> Set Order Discounts
+                </button>
+              ) : null}
+              {canAdjustDiscounts ? (
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={fixPaymentStatus}
+                  disabled={isFixingStatus}
+                  title="Re-derives this invoice's status from its own paid amount — use if the status badge looks stuck (e.g. shows Partially Paid but Outstanding is Rs 0)."
+                  style={{ height: 26, fontSize: 11, padding: '0 10px' }}
+                >
+                  <RefreshCw size={12} /> {isFixingStatus ? 'Fixing...' : 'Fix Payment Status'}
                 </button>
               ) : null}
               {canCancelInvoice ? (

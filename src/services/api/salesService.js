@@ -607,6 +607,13 @@ export const salesService = {
     await api.put(`/api/v1/sales/invoices/${id}/tax-invoice-number`, { taxInvoiceNumber })
   },
 
+  // Safety-net admin utility: re-derives the invoice's Status/PaidOn from its own AmountPaid vs
+  // NetAmount, in case Status ever drifts out of sync with the actual paid amount. Never touches
+  // money fields — always a safe no-op if already correct.
+  async recalculateInvoicePaymentStatus(id) {
+    await api.post(`/api/v1/sales/invoices/${id}/recalculate-payment-status`)
+  },
+
   // Admin: retroactively recompute SKU/category discounts and totals on an issued invoice.
   // overrides: [{ lineId, skuDiscountPercent }] for lines the admin wants to set manually;
   // any line not listed gets its SKU discount auto-resolved from current active discount rules.
