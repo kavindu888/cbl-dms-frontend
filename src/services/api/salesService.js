@@ -614,6 +614,14 @@ export const salesService = {
     await api.post(`/api/v1/sales/invoices/${id}/recalculate-payment-status`)
   },
 
+  // Direct Sales-side write-off, independent of Collections — forgives part of an invoice's
+  // outstanding balance without going through a collection entry. Use for reconciliation, e.g.
+  // when Collections already recorded what it collected and only the invoice's last few cents
+  // still need closing out.
+  async writeOffInvoice(id, { amount, reason } = {}) {
+    await api.post(`/api/v1/sales/invoices/${id}/write-off`, { amount, reason })
+  },
+
   // Admin: retroactively recompute SKU/category discounts and totals on an issued invoice.
   // overrides: [{ lineId, skuDiscountPercent }] for lines the admin wants to set manually;
   // any line not listed gets its SKU discount auto-resolved from current active discount rules.

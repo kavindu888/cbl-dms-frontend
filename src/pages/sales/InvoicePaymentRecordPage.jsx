@@ -98,6 +98,9 @@ export default function InvoicePaymentRecordPage() {
   const [isLoadingInvoiceDetail, setIsLoadingInvoiceDetail] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
+  const [writeOffAmount, setWriteOffAmount] = useState('')
+  const [writeOffReason, setWriteOffReason] = useState('')
+  const [isWritingOff, setIsWritingOff] = useState(false)
 
   // Custom states for view layout and detail metadata
   const [viewDetail, setViewDetail] = useState(false)
@@ -256,6 +259,47 @@ export default function InvoicePaymentRecordPage() {
 
   function updatePayment(field, value) {
     setPayment((current) => ({ ...current, [field]: value }))
+  }
+
+  async function submitWriteOff(event) {
+    event.preventDefault()
+
+    if (!selectedInvoice) {
+      toast.error('Select an invoice before writing off a balance.')
+      return
+    }
+
+    const amount = Number(writeOffAmount)
+    if (!amount || amount <= 0) {
+      toast.error('Write-off amount must be greater than zero.')
+      return
+    }
+    if (amount > Number(selectedInvoice.outstandingAmount)) {
+      toast.error('Write-off amount cannot exceed the outstanding amount.')
+      return
+    }
+    if (!writeOffReason.trim()) {
+      toast.error('A reason is required to write off a balance.')
+      return
+    }
+
+    setIsWritingOff(true)
+    try {
+      await salesService.writeOffInvoice(selectedInvoice.id, {
+        amount,
+        reason: writeOffReason.trim(),
+      })
+      toast.success('Balance written off.')
+      setWriteOffAmount('')
+      setWriteOffReason('')
+      setViewDetail(false)
+      await loadInvoices()
+      await loadInvoiceDetail(selectedInvoice.id)
+    } catch (requestError) {
+      toast.error(requestError.message || 'Unable to write off balance.')
+    } finally {
+      setIsWritingOff(false)
+    }
   }
 
   async function submitPayment(event) {
@@ -894,6 +938,51 @@ export default function InvoicePaymentRecordPage() {
               >
                 <RefreshCw style={{ width: 15, height: 15 }} />
                 {isSaving ? 'Submitting...' : 'Submit Payment'}
+              </button>
+            </div>
+          </form>
+
+          <form
+            onSubmit={submitWriteOff}
+            style={{ paddingTop: 14, borderTop: '1px solid var(--color-border)' }}
+          >
+            <h3 style={{ marginBottom: 4, fontSize: 15, fontWeight: 800 }}>Write Off Balance</h3>
+            <p style={{ marginBottom: 12, fontSize: 11, color: 'var(--color-text-muted)' }}>
+              Forgives part of the outstanding balance directly — no collection entry is created.
+              Use for reconciliation (e.g. a small remainder already accounted for elsewhere), not
+              for regular collections.
+            </p>
+            <div style={{ display: 'grid', gap: 10 }}>
+              <label>
+                <span className="form-label">Amount</span>
+                <input
+                  className="form-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={writeOffAmount}
+                  onChange={(event) => setWriteOffAmount(event.target.value)}
+                  placeholder="0.00"
+                  disabled={!canRecordPayment}
+                />
+              </label>
+              <label>
+                <span className="form-label">Reason</span>
+                <input
+                  className="form-input"
+                  value={writeOffReason}
+                  onChange={(event) => setWriteOffReason(event.target.value)}
+                  placeholder="e.g. rounding difference already collected"
+                  disabled={!canRecordPayment}
+                />
+              </label>
+              <button
+                className="button-secondary"
+                type="submit"
+                disabled={!canRecordPayment || isWritingOff}
+                style={{ height: 40 }}
+              >
+                {isWritingOff ? 'Writing off...' : 'Write Off'}
               </button>
             </div>
           </form>
