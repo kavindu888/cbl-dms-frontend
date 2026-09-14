@@ -100,7 +100,10 @@ function AllocationReviewModal({ gate, customerName }) {
         delete next[row.invoiceId]
       } else {
         next[row.invoiceId] = {
-          amount: Number(row.outstanding) - Number(row.allocated),
+          // Round to the cent — plain JS subtraction (e.g. 9000.4 - 9000) can leave a tiny
+          // floating-point residual like 0.3999999999996362 instead of a clean 0.40, which then
+          // makes the invoice permanently look "not quite fully paid" once applied server-side.
+          amount: Math.round((Number(row.outstanding) - Number(row.allocated)) * 100) / 100,
           reason: '',
         }
       }
