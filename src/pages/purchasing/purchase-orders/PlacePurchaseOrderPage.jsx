@@ -51,6 +51,8 @@ function productLabel(product) {
 function ProductSearchSelect({
   value,
   onChange,
+  inputRef,
+  onEnter,
   products,
   disabled = false,
   placeholder = 'Type SKU or product name...',
@@ -86,13 +88,7 @@ function ProductSearchSelect({
     const text = query.trim().toLowerCase()
     const matchedProducts = text
       ? products.filter((product) =>
-          [
-            product.sku,
-            product.name,
-            product.barcode,
-            product.category?.name,
-            product.id,
-          ]
+          [product.sku, product.name, product.barcode, product.category?.name, product.id]
             .filter(Boolean)
             .join(' ')
             .toLowerCase()
@@ -131,6 +127,7 @@ function ProductSearchSelect({
         }}
       />
       <input
+        ref={inputRef}
         className="form-input w-full"
         type="text"
         role="combobox"
@@ -144,16 +141,22 @@ function ProductSearchSelect({
           setIsOpen(true)
           event.target.select()
         }}
+        onBlur={() => setIsOpen(false)}
         onChange={(event) => {
           setQuery(event.target.value)
           setIsOpen(true)
           if (value) onChange('')
         }}
         onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing) return
           if (event.key === 'Enter') {
             event.preventDefault()
+            if (event.repeat) return
             if (isOpen && filteredProducts[highlightedIndex]) {
               selectProduct(filteredProducts[highlightedIndex])
+              onEnter?.()
+            } else if (selectedProduct) {
+              onEnter?.()
             }
           } else if (event.key === 'ArrowDown') {
             event.preventDefault()
@@ -249,6 +252,9 @@ export default function PlacePurchaseOrderPage() {
   const orderDateRef = useRef(null)
   const expectedDeliveryRef = useRef(null)
   const notesRef = useRef(null)
+  const addProductRef = useRef(null)
+  const lineInputRefs = useRef(new Map())
+  const pendingProductFocusRef = useRef(null)
   const [lines, setLines] = useState([createEmptyLine()])
   const [suppliers, setSuppliers] = useState([])
   const [products, setProducts] = useState([])
@@ -261,21 +267,24 @@ export default function PlacePurchaseOrderPage() {
   const [editingOrderStatus, setEditingOrderStatus] = useState(null)
   const originalLineProductByIdRef = useRef(new Map())
 
-  const fetchProductDetailIfNeeded = useCallback(async (productId) => {
-    if (!productId) return
-    const product = products.find((item) => item.id === productId)
-    if (!product || product.uomConversions) return // already detailed
-    try {
-      const detailed = await masterService.getProduct(productId)
-      setProducts((current) =>
-        current.some((item) => item.id === productId)
-          ? current.map((item) => (item.id === productId ? detailed : item))
-          : [...current, detailed]
-      )
-    } catch (err) {
-      console.error('Error fetching product detail:', err)
-    }
-  }, [products])
+  const fetchProductDetailIfNeeded = useCallback(
+    async (productId) => {
+      if (!productId) return
+      const product = products.find((item) => item.id === productId)
+      if (!product || product.uomConversions) return // already detailed
+      try {
+        const detailed = await masterService.getProduct(productId)
+        setProducts((current) =>
+          current.some((item) => item.id === productId)
+            ? current.map((item) => (item.id === productId ? detailed : item))
+            : [...current, detailed]
+        )
+      } catch (err) {
+        console.error('Error fetching product detail:', err)
+      }
+    },
+    [products]
+  )
 
   const loadFormData = useCallback(async () => {
     setIsLoading(true)
@@ -369,7 +378,7 @@ export default function PlacePurchaseOrderPage() {
           notes: line.notes || '',
           baseUomCode: line.baseUomCode || '',
           smallestUomCode: line.smallestUomCode || '',
-          baseToSmallest: line.qtyBaseUnit > 0 ? (line.qtySmallestUnit / line.qtyBaseUnit) : 1,
+          baseToSmallest: line.qtyBaseUnit > 0 ? line.qtySmallestUnit / line.qtyBaseUnit : 1,
         })) || []
 
       setLines(loadedLines.length ? loadedLines : [createEmptyLine()])
@@ -380,7 +389,8 @@ export default function PlacePurchaseOrderPage() {
       // Fetch details for any initial lines in edit mode
       loadedLines.forEach((line) => {
         if (line.productId) {
-          masterService.getProduct(line.productId)
+          masterService
+            .getProduct(line.productId)
             .then((detailed) => {
               setProducts((current) =>
                 current.some((item) => item.id === line.productId)
@@ -446,12 +456,46 @@ export default function PlacePurchaseOrderPage() {
     if (linePage > totalPages) setLinePage(totalPages)
   }, [linePage, lines.length])
 
+  useEffect(() => {
+    const key = pendingProductFocusRef.current
+    if (!key || isLoading || isSaving) return
+
+    const input = lineInputRefs.current.get(key)?.product
+    if (input) {
+      input.focus()
+      pendingProductFocusRef.current = null
+    }
+  }, [lines, linePage, isLoading, isSaving])
+
+  function registerLineInput(key, field, node) {
+    const inputs = lineInputRefs.current.get(key) || {}
+    if (node) {
+      inputs[field] = node
+      lineInputRefs.current.set(key, inputs)
+    } else {
+      delete inputs[field]
+      if (!Object.keys(inputs).length) lineInputRefs.current.delete(key)
+    }
+  }
+
+  function focusLineInput(key, field) {
+    const input = lineInputRefs.current.get(key)?.[field]
+    input?.focus()
+    input?.select()
+  }
+
+  function handleLineEnter(event, focusNext) {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+    event.preventDefault()
+    if (!event.repeat) focusNext()
+  }
+
   function addLine() {
-    setLines((current) => {
-      const updatedLines = [...current, createEmptyLine()]
-      setLinePage(Math.ceil(updatedLines.length / linePageSize))
-      return updatedLines
-    })
+    if (isLoading || isSaving) return
+    const newLine = createEmptyLine()
+    pendingProductFocusRef.current = newLine.key
+    setLines((current) => [...current, newLine])
+    setLinePage(Math.ceil((lines.length + 1) / linePageSize))
   }
 
   function updateHeader(event) {
@@ -471,7 +515,8 @@ export default function PlacePurchaseOrderPage() {
           if (value) {
             void fetchProductDetailIfNeeded(value)
 
-            inventoryService.getLastBatchCost(value)
+            inventoryService
+              .getLastBatchCost(value)
               .then((cost) => {
                 if (cost !== null && cost !== undefined) {
                   setLines((prev) =>
@@ -489,7 +534,8 @@ export default function PlacePurchaseOrderPage() {
               })
               .catch((err) => console.error('Error fetching last batch cost:', err))
 
-            masterService.getProductUomChain(value)
+            masterService
+              .getProductUomChain(value)
               .then((chain) => {
                 setLines((prev) =>
                   prev.map((l) =>
@@ -557,8 +603,7 @@ export default function PlacePurchaseOrderPage() {
 
   async function persistDraft() {
     const validLines = lines.filter((line) => line.productId && Number(line.bigBoxQty) > 0)
-    const isDraftEdit =
-      editPoId && Number(editingOrderStatus) === Number(PurchaseOrderStatus.Draft)
+    const isDraftEdit = editPoId && Number(editingOrderStatus) === Number(PurchaseOrderStatus.Draft)
 
     let savedOrder = null
     if (isDraftEdit) {
@@ -732,14 +777,18 @@ export default function PlacePurchaseOrderPage() {
     >
       <header style={{ flexShrink: 0 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-          {isDraftEdit ? 'Edit Draft Purchase Order' : editPoId ? 'Edit Purchase Order' : 'New Purchase Order'}
+          {isDraftEdit
+            ? 'Edit Draft Purchase Order'
+            : editPoId
+              ? 'Edit Purchase Order'
+              : 'New Purchase Order'}
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
           {isDraftEdit
             ? 'Changes stay in draft until the purchase order is submitted for approval.'
             : editPoId
-            ? 'Update the purchase order and resubmit it for approval.'
-            : 'Build the purchase order, save it as draft, or submit it for approval.'}
+              ? 'Update the purchase order and resubmit it for approval.'
+              : 'Build the purchase order, save it as draft, or submit it for approval.'}
         </p>
       </header>
 
@@ -812,7 +861,11 @@ export default function PlacePurchaseOrderPage() {
             <button
               type="button"
               className="button-secondary"
+              ref={addProductRef}
               onClick={addLine}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && event.repeat) event.preventDefault()
+              }}
               disabled={isLoading || isSaving}
               style={{ height: 36, display: 'flex', alignItems: 'center', gap: 7 }}
             >
@@ -835,7 +888,7 @@ export default function PlacePurchaseOrderPage() {
                 </tr>
               </thead>
               <tbody>
-                 {pagedLines.map((line) => {
+                {pagedLines.map((line) => {
                   const purchaseUom = line.baseUomCode || '-'
                   const smallestUom = line.smallestUomCode || ''
                   const unitsPerBase = Number(line.baseToSmallest || 1)
@@ -846,6 +899,8 @@ export default function PlacePurchaseOrderPage() {
                     <tr key={line.key}>
                       <td style={{ minWidth: 340 }}>
                         <ProductSearchSelect
+                          inputRef={(node) => registerLineInput(line.key, 'product', node)}
+                          onEnter={() => focusLineInput(line.key, 'quantity')}
                           value={line.productId}
                           onChange={(productId) => updateLine(line.key, 'productId', productId)}
                           products={products}
@@ -870,13 +925,14 @@ export default function PlacePurchaseOrderPage() {
                           min="0.0001"
                           step="0.0001"
                           value={line.bigBoxQty}
+                          ref={(node) => registerLineInput(line.key, 'quantity', node)}
                           onChange={(event) =>
                             updateLine(line.key, 'bigBoxQty', event.target.value)
                           }
                           disabled={isSaving}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') e.preventDefault()
-                          }}
+                          onKeyDown={(event) =>
+                            handleLineEnter(event, () => focusLineInput(line.key, 'cost'))
+                          }
                         />
                       </td>
                       <td className="text-right">
@@ -896,13 +952,14 @@ export default function PlacePurchaseOrderPage() {
                           min="0"
                           step="0.01"
                           value={line.unitCostSmallest}
+                          ref={(node) => registerLineInput(line.key, 'cost', node)}
                           onChange={(event) =>
                             updateLine(line.key, 'unitCostSmallest', event.target.value)
                           }
                           disabled={isSaving}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') e.preventDefault()
-                          }}
+                          onKeyDown={(event) =>
+                            handleLineEnter(event, () => addProductRef.current?.focus())
+                          }
                         />
                         {smallestUom ? (
                           <div className="product-info-sub" style={{ marginTop: 4 }}>
@@ -910,7 +967,10 @@ export default function PlacePurchaseOrderPage() {
                           </div>
                         ) : null}
                         {line.lastCostReference !== undefined ? (
-                          <div className="product-info-sub" style={{ color: 'var(--color-emerald)', marginTop: 2, fontSize: 11 }}>
+                          <div
+                            className="product-info-sub"
+                            style={{ color: 'var(--color-emerald)', marginTop: 2, fontSize: 11 }}
+                          >
                             Last: Rs. {Number(line.lastCostReference).toFixed(2)}
                           </div>
                         ) : null}
