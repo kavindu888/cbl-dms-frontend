@@ -538,13 +538,11 @@ export default function PlacePurchaseOrderPage() {
     if (!products.length) return 'No active products are available.'
     if (!lines.length) return 'Add at least one product.'
 
-    const selectedProductIds = new Set()
     for (const line of lines.filter((item) => item.productId || Number(item.bigBoxQty) > 0)) {
       if (!line.productId) return 'Select a product for every line.'
-      if (selectedProductIds.has(line.productId)) {
-        return 'Each product should appear only once. Update its quantity instead.'
-      }
-      selectedProductIds.add(line.productId)
+      // A product appearing on more than one line is allowed here — the physical delivery note
+      // often lists the same product across several lines (different batches/quantities), and
+      // persistDraft() folds those into a single combined line automatically instead of blocking.
       if (Number(line.bigBoxQty) <= 0) return 'Every big-box quantity must be greater than zero.'
       if (Number(line.unitCostSmallest) < 0) return 'Smallest-unit cost cannot be negative.'
     }
@@ -557,7 +555,63 @@ export default function PlacePurchaseOrderPage() {
   }
 
   async function persistDraft() {
-    const validLines = lines.filter((line) => line.productId && Number(line.bigBoxQty) > 0)
+    const rawValidLines = lines.filter((line) => line.productId && Number(line.bigBoxQty) > 0)
+
+    // The supplier's physical delivery note often lists one product across several lines (e.g.
+    // separate batches with different quantities). Rather than making the user enter it as one
+    // line, fold same-product rows together here — sum the quantity and cost-weight the unit
+    // price — before any of this reaches the API, so a second line for a product already on this
+    // PO just increases the existing line instead of needing a manual edit.
+    const mergeOrder = []
+    const mergedByProduct = new Map()
+    for (const line of rawValidLines) {
+      const existing = mergedByProduct.get(line.productId)
+      if (!existing) {
+        mergedByProduct.set(line.productId, { ...line })
+        mergeOrder.push(line.productId)
+        continue
+      }
+      const qtyA = Number(existing.bigBoxQty) || 0
+      const qtyB = Number(line.bigBoxQty) || 0
+      const totalQty = qtyA + qtyB
+      const costWeight =
+        qtyA * (Number(existing.unitCostSmallest) || 0) + qtyB * (Number(line.unitCostSmallest) || 0)
+      mergedByProduct.set(line.productId, {
+        ...existing,
+        // Prefer a row that already has a saved server id, so the update path is used instead of
+        // adding a fresh line when this PO was already partially saved.
+        id: existing.id || line.id,
+        key: existing.id ? existing.key : line.id ? line.key : existing.key,
+        bigBoxQty: String(totalQty),
+        unitCostSmallest: totalQty > 0 ? String(costWeight / totalQty) : existing.unitCostSmallest,
+        notes: [existing.notes, line.notes].filter(Boolean).join('; '),
+      })
+    }
+    const validLines = mergeOrder.map((productId) => mergedByProduct.get(productId))
+    const mergedLineCount = rawValidLines.length - validLines.length
+
+    if (mergedLineCount > 0) {
+      const keepKeys = new Set(validLines.map((line) => line.key))
+      setLines((current) =>
+        current
+          .filter((line) => !(line.productId && Number(line.bigBoxQty) > 0) || keepKeys.has(line.key))
+          .map((line) => {
+            const merged = validLines.find((v) => v.key === line.key)
+            return merged
+              ? {
+                  ...line,
+                  bigBoxQty: merged.bigBoxQty,
+                  unitCostSmallest: merged.unitCostSmallest,
+                  notes: merged.notes,
+                }
+              : line
+          })
+      )
+      toast.info(
+        `Combined ${mergedLineCount} line(s) into the existing product line — quantities added together.`
+      )
+    }
+
     const isDraftEdit =
       editPoId && Number(editingOrderStatus) === Number(PurchaseOrderStatus.Draft)
 
