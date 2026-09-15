@@ -305,6 +305,7 @@ export default function VehicleMovementListPage({
   const [search, setSearch] = useState('')
   const [correctionTarget, setCorrectionTarget] = useState(null)
   const [markUnloadedPendingId, setMarkUnloadedPendingId] = useState('')
+  const [isSweepingStock, setIsSweepingStock] = useState(false)
   const params = useMemo(() => (status ? { status: Number(status) } : {}), [status])
   const { data: rows = [], isLoading, isFetching, refetch } = useList(params)
   const { data: vehicles = [] } = useVehicles()
@@ -366,6 +367,30 @@ export default function VehicleMovementListPage({
     }
   }
 
+  // A loading whose header already says "Unloaded" can still be holding leftover vehicle-side
+  // stock — e.g. a partial unload, or the admin "Mark Unloaded" shortcut, which moves no stock by
+  // design. This sweeps any such leftover back to main so Stock Overview matches the physical
+  // vehicles (see SweepUnloadedVehicleStockCommand).
+  async function handleSweepUnloadedStock() {
+    setIsSweepingStock(true)
+    try {
+      const results = await inventoryService.sweepUnloadedVehicleStock()
+      if (!results.length) {
+        toast.success('No leftover vehicle stock found — everything matches.')
+      } else {
+        const totalLines = results.reduce((sum, r) => sum + (r.lines?.length || 0), 0)
+        toast.success(
+          `Fixed ${results.length} loading(s), moved ${totalLines} line(s) of leftover stock back to main.`
+        )
+        refetch()
+      }
+    } catch (error) {
+      toast.error(error?.message || 'Unable to fix vehicle stock.')
+    } finally {
+      setIsSweepingStock(false)
+    }
+  }
+
   return (
     <div className="responsive-page" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <header
@@ -394,6 +419,18 @@ export default function VehicleMovementListPage({
           >
             <RefreshCw size={15} className={isFetching ? 'animate-spin' : ''} /> Refresh
           </button>
+          {kind === 'Loading' && canManageVehicles ? (
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={isSweepingStock}
+              onClick={handleSweepUnloadedStock}
+              title="Move any leftover stock still sitting on an already-Unloaded vehicle back to main"
+              style={{ height: 38 }}
+            >
+              <Wrench size={15} /> {isSweepingStock ? 'Fixing...' : 'Fix Vehicle Stock'}
+            </button>
+          ) : null}
           <button
             type="button"
             className="button-primary"

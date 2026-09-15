@@ -519,6 +519,12 @@ export const inventoryService = {
     const response = await api.post('/api/v1/inventory/vehicle-loadings/repair-all')
     return asList(getValue(response, 'Unable to repair vehicle loading stock.'))
   },
+  // Opposite direction: a loading marked "Unloaded" whose vehicle still holds un-returned stock
+  // (partial unload, or the admin "Mark Unloaded" shortcut) — moves the leftover back to main.
+  async sweepUnloadedVehicleStock() {
+    const response = await api.post('/api/v1/inventory/vehicle-loadings/sweep-unloaded-stock')
+    return asList(getValue(response, 'Unable to sweep unloaded vehicle stock.'))
+  },
   // Finds invoices that belong to this loading's delivery run/date but were wrongly deducted
   // from Main instead of the vehicle (e.g. via an admin edit made after the invoice was created).
   async previewVehicleStockCorrection(id) {
