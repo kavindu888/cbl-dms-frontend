@@ -74,6 +74,12 @@ export const purchasingService = {
     return getValue(response, 'Unable to remove the purchase order line.')
   },
 
+  // Bulk-remove duplicate lines (same product on more than one line) from a Draft purchase order
+  async removeDuplicatePurchaseOrderLines(id) {
+    const response = await api.post(`/api/v1/purchase-orders/${id}/remove-duplicate-lines`)
+    return getValue(response, 'Unable to remove duplicate purchase order lines.')
+  },
+
   // Submit a purchase order for approval
   async submitPurchaseOrder(id) {
     const response = await api.post(`/api/v1/purchase-orders/${id}/submit`)

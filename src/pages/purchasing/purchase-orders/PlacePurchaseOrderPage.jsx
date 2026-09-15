@@ -259,6 +259,7 @@ export default function PlacePurchaseOrderPage() {
   const [lookupError, setLookupError] = useState('')
   const [linePage, setLinePage] = useState(1)
   const [editingOrderStatus, setEditingOrderStatus] = useState(null)
+  const [isDedupRunning, setIsDedupRunning] = useState(false)
   const originalLineProductByIdRef = useRef(new Map())
 
   const fetchProductDetailIfNeeded = useCallback(async (productId) => {
@@ -603,7 +604,7 @@ export default function PlacePurchaseOrderPage() {
         await purchasingService.removePurchaseOrderLine(poId, line.id)
       }
 
-      await purchasingService.addPurchaseOrderLine(poId, {
+      const updated = await purchasingService.addPurchaseOrderLine(poId, {
         productId: product.id,
         productSku: product.sku,
         productName: product.name,
@@ -611,6 +612,19 @@ export default function PlacePurchaseOrderPage() {
         unitCostSmallest: Number(line.unitCostSmallest),
         notes: line.notes.trim() || null,
       })
+      // Mark this row as persisted immediately (assign the server-issued id) rather than waiting
+      // for the whole loop to finish. If a LATER line in this same save throws (e.g. a fractional
+      // whole-number rejection), this row is already tracked as saved — retrying the save goes
+      // through the update path for it instead of adding it again as a duplicate.
+      const newServerLine = (updated?.lines || []).find(
+        (serverLine) => serverLine.productId === product.id && !remainingOriginalLineIds.has(serverLine.id)
+      )
+      if (newServerLine) {
+        originalLineProductByIdRef.current.set(newServerLine.id, product.id)
+        setLines((current) =>
+          current.map((row) => (row.key === line.key ? { ...row, id: newServerLine.id } : row))
+        )
+      }
     }
 
     if (isDraftEdit) {
@@ -626,6 +640,53 @@ export default function PlacePurchaseOrderPage() {
     )
 
     return detail
+  }
+
+  async function handleRemoveDuplicates() {
+    if (!editPoId) return
+    const confirmed = window.confirm(
+      'Scan this purchase order for lines that repeat the same product and remove the older duplicates, keeping the most recently added line for each product?\n\nThis cannot be undone.'
+    )
+    if (!confirmed) return
+
+    setIsDedupRunning(true)
+    setError('')
+    try {
+      const result = await purchasingService.removeDuplicatePurchaseOrderLines(editPoId)
+      const detail = result.purchaseOrder
+
+      setEditingOrderStatus(Number(detail.status))
+      const loadedLines =
+        detail.lines?.map((line) => ({
+          key: crypto.randomUUID(),
+          id: line.id,
+          productId: line.productId || '',
+          bigBoxQty: String(line.qtyBaseUnit ?? '1'),
+          unitCostSmallest: String(line.unitCostSmallest ?? '0'),
+          notes: line.notes || '',
+          baseUomCode: line.baseUomCode || '',
+          smallestUomCode: line.smallestUomCode || '',
+          baseToSmallest: line.qtyBaseUnit > 0 ? line.qtySmallestUnit / line.qtyBaseUnit : 1,
+        })) || []
+      setLines(loadedLines.length ? loadedLines : [createEmptyLine()])
+      originalLineProductByIdRef.current = new Map(
+        loadedLines.filter((line) => line.id).map((line) => [line.id, line.productId])
+      )
+      setLinePage(1)
+
+      if (result.linesRemoved > 0) {
+        toast.success(
+          `Removed ${result.linesRemoved} duplicate line(s) across ${result.productsAffected} product(s).`
+        )
+      } else {
+        toast.info('No duplicate lines found on this purchase order.')
+      }
+    } catch (err) {
+      setError(err.message || 'Unable to remove duplicate lines.')
+      toast.error(err.message || 'Unable to remove duplicate lines.')
+    } finally {
+      setIsDedupRunning(false)
+    }
   }
 
   async function saveDraft() {
@@ -841,6 +902,7 @@ export default function PlacePurchaseOrderPage() {
                   const unitsPerBase = Number(line.baseToSmallest || 1)
                   const smallestQty = Number(line.bigBoxQty || 0) * unitsPerBase
                   const subtotal = smallestQty * Number(line.unitCostSmallest || 0)
+                  const isFractionalSmallest = Math.abs(smallestQty - Math.round(smallestQty)) > 0.0001
 
                   return (
                     <tr key={line.key}>
@@ -880,13 +942,22 @@ export default function PlacePurchaseOrderPage() {
                         />
                       </td>
                       <td className="text-right">
-                        <span className="mono">
-                          {smallestQty.toLocaleString(undefined, {
+                        <span
+                          className="mono"
+                          style={isFractionalSmallest ? { color: 'var(--color-amber)' } : undefined}
+                        >
+                          {isFractionalSmallest ? Math.round(smallestQty) : smallestQty.toLocaleString(undefined, {
                             minimumFractionDigits: 0,
                             maximumFractionDigits: 4,
                           })}
                         </span>{' '}
                         {smallestUom ? <span className="uom-badge">{smallestUom}</span> : null}
+                        {isFractionalSmallest ? (
+                          <div style={{ marginTop: 4, fontSize: 10, color: 'var(--color-amber)' }}>
+                            {smallestQty.toLocaleString(undefined, { maximumFractionDigits: 4 })} rounds to{' '}
+                            {Math.round(smallestQty)} {smallestUom} when saved
+                          </div>
+                        ) : null}
                       </td>
                       <td>
                         <input
@@ -1123,6 +1194,18 @@ export default function PlacePurchaseOrderPage() {
               {formatMoney(totals.total)}
             </span>
           </div>
+
+          {isDraftEdit ? (
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={isLoading || isSaving || isDedupRunning}
+              onClick={handleRemoveDuplicates}
+              style={{ height: 34, fontSize: 12, marginTop: 10 }}
+            >
+              {isDedupRunning ? 'Scanning for duplicates...' : 'Remove duplicate lines'}
+            </button>
+          ) : null}
 
           <div
             style={{
