@@ -227,6 +227,7 @@ function formatInvoice(invoice) {
       smallestUnitCode: line.smallestUnitCode ?? '',
       isReturnLine: Boolean(line.isReturnLine),
       returnReason: line.returnReason ?? null,
+      isFree: Boolean(line.isFree),
     })),
   }
 }
@@ -484,6 +485,7 @@ export const salesService = {
         returnReason: line.returnReason ?? null,
         // Admin MRP override — only meaningful (and only sent) for return lines.
         mrp: line.isReturnLine && Number(line.mrp) > 0 ? Number(line.mrp) : null,
+        isFree: Boolean(line.isFree),
       })),
     })
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
@@ -526,6 +528,7 @@ export const salesService = {
         returnReason: line.returnReason ?? null,
         // Admin MRP override — only meaningful (and only sent) for return lines.
         mrp: line.isReturnLine && Number(line.mrp) > 0 ? Number(line.mrp) : null,
+        isFree: Boolean(line.isFree),
       })),
     })
   },

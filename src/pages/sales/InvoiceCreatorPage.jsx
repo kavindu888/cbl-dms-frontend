@@ -30,6 +30,7 @@ const emptyLine = {
   specialDiscountAvailable: false,
   specialDiscountMax: 0,
   specialDiscountPercent: 0,
+  isFree: false,
 }
 
 function createDefaultValues() {
@@ -54,12 +55,30 @@ function fieldError(message) {
 function getLineAmounts(line) {
   const mrp = Number(line?.mrp || 0)
   const quantity = Number(line?.quantity || 0)
+  const gross = mrp * quantity
+
+  // A free line still records its gross "would-be" value for giveaway reporting, but charges the
+  // customer nothing — mirrors InvoiceLine.ComputeAmounts on the backend.
+  if (line?.isFree) {
+    // Booked entirely as "category discount" here purely so every summation downstream (which
+    // sums categoryDiscountAmount into the page total) nets this line out to zero automatically —
+    // it isn't a real category discount, just the bucket this page's totals math has available.
+    return {
+      gross,
+      categoryDiscountAmount: gross,
+      skuDiscountAmount: 0,
+      specialDiscountAmount: 0,
+      discountAmount: gross,
+      unitPrice: 0,
+      lineTotal: 0,
+    }
+  }
+
   const categoryDiscountPercent = Number(line?.categoryDiscountPercent || 0)
   const skuDiscountPercent = Number(line?.skuDiscountPercent || 0)
   const specialDiscountPercent = Number(line?.specialDiscountPercent || 0)
   const totalDiscountPercent =
     categoryDiscountPercent + skuDiscountPercent + specialDiscountPercent
-  const gross = mrp * quantity
   const categoryDiscountAmount = gross * (categoryDiscountPercent / 100)
   const skuDiscountAmount = gross * (skuDiscountPercent / 100)
   const specialDiscountAmount = gross * (specialDiscountPercent / 100)
@@ -683,6 +702,7 @@ export default function InvoiceCreatorPage() {
                 specialDiscountAvailable: Number(line.specialDiscountPercent || 0) > 0,
                 specialDiscountMax: Math.max(Number(line.specialDiscountPercent || 0), 10),
                 specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+                isFree: Boolean(line.isFree),
               }))
             : [{ ...emptyLine }],
         })
@@ -1175,6 +1195,7 @@ export default function InvoiceCreatorPage() {
             quantity: Number(line.quantity),
             skuDiscountPercent: Number(line.skuDiscountPercent || 0),
             specialDiscountPercent: Number(line.specialDiscountPercent || 0),
+            isFree: Boolean(line.isFree),
           })),
         ...returnLines
           .filter((line) => line.productId && Number(line.quantity) > 0)
@@ -1588,6 +1609,7 @@ export default function InvoiceCreatorPage() {
                 <col style={{ width: 120 }} /> {/* Smallest Unit */}
                 <col style={{ width: 90 }} />  {/* MRP */}
                 <col style={{ width: 80 }} />  {/* QTY */}
+                <col style={{ width: 60 }} />  {/* Free */}
                 <col style={{ width: 110 }} /> {/* Category Discount */}
                 <col style={{ width: 120 }} /> {/* Selling Price */}
                 <col style={{ width: 130 }} /> {/* Total */}
@@ -1599,6 +1621,9 @@ export default function InvoiceCreatorPage() {
                   <th>Smallest Unit</th>
                   <th className="text-right">MRP</th>
                   <th className="text-right">Qty</th>
+                  <th className="text-center" title="Free item — reduces stock, charges nothing">
+                    Free
+                  </th>
                   <th style={{ textAlign: 'right', paddingRight: 16 }}>
                     Cat. Disc %
                   </th>
@@ -1805,19 +1830,48 @@ export default function InvoiceCreatorPage() {
                           }}
                         />
                       </td>
+                      <td className="text-center">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(line.isFree)}
+                          disabled={isSaving || !line.productId}
+                          onChange={(event) =>
+                            setValue(`lines.${index}.isFree`, event.target.checked, {
+                              shouldDirty: true,
+                            })
+                          }
+                          title="Free item — reduces stock, charges nothing"
+                        />
+                      </td>
                       <td style={{ textAlign: 'right', paddingRight: 16 }}>
-                        <span
-                          className="mono"
-                          style={{
-                            color: 'var(--color-text-muted)',
-                            display: 'block',
-                            width: '100%',
-                            textAlign: 'right',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {Number(line.categoryDiscountPercent || 0).toFixed(2)}%
-                        </span>
+                        {line.isFree ? (
+                          <span
+                            style={{
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              border: '1px solid rgba(74, 222, 128, 0.35)',
+                              background: 'rgba(74, 222, 128, 0.1)',
+                              color: '#4ade80',
+                              fontSize: 10,
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            FREE
+                          </span>
+                        ) : (
+                          <span
+                            className="mono"
+                            style={{
+                              color: 'var(--color-text-muted)',
+                              display: 'block',
+                              width: '100%',
+                              textAlign: 'right',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {Number(line.categoryDiscountPercent || 0).toFixed(2)}%
+                          </span>
+                        )}
                       </td>
                       <td
                         className="mono"
@@ -1911,6 +1965,7 @@ export default function InvoiceCreatorPage() {
                         />
                       </td>
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>-{quantity}</td>
+                      <td></td>
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{discountPercent.toFixed(2)}%</td>
                       <td className="mono text-right" style={{ color: 'var(--color-text-muted)' }}>{unitPrice.toFixed(2)}</td>
                       <td className="mono text-right font-semibold" style={{ color: 'var(--color-teal)' }}>-{totalCredit.toFixed(2)}</td>

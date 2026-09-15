@@ -57,18 +57,24 @@ export function calculateSalesOrderSummary(order) {
           ? toNumber(line.grossAmount)
           : mrp * quantity
 
-      const categoryDiscount =
-        line.categoryDiscountAmount !== null && line.categoryDiscountAmount !== undefined
+      // A free line contributes its full value to gross (for "value given away" reporting) but
+      // nothing to net — booked as a 100% write-off here rather than split across the discount
+      // buckets, mirroring InvoiceLine.ComputeAmounts on the backend.
+      const categoryDiscount = line.isFree
+        ? gross
+        : line.categoryDiscountAmount !== null && line.categoryDiscountAmount !== undefined
           ? toNumber(line.categoryDiscountAmount)
           : gross * (toNumber(line.categoryDiscountPercent || 0) / 100)
 
-      const skuDiscount =
-        line.skuDiscountAmount !== null && line.skuDiscountAmount !== undefined
+      const skuDiscount = line.isFree
+        ? 0
+        : line.skuDiscountAmount !== null && line.skuDiscountAmount !== undefined
           ? toNumber(line.skuDiscountAmount)
           : gross * (toNumber(line.skuDiscountPercent || 0) / 100)
 
-      const specialDiscount =
-        line.specialDiscountAmount !== null && line.specialDiscountAmount !== undefined
+      const specialDiscount = line.isFree
+        ? 0
+        : line.specialDiscountAmount !== null && line.specialDiscountAmount !== undefined
           ? toNumber(line.specialDiscountAmount)
           : gross * (toNumber(line.specialDiscountPercent || 0) / 100)
 
