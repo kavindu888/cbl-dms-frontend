@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import StatusBadge from '@components/ui/StatusBadge'
 import SimplePagination from '@components/ui/SimplePagination'
 import { purchasingService } from '@services/api/purchasingService'
@@ -97,6 +98,7 @@ export default function AllPurchaseOrdersPage() {
   const [error, setError] = useState('')
   const [orderPage, setOrderPage] = useState(1)
   const [itemPage, setItemPage] = useState(1)
+  const [isRecalculatingStatus, setIsRecalculatingStatus] = useState(false)
 
   const loadPurchaseOrders = useCallback(async () => {
     setIsLoading(true)
@@ -135,6 +137,26 @@ export default function AllPurchaseOrdersPage() {
 
     loadOrderDetail()
   }, [selectedId])
+
+  async function handleRecalculateStatus() {
+    if (!selectedId) return
+    setIsRecalculatingStatus(true)
+    try {
+      const previousStatus = selectedOrder?.status
+      const updated = await purchasingService.recalculatePurchaseOrderStatus(selectedId)
+      setSelectedOrder(updated)
+      loadPurchaseOrders()
+      toast.success(
+        Number(updated.status) !== Number(previousStatus)
+          ? `Status updated to ${statusOptions.find((option) => Number(option.value) === Number(updated.status))?.label || 'the correct status'}.`
+          : 'Status is already correct — nothing to fix.'
+      )
+    } catch (requestError) {
+      toast.error(requestError.message || 'Unable to recalculate the purchase order status.')
+    } finally {
+      setIsRecalculatingStatus(false)
+    }
+  }
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -685,6 +707,20 @@ export default function AllPurchaseOrdersPage() {
                       {selectedOrder.poNumber}
                     </span>
                     <StatusBadge status={getStatusLabel(selectedOrder)} />
+                    {[PurchaseOrderStatus.Approved, PurchaseOrderStatus.PartiallyReceived].includes(
+                      Number(selectedOrder.status)
+                    ) && (
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        onClick={handleRecalculateStatus}
+                        disabled={isRecalculatingStatus}
+                        title="Re-check this order's status against its received quantities"
+                        style={{ height: 28, padding: '0 10px', fontSize: 11 }}
+                      >
+                        {isRecalculatingStatus ? 'Checking...' : 'Recheck Status'}
+                      </button>
+                    )}
                     {[PurchaseOrderStatus.Draft, PurchaseOrderStatus.Rejected].includes(
                       Number(selectedOrder.status)
                     ) && (

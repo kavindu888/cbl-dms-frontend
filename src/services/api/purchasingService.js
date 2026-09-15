@@ -80,6 +80,13 @@ export const purchasingService = {
     return getValue(response, 'Unable to remove duplicate purchase order lines.')
   },
 
+  // Re-derives a PO's status from its current lines — fixes a PO stuck on "Partially Received"
+  // purely from base-unit rounding noise (see PurchaseOrderLine.IsFullyReceived).
+  async recalculatePurchaseOrderStatus(id) {
+    const response = await api.post(`/api/v1/purchase-orders/${id}/recalculate-status`)
+    return getValue(response, 'Unable to recalculate the purchase order status.')
+  },
+
   // Submit a purchase order for approval
   async submitPurchaseOrder(id) {
     const response = await api.post(`/api/v1/purchase-orders/${id}/submit`)
