@@ -1308,6 +1308,14 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
                               <EditableCell
                                 disabled={Boolean(pendingReceipt)}
                                 value={line.qtyBaseUnit}
+                                // Receive Qty is entered in the line's base unit (e.g. CASE), but
+                                // the value that actually matters is a whole SMALLEST unit (e.g.
+                                // 1 PCS) — which for most conversion factors isn't a round CASE
+                                // number (e.g. 1/150 CASE = 0.00667). A 0.01 step made those exact
+                                // amounts un-typeable ("nearest valid values are 0 and 0.01"), so
+                                // this field allows any precision — the backend already rounds the
+                                // resulting smallest-unit quantity to the nearest whole piece.
+                                step="any"
                                 onChange={(value) =>
                                   updateReceiptLine(lineIndex, 'qtyBaseUnit', value)
                                 }
@@ -1655,13 +1663,13 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
     </div>
   )
 }
-function EditableCell({ value, onChange, disabled = false }) {
+function EditableCell({ value, onChange, disabled = false, step = '0.01' }) {
   return (
     <td>
       <input
         type="number"
         min="0"
-        step="0.01"
+        step={step}
         className="form-input"
         disabled={disabled}
         value={value}
