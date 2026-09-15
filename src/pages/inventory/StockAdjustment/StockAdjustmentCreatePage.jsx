@@ -25,6 +25,7 @@ import {
   getMrp,
   getQtyAvailable,
   getUnitCost,
+  groupBatchesByMrp,
   makeTempId,
 } from './stockAdjustmentUtils'
 
@@ -145,9 +146,11 @@ export default function StockAdjustmentCreatePage() {
     [products, selectedProductId]
   )
 
+  const batchGroups = useMemo(() => groupBatchesByMrp(batches), [batches])
+
   const selectedBatch = useMemo(
-    () => batches.find((batch) => batch.id === selectedBatchId) || null,
-    [batches, selectedBatchId]
+    () => batchGroups.find((group) => group.id === selectedBatchId) || null,
+    [batchGroups, selectedBatchId]
   )
 
   const filteredProducts = useMemo(() => {
@@ -166,7 +169,11 @@ export default function StockAdjustmentCreatePage() {
   const requestedQty = Number(qty)
   const selectedBatchQty = getQtyAvailable(selectedBatch)
   const draftedOutQty = adjustmentLines
-    .filter((line) => line.batchId === selectedBatch?.id && line.adjustmentType === 'AdjustmentOut')
+    .filter(
+      (line) =>
+        line.adjustmentType === 'AdjustmentOut' &&
+        selectedBatch?.members?.some((member) => member.id === line.batchId)
+    )
     .reduce((sum, line) => sum + Number(line.qtySmallest || 0), 0)
   const selectedAvailableQty = Math.max(0, selectedBatchQty - draftedOutQty)
   const exceedsAvailable = adjustmentType === 'AdjustmentOut' && requestedQty > selectedAvailableQty
@@ -213,30 +220,60 @@ export default function StockAdjustmentCreatePage() {
     try {
       const id = await ensureDraftExists()
       if (!id) return
-      const lineId = await addLineMutation.mutateAsync({
-        adjustmentId: id,
-        productId: selectedProduct.id,
-        productSku: selectedProduct.sku,
-        batchId: selectedBatch.id,
-        adjustmentType: adjustmentType === 'AdjustmentIn' ? 1 : 2,
-        qtySmallest: requestedQty,
-        lineNotes: lineNotes.trim() || null,
-      })
 
-      setAdjustmentLines((current) => [
-        ...current,
-        {
+      // The picked row can be several physical batches merged by MRP for display — the backend
+      // still books each adjustment line against one real batch. A single-batch group (the common
+      // case) takes the whole quantity as before; a merged group draws down its members in
+      // earliest-expiry order until the requested quantity is covered.
+      const allocations = []
+      if (adjustmentType === 'AdjustmentOut' && selectedBatch.members.length > 1) {
+        let remaining = requestedQty
+        for (const member of selectedBatch.members) {
+          if (remaining <= 0) break
+          const alreadyDrafted = adjustmentLines
+            .filter(
+              (line) => line.adjustmentType === 'AdjustmentOut' && line.batchId === member.id
+            )
+            .reduce((sum, line) => sum + Number(line.qtySmallest || 0), 0)
+          const memberAvailable = Math.max(0, getQtyAvailable(member) - alreadyDrafted)
+          if (memberAvailable <= 0) continue
+          const take = Math.min(memberAvailable, remaining)
+          allocations.push({ batch: member, qty: take })
+          remaining -= take
+        }
+      } else {
+        allocations.push({ batch: selectedBatch.members[0], qty: requestedQty })
+      }
+
+      const newLines = []
+      for (const allocation of allocations) {
+        const lineId = await addLineMutation.mutateAsync({
+          adjustmentId: id,
+          productId: selectedProduct.id,
+          productSku: selectedProduct.sku,
+          batchId: allocation.batch.id,
+          adjustmentType: adjustmentType === 'AdjustmentIn' ? 1 : 2,
+          qtySmallest: allocation.qty,
+          lineNotes: lineNotes.trim() || null,
+        })
+
+        newLines.push({
           id: lineId || makeTempId('adjustment-line'),
           productId: selectedProduct.id,
           productSku: selectedProduct.sku,
           productName: selectedProduct.name,
-          batchId: selectedBatch.id,
-          batchNo: selectedBatch.batchNo,
+          batchId: allocation.batch.id,
+          batchNo: allocation.batch.batchNo,
           adjustmentType,
-          qtySmallest: requestedQty,
+          qtySmallest: allocation.qty,
           lineNotes: lineNotes.trim() || null,
-        },
-      ])
+        })
+      }
+
+      setAdjustmentLines((current) => [...current, ...newLines])
+      if (allocations.length > 1) {
+        toast.info(`Split across ${allocations.length} batches at this MRP.`)
+      }
 
       setSelectedProductId('')
       setSelectedBatchId('')
@@ -498,7 +535,7 @@ export default function StockAdjustmentCreatePage() {
                     </div>
 
                     <BatchTable
-                      batches={batches}
+                      batches={batchGroups}
                       isLoading={isLoadingBatches}
                       selectedBatchId={selectedBatchId}
                       onSelect={setSelectedBatchId}
@@ -833,11 +870,33 @@ function BatchTable({ batches, isLoading, selectedBatchId, onSelect }) {
                       selectedBatchId === batch.id ? 'inset 3px 0 var(--color-teal)' : 'none',
                   }}
                 >
-                  <td className="mono">{batch.batchNo || '-'}</td>
+                  <td className="mono">
+                    {batch.batchNo || '-'}
+                    {batch.batchCount > 1 ? (
+                      <span
+                        className="mono"
+                        style={{
+                          background: 'var(--color-bg-hover)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 999,
+                          color: 'var(--color-text-muted)',
+                          fontSize: 10,
+                          marginLeft: 7,
+                          padding: '1px 7px',
+                        }}
+                        title={`${batch.batchCount} physical batches at Rs. ${formatNumber(getMrp(batch))} MRP, merged for selection`}
+                      >
+                        merged
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="mono text-right">{formatNumber(getQtyAvailable(batch))}</td>
                   <td className="mono text-right">Rs. {formatNumber(getUnitCost(batch))}</td>
                   <td className="mono text-right">Rs. {formatNumber(getMrp(batch))}</td>
-                  <td className="mono">{formatDate(batch.expiryDate)}</td>
+                  <td className="mono">
+                    {batch.batchCount > 1 ? 'earliest: ' : ''}
+                    {formatDate(batch.expiryDate)}
+                  </td>
                   <td className="text-right">
                     <button
                       type="button"

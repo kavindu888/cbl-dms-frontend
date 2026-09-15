@@ -50,3 +50,44 @@ export function getMrp(batch) {
 export function makeTempId(prefix = 'stock-adjustment') {
   return globalThis.crypto?.randomUUID?.() ?? `${prefix}-${Date.now()}-${Math.random()}`
 }
+
+// Physical batches are tracked separately in inventory (one row per receipt), but that distinction
+// means nothing to someone doing a stock adjustment — they think in terms of "the stuff worth this
+// MRP". Collapse same-MRP batches into one pickable row; a group with only one member renders
+// exactly as a normal batch row would. Members are ordered earliest-expiry-first so any later
+// split (see handleAddLine) draws down the soonest-to-expire stock first.
+export function groupBatchesByMrp(batches) {
+  const groups = new Map()
+  for (const batch of batches || []) {
+    const key = getMrp(batch).toFixed(2)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(batch)
+  }
+
+  return Array.from(groups.entries()).map(([key, members]) => {
+    const sortedMembers = [...members].sort((a, b) => {
+      const aTime = a.expiryDate ? new Date(a.expiryDate).getTime() : Infinity
+      const bTime = b.expiryDate ? new Date(b.expiryDate).getTime() : Infinity
+      return aTime - bTime
+    })
+    const qtyAvailable = sortedMembers.reduce((sum, batch) => sum + getQtyAvailable(batch), 0)
+    const costWeight = sortedMembers.reduce(
+      (sum, batch) => sum + getQtyAvailable(batch) * getUnitCost(batch),
+      0
+    )
+    const unitCost = qtyAvailable > 0 ? costWeight / qtyAvailable : getUnitCost(sortedMembers[0])
+    const earliestExpiry = sortedMembers.find((batch) => batch.expiryDate)?.expiryDate || null
+
+    return {
+      id: `mrp-group-${key}`,
+      mrp: Number(key),
+      qtyAvailable,
+      unitCost,
+      expiryDate: earliestExpiry,
+      batchNo:
+        sortedMembers.length > 1 ? `${sortedMembers.length} batches` : sortedMembers[0]?.batchNo || '-',
+      batchCount: sortedMembers.length,
+      members: sortedMembers,
+    }
+  })
+}
