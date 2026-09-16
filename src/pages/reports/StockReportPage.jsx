@@ -4,6 +4,7 @@ import {
   Banknote,
   FileSpreadsheet,
   FileText,
+  Layers,
   Package,
   Search,
   Warehouse,
@@ -21,6 +22,7 @@ import { downloadExcel, openPdfInNewTab } from '@/utils/fileDownload'
 const pageSize = 20
 
 const REPORT_TABS = [
+  ['overview', 'Overview', Layers],
   ['onhand', 'On Hand', Package],
   ['valuation', 'Valuation', Banknote],
   ['expiry', 'Expiry', AlertTriangle],
@@ -31,16 +33,22 @@ function formatNumber(value) {
 }
 
 function normalizeRow(row) {
+  const totalQtyAvailable = Number(row.totalQtyAvailable ?? row.TotalQtyAvailable ?? 0)
+
   return {
     productId: row.productId ?? row.product?.id ?? '',
     productName: row.productName ?? row.product?.name ?? 'Unknown product',
     sku: row.sku ?? row.productSku ?? row.product?.sku ?? '—',
     categoryId: row.categoryId ?? row.category?.id ?? '',
     categoryName: row.categoryName ?? row.category?.name ?? 'Uncategorized',
+    productCount: Number(row.productCount ?? row.ProductCount ?? 0),
+    totalQtyAvailable,
     locationName: row.locationName ?? row.stockLocationName ?? row.location?.name ?? '—',
     batchNo: row.batchNo ?? row.batchNumber ?? '—',
     expiryDate: row.expiryDate ?? null,
     smallestUnitCode: row.smallestUnitCode ?? row.SmallestUnitCode ?? 'PCS',
+    minQty: row.minQty ?? row.minValue ?? null,
+    maxQty: row.maxQty ?? row.maxValue ?? null,
     qtyAvailable: Number(row.qtyAvailable ?? 0),
     qtyReserved: Number(row.qtyReserved ?? 0),
     unitCost: Number(row.unitCost ?? 0),
@@ -113,7 +121,7 @@ function FilterSelect({ value, onChange, options, placeholder, width = 220, disa
 }
 
 export default function StockReportPage() {
-  const [reportType, setReportType] = useState('onhand')
+  const [reportType, setReportType] = useState('overview')
   const [page, setPage] = useState(1)
 
   const [filterCategoryId, setFilterCategoryId] = useState('')
@@ -130,16 +138,17 @@ export default function StockReportPage() {
   const { data: categories = [], isLoading: isLoadingCategories } = useCategories()
   const { data: locationsPage, isLoading: isLoadingLocations } = useReportStockLocations()
   const stockLocations = locationsPage?.items || []
+  const currentPageSize = reportType === 'overview' ? 200 : pageSize
 
   const queryParams = useMemo(() => {
-    const params = { page, pageSize, reportType }
+    const params = { page, pageSize: currentPageSize, reportType }
     if (appliedCategoryId) params.categoryId = appliedCategoryId
-    if (appliedStockLocationId) params.stockLocationId = appliedStockLocationId
+    if (reportType !== 'overview' && appliedStockLocationId) params.stockLocationId = appliedStockLocationId
     if (reportType === 'expiry' && appliedExpiringWithinDays) {
       params.expiringWithinDays = Number(appliedExpiringWithinDays)
     }
     return params
-  }, [page, reportType, appliedCategoryId, appliedStockLocationId, appliedExpiringWithinDays])
+  }, [page, currentPageSize, reportType, appliedCategoryId, appliedStockLocationId, appliedExpiringWithinDays])
 
   const { data, isLoading, isFetching } = useStockReport(queryParams)
 
@@ -149,6 +158,14 @@ export default function StockReportPage() {
 
   const rows = useMemo(() => (data?.items || []).map(normalizeRow), [data])
   const totalItems = Number(data?.totalItems ?? rows.length)
+  const overviewGrandTotal = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.totalQtyAvailable || 0), 0),
+    [rows]
+  )
+  const overviewProductCount = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.productCount || 0), 0),
+    [rows]
+  )
 
   const displayRows = useMemo(() => {
     if (reportType !== 'expiry') return rows
@@ -179,7 +196,7 @@ export default function StockReportPage() {
   function handleApply(event) {
     event?.preventDefault()
     setAppliedCategoryId(filterCategoryId)
-    setAppliedStockLocationId(filterStockLocationId)
+    setAppliedStockLocationId(reportType === 'overview' ? '' : filterStockLocationId)
     setAppliedExpiringWithinDays(filterExpiringWithinDays)
   }
 
@@ -195,7 +212,7 @@ export default function StockReportPage() {
   function buildExportParams() {
     const params = { reportType }
     if (appliedCategoryId) params.categoryId = appliedCategoryId
-    if (appliedStockLocationId) params.stockLocationId = appliedStockLocationId
+    if (reportType !== 'overview' && appliedStockLocationId) params.stockLocationId = appliedStockLocationId
     if (reportType === 'expiry' && appliedExpiringWithinDays) {
       params.expiringWithinDays = Number(appliedExpiringWithinDays)
     }
@@ -229,15 +246,22 @@ export default function StockReportPage() {
   }
 
   const columns = useMemo(() => {
+    if (reportType === 'overview') {
+      return [
+        { key: 'category', label: 'Category' },
+        { key: 'productCount', label: 'Product Count', align: 'right' },
+        { key: 'totalQtyAvailable', label: 'Total Qty Available', align: 'right' },
+      ]
+    }
+
     if (reportType === 'onhand') {
       return [
         { key: 'product', label: 'Product' },
         { key: 'category', label: 'Category' },
         { key: 'location', label: 'Location' },
-        { key: 'batchNo', label: 'Batch No' },
-        { key: 'expiryDate', label: 'Expiry Date' },
+        { key: 'minQty', label: 'Min Qty', align: 'right' },
+        { key: 'maxQty', label: 'Max Qty', align: 'right' },
         { key: 'qtyAvailable', label: 'Qty Available', align: 'right' },
-        { key: 'status', label: 'Status' },
       ]
     }
     if (reportType === 'valuation') {
@@ -281,6 +305,10 @@ export default function StockReportPage() {
         )
       case 'category':
         return row.categoryName
+      case 'productCount':
+        return formatNumber(row.productCount)
+      case 'totalQtyAvailable':
+        return formatNumber(row.totalQtyAvailable)
       case 'location':
         return row.locationName
       case 'batchNo':
@@ -300,6 +328,10 @@ export default function StockReportPage() {
             <span className="uom-badge">{row.smallestUnitCode}</span>
           </>
         )
+      case 'minQty':
+        return row.minQty == null ? '—' : formatNumber(row.minQty)
+      case 'maxQty':
+        return row.maxQty == null ? '—' : formatNumber(row.maxQty)
       case 'unitCost':
         return formatLKR(row.unitCost)
       case 'mrp':
@@ -320,7 +352,7 @@ export default function StockReportPage() {
       <header>
         <h1 style={{ fontSize: 25, fontWeight: 800 }}>Stock Report</h1>
         <p style={{ marginTop: 3, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          On-hand, valuation, and expiry views of inventory across all stock locations.
+          Category overview, on-hand, valuation, and expiry views of inventory across all stock locations.
         </p>
       </header>
 
@@ -362,13 +394,15 @@ export default function StockReportPage() {
           width={220}
         />
 
-        <FilterSelect
-          value={filterStockLocationId}
-          onChange={setFilterStockLocationId}
-          placeholder={isLoadingLocations ? 'Loading locations...' : 'All stock locations'}
-          options={stockLocations.map((location) => ({ value: location.id, label: location.name }))}
-          width={220}
-        />
+        {reportType !== 'overview' ? (
+          <FilterSelect
+            value={filterStockLocationId}
+            onChange={setFilterStockLocationId}
+            placeholder={isLoadingLocations ? 'Loading locations...' : 'All stock locations'}
+            options={stockLocations.map((location) => ({ value: location.id, label: location.name }))}
+            width={220}
+          />
+        ) : null}
 
         {reportType === 'expiry' ? (
           <div style={{ width: 200 }}>
@@ -434,6 +468,39 @@ export default function StockReportPage() {
         </div>
       </form>
 
+      {reportType === 'overview' && rows.length ? (
+        <div
+          className="panel"
+          style={{
+            padding: 12,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(140px, 1fr))',
+            gap: 10,
+          }}
+        >
+          {[
+            ['Categories', totalItems.toLocaleString('en-LK')],
+            ['Product Count', overviewProductCount.toLocaleString('en-LK')],
+            ['Grand Total Qty', formatNumber(overviewGrandTotal)],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              style={{
+                padding: 10,
+                border: '1px solid var(--color-border)',
+                borderRadius: 6,
+                background: 'color-mix(in srgb, var(--color-bg-elevated) 45%, transparent)',
+              }}
+            >
+              <div style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>{label}</div>
+              <div className="mono" style={{ marginTop: 4, fontWeight: 800 }}>
+                {value}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <section className="panel" style={{ overflow: 'hidden' }}>
         <div
           style={{
@@ -496,7 +563,16 @@ export default function StockReportPage() {
                               <td
                                 key={column.key}
                                 className={
-                                  ['qtyAvailable', 'unitCost', 'mrp', 'totalValue'].includes(
+                                  [
+                                    'productCount',
+                                    'totalQtyAvailable',
+                                    'minQty',
+                                    'maxQty',
+                                    'qtyAvailable',
+                                    'unitCost',
+                                    'mrp',
+                                    'totalValue',
+                                  ].includes(
                                     column.key
                                   )
                                     ? 'mono'
@@ -530,12 +606,27 @@ export default function StockReportPage() {
                       </Fragment>
                     ))
                   : displayRows.map((row) => (
-                      <tr key={`${row.productId}-${row.locationName}-${row.batchNo}`}>
+                      <tr
+                        key={
+                          reportType === 'overview'
+                            ? row.categoryId || row.categoryName
+                            : `${row.productId}-${row.locationName}-${row.batchNo}`
+                        }
+                      >
                         {columns.map((column) => (
                           <td
                             key={column.key}
                             className={
-                              ['qtyAvailable', 'unitCost', 'mrp', 'totalValue'].includes(column.key)
+                              [
+                                'productCount',
+                                'totalQtyAvailable',
+                                'minQty',
+                                'maxQty',
+                                'qtyAvailable',
+                                'unitCost',
+                                'mrp',
+                                'totalValue',
+                              ].includes(column.key)
                                 ? 'mono'
                                 : undefined
                             }
@@ -560,7 +651,7 @@ export default function StockReportPage() {
           <div style={{ padding: '0 12px 10px' }}>
             <SimplePagination
               page={page}
-              pageSize={pageSize}
+              pageSize={currentPageSize}
               totalItems={totalItems}
               onPageChange={setPage}
               itemLabel="rows"
