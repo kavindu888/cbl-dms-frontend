@@ -62,6 +62,13 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
     }))
   }
 
+  function updateMrp(lineId, mrp) {
+    setLineEdits((current) => ({
+      ...current,
+      [lineId]: { ...current[lineId], mrp },
+    }))
+  }
+
   function toggleRemoved(lineId) {
     setLineEdits((current) => ({
       ...current,
@@ -96,7 +103,9 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
 
   const hasChanges =
     newLines.length > 0 ||
-    Object.entries(lineEdits).some(([, edit]) => edit.removed || edit.quantity !== undefined)
+    Object.entries(lineEdits).some(
+      ([, edit]) => edit.removed || edit.quantity !== undefined || edit.mrp !== undefined
+    )
 
   async function submit(event) {
     event.preventDefault()
@@ -107,11 +116,21 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
       .map(([lineId]) => lineId)
 
     const linesToUpdate = normalLines
-      .filter((line) => !lineEdits[line.id]?.removed && lineEdits[line.id]?.quantity !== undefined)
-      .map((line) => ({
-        lineId: line.id,
-        newQuantity: Number(lineEdits[line.id].quantity),
-      }))
+      .filter(
+        (line) =>
+          !lineEdits[line.id]?.removed &&
+          (lineEdits[line.id]?.quantity !== undefined || lineEdits[line.id]?.mrp !== undefined)
+      )
+      .map((line) => {
+        const edit = lineEdits[line.id]
+        const newMrp =
+          edit.mrp === undefined || edit.mrp === '' ? undefined : Number(edit.mrp)
+        return {
+          lineId: line.id,
+          newQuantity: Number(edit.quantity ?? line.quantity),
+          ...(newMrp !== undefined ? { newMrp } : {}),
+        }
+      })
       .filter((update) => update.newQuantity > 0)
 
     for (const update of linesToUpdate) {
@@ -175,7 +194,7 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1.6fr) 130px 110px 90px',
+              gridTemplateColumns: 'minmax(0, 1.3fr) 110px 100px 110px 90px',
               gap: 12,
               fontSize: 11,
               fontWeight: 800,
@@ -186,6 +205,7 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
             <span>Product</span>
             <span style={{ textAlign: 'right' }}>Current Qty</span>
             <span style={{ textAlign: 'right' }}>New Qty</span>
+            <span style={{ textAlign: 'right' }}>MRP</span>
             <span style={{ textAlign: 'right' }}>Remove</span>
           </div>
           {normalLines.map((line) => {
@@ -197,7 +217,7 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
                 key={line.id}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1.6fr) 130px 110px 90px',
+                  gridTemplateColumns: 'minmax(0, 1.3fr) 110px 100px 110px 90px',
                   alignItems: 'center',
                   gap: 12,
                   padding: '8px 4px',
@@ -224,6 +244,17 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
                   disabled={isRemoved}
                   value={edit.quantity ?? line.quantity}
                   onChange={(event) => updateQuantity(line.id, event.target.value)}
+                  style={{ height: 32, textAlign: 'right' }}
+                />
+                <input
+                  className="form-input mono"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  disabled={isRemoved}
+                  value={edit.mrp ?? line.mrp}
+                  title="Defaults to the line's current MRP — change it if it doesn't match Vehicle Loading."
+                  onChange={(event) => updateMrp(line.id, event.target.value)}
                   style={{ height: 32, textAlign: 'right' }}
                 />
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
