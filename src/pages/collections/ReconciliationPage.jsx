@@ -110,6 +110,17 @@ export default function ReconciliationPage() {
               <strong className="mono">{money(value)}</strong>
             </div>
           ))}
+          {data.totalWrittenOff > 0 ? (
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between' }}
+              title="Bills recorded as fully collected, but part of the amount was written off instead of actually being handed over — e.g. cash lost or short after it was collected from the customer."
+            >
+              <span style={{ color: 'var(--color-danger)' }}>Missing / written off</span>
+              <strong className="mono" style={{ color: 'var(--color-danger)' }}>
+                {money(data.totalWrittenOff)}
+              </strong>
+            </div>
+          ) : null}
         </div>
       </section>
       <section className="panel" style={{ padding: 18 }}>

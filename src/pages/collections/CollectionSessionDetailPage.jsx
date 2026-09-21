@@ -93,7 +93,10 @@ export default function CollectionSessionDetailPage() {
           </>
         }
       />
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div
+        className="grid grid-cols-1 gap-3 md:grid-cols-4"
+        style={data.totalWrittenOff > 0 ? { gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' } : undefined}
+      >
         <Metric label="Cash" value={money(data.totalCash)} tone="var(--color-teal)" />
         <Metric label="Cheques" value={money(data.totalCheques)} tone="var(--color-blue)" />
         <Metric label="Bank transfers" value={money(totalTransfers)} tone="var(--color-purple)" />
@@ -103,6 +106,14 @@ export default function CollectionSessionDetailPage() {
           tone="var(--color-amber)"
           helper={`${data.collectionCount} entries`}
         />
+        {data.totalWrittenOff > 0 ? (
+          <Metric
+            label="Missing / written off"
+            value={money(data.totalWrittenOff)}
+            tone="var(--color-danger)"
+            helper="Bills marked paid in full but not fully collected"
+          />
+        ) : null}
       </div>
       <div
         className="responsive-master-detail"
@@ -194,6 +205,22 @@ export default function CollectionSessionDetailPage() {
                 {money(data.totalAmount)}
               </span>
             </div>
+            {data.totalWrittenOff > 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  fontSize: 12,
+                }}
+                title="Bills recorded as fully collected, but part of the amount was written off instead of actually being handed over — e.g. cash lost or short after it was collected from the customer."
+              >
+                <span style={{ color: 'var(--color-danger)' }}>Missing / written off</span>
+                <span className="mono" style={{ color: 'var(--color-danger)' }}>
+                  {money(data.totalWrittenOff)}
+                </span>
+              </div>
+            ) : null}
             {!isOpen && data.physicalCashAmount != null ? (
               <>
                 <div
