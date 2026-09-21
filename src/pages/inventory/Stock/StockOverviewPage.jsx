@@ -8,6 +8,7 @@ import {
   Flag,
   MapPin,
   Package,
+  Percent,
   RefreshCw,
   RotateCcw,
   Search,
@@ -17,6 +18,7 @@ import {
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import Modal from '@components/ui/Modal'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
 import { useActiveStockBatches, useExpiringBatches, useStockLevels } from '@/hooks/useStock'
@@ -25,6 +27,8 @@ import { masterService } from '@/services/api/masterService'
 import FlagStockForReturnModal from '@/pages/inventory/ReturnStock/FlagStockForReturnModal'
 import { formatDate, formatTime } from '@/utils'
 import { formatLKR, formatLKRShort } from '@/utils/formatCurrency'
+import { useAuthStore } from '@stores/authStore'
+import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 
 const pageSize = 12
 const STOCK_SELLING_MARKUP_RATE = 0.067
@@ -453,6 +457,8 @@ function BatchValuationPanel({ productName, rows, totalValue, unitCode }) {
 
 export default function StockOverviewPage() {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
+  const canManageOpeningStock = userHasPermission(user, PERMISSIONS.inventory.openingStock)
   const [search, setSearch] = useState('')
   const [lowStockOnly, setLowStockOnly] = useState(false)
   const [sortBy, setSortBy] = useState('name')
@@ -463,6 +469,9 @@ export default function StockOverviewPage() {
   const [expandedProductId, setExpandedProductId] = useState(null)
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [isLoadingLocations, setIsLoadingLocations] = useState(false)
+  const [vatPreview, setVatPreview] = useState(null)
+  const [isLoadingVatPreview, setIsLoadingVatPreview] = useState(false)
+  const [isApplyingVat, setIsApplyingVat] = useState(false)
 
   const { data: rawLevels, isLoading: isLoadingLevels, refetch: refetchLevels } = useStockLevels()
   const { refetch: refetchExpiring } = useExpiringBatches(30)
@@ -884,6 +893,40 @@ export default function StockOverviewPage() {
     refetchActiveBatches()
   }
 
+  async function handleOpenVatUplift() {
+    setVatPreview({})
+    setIsLoadingVatPreview(true)
+    try {
+      const preview = await inventoryService.previewVatUplift(18)
+      setVatPreview(preview)
+    } catch (error) {
+      toast.error(error.message || 'Unable to preview the VAT uplift.')
+      setVatPreview(null)
+    } finally {
+      setIsLoadingVatPreview(false)
+    }
+  }
+
+  async function handleConfirmVatUplift() {
+    setIsApplyingVat(true)
+    try {
+      const result = await inventoryService.applyVatUplift(18)
+      if (!result.batchesUpdated) {
+        toast.info('No batches needed VAT applied — everything is already up to date.')
+      } else {
+        toast.success(
+          `Applied 18% VAT to ${result.batchesUpdated} batch(es). Stock value: ${formatLKR(result.totalOldStockValue)} → ${formatLKR(result.totalNewStockValue)}.`
+        )
+      }
+      setVatPreview(null)
+      handleRefresh()
+    } catch (error) {
+      toast.error(error.message || 'Unable to apply the VAT uplift.')
+    } finally {
+      setIsApplyingVat(false)
+    }
+  }
+
   const isLoading =
     isLoadingLevels || isLoadingProducts || isLoadingLocations || isLoadingActiveBatches
 
@@ -1063,6 +1106,18 @@ export default function StockOverviewPage() {
             >
               <AlertTriangle size={13} /> Critical stock only
             </button>
+
+            {canManageOpeningStock ? (
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={handleOpenVatUplift}
+                title="Admin: bake 18% VAT into the unit cost of GRN-received batches that predate automatic VAT costing"
+                style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+              >
+                <Percent size={13} /> Apply VAT to batches
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -1284,6 +1339,99 @@ export default function StockOverviewPage() {
         onClose={() => setFlagProduct(null)}
         onSuccess={handleRefresh}
       />
+
+      <Modal
+        open={Boolean(vatPreview)}
+        onOpenChange={(open) => {
+          if (!open && !isApplyingVat) setVatPreview(null)
+        }}
+        title="Apply 18% VAT to Stock Batches"
+        description="Bakes 18% VAT into the unit cost of batches that genuinely came from a verified GRN receipt but predate automatic VAT-inclusive costing. Batches already corrected, and batches from any other source (vehicle loading, transfers, returns, opening stock), are always skipped."
+        maxWidth="560px"
+      >
+        {isLoadingVatPreview ? (
+          <div style={{ padding: '20px 4px', color: 'var(--color-text-muted)' }}>
+            Checking which batches need this...
+          </div>
+        ) : vatPreview?.batchesUpdated === undefined ? (
+          <div style={{ padding: '20px 4px', color: 'var(--color-danger)' }}>
+            Unable to load a preview. Close this and try again.
+          </div>
+        ) : vatPreview.batchesUpdated === 0 ? (
+          <div style={{ padding: '20px 4px', color: 'var(--color-text-muted)' }}>
+            No batches need this — everything eligible already has VAT applied.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 10, padding: '10px 4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span>Batches affected</span>
+              <strong className="mono">{vatPreview.batchesUpdated}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span>Stock value before</span>
+              <strong className="mono">{formatLKR(vatPreview.totalOldStockValue)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span>Stock value after</span>
+              <strong className="mono" style={{ color: 'var(--color-amber)' }}>
+                {formatLKR(vatPreview.totalNewStockValue)}
+              </strong>
+            </div>
+            <div
+              style={{
+                maxHeight: 220,
+                overflowY: 'auto',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                marginTop: 4,
+              }}
+            >
+              <table className="data-table" style={{ fontSize: 11 }}>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th className="text-right">Old cost</th>
+                    <th className="text-right">New cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(vatPreview.lines || []).map((line) => (
+                    <tr key={line.batchId}>
+                      <td>
+                        {line.productSku}
+                        <div style={{ color: 'var(--color-text-muted)' }}>{line.batchNo}</div>
+                      </td>
+                      <td className="mono text-right">{formatLKR(line.oldUnitCostSmallest)}</td>
+                      <td className="mono text-right">{formatLKR(line.newUnitCostSmallest)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => setVatPreview(null)}
+            disabled={isApplyingVat}
+            style={{ height: 36 }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="button-primary"
+            onClick={handleConfirmVatUplift}
+            disabled={isApplyingVat || isLoadingVatPreview || !vatPreview?.batchesUpdated}
+            style={{ height: 36 }}
+          >
+            {isApplyingVat ? 'Applying...' : `Apply to ${vatPreview?.batchesUpdated || 0} batch(es)`}
+          </button>
+        </div>
+      </Modal>
     </div>
   )
 }

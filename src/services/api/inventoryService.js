@@ -194,6 +194,22 @@ export const inventoryService = {
     return asList(getValue(response, 'Unable to load expiring batches.')).map(formatBatch)
   },
 
+  // Admin: preview/apply baking VAT into the unit cost of stock batches that genuinely originated
+  // from a verified GRN but predate automatic VAT-inclusive costing. Safe to re-run — already
+  // corrected batches (and batches from any non-GRN source) are always skipped server-side.
+  async previewVatUplift(vatPercent = 18) {
+    const response = await api.get('/api/v1/inventory/stock/batches/vat-uplift/preview', {
+      params: { vatPercent },
+    })
+    return getValue(response, 'Unable to preview the VAT uplift.')
+  },
+  async applyVatUplift(vatPercent = 18) {
+    const response = await api.post('/api/v1/inventory/stock/batches/vat-uplift/apply', null, {
+      params: { vatPercent },
+    })
+    return getValue(response, 'Unable to apply the VAT uplift.')
+  },
+
   //Inventory Stock Movements
   async listStockMovements(params = {}) {
     const response = await getOnce('/api/v1/inventory/stock/movements', { params })
