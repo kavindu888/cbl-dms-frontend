@@ -34,6 +34,8 @@ function formatNumber(value) {
 
 function normalizeRow(row) {
   const totalQtyAvailable = Number(row.totalQtyAvailable ?? row.TotalQtyAvailable ?? 0)
+  const totalCostValue = Number(row.totalCostValue ?? row.TotalCostValue ?? 0)
+  const totalSellingValue = Number(row.totalSellingValue ?? row.TotalSellingValue ?? 0)
 
   return {
     productId: row.productId ?? row.product?.id ?? '',
@@ -43,6 +45,8 @@ function normalizeRow(row) {
     categoryName: row.categoryName ?? row.category?.name ?? 'Uncategorized',
     productCount: Number(row.productCount ?? row.ProductCount ?? 0),
     totalQtyAvailable,
+    totalCostValue,
+    totalSellingValue,
     locationName: row.locationName ?? row.stockLocationName ?? row.location?.name ?? '—',
     batchNo: row.batchNo ?? row.batchNumber ?? '—',
     expiryDate: row.expiryDate ?? null,
@@ -53,6 +57,7 @@ function normalizeRow(row) {
     qtyReserved: Number(row.qtyReserved ?? 0),
     unitCost: Number(row.unitCost ?? 0),
     mrp: Number(row.mrp ?? 0),
+    sellingPrice: Number(row.sellingPrice ?? row.SellingPrice ?? 0),
     totalValue: Number(row.totalValue ?? Number(row.qtyAvailable ?? 0) * Number(row.unitCost ?? 0)),
     status: row.status ?? '',
   }
@@ -166,6 +171,35 @@ export default function StockReportPage() {
     () => rows.reduce((sum, row) => sum + Number(row.productCount || 0), 0),
     [rows]
   )
+  const overviewGrandTotalCost = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.totalCostValue || 0), 0),
+    [rows]
+  )
+  const overviewGrandTotalSelling = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.totalSellingValue || 0), 0),
+    [rows]
+  )
+
+  const valuationGrandTotalQty = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.qtyAvailable || 0), 0),
+    [rows]
+  )
+  const valuationGrandTotalCost = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.totalValue || 0), 0),
+    [rows]
+  )
+  const valuationGrandTotalSelling = useMemo(
+    () => rows.reduce((sum, row) => sum + (Number(row.qtyAvailable || 0) * Number(row.sellingPrice || 0)), 0),
+    [rows]
+  )
+  const valuationUniqueCategories = useMemo(
+    () => new Set(rows.map((r) => r.categoryName || 'Uncategorised')).size,
+    [rows]
+  )
+  const valuationUniqueProducts = useMemo(
+    () => new Set(rows.map((r) => r.productId)).size,
+    [rows]
+  )
 
   const displayRows = useMemo(() => {
     if (reportType !== 'expiry') return rows
@@ -184,10 +218,12 @@ export default function StockReportPage() {
         rows: [],
         totalQty: 0,
         totalValue: 0,
+        totalSellingValue: 0,
       }
       group.rows.push(row)
-      group.totalQty += row.qtyAvailable
-      group.totalValue += row.totalValue
+      group.totalQty += Number(row.qtyAvailable || 0)
+      group.totalValue += Number(row.totalValue || 0)
+      group.totalSellingValue += Number(row.qtyAvailable || 0) * Number(row.sellingPrice || 0)
       groups.set(key, group)
     }
     return [...groups.values()]
@@ -251,6 +287,8 @@ export default function StockReportPage() {
         { key: 'category', label: 'Category' },
         { key: 'productCount', label: 'Product Count', align: 'right' },
         { key: 'totalQtyAvailable', label: 'Total Qty Available', align: 'right' },
+        { key: 'totalCostValue', label: 'Cost Value', align: 'right' },
+        { key: 'totalSellingValue', label: 'Selling Value', align: 'right' },
       ]
     }
 
@@ -267,12 +305,12 @@ export default function StockReportPage() {
     if (reportType === 'valuation') {
       return [
         { key: 'product', label: 'Product' },
-        { key: 'location', label: 'Location' },
         { key: 'qtyAvailable', label: 'Qty Available', align: 'right' },
         { key: 'unitCost', label: 'Unit Cost', align: 'right' },
+        { key: 'sellingPrice', label: 'Selling Price', align: 'right' },
         { key: 'mrp', label: 'MRP', align: 'right' },
-        { key: 'totalValue', label: 'Total Value', align: 'right' },
-        { key: 'status', label: 'Status' },
+        { key: 'totalValue', label: 'Total Cost Value', align: 'right' },
+        { key: 'totalSellingValue', label: 'Total Selling Value', align: 'right' },
       ]
     }
     return [
@@ -309,6 +347,10 @@ export default function StockReportPage() {
         return formatNumber(row.productCount)
       case 'totalQtyAvailable':
         return formatNumber(row.totalQtyAvailable)
+      case 'totalCostValue':
+        return formatLKR(row.totalCostValue)
+      case 'totalSellingValue':
+        return formatLKR(row.totalSellingValue)
       case 'location':
         return row.locationName
       case 'batchNo':
@@ -334,10 +376,14 @@ export default function StockReportPage() {
         return row.maxQty == null ? '—' : formatNumber(row.maxQty)
       case 'unitCost':
         return formatLKR(row.unitCost)
+      case 'sellingPrice':
+        return formatLKR(row.sellingPrice)
       case 'mrp':
         return formatLKR(row.mrp)
       case 'totalValue':
         return formatLKR(row.totalValue)
+      case 'totalSellingValue':
+        return formatLKR((row.qtyAvailable || 0) * (row.sellingPrice || 0))
       case 'status':
         return <StatusBadge status={row.status} />
       default:
@@ -474,7 +520,7 @@ export default function StockReportPage() {
           style={{
             padding: 12,
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(140px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
             gap: 10,
           }}
         >
@@ -482,6 +528,50 @@ export default function StockReportPage() {
             ['Categories', totalItems.toLocaleString('en-LK')],
             ['Product Count', overviewProductCount.toLocaleString('en-LK')],
             ['Grand Total Qty', formatNumber(overviewGrandTotal)],
+            ['Grand Total Cost', formatLKR(overviewGrandTotalCost)],
+            ['Grand Total Selling', formatLKR(overviewGrandTotalSelling)],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              style={{
+                padding: 10,
+                border: '1px solid var(--color-border)',
+                borderRadius: 6,
+                background: 'color-mix(in srgb, var(--color-bg-elevated) 45%, transparent)',
+              }}
+            >
+              <div style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>{label}</div>
+              <div className="mono" style={{ marginTop: 4, fontWeight: 800 }}>
+                {value}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {reportType === 'valuation' && rows.length ? (
+        <div
+          className="panel"
+          style={{
+            padding: 12,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: 10,
+          }}
+        >
+          {[
+            ['Categories', valuationUniqueCategories.toLocaleString('en-LK')],
+            ['Products', valuationUniqueProducts.toLocaleString('en-LK')],
+            ['Total Available Qty', formatNumber(valuationGrandTotalQty)],
+            ['Total Cost Value', formatLKR(valuationGrandTotalCost)],
+            ['Total Selling Value', formatLKR(valuationGrandTotalSelling)],
+            [
+              'Est. Gross Margin',
+              formatLKR(valuationGrandTotalSelling - valuationGrandTotalCost) +
+                (valuationGrandTotalSelling > 0
+                  ? ` (${(((valuationGrandTotalSelling - valuationGrandTotalCost) / valuationGrandTotalSelling) * 100).toFixed(1)}%)`
+                  : ''),
+            ],
           ].map(([label, value]) => (
             <div
               key={label}
@@ -558,7 +648,7 @@ export default function StockReportPage() {
                           </td>
                         </tr>
                         {group.rows.map((row) => (
-                          <tr key={row.productId + row.locationName}>
+                          <tr key={`${row.productId}-${row.unitCost}`}>
                             {columns.map((column) => (
                               <td
                                 key={column.key}
@@ -566,6 +656,8 @@ export default function StockReportPage() {
                                   [
                                     'productCount',
                                     'totalQtyAvailable',
+                                    'totalCostValue',
+                                    'totalSellingValue',
                                     'minQty',
                                     'maxQty',
                                     'qtyAvailable',
@@ -591,17 +683,19 @@ export default function StockReportPage() {
                               'color-mix(in srgb, var(--color-bg-elevated) 45%, transparent)',
                           }}
                         >
-                          <td style={{ fontWeight: 700 }}>Subtotal</td>
-                          <td></td>
+                          <td style={{ fontWeight: 700 }}>Category Subtotal</td>
                           <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
                             {formatNumber(group.totalQty)}
                           </td>
                           <td></td>
                           <td></td>
+                          <td></td>
                           <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                             {formatLKR(group.totalValue)}
                           </td>
-                          <td></td>
+                          <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                            {formatLKR(group.totalSellingValue)}
+                          </td>
                         </tr>
                       </Fragment>
                     ))
@@ -610,6 +704,8 @@ export default function StockReportPage() {
                         key={
                           reportType === 'overview'
                             ? row.categoryId || row.categoryName
+                            : reportType === 'valuation'
+                            ? `${row.productId}-${row.unitCost}`
                             : `${row.productId}-${row.locationName}-${row.batchNo}`
                         }
                       >
@@ -620,6 +716,8 @@ export default function StockReportPage() {
                               [
                                 'productCount',
                                 'totalQtyAvailable',
+                                'totalCostValue',
+                                'totalSellingValue',
                                 'minQty',
                                 'maxQty',
                                 'qtyAvailable',
