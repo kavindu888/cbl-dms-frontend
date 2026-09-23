@@ -210,6 +210,19 @@ export const inventoryService = {
     return getValue(response, 'Unable to apply the VAT uplift.')
   },
 
+  // Admin: preview/apply re-expressing batches stuck at an intermediate packaging level (e.g.
+  // STRIPS) in the product's true smallest unit (e.g. PCS) — for products whose UOM chain is
+  // deeper than the system used to support. Skips batches with a live reservation or an
+  // unresolvable conversion path rather than guessing; always safe to re-run.
+  async previewSmallestUnitFix() {
+    const response = await api.get('/api/v1/inventory/stock/batches/smallest-unit-fix/preview')
+    return getValue(response, 'Unable to preview the smallest-unit fix.')
+  },
+  async applySmallestUnitFix() {
+    const response = await api.post('/api/v1/inventory/stock/batches/smallest-unit-fix/apply')
+    return getValue(response, 'Unable to apply the smallest-unit fix.')
+  },
+
   //Inventory Stock Movements
   async listStockMovements(params = {}) {
     const response = await getOnce('/api/v1/inventory/stock/movements', { params })
