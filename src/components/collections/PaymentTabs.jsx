@@ -297,7 +297,9 @@ function AllocationSection({ customer, total, allocations, setAllocations }) {
         }}
       >
         <span>
-          {matches ? 'Allocations match payment total' : 'Allocations must equal payment total'}
+          {matches
+            ? 'Allocations match payment total'
+            : `${money(Math.max(0, Number(total || 0) - allocated))} still needs to go to a bill — allocate less than a bill's outstanding to write off the rest`}
         </span>
         <span className="mono">
           {money(allocated)} / {money(total)}
@@ -544,7 +546,9 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
               }}
             >
               <span>
-                {matches ? 'Allocations match cash total' : 'Allocations must equal cash total'}
+                {matches
+                  ? 'Allocations match cash total'
+                  : `${money(Math.max(0, total - allocationTotal(allocations)))} of cash still needs to go to a bill — allocate less than a bill's outstanding to write off the rest`}
               </span>
               <span className="mono">
                 {money(allocationTotal(allocations))} / {money(total)}
