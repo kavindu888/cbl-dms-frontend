@@ -26,18 +26,12 @@ export default function InvoiceAllocationTable({
     )
   }, [invoices, search])
   const setAllocation = (invoice, amount) => {
-    // Not capped at the outstanding amount — a bill can be overpaid on purpose, and the excess
-    // becomes credit on the customer's account (see the overpayment confirmation in PaymentTabs
-    // before the payment is actually recorded). It IS capped at what's left of the cash total
-    // being recorded, though — you can't hand over more cash than you actually have. Typing more
-    // than that used to just produce a confusing "allocations must equal cash total" error with
-    // no way to tell how far off you were; capping here means the record button only ever stays
-    // blocked because some cash is still unassigned, not because too much was typed.
-    const othersTotal = allocations
-      .filter((row) => row.invoiceId !== invoice.invoiceId)
-      .reduce((sum, row) => sum + Number(row.allocated || 0), 0)
-    const remainingCash = Math.max(0, Math.round((Number(totalPayment || 0) - othersTotal) * 100) / 100)
-    const numeric = Math.min(Math.max(0, Number(amount || 0)), remainingCash)
+    // Not capped — a bill can be overpaid on purpose (the excess becomes customer credit), and
+    // allocating more across bills than the cash total is also allowed on purpose: the collector
+    // may be closing bills at their full value even though less cash actually came in (a cash
+    // shortfall) — the difference is reviewed and written off as a lump sum at submit time
+    // instead of forcing them to under-type one specific bill to make the numbers line up.
+    const numeric = Math.max(0, Number(amount || 0))
     const next = allocations.filter((row) => row.invoiceId !== invoice.invoiceId)
     if (amount !== '') {
       next.push({
@@ -147,13 +141,6 @@ export default function InvoiceAllocationTable({
             ) : null}
             {filteredInvoices.map((invoice) => {
               const allocation = allocations.find((row) => row.invoiceId === invoice.invoiceId)
-              const othersAllocated = allocations
-                .filter((row) => row.invoiceId !== invoice.invoiceId)
-                .reduce((sum, row) => sum + Number(row.allocated || 0), 0)
-              const remainingForThisRow = Math.max(
-                0,
-                Math.round((Number(totalPayment || 0) - othersAllocated) * 100) / 100
-              )
               return (
                 <tr key={invoice.invoiceId}>
                   <td>
@@ -203,31 +190,32 @@ export default function InvoiceAllocationTable({
                     {money(invoice.outstandingAmount)}
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <input
-                      type="number"
-                      min="0"
-                      max={remainingForThisRow}
-                      step="0.01"
-                      className="form-input mono"
-                      value={allocation?.allocated || ''}
-                      onChange={(event) => setAllocation(invoice, event.target.value)}
-                      placeholder="0.00"
-                      title={`Up to ${money(remainingForThisRow)} of cash still unallocated`}
-                      style={{
-                        width: 112,
-                        height: 34,
-                        textAlign: 'right',
-                        background: 'var(--color-bg-base)',
-                      }}
-                    />
-                    {!allocation?.allocated && remainingForThisRow > 0 ? (
-                      <div
-                        className="mono"
-                        style={{ marginTop: 4, fontSize: 10, color: 'var(--color-text-dim)' }}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="form-input mono"
+                        value={allocation?.allocated || ''}
+                        onChange={(event) => setAllocation(invoice, event.target.value)}
+                        placeholder="0.00"
+                        style={{
+                          width: 112,
+                          height: 34,
+                          textAlign: 'right',
+                          background: 'var(--color-bg-base)',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="button-ghost"
+                        title="Allocate the full outstanding amount"
+                        onClick={() => setAllocation(invoice, String(invoice.outstandingAmount || 0))}
+                        style={{ height: 34, padding: '0 6px', fontSize: 10 }}
                       >
-                        up to {money(remainingForThisRow)}
-                      </div>
-                    ) : null}
+                        Full
+                      </button>
+                    </div>
                     {Number(allocation?.allocated || 0) > Number(invoice.outstandingAmount || 0) ? (
                       <div
                         className="mono"
