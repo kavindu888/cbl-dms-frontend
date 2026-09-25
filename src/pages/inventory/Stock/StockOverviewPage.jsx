@@ -472,6 +472,9 @@ export default function StockOverviewPage() {
   const [vatPreview, setVatPreview] = useState(null)
   const [isLoadingVatPreview, setIsLoadingVatPreview] = useState(false)
   const [isApplyingVat, setIsApplyingVat] = useState(false)
+  const [unitFixPreview, setUnitFixPreview] = useState(null)
+  const [isLoadingUnitFixPreview, setIsLoadingUnitFixPreview] = useState(false)
+  const [isApplyingUnitFix, setIsApplyingUnitFix] = useState(false)
 
   const { data: rawLevels, isLoading: isLoadingLevels, refetch: refetchLevels } = useStockLevels()
   const { refetch: refetchExpiring } = useExpiringBatches(30)
@@ -927,6 +930,41 @@ export default function StockOverviewPage() {
     }
   }
 
+  async function handleOpenUnitFix() {
+    setUnitFixPreview({})
+    setIsLoadingUnitFixPreview(true)
+    try {
+      const preview = await inventoryService.previewSmallestUnitFix()
+      setUnitFixPreview(preview)
+    } catch (error) {
+      toast.error(error.message || 'Unable to preview the smallest-unit fix.')
+      setUnitFixPreview(null)
+    } finally {
+      setIsLoadingUnitFixPreview(false)
+    }
+  }
+
+  async function handleConfirmUnitFix() {
+    setIsApplyingUnitFix(true)
+    try {
+      const result = await inventoryService.applySmallestUnitFix()
+      if (!result.batchesFixed) {
+        toast.info('No batches needed this — everything is already at the true smallest unit.')
+      } else {
+        toast.success(
+          `Fixed ${result.batchesFixed} batch(es) and recalculated ${result.stockLevelsRecalculated} stock level(s).` +
+            (result.batchesSkipped ? ` ${result.batchesSkipped} batch(es) skipped — see details.` : '')
+        )
+      }
+      setUnitFixPreview(null)
+      handleRefresh()
+    } catch (error) {
+      toast.error(error.message || 'Unable to apply the smallest-unit fix.')
+    } finally {
+      setIsApplyingUnitFix(false)
+    }
+  }
+
   const isLoading =
     isLoadingLevels || isLoadingProducts || isLoadingLocations || isLoadingActiveBatches
 
@@ -1116,6 +1154,18 @@ export default function StockOverviewPage() {
                 style={{ height: 34, padding: '0 12px', fontSize: 12 }}
               >
                 <Percent size={13} /> Apply VAT to batches
+              </button>
+            ) : null}
+
+            {canManageOpeningStock ? (
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={handleOpenUnitFix}
+                title="Admin: re-express batches stuck at an intermediate packaging unit (e.g. STRIPS) in the product's true smallest unit (e.g. PCS)"
+                style={{ height: 34, padding: '0 12px', fontSize: 12 }}
+              >
+                <Boxes size={13} /> Fix smallest unit
               </button>
             ) : null}
           </div>
@@ -1429,6 +1479,127 @@ export default function StockOverviewPage() {
             style={{ height: 36 }}
           >
             {isApplyingVat ? 'Applying...' : `Apply to ${vatPreview?.batchesUpdated || 0} batch(es)`}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(unitFixPreview)}
+        onOpenChange={(open) => {
+          if (!open && !isApplyingUnitFix) setUnitFixPreview(null)
+        }}
+        title="Fix Batches Stuck at the Wrong Smallest Unit"
+        description="Re-expresses batches recorded against an intermediate packaging level (e.g. STRIPS) in the product's true smallest unit (e.g. PCS), for products with more packaging levels than the system used to support. Batches with a live reservation, or with no resolvable conversion path, are listed separately and skipped."
+        maxWidth="640px"
+      >
+        {isLoadingUnitFixPreview ? (
+          <div style={{ padding: '20px 4px', color: 'var(--color-text-muted)' }}>
+            Checking which batches need this...
+          </div>
+        ) : unitFixPreview?.batchesFixed === undefined ? (
+          <div style={{ padding: '20px 4px', color: 'var(--color-danger)' }}>
+            Unable to load a preview. Close this and try again.
+          </div>
+        ) : unitFixPreview.batchesFixed === 0 && unitFixPreview.batchesSkipped === 0 ? (
+          <div style={{ padding: '20px 4px', color: 'var(--color-text-muted)' }}>
+            No batches need this — everything is already at the true smallest unit.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 12, padding: '10px 4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span>Batches to fix</span>
+              <strong className="mono">{unitFixPreview.batchesFixed}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span>Stock levels to recalculate</span>
+              <strong className="mono">{unitFixPreview.stockLevelsRecalculated}</strong>
+            </div>
+
+            {unitFixPreview.lines?.length ? (
+              <div
+                style={{
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                }}
+              >
+                <table className="data-table" style={{ fontSize: 11 }}>
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th className="text-right">Old qty / unit</th>
+                      <th className="text-right">New qty / unit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unitFixPreview.lines.map((line) => (
+                      <tr key={line.batchId}>
+                        <td>
+                          {line.productSku}
+                          <div style={{ color: 'var(--color-text-muted)' }}>{line.batchNo}</div>
+                        </td>
+                        <td className="mono text-right">
+                          {line.oldQtyAvailable} {line.oldUnitCode}
+                        </td>
+                        <td className="mono text-right">
+                          {line.newQtyAvailable} {line.newUnitCode}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            {unitFixPreview.skipped?.length ? (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-amber)', margin: '0 0 6px' }}>
+                  {unitFixPreview.skipped.length} batch(es) need manual review — not touched:
+                </p>
+                <div
+                  style={{
+                    maxHeight: 140,
+                    overflowY: 'auto',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 8,
+                    padding: 8,
+                    display: 'grid',
+                    gap: 6,
+                  }}
+                >
+                  {unitFixPreview.skipped.map((line) => (
+                    <div key={line.batchId} style={{ fontSize: 11 }}>
+                      <strong>
+                        {line.productSku} — {line.batchNo}
+                      </strong>
+                      <div style={{ color: 'var(--color-text-muted)' }}>{line.reason}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => setUnitFixPreview(null)}
+            disabled={isApplyingUnitFix}
+            style={{ height: 36 }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="button-primary"
+            onClick={handleConfirmUnitFix}
+            disabled={isApplyingUnitFix || isLoadingUnitFixPreview || !unitFixPreview?.batchesFixed}
+            style={{ height: 36 }}
+          >
+            {isApplyingUnitFix ? 'Applying...' : `Apply to ${unitFixPreview?.batchesFixed || 0} batch(es)`}
           </button>
         </div>
       </Modal>
