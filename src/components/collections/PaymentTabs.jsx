@@ -88,19 +88,27 @@ function distributeCashShortfall(rows, shortfall) {
 function useAllocationReviewGate() {
   const [pending, setPending] = useState(null)
   const [isConfirming, setIsConfirming] = useState(false)
-  function requestSubmit(allocations, run, cashShortfall = 0) {
+  function requestSubmit(allocations, run, cashShortfall = 0, unallocatedSurplus = 0) {
     const overpaidRows = overpaidRowsOf(allocations)
     const underpaidRows = underpaidRowsOf(allocations)
     const shortfall = Math.round((cashShortfall || 0) * 100) / 100
-    if (overpaidRows.length || underpaidRows.length || shortfall > 0.01)
-      setPending({ overpaidRows, underpaidRows, allocations, cashShortfall: shortfall, run })
+    const surplus = Math.round((unallocatedSurplus || 0) * 100) / 100
+    if (overpaidRows.length || underpaidRows.length || shortfall > 0.01 || surplus > 0.01)
+      setPending({
+        overpaidRows,
+        underpaidRows,
+        allocations,
+        cashShortfall: shortfall,
+        unallocatedSurplus: surplus,
+        run,
+      })
     else run({})
   }
-  async function confirm(writeOffsByInvoiceId) {
+  async function confirm(writeOffsByInvoiceId, surplus) {
     if (!pending) return
     setIsConfirming(true)
     try {
-      await pending.run(writeOffsByInvoiceId)
+      await pending.run(writeOffsByInvoiceId, surplus)
     } finally {
       // Always close, success or failure — leaving it open on failure just shows stale
       // over/underpaid rows from before the attempt; the mutation's own onError already
@@ -120,14 +128,16 @@ function AllocationReviewModal({ gate, customerName }) {
   const { pending, isConfirming, confirm, cancel } = gate
   const [writeOffs, setWriteOffs] = useState({})
   const [shortfallReason, setShortfallReason] = useState('')
+  const [surplusReason, setSurplusReason] = useState('')
   useEffect(() => {
     if (pending) {
       setWriteOffs({})
       setShortfallReason('')
+      setSurplusReason('')
     }
   }, [pending])
   if (!pending) return null
-  const { overpaidRows, underpaidRows, allocations = [], cashShortfall = 0 } = pending
+  const { overpaidRows, underpaidRows, allocations = [], cashShortfall = 0, unallocatedSurplus = 0 } = pending
   const totalCredit = overpaidRows.reduce(
     (sum, row) => sum + (Number(row.allocated) - Number(row.outstanding)),
     0
@@ -172,7 +182,8 @@ function AllocationReviewModal({ gate, customerName }) {
       const writeOff = writeOffs[row.invoiceId]
       return !writeOff || writeOff.reason.trim().length > 0
     }) &&
-    (!shortfallPlan || (shortfallPlan.unresolved <= 0.01 && shortfallReason.trim().length > 0))
+    (!shortfallPlan || (shortfallPlan.unresolved <= 0.01 && shortfallReason.trim().length > 0)) &&
+    (unallocatedSurplus <= 0.01 || surplusReason.trim().length > 0)
 
   function handleConfirm() {
     const payload = Object.fromEntries(
@@ -186,7 +197,11 @@ function AllocationReviewModal({ gate, customerName }) {
         payload[invoiceId] = { amount, reason, mode: 'reduce' }
       })
     }
-    confirm(payload)
+    const surplus =
+      unallocatedSurplus > 0.01
+        ? { amount: unallocatedSurplus, reason: surplusReason.trim() }
+        : null
+    confirm(payload, surplus)
   }
 
   return (
@@ -365,6 +380,27 @@ function AllocationReviewModal({ gate, customerName }) {
           </div>
         ) : null}
 
+        {unallocatedSurplus > 0.01 ? (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <Wallet size={18} color="var(--color-amber)" style={{ flex: '0 0 auto', marginTop: 2 }} />
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+                {money(unallocatedSurplus)} of the cash collected wasn't needed for any of the bills
+                picked here. Since there's no way to tell which customer actually overpaid, it will
+                be recorded as an unexplained surplus on this session instead of being forced onto a
+                random bill — someone can trace and assign it later.
+              </p>
+            </div>
+            <input
+              className="form-input"
+              placeholder="Reason / note (e.g. collector unsure which customer overpaid) *"
+              value={surplusReason}
+              onChange={(event) => setSurplusReason(event.target.value)}
+              style={{ height: 34 }}
+            />
+          </div>
+        ) : null}
+
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button type="button" className="button-secondary" disabled={isConfirming} onClick={cancel}>
             Go back
@@ -455,7 +491,11 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
   // rupee actually collected must go to a bill before the entry can be recorded.
   const cashShortfall = Math.max(0, Math.round((allocated - total) * 100) / 100)
   const hasUnallocatedCash = allocated < total - 0.01
-  const canSubmit = total > 0 && allocations.length > 0 && !hasUnallocatedCash
+  // Cash left over after every picked bill is fully covered is allowed too — reviewed at submit
+  // time as an unexplained surplus (see AllocationReviewModal) rather than forced onto a bill, since
+  // nobody can say up front which customer actually handed over more than they owed.
+  const unallocatedSurplus = Math.max(0, Math.round((total - allocated) * 100) / 100)
+  const canSubmit = total > 0 && allocations.length > 0
 
   function addBill(bill) {
     if (!bill) return
@@ -507,13 +547,16 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
     }
   }
 
-  async function doSubmit(writeOffsByInvoiceId = {}, saveAsDraft = false) {
+  async function doSubmit(writeOffsByInvoiceId = {}, surplus = null, saveAsDraft = false) {
     const payload = {
       totalAmount: total,
       denominations: DENOMINATIONS.filter((denomination) => Number(counts[denomination]) > 0).map(
         (denomination) => ({ denomination, count: Number(counts[denomination]) })
       ),
       allocations: payloadAllocations(allocations, writeOffsByInvoiceId),
+      ...(surplus?.amount > 0
+        ? { surplusAmount: surplus.amount, surplusReason: surplus.reason }
+        : {}),
     }
     if (editingDraftId) {
       await updateDraft.mutateAsync({ id: editingDraftId, ...payload })
@@ -531,14 +574,10 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
 
   function submit() {
     if (!canSubmit) {
-      toast.error(
-        hasUnallocatedCash
-          ? 'Some cash is still unallocated — assign it to a bill first.'
-          : 'Enter the cash total and allocate it to at least one bill.'
-      )
+      toast.error('Enter the cash total and allocate it to at least one bill.')
       return
     }
-    gate.requestSubmit(allocations, doSubmit, cashShortfall)
+    gate.requestSubmit(allocations, doSubmit, cashShortfall, unallocatedSurplus)
   }
 
   function saveDraft() {
@@ -546,7 +585,7 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
       toast.error('Enter the cash total first.')
       return
     }
-    doSubmit({}, true)
+    doSubmit({}, null, true)
   }
 
   const isBusy =
@@ -630,7 +669,8 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
               <h3 style={{ fontSize: 14, fontWeight: 800 }}>Allocate to invoices</h3>
               <p style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
                 Search a bill, then assign cash to it — add as many bills as you need, from any
-                customer, until the full cash total is allocated.
+                customer. Any cash left over will be reviewed as an unassigned surplus when you
+                record.
               </p>
             </div>
             {editingDraftId ? (
@@ -682,7 +722,7 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
                 {matches
                   ? 'Allocations match cash total'
                   : hasUnallocatedCash
-                    ? `${money(total - allocated)} of cash still needs to go to a bill — allocate less than a bill's outstanding to write off the rest`
+                    ? `${money(total - allocated)} of cash isn't needed for the bills picked — it'll be recorded as an unassigned surplus when you record`
                     : `Closing ${money(cashShortfall)} more in bills than cash collected — the difference will be reviewed as a cash shortfall write-off when you record`}
               </span>
               <span className="mono">{money(allocated)} / {money(total)}</span>

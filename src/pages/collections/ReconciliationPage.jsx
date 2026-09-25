@@ -121,6 +121,17 @@ export default function ReconciliationPage() {
               </strong>
             </div>
           ) : null}
+          {data.totalUnallocatedSurplus > 0 ? (
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between' }}
+              title="Cash collected beyond what the bills picked for it needed, with no way to tell which customer overpaid — kept visible here until it's traced and assigned."
+            >
+              <span style={{ color: 'var(--color-amber)' }}>Unassigned surplus</span>
+              <strong className="mono" style={{ color: 'var(--color-amber)' }}>
+                {money(data.totalUnallocatedSurplus)}
+              </strong>
+            </div>
+          ) : null}
         </div>
       </section>
       <section className="panel" style={{ padding: 18 }}>

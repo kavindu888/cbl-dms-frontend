@@ -95,7 +95,11 @@ export default function CollectionSessionDetailPage() {
       />
       <div
         className="grid grid-cols-1 gap-3 md:grid-cols-4"
-        style={data.totalWrittenOff > 0 ? { gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' } : undefined}
+        style={
+          data.totalWrittenOff > 0 || data.totalUnallocatedSurplus > 0
+            ? { gridTemplateColumns: `repeat(${4 + (data.totalWrittenOff > 0 ? 1 : 0) + (data.totalUnallocatedSurplus > 0 ? 1 : 0)}, minmax(0, 1fr))` }
+            : undefined
+        }
       >
         <Metric label="Cash" value={money(data.totalCash)} tone="var(--color-teal)" />
         <Metric label="Cheques" value={money(data.totalCheques)} tone="var(--color-blue)" />
@@ -112,6 +116,14 @@ export default function CollectionSessionDetailPage() {
             value={money(data.totalWrittenOff)}
             tone="var(--color-danger)"
             helper="Bills marked paid in full but not fully collected"
+          />
+        ) : null}
+        {data.totalUnallocatedSurplus > 0 ? (
+          <Metric
+            label="Unassigned surplus"
+            value={money(data.totalUnallocatedSurplus)}
+            tone="var(--color-amber)"
+            helper="Extra cash not tied to any bill — needs tracing"
           />
         ) : null}
       </div>
@@ -218,6 +230,22 @@ export default function CollectionSessionDetailPage() {
                 <span style={{ color: 'var(--color-danger)' }}>Missing / written off</span>
                 <span className="mono" style={{ color: 'var(--color-danger)' }}>
                   {money(data.totalWrittenOff)}
+                </span>
+              </div>
+            ) : null}
+            {data.totalUnallocatedSurplus > 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  fontSize: 12,
+                }}
+                title="Cash collected beyond what the bills picked for it needed, with no way to tell which customer overpaid — kept visible here until it's traced and assigned."
+              >
+                <span style={{ color: 'var(--color-amber)' }}>Unassigned surplus</span>
+                <span className="mono" style={{ color: 'var(--color-amber)' }}>
+                  {money(data.totalUnallocatedSurplus)}
                 </span>
               </div>
             ) : null}
