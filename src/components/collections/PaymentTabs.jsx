@@ -18,6 +18,7 @@ import {
 import { colomboToday, inputStyle, isPostDated, money } from '@/pages/collections/collectionsUi'
 import { formatDateTime } from '@/utils/formatDate'
 import BillSearch from './BillSearch'
+import CustomerCreditNote from './CustomerCreditNote'
 import InvoiceAllocationTable from './InvoiceAllocationTable'
 
 const toCustomer = (bill) =>
@@ -508,6 +509,28 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
     setAllocations((current) => current.filter((row) => row.invoiceId !== bill.invoiceId))
   }
 
+  // Credit was applied against one picked bill outside this form (Sales owns that mutation) —
+  // re-fetch it so the outstanding amount shown here isn't stale. If credit covered it in full it
+  // no longer comes back as outstanding at all, so it's dropped the same way removeBill would.
+  async function refreshPickedBill(invoiceId) {
+    const [fresh] = await getOutstandingInvoicesByIds([invoiceId])
+    if (!fresh) {
+      setPickedInvoices((current) => current.filter((row) => row.invoiceId !== invoiceId))
+      setAllocations((current) => current.filter((row) => row.invoiceId !== invoiceId))
+      return
+    }
+    setPickedInvoices((current) =>
+      current.map((row) => (row.invoiceId === invoiceId ? fresh : row))
+    )
+    setAllocations((current) =>
+      current.map((row) =>
+        row.invoiceId === invoiceId
+          ? { ...row, outstanding: Number(fresh.outstandingAmount) }
+          : row
+      )
+    )
+  }
+
   function resetForm() {
     setCounts({})
     setPickedInvoices([])
@@ -706,6 +729,17 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
               Search and add at least one bill above.
             </p>
           )}
+          {Object.values(
+            Object.fromEntries(pickedInvoices.map((bill) => [bill.customerId, bill]))
+          ).map((bill) => (
+            <CustomerCreditNote
+              key={bill.customerId}
+              customerId={bill.customerId}
+              customerName={bill.customerName}
+              invoiceId={bill.invoiceId}
+              onApplied={() => refreshPickedBill(bill.invoiceId)}
+            />
+          ))}
           {pickedInvoices.length ? (
             <div
               style={{
@@ -950,6 +984,14 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
           }}
         />
       </label>
+      {bill ? (
+        <CustomerCreditNote
+          customerId={bill.customerId}
+          customerName={bill.customerName}
+          invoiceId={bill.invoiceId}
+          onApplied={() => setBill(null)}
+        />
+      ) : null}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label>
           <span className="form-label">Cheque number *</span>
@@ -1118,6 +1160,14 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
           }}
         />
       </label>
+      {bill ? (
+        <CustomerCreditNote
+          customerId={bill.customerId}
+          customerName={bill.customerName}
+          invoiceId={bill.invoiceId}
+          onApplied={() => setBill(null)}
+        />
+      ) : null}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label>
           <span className="form-label">Reference number *</span>
