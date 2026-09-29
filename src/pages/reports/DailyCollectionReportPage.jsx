@@ -215,7 +215,9 @@ function SectionPanel({ title, children, tone }) {
 
 function AmountLine({ label, value }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}>
+    <div
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}
+    >
       <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
       <strong className="mono" style={{ textAlign: 'right' }}>
         {formatLKR(value)}
@@ -226,7 +228,9 @@ function AmountLine({ label, value }) {
 
 function ValueLine({ label, value, valueNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}>
+    <div
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}
+    >
       <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
       {valueNode || (
         <strong className="mono" style={{ textAlign: 'right' }}>
@@ -386,10 +390,8 @@ export default function DailyCollectionReportPage() {
     () =>
       rows.reduce(
         (totals, row) => {
-          const cash =
-            row.cashToday + row.cashOldInvoice + row.cashUnclassified
-          const cheque =
-            row.chequeToday + row.chequeOldInvoice + row.chequeUnclassified
+          const cash = row.cashToday + row.cashOldInvoice + row.cashUnclassified
+          const cheque = row.chequeToday + row.chequeOldInvoice + row.chequeUnclassified
           totals.total += cash + cheque
           totals.cash += cash
           totals.cheque += cheque
@@ -446,8 +448,8 @@ export default function DailyCollectionReportPage() {
     setIsExportingExcel(true)
     try {
       await downloadExcel(
-        '/api/reports/daily-collection/export',
-        { ...buildExportParams(), format: 'excel' },
+        '/api/reports/daily-collection-summary/export',
+        { ...buildExportParams(), format: 'xlsx' },
         `daily-collection-report-${dayjs().format('YYYYMMDD')}.xlsx`
       )
     } catch (error) {
@@ -628,7 +630,10 @@ export default function DailyCollectionReportPage() {
                   const expanded = Boolean(expandedSessions[row.sessionId])
                   return (
                     <Fragment key={row.sessionId}>
-                      <tr onClick={() => toggleSession(row.sessionId)} style={{ cursor: 'pointer' }}>
+                      <tr
+                        onClick={() => toggleSession(row.sessionId)}
+                        style={{ cursor: 'pointer' }}
+                      >
                         <td>
                           <button
                             type="button"
@@ -668,7 +673,10 @@ export default function DailyCollectionReportPage() {
                       </tr>
                       {expanded ? (
                         <tr>
-                          <td colSpan={7} style={{ padding: 0, background: 'var(--color-bg-base)' }}>
+                          <td
+                            colSpan={7}
+                            style={{ padding: 0, background: 'var(--color-bg-base)' }}
+                          >
                             <ExpandedSummary row={row} />
                           </td>
                         </tr>

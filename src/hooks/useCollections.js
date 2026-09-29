@@ -170,6 +170,19 @@ export const useVerifySession = () => {
     onError: (error) => toast.error(errorMessage(error, 'Failed to verify session')),
   })
 }
+export const useCorrectAllocationAmount = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ sessionId, ...body }) => api.correctAllocationAmount(sessionId, body),
+    onSuccess: (_, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: ['reconciliation', sessionId] })
+      qc.invalidateQueries({ queryKey: ['collection-sessions'] })
+      qc.invalidateQueries({ queryKey: ['collection-session', sessionId] })
+      toast.success('Payment amount corrected')
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Failed to correct payment amount')),
+  })
+}
 export const useDeleteSession = () => {
   const qc = useQueryClient()
   return useMutation({

@@ -50,10 +50,28 @@ function inputStyle() {
   }
 }
 
-function FilterSelect({ value, onChange, options, placeholder, width = 220, disabled }) {
+// Every filter renders its own visible, uppercase eyebrow label above the control (not just a
+// placeholder/title) — a <select>'s placeholder option disappears from view the moment a real
+// option is chosen, and a native date input shows no placeholder text at all (just "mm/dd/yyyy"),
+// so without a persistent label there is no way to tell "Date From" apart from "Date To" or "As Of
+// Date" once the filter bar is in use. `id`/`htmlFor` pairs the label with its control for a11y
+// (screen readers, click-to-focus) on top of the visual cue.
+function FilterField({ id, label, width, children }) {
   return (
-    <div style={{ position: 'relative', width }}>
+    <div style={{ width, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label htmlFor={id} className="eyebrow">
+        {label}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+function FilterSelect({ id, value, onChange, options, placeholder, disabled }) {
+  return (
+    <div style={{ position: 'relative' }}>
       <select
+        id={id}
         className="form-input"
         value={value}
         disabled={disabled}
@@ -91,18 +109,16 @@ function FilterSelect({ value, onChange, options, placeholder, width = 220, disa
   )
 }
 
-function DateFilter({ value, onChange, placeholder, width = 170 }) {
+function DateFilter({ id, value, onChange }) {
   return (
-    <div style={{ width }}>
-      <input
-        type="date"
-        className="form-input"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        title={placeholder}
-        style={inputStyle()}
-      />
-    </div>
+    <input
+      id={id}
+      type="date"
+      className="form-input"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      style={inputStyle()}
+    />
   )
 }
 
@@ -304,52 +320,64 @@ export default function CreditAgingReportPage() {
       <form
         onSubmit={handleApply}
         className="panel responsive-filter-bar"
-        style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}
+        style={{ padding: 16, display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}
       >
-        <FilterSelect
-          value={filters.customerId}
-          onChange={(value) => updateFilter('customerId', value)}
-          placeholder={customersQuery.isLoading ? 'Loading customers...' : 'All customers'}
-          options={customerOptions}
-          disabled={customersQuery.isLoading}
-          width={240}
-        />
+        <FilterField id="filter-customer" label="Customer" width={240}>
+          <FilterSelect
+            id="filter-customer"
+            value={filters.customerId}
+            onChange={(value) => updateFilter('customerId', value)}
+            placeholder={customersQuery.isLoading ? 'Loading customers...' : 'All customers'}
+            options={customerOptions}
+            disabled={customersQuery.isLoading}
+          />
+        </FilterField>
 
-        <FilterSelect
-          value={filters.salesRouteId}
-          onChange={(value) => updateFilter('salesRouteId', value)}
-          placeholder={routesQuery.isLoading ? 'Loading routes...' : 'All sales routes'}
-          options={routeOptions}
-          disabled={routesQuery.isLoading}
-          width={220}
-        />
+        <FilterField id="filter-route" label="Sales Route" width={220}>
+          <FilterSelect
+            id="filter-route"
+            value={filters.salesRouteId}
+            onChange={(value) => updateFilter('salesRouteId', value)}
+            placeholder={routesQuery.isLoading ? 'Loading routes...' : 'All sales routes'}
+            options={routeOptions}
+            disabled={routesQuery.isLoading}
+          />
+        </FilterField>
 
-        <FilterSelect
-          value={filters.deliveryRunId}
-          onChange={(value) => updateFilter('deliveryRunId', value)}
-          placeholder={deliveryRunsQuery.isLoading ? 'Loading runs...' : 'All delivery runs'}
-          options={deliveryRunOptions}
-          disabled={deliveryRunsQuery.isLoading}
-          width={220}
-        />
+        <FilterField id="filter-delivery-run" label="Delivery Run" width={220}>
+          <FilterSelect
+            id="filter-delivery-run"
+            value={filters.deliveryRunId}
+            onChange={(value) => updateFilter('deliveryRunId', value)}
+            placeholder={deliveryRunsQuery.isLoading ? 'Loading runs...' : 'All delivery runs'}
+            options={deliveryRunOptions}
+            disabled={deliveryRunsQuery.isLoading}
+          />
+        </FilterField>
 
-        <DateFilter
-          value={filters.dateFrom}
-          onChange={(value) => updateFilter('dateFrom', value)}
-          placeholder="Date From"
-        />
+        <FilterField id="filter-date-from" label="Date From" width={170}>
+          <DateFilter
+            id="filter-date-from"
+            value={filters.dateFrom}
+            onChange={(value) => updateFilter('dateFrom', value)}
+          />
+        </FilterField>
 
-        <DateFilter
-          value={filters.dateTo}
-          onChange={(value) => updateFilter('dateTo', value)}
-          placeholder="Date To"
-        />
+        <FilterField id="filter-date-to" label="Date To" width={170}>
+          <DateFilter
+            id="filter-date-to"
+            value={filters.dateTo}
+            onChange={(value) => updateFilter('dateTo', value)}
+          />
+        </FilterField>
 
-        <DateFilter
-          value={filters.asOfDate}
-          onChange={(value) => updateFilter('asOfDate', value)}
-          placeholder="As Of Date"
-        />
+        <FilterField id="filter-as-of-date" label="As Of Date" width={170}>
+          <DateFilter
+            id="filter-as-of-date"
+            value={filters.asOfDate}
+            onChange={(value) => updateFilter('asOfDate', value)}
+          />
+        </FilterField>
 
         <button
           type="submit"

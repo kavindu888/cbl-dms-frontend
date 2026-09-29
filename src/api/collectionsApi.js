@@ -92,6 +92,23 @@ export const deleteCollectionSession = (id, reason) =>
     collectionsAxios.delete(`/sessions/${id}`, { data: { reason } }),
     'Failed to delete session'
   )
+// Admin: corrects one invoice's cash/cheque payment amount within a session (e.g. a collector
+// typed the wrong figure). Only the simple, single-allocation case is accepted — see
+// CorrectPaymentAllocationAmountCommand on the backend for what gets rejected and why.
+export const correctAllocationAmount = (
+  sessionId,
+  { customerId, invoiceId, method, newAmount, reason }
+) =>
+  value(
+    collectionsAxios.post(`/sessions/${sessionId}/allocations/correct`, {
+      customerId,
+      invoiceId,
+      method,
+      newAmount: Number(newAmount),
+      reason,
+    }),
+    'Failed to correct payment amount'
+  )
 
 // Outstanding invoices and allocated payments
 export const getOutstandingInvoices = (customerId, params) =>

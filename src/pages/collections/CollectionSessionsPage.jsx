@@ -7,10 +7,12 @@ import {
   Search,
   Truck,
   User,
+  Wrench,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import Modal from '@components/ui/Modal'
 import SimplePagination from '@components/ui/SimplePagination'
 import StatusBadge from '@components/ui/StatusBadge'
@@ -21,7 +23,10 @@ import {
   useSalesmen,
   useVehicles,
 } from '@/hooks/useCollections'
+import { collectionsService } from '@/services/api/collectionsService'
 import { formatDate } from '@/utils'
+import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
+import { useAuthStore } from '@stores/authStore'
 import {
   Blank,
   Busy,
@@ -38,11 +43,16 @@ const emptyForm = { collectorId: '', salesmanId: '', vehicleId: '', sessionDate:
 
 export default function CollectionSessionsPage() {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
+  const canFixCashTotals = userHasPermission(user, PERMISSIONS.collections.sessionDelete)
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [cashTotalsFixPreview, setCashTotalsFixPreview] = useState(null)
+  const [isLoadingCashTotalsFixPreview, setIsLoadingCashTotalsFixPreview] = useState(false)
+  const [isApplyingCashTotalsFix, setIsApplyingCashTotalsFix] = useState(false)
   const sessions = useCollectionSessions({ status: status || undefined, page: 1, pageSize: 100 })
   const collectors = useCollectors()
   const salesmen = useSalesmen()
@@ -97,15 +107,59 @@ export default function CollectionSessionsPage() {
   }
   const canOpen = form.collectorId && form.salesmanId && form.vehicleId
 
+  async function handleOpenCashTotalsFix() {
+    setCashTotalsFixPreview({})
+    setIsLoadingCashTotalsFixPreview(true)
+    try {
+      const preview = await collectionsService.previewSessionCashTotalsFix()
+      setCashTotalsFixPreview(preview)
+    } catch (error) {
+      toast.error(error.message || 'Unable to preview the cash totals fix.')
+      setCashTotalsFixPreview(null)
+    } finally {
+      setIsLoadingCashTotalsFixPreview(false)
+    }
+  }
+
+  async function handleConfirmCashTotalsFix() {
+    setIsApplyingCashTotalsFix(true)
+    try {
+      const result = await collectionsService.applySessionCashTotalsFix()
+      if (!result.sessionsFixed) {
+        toast.info('No sessions needed this — every total already matches its collections.')
+      } else {
+        toast.success(`Corrected cash totals on ${result.sessionsFixed} session(s).`)
+      }
+      setCashTotalsFixPreview(null)
+      sessions.refetch?.()
+    } catch (error) {
+      toast.error(error.message || 'Unable to apply the cash totals fix.')
+    } finally {
+      setIsApplyingCashTotalsFix(false)
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <PageTitle
         title="Collection Sessions"
         subtitle="Open, review, close, and reconcile daily route collections."
         actions={
-          <button className="button-primary" onClick={() => setOpen(true)}>
-            <Plus size={15} /> New session
-          </button>
+          <>
+            {canFixCashTotals ? (
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={handleOpenCashTotalsFix}
+                title="Admin: recalculate a session's cash/cheque totals from its own collection records, for sessions left out of sync by a past defect"
+              >
+                <Wrench size={15} /> Fix cash totals
+              </button>
+            ) : null}
+            <button className="button-primary" onClick={() => setOpen(true)}>
+              <Plus size={15} /> New session
+            </button>
+          </>
         }
       />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -326,6 +380,106 @@ export default function CollectionSessionsPage() {
             </div>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(cashTotalsFixPreview)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen && !isApplyingCashTotalsFix) setCashTotalsFixPreview(null)
+        }}
+        title="Fix Session Cash Totals"
+        description="Recalculates each session's cash/cheque totals and collection count from its own collection records, for sessions left out of sync by a past defect in the cash-draft submit/discard flow. Sessions that already match their records are left untouched."
+        maxWidth="720px"
+      >
+        {isLoadingCashTotalsFixPreview ? (
+          <div style={{ padding: '20px 4px', color: 'var(--color-text-muted)' }}>
+            Checking which sessions need this...
+          </div>
+        ) : cashTotalsFixPreview?.sessionsFixed === undefined ? (
+          <div style={{ padding: '20px 4px', color: 'var(--color-danger)' }}>
+            Unable to load a preview. Close this and try again.
+          </div>
+        ) : cashTotalsFixPreview.sessionsFixed === 0 ? (
+          <div style={{ padding: '20px 4px', color: 'var(--color-text-muted)' }}>
+            No sessions need this — every total already matches its collection records.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 12, padding: '10px 4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span>Sessions to correct</span>
+              <strong className="mono">{cashTotalsFixPreview.sessionsFixed}</strong>
+            </div>
+
+            {cashTotalsFixPreview.lines?.length ? (
+              <div
+                style={{
+                  maxHeight: 260,
+                  overflowY: 'auto',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                }}
+              >
+                <table className="data-table" style={{ fontSize: 11 }}>
+                  <thead>
+                    <tr>
+                      <th>Session</th>
+                      <th>Status</th>
+                      <th className="text-right">Cash</th>
+                      <th className="text-right">Cheques</th>
+                      <th className="text-right">Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cashTotalsFixPreview.lines.map((line) => (
+                      <tr key={line.sessionId}>
+                        <td>{line.sessionNumber}</td>
+                        <td>
+                          <StatusBadge status={line.status} />
+                        </td>
+                        <td className="mono text-right">
+                          {money(line.oldTotalCash)} → {money(line.newTotalCash)}
+                        </td>
+                        <td className="mono text-right">
+                          {money(line.oldTotalCheques)} → {money(line.newTotalCheques)}
+                        </td>
+                        <td className="mono text-right">
+                          {line.oldCollectionCount} → {line.newCollectionCount}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => setCashTotalsFixPreview(null)}
+            disabled={isApplyingCashTotalsFix}
+            style={{ height: 36 }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="button-primary"
+            onClick={handleConfirmCashTotalsFix}
+            disabled={
+              isApplyingCashTotalsFix ||
+              isLoadingCashTotalsFixPreview ||
+              !cashTotalsFixPreview?.sessionsFixed
+            }
+            style={{ height: 36 }}
+          >
+            {isApplyingCashTotalsFix
+              ? 'Applying...'
+              : `Apply to ${cashTotalsFixPreview?.sessionsFixed || 0} session(s)`}
+          </button>
+        </div>
       </Modal>
     </div>
   )

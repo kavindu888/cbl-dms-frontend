@@ -1,21 +1,68 @@
-import { CheckCircle2, ChevronDown, ChevronRight, Printer, Scale } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronRight, Pencil, Printer, Scale } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import AgingBadge from '@/components/collections/AgingBadge'
 import ConfirmDialog from '@components/ui/ConfirmDialog'
+import Modal from '@components/ui/Modal'
 import StatusBadge from '@components/ui/StatusBadge'
-import { useCollectors, useReconciliation, useVerifySession } from '@/hooks/useCollections'
+import {
+  useCollectors,
+  useCorrectAllocationAmount,
+  useReconciliation,
+  useVerifySession,
+} from '@/hooks/useCollections'
 import { formatDate } from '@/utils'
-import { Blank, Busy, Metric, PageTitle, Problem, money } from './collectionsUi'
+import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
+import { useAuthStore } from '@stores/authStore'
+import { Blank, Busy, Metric, PageTitle, Problem, inputStyle, money } from './collectionsUi'
 
 const amountOrDash = (value) => (Number(value || 0) > 0 ? money(value) : '—')
 
+// A per-invoice Cash/Cheques figure, with an admin-only edit affordance when there's actually an
+// amount to correct — an empty cell means no payment was recorded at all, so there's nothing here
+// to fix (recording a new payment is the right action for that, not this correction tool).
+function AmountWithEdit({ value, canEdit, onEdit, color }) {
+  const amount = Number(value || 0)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+      <span style={color ? { color } : undefined}>{amountOrDash(amount)}</span>
+      {canEdit && amount > 0 ? (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="no-print"
+          title="Correct this amount"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 20,
+            height: 20,
+            padding: 0,
+            border: '1px solid var(--color-border)',
+            borderRadius: 5,
+            background: 'transparent',
+            color: 'var(--color-text-dim)',
+            cursor: 'pointer',
+          }}
+        >
+          <Pencil size={11} />
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 export default function ReconciliationPage() {
   const { id } = useParams()
+  const { user } = useAuthStore()
+  const canCorrectAmounts = userHasPermission(user, PERMISSIONS.collections.sessionDelete)
   const reconciliation = useReconciliation(id)
   const verify = useVerifySession()
   const collectors = useCollectors()
+  const correctAmount = useCorrectAllocationAmount()
   const [expandedCustomers, setExpandedCustomers] = useState({})
+  const [correction, setCorrection] = useState(null)
 
   if (reconciliation.isLoading) return <Busy label="Preparing reconciliation..." />
   if (reconciliation.isError) return <Problem error={reconciliation.error} />
@@ -34,6 +81,38 @@ export default function ReconciliationPage() {
       ...current,
       [customerId]: !current[customerId],
     }))
+
+  function openCorrection(customer, invoice, method, currentAmount) {
+    setCorrection({
+      customerId: customer.customerId,
+      customerName: customer.customerName || customer.customerCode,
+      invoiceId: invoice.invoiceId,
+      invoiceLabel: invoice.serialNumber || invoice.invoiceNumber,
+      method,
+      currentAmount,
+      newAmount: String(currentAmount),
+      reason: '',
+    })
+  }
+
+  async function submitCorrection(event) {
+    event.preventDefault()
+    if (!correction) return
+    try {
+      await correctAmount.mutateAsync({
+        sessionId: id,
+        customerId: correction.customerId,
+        invoiceId: correction.invoiceId,
+        method: correction.method,
+        newAmount: correction.newAmount,
+        reason: correction.reason,
+      })
+      setCorrection(null)
+    } catch {
+      // Failure toast is already shown by useCorrectAllocationAmount's onError — keep the modal
+      // open with what was entered so the admin can adjust and retry rather than re-typing it.
+    }
+  }
 
   return (
     <div
@@ -353,11 +432,24 @@ export default function ReconciliationPage() {
                               <td className="mono" style={{ fontSize: 11 }}>
                                 {money(invoice.netAmount)} total
                               </td>
-                              <td className="mono" style={{ textAlign: 'right', color: 'var(--color-teal)' }}>
-                                {amountOrDash(invoice.sessionCashAmount)}
+                              <td className="mono" style={{ textAlign: 'right' }}>
+                                <AmountWithEdit
+                                  value={invoice.sessionCashAmount}
+                                  color="var(--color-teal)"
+                                  canEdit={canCorrectAmounts}
+                                  onEdit={() =>
+                                    openCorrection(customer, invoice, 'Cash', invoice.sessionCashAmount)
+                                  }
+                                />
                               </td>
                               <td className="mono" style={{ textAlign: 'right' }}>
-                                {amountOrDash(invoice.sessionChequeAmount)}
+                                <AmountWithEdit
+                                  value={invoice.sessionChequeAmount}
+                                  canEdit={canCorrectAmounts}
+                                  onEdit={() =>
+                                    openCorrection(customer, invoice, 'Cheque', invoice.sessionChequeAmount)
+                                  }
+                                />
                               </td>
                               <td className="mono" style={{ textAlign: 'right' }}>
                                 {amountOrDash(invoice.sessionTransferAmount)}
@@ -397,6 +489,73 @@ export default function ReconciliationPage() {
           Back to session
         </Link>
       </div>
+
+      <Modal
+        open={Boolean(correction)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen && !correctAmount.isPending) setCorrection(null)
+        }}
+        title={`Correct ${correction?.method || ''} Amount`}
+        description={
+          correction
+            ? `${correction.customerName} — invoice ${correction.invoiceLabel}. Reverses the old amount's effect on this invoice and the customer ledger, then reapplies the corrected amount, so everything stays consistent. Only works when this entry isn't split across other invoices and has no write-off.`
+            : ''
+        }
+        maxWidth="440px"
+      >
+        {correction ? (
+          <form onSubmit={submitCorrection} style={{ display: 'grid', gap: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>Current amount</span>
+              <strong className="mono">{money(correction.currentAmount)}</strong>
+            </div>
+            <label>
+              <span className="form-label">Corrected amount</span>
+              <input
+                required
+                type="number"
+                step="0.01"
+                min="0.01"
+                className="form-input mono"
+                style={{ ...inputStyle, marginTop: 6 }}
+                value={correction.newAmount}
+                onChange={(e) => setCorrection({ ...correction, newAmount: e.target.value })}
+              />
+            </label>
+            <label>
+              <span className="form-label">Reason (required)</span>
+              <textarea
+                required
+                rows={3}
+                className="form-input"
+                style={{ ...inputStyle, height: 'auto', marginTop: 6, paddingTop: 8 }}
+                value={correction.reason}
+                onChange={(e) => setCorrection({ ...correction, reason: e.target.value })}
+                placeholder="E.g. collector entered the wrong figure — confirmed with customer's receipt."
+              />
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => setCorrection(null)}
+                disabled={correctAmount.isPending}
+                style={{ height: 36 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="button-primary"
+                disabled={correctAmount.isPending}
+                style={{ height: 36 }}
+              >
+                {correctAmount.isPending ? 'Saving...' : 'Save correction'}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
     </div>
   )
 }
