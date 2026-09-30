@@ -43,6 +43,7 @@ import ReportHubPage from '@pages/reports/ReportHubPage'
 import ReportPreviewPage from '@pages/reports/ReportPreviewPage'
 import CreditAgingReportPage from '@pages/reports/CreditAgingReportPage'
 import DailyCollectionReportPage from '@pages/reports/DailyCollectionReportPage'
+import MonthEndReportPage from '@pages/reports/MonthEndReportPage'
 import StockReportPage from '@pages/reports/StockReportPage'
 import CustomerDetailPage from '@pages/sales/CustomerDetailPage'
 import CustomerGroupListPage from '@pages/sales/CustomerGroupListPage'
@@ -582,6 +583,10 @@ export const router = createBrowserRouter([
       {
         path: 'reports/daily-collection',
         element: requirePermission(<DailyCollectionReportPage />, PERMISSIONS.reporting.viewReports),
+      },
+      {
+        path: 'reports/month-end',
+        element: requirePermission(<MonthEndReportPage />, PERMISSIONS.reporting.monthEndView),
       },
       {
         path: 'reports/:type',

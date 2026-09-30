@@ -2,6 +2,7 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   Banknote,
   BarChart3,
+  CalendarDays,
   // Bookmark,
   ClipboardList,
   ClipboardCheck,
@@ -415,6 +416,13 @@ const navGroups = [
         icon: Banknote,
         end: true,
         permissions: PERMISSIONS.reporting.viewReports,
+      },
+      {
+        label: 'Month End Report',
+        to: '/reports/month-end',
+        icon: CalendarDays,
+        end: true,
+        permissions: PERMISSIONS.reporting.monthEndView,
       },
     ],
   },
