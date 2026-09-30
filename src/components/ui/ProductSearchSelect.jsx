@@ -86,7 +86,7 @@ export default function ProductSearchSelect({
       />
       <input
         ref={inputRef}
-        className="form-input w-full"
+        className="form-input product-search-input w-full"
         type="text"
         role="combobox"
         aria-expanded={isOpen}
@@ -128,7 +128,7 @@ export default function ProductSearchSelect({
             setQuery(selectedLabel)
           }
         }}
-        style={{ height: 38, fontSize: 13, paddingLeft: 32 }}
+        style={{ height: 38, fontSize: 13 }}
       />
 
       {isOpen && !disabled ? (

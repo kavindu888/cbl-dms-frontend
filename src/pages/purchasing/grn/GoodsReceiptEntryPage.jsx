@@ -84,6 +84,30 @@ function toNumber(value) {
   return Number.isFinite(number) ? number : 0
 }
 
+// GoodsReceiptLine stores unit cost and MRP as NUMERIC(18,2), so the UI only accepts 2 decimals.
+const MONEY_DECIMALS = 2
+
+function roundMoney(value) {
+  return Number(toNumber(value).toFixed(MONEY_DECIMALS))
+}
+
+// Rounds an already-loaded value (e.g. last cost 33.5828) so the field never shows more
+// decimals than the domain keeps; untouched when it already fits.
+function fitDecimals(value, decimals) {
+  if (value === '' || value === null || value === undefined) return ''
+  const text = String(value)
+  const fraction = text.split('.')[1]
+  if (!fraction || fraction.length <= decimals) return text
+  return String(Number(Number(text).toFixed(decimals)))
+}
+
+// Typed input: silently ignore digits beyond the allowed decimals.
+function truncateDecimals(value, decimals) {
+  const text = String(value)
+  const dot = text.indexOf('.')
+  return dot === -1 ? text : text.slice(0, dot + 1 + decimals)
+}
+
 function toIsoDate(value, includeTime = false) {
   if (!value) return null
   let d = dayjs(value)
@@ -122,7 +146,7 @@ function estimateReceiptLineSubtotal(line) {
   return (
     toNumber(line.qtyBaseUnit) *
     toNumber(line.qtyPerBaseUnit || 1) *
-    toNumber(line.unitCostSmallest)
+    roundMoney(line.unitCostSmallest)
   )
 }
 
@@ -177,8 +201,8 @@ function getReceiptLinePayload(line) {
     productSku: line.productSku,
     productName: line.productName,
     qtyBaseUnit: toNumber(line.qtyBaseUnit),
-    unitCostSmallest: toNumber(line.unitCostSmallest),
-    mrp: toNumber(line.mrp),
+    unitCostSmallest: roundMoney(line.unitCostSmallest),
+    mrp: roundMoney(line.mrp),
     rejectedQtyBase: toNumber(line.rejectedQtyBase),
     rejectionReason: line.rejectionReason || null,
     batchNo: line.batchNo || null,
@@ -470,13 +494,13 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
                               l.unitCostSmallest && Number(l.unitCostSmallest) > 0
                                 ? l.unitCostSmallest
                                 : prices.lastCost
-                                  ? String(prices.lastCost)
+                                  ? String(roundMoney(prices.lastCost))
                                   : l.unitCostSmallest,
                             mrp:
                               l.mrp && Number(l.mrp) > 0
                                 ? l.mrp
                                 : prices.lastMrp
-                                  ? String(prices.lastMrp)
+                                  ? String(roundMoney(prices.lastMrp))
                                   : l.mrp,
                           }
                         : l
@@ -674,8 +698,8 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
           qtyPerBaseUnit: Number(chain.baseToSmallest || 1),
           baseUomCode: chain.baseUomCode,
           smallestUomCode: chain.smallestUomCode,
-          unitCostSmallest: prices?.lastCost ?? 0,
-          mrp: prices?.lastMrp ?? 0,
+          unitCostSmallest: roundMoney(prices?.lastCost),
+          mrp: roundMoney(prices?.lastMrp),
           remainingQty: null,
           expiryDate: '',
           notes: '',
@@ -1567,6 +1591,7 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
                                 <EditableCell
                                   disabled={isSubmittingGrn || Boolean(pendingReceipt)}
                                   value={line.unitCostSmallest}
+                                  decimals={MONEY_DECIMALS}
                                   onChange={(value) =>
                                     updateReceiptLine(line.key, 'unitCostSmallest', value)
                                   }
@@ -1578,9 +1603,13 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
                                     step="0.01"
                                     className="form-input"
                                     disabled={isSubmittingGrn || Boolean(pendingReceipt)}
-                                    value={line.mrp}
+                                    value={fitDecimals(line.mrp, MONEY_DECIMALS)}
                                     onChange={(event) =>
-                                      updateReceiptLine(line.key, 'mrp', event.target.value)
+                                      updateReceiptLine(
+                                        line.key,
+                                        'mrp',
+                                        truncateDecimals(event.target.value, MONEY_DECIMALS)
+                                      )
                                     }
                                     style={{ height: 34, textAlign: 'right' }}
                                   />
@@ -1947,7 +1976,7 @@ export default function GoodsReceiptEntryPage({ detailOnly = false, entryPoId = 
     </div>
   )
 }
-function EditableCell({ value, onChange, disabled = false, step = '0.01' }) {
+function EditableCell({ value, onChange, disabled = false, step = '0.01', decimals = null }) {
   return (
     <td>
       <input
@@ -1956,8 +1985,12 @@ function EditableCell({ value, onChange, disabled = false, step = '0.01' }) {
         step={step}
         className="form-input"
         disabled={disabled}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        value={decimals === null ? value : fitDecimals(value, decimals)}
+        onChange={(event) =>
+          onChange(
+            decimals === null ? event.target.value : truncateDecimals(event.target.value, decimals)
+          )
+        }
         style={{ height: 34, textAlign: 'right' }}
       />
     </td>

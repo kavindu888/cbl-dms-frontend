@@ -795,6 +795,12 @@ tr:hover .copy-btn {
   border-color: var(--color-amber) !important;
 }
 
+/* Leave room for the leading search icon (must out-rank the compact table padding above). */
+.product-search-input.form-input,
+.product-table-compact .product-search-input.form-input {
+  padding-left: 32px !important;
+}
+
 /* ── Modern Table Action Buttons ────────────────────────────── */
 .btn-table-action {
   display: inline-flex;
