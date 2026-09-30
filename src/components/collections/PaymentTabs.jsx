@@ -46,7 +46,14 @@ const payloadAllocations = (rows, writeOffsByInvoiceId = {}) =>
         invoiceId: row.invoiceId,
         amount,
         ...(writeOff?.amount > 0
-          ? { writeOffAmount: writeOff.amount, writeOffReason: writeOff.reason }
+          ? {
+              writeOffAmount: writeOff.amount,
+              writeOffReason: writeOff.reason,
+              // 'reduce' means this bill was fully paid and is only absorbing a slice of a
+              // session-wide cash shortfall — flags the backend to label it as that, not as a
+              // discount this specific customer/bill received (see mode in distributeCashShortfall).
+              isShortfallWriteOff: writeOff.mode === 'reduce',
+            }
           : {}),
       }
     })
