@@ -908,6 +908,94 @@ tr:hover .copy-btn {
   color: var(--color-text-primary);
 }
 
+/* Goods receipt entry follows the purchase-order editor's workspace layout. */
+.grn-entry-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'items context'
+    'items details'
+    'items summary'
+    'items actions';
+  column-gap: 16px;
+  overflow: hidden;
+}
+
+.grn-entry-items {
+  grid-area: items;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.grn-entry-order-context {
+  grid-area: context;
+  flex-direction: column;
+  align-items: stretch !important;
+  border-bottom: 0 !important;
+  border-radius: var(--radius-card) var(--radius-card) 0 0 !important;
+  box-shadow: none !important;
+}
+
+.grn-entry-order-context > div:last-child {
+  justify-content: flex-start;
+}
+
+.grn-entry-details {
+  grid-area: details;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  border-top: 0;
+  border-bottom: 0;
+  border-radius: 0;
+}
+
+.grn-entry-details .responsive-form-grid {
+  flex: 1;
+  grid-template-rows: auto auto minmax(112px, 1fr);
+}
+
+.grn-entry-details textarea {
+  height: 100%;
+}
+
+.grn-entry-summary {
+  grid-area: summary;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 10px !important;
+  padding: 12px 16px;
+  background: var(--color-bg-surface);
+  border-right: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+}
+
+.grn-entry-guidance {
+  padding: 0 !important;
+  border: 0 !important;
+  align-items: flex-start !important;
+}
+
+.grn-entry-actions {
+  grid-area: actions;
+  padding: 14px 16px 16px !important;
+  flex-direction: column;
+  align-items: stretch !important;
+  border: 1px solid var(--color-border) !important;
+  border-top: 0 !important;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  background: var(--color-bg-surface);
+}
+
+.grn-entry-actions > div,
+.grn-entry-actions button {
+  width: 100%;
+  justify-content: center;
+}
+
 /* Responsive application layout ------------------------------------------------ */
 @media (max-width: 1023px) {
   :root {
@@ -924,6 +1012,26 @@ tr:hover .copy-btn {
     height: auto !important;
     min-height: calc(100svh - var(--spacing-layout-topbar) - 32px) !important;
     overflow: visible !important;
+  }
+
+  .grn-entry-layout {
+    display: flex;
+    height: auto !important;
+    flex-direction: column;
+    gap: 12px;
+    overflow: visible;
+  }
+
+  .grn-entry-order-context,
+  .grn-entry-details,
+  .grn-entry-summary,
+  .grn-entry-actions {
+    border: 1px solid var(--color-border) !important;
+    border-radius: var(--radius-card) !important;
+  }
+
+  .grn-entry-details {
+    overflow: visible;
   }
 
   .responsive-filter-bar {

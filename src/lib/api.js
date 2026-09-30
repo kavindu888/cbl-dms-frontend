@@ -120,6 +120,20 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Transient connection drops (backend restart, dropped keep-alive) surface as a response-less
+    // error. Retry idempotent GETs once before showing the user a failure.
+    const isTimeout = error.code === 'ECONNABORTED'
+    if (
+      isNetworkFailure(error) &&
+      !isTimeout &&
+      (originalRequest.method || 'get').toLowerCase() === 'get' &&
+      !originalRequest._networkRetry
+    ) {
+      originalRequest._networkRetry = true
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      return api(originalRequest)
+    }
+
     const canAttemptRefresh =
       error.response?.status === 401 &&
       !originalRequest._retry &&
@@ -171,6 +185,9 @@ api.interceptors.response.use(
       responseData?.message ||
       responseData?.detail ||
       responseData?.title ||
+      (error.code === 'ECONNABORTED'
+        ? 'The server took too long to respond. Please try again.'
+        : null) ||
       (isNetworkFailure(error)
         ? 'Network error. Please check your connection and try again.'
         : null) ||
