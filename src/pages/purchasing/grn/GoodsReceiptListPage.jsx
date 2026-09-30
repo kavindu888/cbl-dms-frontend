@@ -174,7 +174,11 @@ export default function GoodsReceiptListPage() {
     }
     setIsSavingAdjustment(true)
     try {
-      await purchasingService.adminAdjustGoodsReceipt(selectedId, amount, adjustmentReason.trim() || null)
+      await purchasingService.adminAdjustGoodsReceipt(
+        selectedId,
+        amount,
+        adjustmentReason.trim() || null
+      )
       toast.success('Points adjustment saved.')
       setIsEditingAdjustment(false)
       await loadReceiptDetail(selectedId)
@@ -765,6 +769,14 @@ export default function GoodsReceiptListPage() {
                             >
                               <span className="product-sku-badge mono">{line.productSku}</span>
                               <span className="product-info-sub">{line.productName}</span>
+                              {!line.purchaseOrderLineId && (
+                                <span
+                                  className="product-info-sub"
+                                  style={{ color: 'var(--color-amber)' }}
+                                >
+                                  Additional item - not on PO
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="text-right">
@@ -871,7 +883,14 @@ export default function GoodsReceiptListPage() {
                   <SummaryRow label="Discount" value={formatMoney(selectedReceipt.discount)} />
                   <SummaryRow label="VAT" value={formatMoney(selectedReceipt.vatAmount)} />
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                    }}
+                  >
                     <span className="text-xs text-text-muted">Points adjustment</span>
                     {!isEditingAdjustment ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -886,7 +905,8 @@ export default function GoodsReceiptListPage() {
                         >
                           {formatMoney(selectedReceipt.adjustmentAmount)}
                         </span>
-                        {canAdjust && Number(selectedReceipt.status) !== Number(GrnStatus.Rejected) ? (
+                        {canAdjust &&
+                        Number(selectedReceipt.status) !== Number(GrnStatus.Rejected) ? (
                           <button
                             type="button"
                             aria-label="Edit points adjustment"

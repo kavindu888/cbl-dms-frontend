@@ -759,7 +759,7 @@ export default function GrnApproveRejectPage() {
                     </thead>
                     <tbody>
                       {pagedItems.map((line) => (
-                        <tr key={line.purchaseOrderLineId || line.id}>
+                        <tr key={line.id || line.purchaseOrderLineId}>
                           <td>
                             <div
                               style={{
@@ -771,6 +771,14 @@ export default function GrnApproveRejectPage() {
                             >
                               <span className="product-sku-badge mono">{line.productSku}</span>
                               <span className="product-info-sub">{line.productName}</span>
+                              {!line.purchaseOrderLineId && (
+                                <span
+                                  className="product-info-sub"
+                                  style={{ color: 'var(--color-amber)' }}
+                                >
+                                  Additional item - not on PO
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="text-right">

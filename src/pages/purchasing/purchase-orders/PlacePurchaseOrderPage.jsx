@@ -1,9 +1,10 @@
 import dayjs from 'dayjs'
-import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
+import ProductSearchSelect from '@components/ui/ProductSearchSelect'
 import { masterService } from '@services/api/masterService'
 import { purchasingService } from '@services/api/purchasingService'
 import { inventoryService } from '@services/api/inventoryService'
@@ -43,201 +44,6 @@ function formatMoney(value) {
   })}`
 }
 
-function productLabel(product) {
-  if (!product) return ''
-  return [product.sku, product.name].filter(Boolean).join(' - ') || product.id || ''
-}
-
-function ProductSearchSelect({
-  value,
-  onChange,
-  products,
-  disabled = false,
-  placeholder = 'Type SKU or product name...',
-  emptyLabel = 'No matching active products',
-}) {
-  const containerRef = useRef(null)
-  const selectedProduct = products.find((product) => product.id === value) || null
-  const selectedLabel = productLabel(selectedProduct)
-  const [query, setQuery] = useState(selectedLabel)
-  const [isOpen, setIsOpen] = useState(false)
-  const [highlightedIndex, setHighlightedIndex] = useState(0)
-
-  useEffect(() => {
-    if (!isOpen) {
-      setQuery(selectedLabel)
-    }
-  }, [isOpen, selectedLabel])
-
-  useEffect(() => {
-    if (!isOpen) return undefined
-
-    function handlePointerDown(event) {
-      if (!containerRef.current?.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    return () => document.removeEventListener('mousedown', handlePointerDown)
-  }, [isOpen])
-
-  const filteredProducts = useMemo(() => {
-    const text = query.trim().toLowerCase()
-    const matchedProducts = text
-      ? products.filter((product) =>
-          [
-            product.sku,
-            product.name,
-            product.barcode,
-            product.category?.name,
-            product.id,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase()
-            .includes(text)
-        )
-      : products
-
-    return matchedProducts.slice(0, 50)
-  }, [products, query])
-
-  useEffect(() => {
-    setHighlightedIndex(0)
-  }, [query])
-
-  function selectProduct(product) {
-    const nextLabel = productLabel(product)
-    onChange(product.id)
-    setQuery(nextLabel)
-    setIsOpen(false)
-  }
-
-  return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
-      <Search
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          left: 11,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          width: 14,
-          height: 14,
-          color: 'var(--color-text-muted)',
-          pointerEvents: 'none',
-          zIndex: 1,
-        }}
-      />
-      <input
-        className="form-input w-full"
-        type="text"
-        role="combobox"
-        aria-expanded={isOpen}
-        aria-autocomplete="list"
-        value={query}
-        placeholder={placeholder}
-        disabled={disabled}
-        autoComplete="off"
-        onFocus={(event) => {
-          setIsOpen(true)
-          event.target.select()
-        }}
-        onChange={(event) => {
-          setQuery(event.target.value)
-          setIsOpen(true)
-          if (value) onChange('')
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault()
-            if (isOpen && filteredProducts[highlightedIndex]) {
-              selectProduct(filteredProducts[highlightedIndex])
-            }
-          } else if (event.key === 'ArrowDown') {
-            event.preventDefault()
-            setIsOpen(true)
-            setHighlightedIndex((current) =>
-              Math.min(current + 1, Math.max(filteredProducts.length - 1, 0))
-            )
-          } else if (event.key === 'ArrowUp') {
-            event.preventDefault()
-            setHighlightedIndex((current) => Math.max(current - 1, 0))
-          } else if (event.key === 'Escape') {
-            setIsOpen(false)
-            setQuery(selectedLabel)
-          }
-        }}
-        style={{ height: 38, fontSize: 13, paddingLeft: 32 }}
-      />
-
-      {isOpen && !disabled ? (
-        <div
-          role="listbox"
-          style={{
-            position: 'absolute',
-            zIndex: 80,
-            top: 'calc(100% + 4px)',
-            left: 0,
-            right: 0,
-            maxHeight: 280,
-            overflowY: 'auto',
-            border: '1px solid var(--color-border)',
-            borderRadius: 8,
-            background: 'var(--color-bg-surface)',
-            boxShadow: '0 16px 34px rgba(0, 0, 0, 0.45)',
-          }}
-        >
-          {filteredProducts.length ? (
-            filteredProducts.map((product, index) => {
-              const isHighlighted = index === highlightedIndex
-              const label = productLabel(product)
-
-              return (
-                <button
-                  key={product.id}
-                  type="button"
-                  role="option"
-                  aria-selected={product.id === value}
-                  onMouseEnter={() => setHighlightedIndex(index)}
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    selectProduct(product)
-                  }}
-                  style={{
-                    display: 'grid',
-                    gap: 3,
-                    width: '100%',
-                    padding: '9px 12px',
-                    border: 0,
-                    borderBottom: '1px solid var(--color-border)',
-                    background: isHighlighted ? 'rgba(125, 224, 232, 0.12)' : 'transparent',
-                    color: 'var(--color-text-primary)',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span style={{ fontSize: 13, fontWeight: 800 }}>{label}</span>
-                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                    {[product.baseUom || product.uomBase, product.category?.name]
-                      .filter(Boolean)
-                      .join(' • ') || 'Active product'}
-                  </span>
-                </button>
-              )
-            })
-          ) : (
-            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 12 }}>
-              {emptyLabel}
-            </div>
-          )}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
 export default function PlacePurchaseOrderPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -261,22 +67,27 @@ export default function PlacePurchaseOrderPage() {
   const [editingOrderStatus, setEditingOrderStatus] = useState(null)
   const [isDedupRunning, setIsDedupRunning] = useState(false)
   const originalLineProductByIdRef = useRef(new Map())
+  const lineFieldRefs = useRef(new Map())
+  const pendingProductFocusRef = useRef(null)
 
-  const fetchProductDetailIfNeeded = useCallback(async (productId) => {
-    if (!productId) return
-    const product = products.find((item) => item.id === productId)
-    if (!product || product.uomConversions) return // already detailed
-    try {
-      const detailed = await masterService.getProduct(productId)
-      setProducts((current) =>
-        current.some((item) => item.id === productId)
-          ? current.map((item) => (item.id === productId ? detailed : item))
-          : [...current, detailed]
-      )
-    } catch (err) {
-      console.error('Error fetching product detail:', err)
-    }
-  }, [products])
+  const fetchProductDetailIfNeeded = useCallback(
+    async (productId) => {
+      if (!productId) return
+      const product = products.find((item) => item.id === productId)
+      if (!product || product.uomConversions) return // already detailed
+      try {
+        const detailed = await masterService.getProduct(productId)
+        setProducts((current) =>
+          current.some((item) => item.id === productId)
+            ? current.map((item) => (item.id === productId ? detailed : item))
+            : [...current, detailed]
+        )
+      } catch (err) {
+        console.error('Error fetching product detail:', err)
+      }
+    },
+    [products]
+  )
 
   const loadFormData = useCallback(async () => {
     setIsLoading(true)
@@ -370,7 +181,7 @@ export default function PlacePurchaseOrderPage() {
           notes: line.notes || '',
           baseUomCode: line.baseUomCode || '',
           smallestUomCode: line.smallestUomCode || '',
-          baseToSmallest: line.qtyBaseUnit > 0 ? (line.qtySmallestUnit / line.qtyBaseUnit) : 1,
+          baseToSmallest: line.qtyBaseUnit > 0 ? line.qtySmallestUnit / line.qtyBaseUnit : 1,
         })) || []
 
       setLines(loadedLines.length ? loadedLines : [createEmptyLine()])
@@ -381,7 +192,8 @@ export default function PlacePurchaseOrderPage() {
       // Fetch details for any initial lines in edit mode
       loadedLines.forEach((line) => {
         if (line.productId) {
-          masterService.getProduct(line.productId)
+          masterService
+            .getProduct(line.productId)
             .then((detailed) => {
               setProducts((current) =>
                 current.some((item) => item.id === line.productId)
@@ -447,9 +259,48 @@ export default function PlacePurchaseOrderPage() {
     if (linePage > totalPages) setLinePage(totalPages)
   }, [linePage, lines.length])
 
-  function addLine() {
+  useEffect(() => {
+    const lineKey = pendingProductFocusRef.current
+    if (!lineKey) return
+
+    const productInput = lineFieldRefs.current.get(lineKey)?.product
+    if (!productInput) return
+
+    pendingProductFocusRef.current = null
+    productInput.focus()
+  }, [linePage, lines])
+
+  function setLineFieldRef(lineKey, field, element) {
+    const fields = lineFieldRefs.current.get(lineKey) || {}
+
+    if (element) {
+      fields[field] = element
+      lineFieldRefs.current.set(lineKey, fields)
+      return
+    }
+
+    delete fields[field]
+    if (Object.keys(fields).length) {
+      lineFieldRefs.current.set(lineKey, fields)
+    } else {
+      lineFieldRefs.current.delete(lineKey)
+    }
+  }
+
+  function focusLineField(lineKey, field) {
+    const element = lineFieldRefs.current.get(lineKey)?.[field]
+    if (!element) return
+
+    element.focus()
+    element.select?.()
+  }
+
+  function addLine({ focusProduct = false } = {}) {
+    const newLine = createEmptyLine()
+    if (focusProduct) pendingProductFocusRef.current = newLine.key
+
     setLines((current) => {
-      const updatedLines = [...current, createEmptyLine()]
+      const updatedLines = [...current, newLine]
       setLinePage(Math.ceil(updatedLines.length / linePageSize))
       return updatedLines
     })
@@ -472,7 +323,8 @@ export default function PlacePurchaseOrderPage() {
           if (value) {
             void fetchProductDetailIfNeeded(value)
 
-            inventoryService.getLastBatchCost(value)
+            inventoryService
+              .getLastBatchCost(value)
               .then((cost) => {
                 if (cost !== null && cost !== undefined) {
                   setLines((prev) =>
@@ -490,7 +342,8 @@ export default function PlacePurchaseOrderPage() {
               })
               .catch((err) => console.error('Error fetching last batch cost:', err))
 
-            masterService.getProductUomChain(value)
+            masterService
+              .getProductUomChain(value)
               .then((chain) => {
                 setLines((prev) =>
                   prev.map((l) =>
@@ -575,7 +428,8 @@ export default function PlacePurchaseOrderPage() {
       const qtyB = Number(line.bigBoxQty) || 0
       const totalQty = qtyA + qtyB
       const costWeight =
-        qtyA * (Number(existing.unitCostSmallest) || 0) + qtyB * (Number(line.unitCostSmallest) || 0)
+        qtyA * (Number(existing.unitCostSmallest) || 0) +
+        qtyB * (Number(line.unitCostSmallest) || 0)
       mergedByProduct.set(line.productId, {
         ...existing,
         // Prefer a row that already has a saved server id, so the update path is used instead of
@@ -594,7 +448,9 @@ export default function PlacePurchaseOrderPage() {
       const keepKeys = new Set(validLines.map((line) => line.key))
       setLines((current) =>
         current
-          .filter((line) => !(line.productId && Number(line.bigBoxQty) > 0) || keepKeys.has(line.key))
+          .filter(
+            (line) => !(line.productId && Number(line.bigBoxQty) > 0) || keepKeys.has(line.key)
+          )
           .map((line) => {
             const merged = validLines.find((v) => v.key === line.key)
             return merged
@@ -612,8 +468,7 @@ export default function PlacePurchaseOrderPage() {
       )
     }
 
-    const isDraftEdit =
-      editPoId && Number(editingOrderStatus) === Number(PurchaseOrderStatus.Draft)
+    const isDraftEdit = editPoId && Number(editingOrderStatus) === Number(PurchaseOrderStatus.Draft)
 
     let savedOrder = null
     if (isDraftEdit) {
@@ -671,7 +526,8 @@ export default function PlacePurchaseOrderPage() {
       // whole-number rejection), this row is already tracked as saved — retrying the save goes
       // through the update path for it instead of adding it again as a duplicate.
       const newServerLine = (updated?.lines || []).find(
-        (serverLine) => serverLine.productId === product.id && !remainingOriginalLineIds.has(serverLine.id)
+        (serverLine) =>
+          serverLine.productId === product.id && !remainingOriginalLineIds.has(serverLine.id)
       )
       if (newServerLine) {
         originalLineProductByIdRef.current.set(newServerLine.id, product.id)
@@ -847,14 +703,18 @@ export default function PlacePurchaseOrderPage() {
     >
       <header style={{ flexShrink: 0 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-          {isDraftEdit ? 'Edit Draft Purchase Order' : editPoId ? 'Edit Purchase Order' : 'New Purchase Order'}
+          {isDraftEdit
+            ? 'Edit Draft Purchase Order'
+            : editPoId
+              ? 'Edit Purchase Order'
+              : 'New Purchase Order'}
         </h1>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
           {isDraftEdit
             ? 'Changes stay in draft until the purchase order is submitted for approval.'
             : editPoId
-            ? 'Update the purchase order and resubmit it for approval.'
-            : 'Build the purchase order, save it as draft, or submit it for approval.'}
+              ? 'Update the purchase order and resubmit it for approval.'
+              : 'Build the purchase order, save it as draft, or submit it for approval.'}
         </p>
       </header>
 
@@ -927,7 +787,7 @@ export default function PlacePurchaseOrderPage() {
             <button
               type="button"
               className="button-secondary"
-              onClick={addLine}
+              onClick={() => addLine()}
               disabled={isLoading || isSaving}
               style={{ height: 36, display: 'flex', alignItems: 'center', gap: 7 }}
             >
@@ -950,20 +810,23 @@ export default function PlacePurchaseOrderPage() {
                 </tr>
               </thead>
               <tbody>
-                 {pagedLines.map((line) => {
+                {pagedLines.map((line) => {
                   const purchaseUom = line.baseUomCode || '-'
                   const smallestUom = line.smallestUomCode || ''
                   const unitsPerBase = Number(line.baseToSmallest || 1)
                   const smallestQty = Number(line.bigBoxQty || 0) * unitsPerBase
                   const subtotal = smallestQty * Number(line.unitCostSmallest || 0)
-                  const isFractionalSmallest = Math.abs(smallestQty - Math.round(smallestQty)) > 0.0001
+                  const isFractionalSmallest =
+                    Math.abs(smallestQty - Math.round(smallestQty)) > 0.0001
 
                   return (
                     <tr key={line.key}>
                       <td style={{ minWidth: 340 }}>
                         <ProductSearchSelect
+                          inputRef={(element) => setLineFieldRef(line.key, 'product', element)}
                           value={line.productId}
                           onChange={(productId) => updateLine(line.key, 'productId', productId)}
+                          onEnter={() => focusLineField(line.key, 'quantity')}
                           products={products}
                           disabled={isLoading || isSaving}
                           placeholder={
@@ -980,6 +843,7 @@ export default function PlacePurchaseOrderPage() {
                       </td>
                       <td>
                         <input
+                          ref={(element) => setLineFieldRef(line.key, 'quantity', element)}
                           className="form-input"
                           style={{ width: 92, height: 38, fontSize: 13 }}
                           type="number"
@@ -991,7 +855,9 @@ export default function PlacePurchaseOrderPage() {
                           }
                           disabled={isSaving}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') e.preventDefault()
+                            if (e.key !== 'Enter' || e.isComposing) return
+                            e.preventDefault()
+                            focusLineField(line.key, 'cost')
                           }}
                         />
                       </td>
@@ -1000,21 +866,24 @@ export default function PlacePurchaseOrderPage() {
                           className="mono"
                           style={isFractionalSmallest ? { color: 'var(--color-amber)' } : undefined}
                         >
-                          {isFractionalSmallest ? Math.round(smallestQty) : smallestQty.toLocaleString(undefined, {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 4,
-                          })}
+                          {isFractionalSmallest
+                            ? Math.round(smallestQty)
+                            : smallestQty.toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 4,
+                              })}
                         </span>{' '}
                         {smallestUom ? <span className="uom-badge">{smallestUom}</span> : null}
                         {isFractionalSmallest ? (
                           <div style={{ marginTop: 4, fontSize: 10, color: 'var(--color-amber)' }}>
-                            {smallestQty.toLocaleString(undefined, { maximumFractionDigits: 4 })} rounds to{' '}
-                            {Math.round(smallestQty)} {smallestUom} when saved
+                            {smallestQty.toLocaleString(undefined, { maximumFractionDigits: 4 })}{' '}
+                            rounds to {Math.round(smallestQty)} {smallestUom} when saved
                           </div>
                         ) : null}
                       </td>
                       <td>
                         <input
+                          ref={(element) => setLineFieldRef(line.key, 'cost', element)}
                           className="form-input"
                           style={{ width: 112, height: 38, fontSize: 13 }}
                           type="number"
@@ -1026,7 +895,9 @@ export default function PlacePurchaseOrderPage() {
                           }
                           disabled={isSaving}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') e.preventDefault()
+                            if (e.key !== 'Enter' || e.isComposing || e.repeat) return
+                            e.preventDefault()
+                            addLine({ focusProduct: true })
                           }}
                         />
                         {smallestUom ? (
@@ -1035,7 +906,10 @@ export default function PlacePurchaseOrderPage() {
                           </div>
                         ) : null}
                         {line.lastCostReference !== undefined ? (
-                          <div className="product-info-sub" style={{ color: 'var(--color-emerald)', marginTop: 2, fontSize: 11 }}>
+                          <div
+                            className="product-info-sub"
+                            style={{ color: 'var(--color-emerald)', marginTop: 2, fontSize: 11 }}
+                          >
                             Last: Rs. {Number(line.lastCostReference).toFixed(2)}
                           </div>
                         ) : null}
