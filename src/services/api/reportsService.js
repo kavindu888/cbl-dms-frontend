@@ -50,6 +50,11 @@ export const reportsService = {
     }
   },
 
+  async getMonthEndReport(params = {}) {
+    const response = await getOnce('/api/reports/month-end', { params })
+    return getValue(response, 'Unable to load month end report.')
+  },
+
   async getDailyCollectionReport(params = {}) {
     const response = await getOnce('/api/reports/daily-collection', { params })
     const page = getValue(response, 'Unable to load daily collection report.')

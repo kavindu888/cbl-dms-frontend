@@ -5,6 +5,7 @@ import { reportsService } from '@/services/api/reportsService'
 
 // Query keys:
 // ['reports', 'stock', params]
+// ['reports', 'month-end', params]
 // ['master', 'categories']
 // ['inventory', 'stock-locations', params]
 
@@ -12,6 +13,14 @@ export function useStockReport(params = {}) {
   return useQuery({
     queryKey: ['reports', 'stock', params],
     queryFn: () => reportsService.getStockReport(params),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useMonthEndReport(params = {}) {
+  return useQuery({
+    queryKey: ['reports', 'month-end', params],
+    queryFn: () => reportsService.getMonthEndReport(params),
     placeholderData: keepPreviousData,
   })
 }
