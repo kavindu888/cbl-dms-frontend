@@ -33,15 +33,23 @@ const allocationTotal = (rows) => rows.reduce((sum, row) => sum + Number(row.all
 // 'reduce' is a bill that was allocated in full but is absorbing part of a lump-sum cash
 // shortfall — here the write-off comes OUT of the typed amount, since that amount was never
 // actually all real cash.
-const payloadAllocations = (rows, writeOffsByInvoiceId = {}) =>
-  rows
+// targetTotal: what the resulting amounts must sum to exactly (the cash/cheque/transfer total,
+// minus any surplus set aside). Write-off amounts and reduced-row amounts are each rounded to the
+// cent independently (distributeCashShortfall's per-bill `take`, then this function's own
+// `rawAmount - writeOff.amount`), and across several bills those two separate roundings can leave
+// the final sum a few cents off the intended total even though every individual figure on screen
+// looks right — which the backend then rejects outright as ALLOCATION_MISMATCH. Rather than chase
+// the drift bill-by-bill, any small leftover (capped at Rs 1 — a real data problem would be far
+// bigger than that) is nudged onto the last row so what's actually submitted always matches exactly.
+const payloadAllocations = (rows, writeOffsByInvoiceId = {}, targetTotal = null) => {
+  const result = rows
     .map((row) => {
       const writeOff = writeOffsByInvoiceId[row.invoiceId]
       const rawAmount = Number(row.allocated || 0)
       const amount =
         writeOff?.mode === 'reduce'
           ? Math.round((rawAmount - writeOff.amount) * 100) / 100
-          : rawAmount
+          : Math.round(rawAmount * 100) / 100
       return {
         invoiceId: row.invoiceId,
         amount,
@@ -58,6 +66,17 @@ const payloadAllocations = (rows, writeOffsByInvoiceId = {}) =>
       }
     })
     .filter((row) => row.amount > 0)
+
+  if (targetTotal != null && result.length) {
+    const sum = Math.round(result.reduce((s, r) => s + r.amount, 0) * 100) / 100
+    const residual = Math.round((targetTotal - sum) * 100) / 100
+    if (residual !== 0 && Math.abs(residual) <= 1) {
+      const last = result[result.length - 1]
+      last.amount = Math.round((last.amount + residual) * 100) / 100
+    }
+  }
+  return result
+}
 const apiDate = (date) => `${date}T00:00:00.000Z`
 const overpaidRowsOf = (rows) =>
   rows.filter((row) => Number(row.allocated || 0) > Number(row.outstanding || 0))
@@ -583,7 +602,7 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
       denominations: DENOMINATIONS.filter((denomination) => Number(counts[denomination]) > 0).map(
         (denomination) => ({ denomination, count: Number(counts[denomination]) })
       ),
-      allocations: payloadAllocations(allocations, writeOffsByInvoiceId),
+      allocations: payloadAllocations(allocations, writeOffsByInvoiceId, total - (surplus?.amount || 0)),
       ...(surplus?.amount > 0
         ? { surplusAmount: surplus.amount, surplusReason: surplus.reason }
         : {}),
@@ -946,7 +965,7 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
       chequeNumber: form.chequeNumber,
       drawerName: form.drawerName,
       chequeDate: apiDate(form.chequeDate),
-      allocations: payloadAllocations(allocations, writeOffsByInvoiceId),
+      allocations: payloadAllocations(allocations, writeOffsByInvoiceId, amount),
       bankId: form.bankId,
       bankBranchId: form.branchId || null,
       bankName: bank?.name || null,
@@ -1129,7 +1148,7 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
       referenceNumber: form.referenceNumber,
       totalAmount: amount,
       transferDate: apiDate(form.transferDate),
-      allocations: payloadAllocations(allocations, writeOffsByInvoiceId),
+      allocations: payloadAllocations(allocations, writeOffsByInvoiceId, amount),
       notes: form.notes || null,
     })
     setBill(null)
