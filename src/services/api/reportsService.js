@@ -50,6 +50,21 @@ export const reportsService = {
     }
   },
 
+  async getDiscountDetailReport(params = {}) {
+    const response = await getOnce('/api/reports/discount/detail', { params })
+    return getValue(response, 'Unable to load discount detail report.')
+  },
+
+  async getDiscountSummaryReport(params = {}) {
+    const response = await getOnce('/api/reports/discount/summary', { params })
+    return getValue(response, 'Unable to load discount summary report.')
+  },
+
+  async getDiscountMonthEndReport(params = {}) {
+    const response = await getOnce('/api/reports/discount/month-end', { params })
+    return getValue(response, 'Unable to load discount month end report.')
+  },
+
   async getMonthEndReport(params = {}) {
     const response = await getOnce('/api/reports/month-end', { params })
     return getValue(response, 'Unable to load month end report.')

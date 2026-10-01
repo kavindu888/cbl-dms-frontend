@@ -43,6 +43,7 @@ import ReportHubPage from '@pages/reports/ReportHubPage'
 import ReportPreviewPage from '@pages/reports/ReportPreviewPage'
 import CreditAgingReportPage from '@pages/reports/CreditAgingReportPage'
 import DailyCollectionReportPage from '@pages/reports/DailyCollectionReportPage'
+import DiscountReportPage from '@pages/reports/DiscountReportPage'
 import MonthEndReportPage from '@pages/reports/MonthEndReportPage'
 import StockReportPage from '@pages/reports/StockReportPage'
 import CustomerDetailPage from '@pages/sales/CustomerDetailPage'
@@ -576,12 +577,16 @@ export const router = createBrowserRouter([
         path: 'reports/stock',
         element: requirePermission(<StockReportPage />, PERMISSIONS.reporting.viewReports),
       },
-      {
-        path: 'reports/credit-aging',
-        element: requirePermission(<CreditAgingReportPage />, PERMISSIONS.reporting.viewReports),
-      },
-      {
-        path: 'reports/daily-collection',
+        {
+          path: 'reports/credit-aging',
+          element: requirePermission(<CreditAgingReportPage />, PERMISSIONS.reporting.viewReports),
+        },
+        {
+          path: 'reports/discount',
+          element: requirePermission(<DiscountReportPage />, PERMISSIONS.reporting.discountView),
+        },
+        {
+          path: 'reports/daily-collection',
         element: requirePermission(<DailyCollectionReportPage />, PERMISSIONS.reporting.viewReports),
       },
       {
