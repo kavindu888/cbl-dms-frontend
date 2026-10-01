@@ -4,21 +4,6 @@ import { toast } from 'sonner'
 import { useMonthEndReport } from '@/hooks/useReports'
 import { downloadExcel, openPdfInNewTab } from '@/utils/fileDownload'
 
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-]
-
 const amountFormatter = new Intl.NumberFormat('en-LK', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -29,16 +14,17 @@ function formatAmount(value) {
 }
 
 // The report month defaults to the current month in Sri Lanka, not the browser's own timezone.
-function currentColomboYearMonth() {
+function currentColomboMonthRange() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Colombo',
     year: 'numeric',
     month: '2-digit',
+    day: '2-digit',
   }).formatToParts(new Date())
-  return {
-    year: Number(parts.find((part) => part.type === 'year')?.value),
-    month: Number(parts.find((part) => part.type === 'month')?.value),
-  }
+  const year = Number(parts.find((part) => part.type === 'year')?.value)
+  const month = Number(parts.find((part) => part.type === 'month')?.value)
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return { dateFrom: `${year}-${String(month).padStart(2, '0')}-01`, dateTo: `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}` }
 }
 
 function formatColomboDateTime(value) {
@@ -104,20 +90,20 @@ function SummaryLine({ label, value, indent = false, strong = false }) {
         {label}
       </td>
       <td className="mono" style={{ textAlign: 'right', fontWeight: strong ? 800 : undefined }}>
-        {formatAmount(value)}
+        {value === undefined ? '' : formatAmount(value)}
       </td>
     </tr>
   )
 }
 
 export default function MonthEndReportPage() {
-  const [initial] = useState(currentColomboYearMonth)
-  const [year, setYear] = useState(initial.year)
-  const [month, setMonth] = useState(initial.month)
+  const [initial] = useState(currentColomboMonthRange)
+  const [dateFrom, setDateFrom] = useState(initial.dateFrom)
+  const [dateTo, setDateTo] = useState(initial.dateTo)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
   const [isExportingExcel, setIsExportingExcel] = useState(false)
 
-  const params = useMemo(() => ({ year, month }), [year, month])
+  const params = useMemo(() => ({ dateFrom, dateTo }), [dateFrom, dateTo])
   const reportQuery = useMonthEndReport(params)
   const report = reportQuery.data
   const summary = report ? read(report, 'summary') : null
@@ -128,13 +114,6 @@ export default function MonthEndReportPage() {
   const failedChecks = report ? (read(report, 'checks') || []).filter((check) => !check.passed) : []
   const stockAsOf = report ? formatColomboDateTime(read(report, 'stockAsOf')) : ''
   const isBusy = reportQuery.isLoading || reportQuery.isFetching
-
-  const yearOptions = useMemo(() => {
-    const options = []
-    for (let value = initial.year; value >= initial.year - 5; value -= 1) options.push(value)
-    if (!options.includes(year)) options.push(year)
-    return options.sort((a, b) => b - a)
-  }, [initial.year, year])
 
   async function handleExportPdf() {
     setIsExportingPdf(true)
@@ -153,7 +132,7 @@ export default function MonthEndReportPage() {
       await downloadExcel(
         '/api/reports/month-end/export',
         { ...params, format: 'excel' },
-        `month-end-report-${year}-${String(month).padStart(2, '0')}.xlsx`
+        `month-end-report-${dateFrom}-to-${dateTo}.xlsx`
       )
     } catch (error) {
       toast.error(error.message || 'Unable to export Excel.')
@@ -169,7 +148,7 @@ export default function MonthEndReportPage() {
           Month End Report{report ? ` - ${read(report, 'monthLabel')}` : ''}
         </h1>
         <p style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-dim)' }}>
-          Invoices dated in the selected month (Asia/Colombo). Draft and cancelled invoices are
+          Invoices dated in the selected date range (Asia/Colombo). Draft and cancelled invoices are
           excluded.
         </p>
       </div>
@@ -178,39 +157,25 @@ export default function MonthEndReportPage() {
         className="panel"
         style={{ padding: 12, display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}
       >
-        <FilterField id="month-end-month" label="Month">
-          <select
-            id="month-end-month"
+        <FilterField id="month-end-date-from" label="Date From">
+          <input
+            id="month-end-date-from"
+            type="date"
             className="form-input"
-            value={month}
-            onChange={(event) => setMonth(Number(event.target.value))}
+            value={dateFrom}
+            onChange={(event) => setDateFrom(event.target.value)}
             style={{ ...selectStyle(), width: 160 }}
-          >
-            {MONTHS.map((name, index) => (
-              <option
-                key={name}
-                value={index + 1}
-                style={{ background: 'var(--color-bg-elevated)' }}
-              >
-                {name}
-              </option>
-            ))}
-          </select>
+          />
         </FilterField>
-        <FilterField id="month-end-year" label="Year">
-          <select
-            id="month-end-year"
+        <FilterField id="month-end-date-to" label="Date To">
+          <input
+            id="month-end-date-to"
+            type="date"
             className="form-input"
-            value={year}
-            onChange={(event) => setYear(Number(event.target.value))}
-            style={{ ...selectStyle(), width: 110 }}
-          >
-            {yearOptions.map((value) => (
-              <option key={value} value={value} style={{ background: 'var(--color-bg-elevated)' }}>
-                {value}
-              </option>
-            ))}
-          </select>
+            value={dateTo}
+            onChange={(event) => setDateTo(event.target.value)}
+            style={{ ...selectStyle(), width: 160 }}
+          />
         </FilterField>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -288,42 +253,26 @@ export default function MonthEndReportPage() {
               <table className="data-table product-table-compact">
                 <tbody>
                   <SummaryLine label="Total Sale" value={read(summary, 'totalSale')} strong />
-                  <SummaryLine label="Vehicle Sale" value={read(summary, 'vehicleSale')} indent />
                   <SummaryLine label="Credit" value={read(summary, 'credit')} strong />
                   <SummaryLine
                     label="Cash Short Total"
                     value={read(summary, 'cashShortTotal')}
                     strong
                   />
+                  <SummaryLine label="Excess" value={read(summary, 'excess')} strong />
+                  <SummaryLine label="Total Discount Amount" value={read(summary, 'totalDiscount')} strong />
+                  <SummaryLine label="SKU" value={read(summary, 'skuDiscount')} indent />
+                  <SummaryLine label="Discount" value={read(summary, 'specialDiscount')} indent />
+                  <SummaryLine label="Total Stock Value" strong />
                   <SummaryLine
-                    label="Total Discount"
-                    value={read(summary, 'totalDiscount')}
-                    strong
-                  />
-                  <SummaryLine
-                    label="Vehicle Discount"
-                    value={read(summary, 'vehicleDiscount')}
-                    indent
-                  />
-                  <SummaryLine
-                    label="Special - Supplier"
-                    value={read(summary, 'specialDiscountSupplier')}
-                    indent
-                  />
-                  <SummaryLine
-                    label="Special - Distributor"
-                    value={read(summary, 'specialDiscountDistributor')}
-                    indent
-                  />
-                  <SummaryLine
-                    label="Total Stock Value at Unit Cost"
+                    label="Unit Cost"
                     value={read(summary, 'stockValueAtCost')}
-                    strong
+                    indent
                   />
                   <SummaryLine
-                    label="Total Stock Value at Selling Value"
+                    label="Selling Price"
                     value={read(summary, 'stockValueAtSellingPrice')}
-                    strong
+                    indent
                   />
                 </tbody>
               </table>
@@ -339,7 +288,8 @@ export default function MonthEndReportPage() {
                   <thead>
                     <tr>
                       <th>Collector</th>
-                      <th style={{ textAlign: 'right' }}>Amount</th>
+                      <th style={{ textAlign: 'right' }}>Cash Short</th>
+                      <th style={{ textAlign: 'right' }}>Excess</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -349,12 +299,18 @@ export default function MonthEndReportPage() {
                         <td className="mono" style={{ textAlign: 'right' }}>
                           {formatAmount(read(collector, 'amount'))}
                         </td>
+                        <td className="mono" style={{ textAlign: 'right' }}>
+                          {formatAmount(read(collector, 'excess'))}
+                        </td>
                       </tr>
                     ))}
                     <tr>
                       <td style={{ fontWeight: 700 }}>Total</td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                         {formatAmount(read(summary, 'cashShortTotal'))}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
+                        {formatAmount(read(summary, 'excess'))}
                       </td>
                     </tr>
                   </tbody>
@@ -383,13 +339,11 @@ export default function MonthEndReportPage() {
                         {read(column, 'code')}
                       </th>
                     ))}
-                    <th style={{ textAlign: 'right' }}>Special</th>
                     <th style={{ textAlign: 'right' }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {matrixRows.map((row) => {
-                    const special = read(row, 'special')
                     return (
                       <tr key={read(row, 'key')}>
                         <td style={{ fontWeight: 700 }}>{read(row, 'label')}</td>
@@ -402,9 +356,6 @@ export default function MonthEndReportPage() {
                             {formatAmount(value)}
                           </td>
                         ))}
-                        <td className="mono" style={{ textAlign: 'right' }}>
-                          {special === null || special === undefined ? '-' : formatAmount(special)}
-                        </td>
                         <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                           {formatAmount(read(row, 'total'))}
                         </td>

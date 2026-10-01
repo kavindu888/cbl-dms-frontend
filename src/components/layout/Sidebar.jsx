@@ -403,15 +403,22 @@ const navGroups = [
         end: true,
         permissions: PERMISSIONS.reporting.viewReports,
       },
-      {
-        label: 'Credit Aging Report',
-        to: '/reports/credit-aging',
-        icon: TrendingUp,
-        end: true,
-        permissions: PERMISSIONS.reporting.viewReports,
-      },
-      {
-        label: 'Daily Collection Report',
+        {
+          label: 'Credit Aging Report',
+          to: '/reports/credit-aging',
+          icon: TrendingUp,
+          end: true,
+          permissions: PERMISSIONS.reporting.viewReports,
+        },
+        {
+          label: 'Discount Report',
+          to: '/reports/discount',
+          icon: Percent,
+          end: true,
+          permissions: PERMISSIONS.reporting.discountView,
+        },
+        {
+          label: 'Daily Collection Report',
         to: '/reports/daily-collection',
         icon: Banknote,
         end: true,

@@ -114,6 +114,7 @@
   reporting: {
     viewReports: 'reporting:reports:view',
     exportData: 'reporting:reports:export',
+    discountView: 'reporting:discount:view',
     monthEndView: 'reporting:monthend:view',
   },
 }
