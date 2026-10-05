@@ -72,9 +72,9 @@ function SummaryCards({ summary }) {
   const cards = [
     ['Total Discount', read(summary, 'totalDiscount')],
     ['Sku Discount', read(summary, 'skuDiscount')],
-    ['Special Discount', read(summary, 'specialDiscount')],
-    ['Special - Supplier', read(summary, 'specialSupplier')],
-    ['Special - Distributor', read(summary, 'specialDistributor')],
+    ['Discount', read(summary, 'specialDiscount')],
+    ['Discount - Supplier', read(summary, 'specialSupplier')],
+    ['Discount - Distributor', read(summary, 'specialDistributor')],
     ['Invoices Count', read(summary, 'invoicesCount'), 'count'],
   ]
 
@@ -98,6 +98,8 @@ function SummaryCards({ summary }) {
 function MatrixTable({ report, monthEnd = false }) {
   const columns = read(report, 'columns') || []
   const rows = read(report, 'rows') || []
+  const amountCellStyle = { textAlign: 'center' }
+  const amountTotalCellStyle = { textAlign: 'center', fontWeight: 800 }
   return (
     <>
       {monthEnd ? <div style={{ padding: '0 12px 10px', fontSize: 11, color: 'var(--color-text-dim)' }}>Days with no discount are hidden.</div> : null}
@@ -108,11 +110,11 @@ function MatrixTable({ report, monthEnd = false }) {
               {monthEnd ? <th>Date</th> : null}
               <th>Item</th>
               {columns.map((column) => (
-                <th key={read(column, 'key')} style={{ textAlign: 'right' }}>
+                <th key={read(column, 'key')} style={amountCellStyle}>
                   {read(column, 'code')}
                 </th>
               ))}
-              <th style={{ textAlign: 'right' }}>Total</th>
+              <th style={amountCellStyle}>Total</th>
             </tr>
           </thead>
           <tbody>
@@ -121,11 +123,11 @@ function MatrixTable({ report, monthEnd = false }) {
                 {monthEnd ? <td className="mono">{read(row, 'date') || ''}</td> : null}
                 <td style={{ fontWeight: read(row, 'key')?.startsWith?.('total') ? 800 : 600 }}>{read(row, 'label')}</td>
                 {(read(row, 'values') || []).map((value, index) => (
-                  <td key={read(columns[index], 'key')} className="mono" style={{ textAlign: 'right' }}>
+                  <td key={read(columns[index], 'key')} className="mono" style={amountCellStyle}>
                     {Number(value || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                 ))}
-                <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{Number(read(row, 'total') || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td className="mono" style={amountTotalCellStyle}>{Number(read(row, 'total') || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
               </tr>
             ))}
           </tbody>
@@ -177,6 +179,9 @@ export default function DiscountReportPage() {
   const activeQuery = activeTab === 'detail' ? detailQuery : activeTab === 'summary' ? summaryQuery : monthEndQuery
   const summary = read(activeQuery.data, 'summary') || read(detailQuery.data, 'summary') || {}
   const detailRows = read(detailQuery.data, 'items') || []
+  const amountCellStyle = { textAlign: 'center' }
+  const amountBoldCellStyle = { textAlign: 'center', fontWeight: 800 }
+  const amountTotalCellStyle = { textAlign: 'center', fontWeight: 900 }
   const totalItems = Number(read(detailQuery.data, 'totalItems') || detailRows.length)
   const groupedDetailRows = useMemo(() => {
     const groups = []
@@ -282,7 +287,7 @@ export default function DiscountReportPage() {
           detailRows.length ? (
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table product-table-compact">
-                <thead><tr><th>Date</th><th>Invoice No</th><th>Customer Name</th><th>Sku Discount</th><th>Special Discount</th><th>Total Discount</th></tr></thead>
+                <thead><tr><th>Date</th><th>Invoice No</th><th>Customer Name</th><th style={amountCellStyle}>Sku Discount</th><th style={amountCellStyle}>Discount</th><th style={amountCellStyle}>Total Discount</th></tr></thead>
                 <tbody>
                   {groupedDetailRows.map((group) => {
                     const skuSubtotal = group.rows.reduce((sum, row) => sum + Number(read(row, 'skuDiscount') || 0), 0)
@@ -297,25 +302,25 @@ export default function DiscountReportPage() {
                             <td className="mono">{read(row, 'invoiceDate')}</td>
                             <td className="mono">{read(row, 'serialNumber') || read(row, 'invoiceNumber')}</td>
                             <td>{read(row, 'customerName')}</td>
-                            <td className="mono" style={{ textAlign: 'right' }}>{formatLKR(read(row, 'skuDiscount') || 0)}</td>
-                            <td className="mono" style={{ textAlign: 'right' }}>{formatLKR(read(row, 'specialDiscount') || 0)}</td>
-                            <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{formatLKR(read(row, 'totalDiscount') || 0)}</td>
+                            <td className="mono" style={amountCellStyle}>{formatLKR(read(row, 'skuDiscount') || 0)}</td>
+                            <td className="mono" style={amountCellStyle}>{formatLKR(read(row, 'specialDiscount') || 0)}</td>
+                            <td className="mono" style={amountBoldCellStyle}>{formatLKR(read(row, 'totalDiscount') || 0)}</td>
                           </tr>
                         ))}
                         <tr key={`${group.key}-subtotal`}>
                           <td colSpan={3} style={{ fontWeight: 800 }}>Subtotal</td>
-                          <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{formatLKR(skuSubtotal)}</td>
-                          <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{formatLKR(specialSubtotal)}</td>
-                          <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{formatLKR(skuSubtotal + specialSubtotal)}</td>
+                          <td className="mono" style={amountBoldCellStyle}>{formatLKR(skuSubtotal)}</td>
+                          <td className="mono" style={amountBoldCellStyle}>{formatLKR(specialSubtotal)}</td>
+                          <td className="mono" style={amountBoldCellStyle}>{formatLKR(skuSubtotal + specialSubtotal)}</td>
                         </tr>
                       </Fragment>
                     )
                   })}
                   <tr>
                     <td colSpan={3} style={{ fontWeight: 900 }}>Total</td>
-                    <td className="mono" style={{ textAlign: 'right', fontWeight: 900 }}>{formatLKR(read(summary, 'skuDiscount') || 0)}</td>
-                    <td className="mono" style={{ textAlign: 'right', fontWeight: 900 }}>{formatLKR(read(summary, 'specialDiscount') || 0)}</td>
-                    <td className="mono" style={{ textAlign: 'right', fontWeight: 900 }}>{formatLKR(read(summary, 'totalDiscount') || 0)}</td>
+                    <td className="mono" style={amountTotalCellStyle}>{formatLKR(read(summary, 'skuDiscount') || 0)}</td>
+                    <td className="mono" style={amountTotalCellStyle}>{formatLKR(read(summary, 'specialDiscount') || 0)}</td>
+                    <td className="mono" style={amountTotalCellStyle}>{formatLKR(read(summary, 'totalDiscount') || 0)}</td>
                   </tr>
                 </tbody>
               </table>
