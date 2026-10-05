@@ -26,14 +26,10 @@ const toCustomer = (bill) =>
 
 const DENOMINATIONS = [5000, 2000, 1000, 500, 100, 50, 20, 10, 1]
 const allocationTotal = (rows) => rows.reduce((sum, row) => sum + Number(row.allocated || 0), 0)
-// writeOffsByInvoiceId: { [invoiceId]: { amount, reason, mode } } for rows the collector chose to
-// permanently forgive part of, gathered from AllocationReviewModal at submit time. mode 'topup'
-// (default) is a deliberate per-bill decision — the collector already typed a reduced cash amount
-// for that one bill, and the write-off tops it up to close it; the row's own `amount` is unchanged.
-// mode 'reduce' is a bill spreading a slice of a session-wide cash shortfall — the write-off comes
-// OUT of the typed amount, since that amount was never actually all real cash — and is always
-// spread proportionally across every fully-paid bill in the entry (see distributeCashShortfall), so
-// the "missing" amount reads as everyone's bill being a little short, not one random bill eating it.
+// writeOffsByInvoiceId: { [invoiceId]: { amount, reason } } for rows the collector chose to
+// permanently forgive part of, gathered from AllocationReviewModal at submit time. Session cash
+// shortages are intentionally not included here: those belong to the collection session, not to
+// individual invoices/customers.
 // targetTotal: what the resulting amounts must sum to exactly (the cash/cheque/transfer total,
 // minus any surplus set aside). Write-off amounts and reduced-row amounts are each rounded to the
 // cent independently, and across several bills those separate roundings can leave the final sum a
@@ -46,10 +42,7 @@ const payloadAllocations = (rows, writeOffsByInvoiceId = {}, targetTotal = null)
     .map((row) => {
       const writeOff = writeOffsByInvoiceId[row.invoiceId]
       const rawAmount = Number(row.allocated || 0)
-      const amount =
-        writeOff?.mode === 'reduce'
-          ? Math.round((rawAmount - writeOff.amount) * 100) / 100
-          : Math.round(rawAmount * 100) / 100
+      const amount = Math.round(rawAmount * 100) / 100
       return {
         invoiceId: row.invoiceId,
         amount,
@@ -57,10 +50,6 @@ const payloadAllocations = (rows, writeOffsByInvoiceId = {}, targetTotal = null)
           ? {
               writeOffAmount: writeOff.amount,
               writeOffReason: writeOff.reason,
-              // 'reduce' means this bill was fully paid and is only absorbing a slice of a
-              // session-wide cash shortfall — flags the backend to label it as that, not as a
-              // discount this specific customer/bill received (see mode in distributeCashShortfall).
-              isShortfallWriteOff: writeOff.mode === 'reduce',
             }
           : {}),
       }
@@ -84,46 +73,10 @@ const underpaidRowsOf = (rows) =>
   rows.filter(
     (row) => Number(row.allocated || 0) > 0 && Number(row.allocated) < Number(row.outstanding || 0)
   )
-// Spreads a lump-sum cash shortfall (bills being closed add up to more than the actual cash total)
-// proportionally across every bill otherwise being paid in full — each bill absorbs a slice sized
-// to its own share of the total, rather than one bill (or a few, picked arbitrarily) carrying the
-// whole thing. So a Rs 5 shortfall across bills worth 11,000 shows as a few cents "missing" from
-// EVERY bill in the batch, not Rs 5 dumped on whichever bill happened to be last — matching that
-// it isn't any one customer's bill specifically that's short. Each bill still keeps at least a
-// cent of real cash against it, since a fully-written-off zero-cash allocation isn't accepted
-// server-side; the last bill absorbs whatever rounding leftover remains so the total written off
-// matches the shortfall exactly.
-function distributeCashShortfall(rows, shortfall) {
-  const target = Math.round((shortfall || 0) * 100) / 100
-  const totalAllocated = rows.reduce((sum, row) => sum + Number(row.allocated || 0), 0)
-  if (target <= 0 || totalAllocated <= 0) return { writeOffs: {}, unresolved: target }
-
-  const writeOffs = {}
-  let placed = 0
-  rows.forEach((row, index) => {
-    const rowAmount = Number(row.allocated || 0)
-    const capacity = Math.max(0, rowAmount - 0.01)
-    const isLast = index === rows.length - 1
-    // Every row but the last gets its exact proportional share of the shortfall, rounded to the
-    // cent; the last row absorbs whatever's left so the sum matches `target` exactly despite
-    // per-row rounding.
-    const rawShare = isLast ? target - placed : (rowAmount / totalAllocated) * target
-    const share = Math.min(capacity, Math.max(0, Math.round(rawShare * 100) / 100))
-    if (share > 0) {
-      writeOffs[row.invoiceId] = share
-      placed = Math.round((placed + share) * 100) / 100
-    }
-  })
-  return { writeOffs, unresolved: Math.max(0, Math.round((target - placed) * 100) / 100) }
-}
-
 // Gates a submit action behind a review popup whenever one or more bills are being paid beyond
 // their outstanding amount (becomes credit), short of it (the collector may choose to write off
-// the remainder), or the bills being closed add up to more than the payment total itself — e.g.
-// the collector counted 10995 cash but wants to mark 11000 of bills as fully paid, because that's
-// genuinely what the customers handed over; the 5 gone missing afterwards is spread thinly across
-// every bill rather than pinned on any one customer. When nothing needs review the action runs
-// immediately with no popup.
+// the remainder), or the bills being closed add up to more than the cash total itself. Cash
+// shortfalls are reviewed and recorded once at session level, not split across invoices.
 function useAllocationReviewGate() {
   const [pending, setPending] = useState(null)
   const [isConfirming, setIsConfirming] = useState(false)
@@ -143,11 +96,11 @@ function useAllocationReviewGate() {
       })
     else run({})
   }
-  async function confirm(writeOffsByInvoiceId, surplus) {
+  async function confirm(writeOffsByInvoiceId, surplus, shortfall) {
     if (!pending) return
     setIsConfirming(true)
     try {
-      await pending.run(writeOffsByInvoiceId, surplus)
+      await pending.run(writeOffsByInvoiceId, surplus, shortfall)
     } finally {
       // Always close, success or failure — leaving it open on failure just shows stale
       // over/underpaid rows from before the attempt; the mutation's own onError already
@@ -181,18 +134,8 @@ function AllocationReviewModal({ gate, customerName }) {
     (sum, row) => sum + (Number(row.allocated) - Number(row.outstanding)),
     0
   )
-  // Bills that were allocated exactly at (or aren't otherwise flagged for) their outstanding
-  // amount — these are the ones eligible to proportionally absorb a lump-sum cash shortfall, since
-  // rows already under review above (over/underpaid) are handled by the collector explicitly.
-  const fullyPaidRows = allocations.filter(
-    (row) =>
-      !overpaidRows.some((r) => r.invoiceId === row.invoiceId) &&
-      !underpaidRows.some((r) => r.invoiceId === row.invoiceId)
-  )
-  const shortfallPlan =
-    cashShortfall > 0.01 ? distributeCashShortfall(fullyPaidRows, cashShortfall) : null
-  const fullyPaidTotal = fullyPaidRows.reduce((sum, row) => sum + Number(row.allocated || 0), 0)
-  const realCashForFullyPaid = Math.max(0, fullyPaidTotal - cashShortfall)
+  const selectedBillTotal = allocations.reduce((sum, row) => sum + Number(row.allocated || 0), 0)
+  const realCashForSelectedBills = Math.max(0, selectedBillTotal - cashShortfall)
 
   function toggleWriteOff(row) {
     setWriteOffs((current) => {
@@ -221,7 +164,7 @@ function AllocationReviewModal({ gate, customerName }) {
       const writeOff = writeOffs[row.invoiceId]
       return !writeOff || writeOff.reason.trim().length > 0
     }) &&
-    (!shortfallPlan || (shortfallPlan.unresolved <= 0.01 && shortfallReason.trim().length > 0)) &&
+    (cashShortfall <= 0.01 || shortfallReason.trim().length > 0) &&
     (unallocatedSurplus <= 0.01 || surplusReason.trim().length > 0)
 
   function handleConfirm() {
@@ -230,17 +173,15 @@ function AllocationReviewModal({ gate, customerName }) {
         .filter(([, writeOff]) => writeOff.reason.trim())
         .map(([invoiceId, writeOff]) => [invoiceId, { ...writeOff, reason: writeOff.reason.trim() }])
     )
-    if (shortfallPlan) {
-      const reason = shortfallReason.trim()
-      Object.entries(shortfallPlan.writeOffs).forEach(([invoiceId, amount]) => {
-        payload[invoiceId] = { amount, reason, mode: 'reduce' }
-      })
-    }
+    const shortfall =
+      cashShortfall > 0.01
+        ? { amount: cashShortfall, reason: shortfallReason.trim() }
+        : null
     const surplus =
       unallocatedSurplus > 0.01
         ? { amount: unallocatedSurplus, reason: surplusReason.trim() }
         : null
-    confirm(payload, surplus)
+    confirm(payload, surplus, shortfall)
   }
 
   return (
@@ -362,60 +303,47 @@ function AllocationReviewModal({ gate, customerName }) {
           </div>
         ) : null}
 
-        {shortfallPlan ? (
+        {cashShortfall > 0.01 ? (
           <div style={{ display: 'grid', gap: 10 }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <Ban size={18} color="var(--color-danger)" style={{ flex: '0 0 auto', marginTop: 2 }} />
               <p style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
-                These bills add up to {money(fullyPaidTotal)}, but only {money(realCashForFullyPaid)}{' '}
-                of real cash covers them — {money(cashShortfall)} short. Every bill still closes as
-                fully paid; the shortfall is spread proportionally across all of them (not dumped on
-                one bill) and written off as a cash shortfall, not a discount to any customer.
+                These bills add up to {money(selectedBillTotal)}, but only{' '}
+                {money(realCashForSelectedBills)} of real cash covers them — {money(cashShortfall)}{' '}
+                short. This will be saved once as a session cash shortage for the collector, not as
+                a discount or write-off on any invoice.
               </p>
             </div>
-            <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
-              <table className="data-table" style={{ width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th>Bill</th>
-                    <th style={{ textAlign: 'right' }}>Paying</th>
-                    <th style={{ textAlign: 'right' }}>Written off</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fullyPaidRows
-                    .filter((row) => shortfallPlan.writeOffs[row.invoiceId] > 0)
-                    .map((row) => (
-                      <tr key={row.invoiceId}>
-                        <td className="mono">{row.serialNumber || row.invoiceNumber}</td>
-                        <td className="mono" style={{ textAlign: 'right' }}>
-                          {money(Number(row.allocated) - shortfallPlan.writeOffs[row.invoiceId])}
-                        </td>
-                        <td
-                          className="mono"
-                          style={{ textAlign: 'right', color: 'var(--color-danger)', fontWeight: 700 }}
-                        >
-                          {money(shortfallPlan.writeOffs[row.invoiceId])}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+            <div
+              style={{
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                padding: 10,
+                display: 'grid',
+                gap: 8,
+                fontSize: 13,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Selected bill total</span>
+                <strong className="mono">{money(selectedBillTotal)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Counted cash</span>
+                <strong className="mono">{money(realCashForSelectedBills)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-danger)' }}>
+                <span>Session cash shortage</span>
+                <strong className="mono">{money(cashShortfall)}</strong>
+              </div>
             </div>
-            {shortfallPlan.unresolved > 0.01 ? (
-              <p style={{ fontSize: 12, color: 'var(--color-danger)' }}>
-                {money(shortfallPlan.unresolved)} of the shortfall couldn't be placed against a
-                bill — reduce the cash total, or select fewer/larger bills, and try again.
-              </p>
-            ) : (
-              <input
-                className="form-input"
-                placeholder="Reason for the cash shortfall (e.g. miscounted, lost in transit) *"
-                value={shortfallReason}
-                onChange={(event) => setShortfallReason(event.target.value)}
-                style={{ height: 34 }}
-              />
-            )}
+            <input
+              className="form-input"
+              placeholder="Reason for the session cash shortage (e.g. miscounted, lost in transit) *"
+              value={shortfallReason}
+              onChange={(event) => setShortfallReason(event.target.value)}
+              style={{ height: 34 }}
+            />
           </div>
         ) : null}
 
@@ -495,7 +423,7 @@ function AllocationSection({ customer, total, allocations, setAllocations }) {
             ? 'Allocations match payment total'
             : hasUnallocated
               ? `${money(Number(total || 0) - allocated)} still needs to go to a bill — allocate less than a bill's outstanding to write off the rest`
-              : `Closing ${money(allocated - Number(total || 0))} more in bills than the payment total — spread across all bills and reviewed as a shortfall write-off when you record`}
+              : `Closing ${money(allocated - Number(total || 0))} more in bills than the payment total — reviewed as a session shortfall when you record`}
         </span>
         <span className="mono">
           {money(allocated)} / {money(total)}
@@ -525,8 +453,8 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
   const allocated = allocationTotal(allocations)
   const matches = Math.abs(allocated - total) < 0.01
   // Allocating MORE than the cash total is allowed — those bills are being closed at their full
-  // value even though less cash actually came in, and the gap is reviewed and spread across all of
-  // them as a cash shortfall write-off at submit time (see AllocationReviewModal). Allocating LESS
+  // value even though less cash actually came in, and the gap is reviewed as one session cash
+  // shortage at submit time (see AllocationReviewModal). Allocating LESS
   // stays blocked: every rupee actually collected must go to a bill before the entry can be
   // recorded.
   const cashShortfall = Math.max(0, Math.round((allocated - total) * 100) / 100)
@@ -609,15 +537,22 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
     }
   }
 
-  async function doSubmit(writeOffsByInvoiceId = {}, surplus = null, saveAsDraft = false) {
+  async function doSubmit(writeOffsByInvoiceId = {}, surplus = null, shortfall = null, saveAsDraft = false) {
     const payload = {
       totalAmount: total,
       denominations: DENOMINATIONS.filter((denomination) => Number(counts[denomination]) > 0).map(
         (denomination) => ({ denomination, count: Number(counts[denomination]) })
       ),
-      allocations: payloadAllocations(allocations, writeOffsByInvoiceId, total - (surplus?.amount || 0)),
+      allocations: payloadAllocations(
+        allocations,
+        writeOffsByInvoiceId,
+        total - (surplus?.amount || 0) + (shortfall?.amount || 0)
+      ),
       ...(surplus?.amount > 0
         ? { surplusAmount: surplus.amount, surplusReason: surplus.reason }
+        : {}),
+      ...(shortfall?.amount > 0
+        ? { shortfallAmount: shortfall.amount, shortfallReason: shortfall.reason }
         : {}),
     }
     if (editingDraftId) {
@@ -647,7 +582,7 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
       toast.error('Enter the cash total first.')
       return
     }
-    doSubmit({}, null, true)
+    doSubmit({}, null, null, true)
   }
 
   const isBusy =
@@ -796,7 +731,7 @@ export function CashTab({ sessionId, disabled, onRecorded }) {
                   ? 'Allocations match cash total'
                   : hasUnallocatedCash
                     ? `${money(total - allocated)} of cash isn't needed for the bills picked — it'll be recorded as an unassigned surplus when you record`
-                    : `Closing ${money(cashShortfall)} more in bills than cash collected — spread across all bills and reviewed as a shortfall write-off when you record`}
+                    : `Closing ${money(cashShortfall)} more in bills than cash collected — reviewed as a session cash shortage when you record`}
               </span>
               <span className="mono">{money(allocated)} / {money(total)}</span>
             </div>
