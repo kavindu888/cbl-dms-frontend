@@ -423,7 +423,7 @@ function AllocationSection({ customer, total, allocations, setAllocations }) {
             ? 'Allocations match payment total'
             : hasUnallocated
               ? `${money(Number(total || 0) - allocated)} still needs to go to a bill — allocate less than a bill's outstanding to write off the rest`
-              : `Closing ${money(allocated - Number(total || 0))} more in bills than the payment total — reviewed as a session shortfall when you record`}
+              : `Exceeds the payment total by ${money(allocated - Number(total || 0))} — reduce an allocation before recording`}
         </span>
         <span className="mono">
           {money(allocated)} / {money(total)}
@@ -899,9 +899,13 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
   const gate = useAllocationReviewGate()
   const amount = Number(form.amount || 0)
   const allocated = allocationTotal(allocations)
-  const chequeShortfall = Math.max(0, Math.round((allocated - amount) * 100) / 100)
+  // A cheque's amount is a single, exact, bank-verified figure — unlike cash, there's no "counting
+  // error" scenario, so allocating more than it covers is blocked outright rather than reviewed as
+  // a session shortage.
+  const chequeExceeds = Math.max(0, Math.round((allocated - amount) * 100) / 100)
   const hasUnallocatedCheque = amount > 0 && allocated < amount - 0.01
-  const canSubmitCheque = Boolean(customer) && amount > 0 && allocations.length > 0 && !hasUnallocatedCheque
+  const canSubmitCheque =
+    Boolean(customer) && amount > 0 && allocations.length > 0 && !hasUnallocatedCheque && chequeExceeds === 0
   const bank = (banks.data || []).find((row) => row.id === form.bankId)
   const branch = (branches.data || []).find((row) => row.id === form.branchId)
 
@@ -940,9 +944,11 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
       return toast.error(
         hasUnallocatedCheque
           ? 'Some of the cheque amount is still unallocated — assign it to a bill first.'
-          : 'Select a bill and allocate the cheque amount before recording.'
+          : chequeExceeds > 0
+            ? `Bills total ${money(chequeExceeds)} more than the cheque amount — reduce an allocation before recording.`
+            : 'Select a bill and allocate the cheque amount before recording.'
       )
-    gate.requestSubmit(allocations, doSubmit, chequeShortfall)
+    gate.requestSubmit(allocations, doSubmit)
   }
 
   return (
@@ -1077,7 +1083,9 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
   const gate = useAllocationReviewGate()
   const amount = Number(form.amount || 0)
   const allocated = allocationTotal(allocations)
-  const transferShortfall = Math.max(0, Math.round((allocated - amount) * 100) / 100)
+  // A transfer's amount is a single, exact, bank-verified figure — same reasoning as cheques
+  // above, so exceeding it is blocked rather than reviewed as a session shortage.
+  const transferExceeds = Math.max(0, Math.round((allocated - amount) * 100) / 100)
   const hasUnallocatedTransfer = amount > 0 && allocated < amount - 0.01
   const valid =
     customer &&
@@ -1086,7 +1094,8 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
     form.referenceNumber &&
     amount > 0 &&
     allocations.length > 0 &&
-    !hasUnallocatedTransfer
+    !hasUnallocatedTransfer &&
+    transferExceeds === 0
   async function doSubmit(writeOffsByInvoiceId = {}) {
     await mutation.mutateAsync({
       sessionId,
@@ -1117,9 +1126,11 @@ export function BankTransfersTab({ sessionId, disabled, onRecorded }) {
       return toast.error(
         hasUnallocatedTransfer
           ? 'Some of the transfer amount is still unallocated — assign it to a bill first.'
-          : 'Complete the transfer details and allocate at least one bill.'
+          : transferExceeds > 0
+            ? `Bills total ${money(transferExceeds)} more than the transfer amount — reduce an allocation before recording.`
+            : 'Complete the transfer details and allocate at least one bill.'
       )
-    gate.requestSubmit(allocations, doSubmit, transferShortfall)
+    gate.requestSubmit(allocations, doSubmit)
   }
   return (
     <form onSubmit={submit} className="panel" style={{ padding: 16, display: 'grid', gap: 14 }}>

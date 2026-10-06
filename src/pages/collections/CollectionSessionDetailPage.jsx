@@ -96,8 +96,15 @@ export default function CollectionSessionDetailPage() {
       <div
         className="grid grid-cols-1 gap-3 md:grid-cols-4"
         style={
-          data.totalWrittenOff > 0 || data.totalUnallocatedSurplus > 0
-            ? { gridTemplateColumns: `repeat(${4 + (data.totalWrittenOff > 0 ? 1 : 0) + (data.totalUnallocatedSurplus > 0 ? 1 : 0)}, minmax(0, 1fr))` }
+          data.totalWrittenOff > 0 || data.totalUnallocatedSurplus > 0 || data.totalCashShortage > 0
+            ? {
+                gridTemplateColumns: `repeat(${
+                  4 +
+                  (data.totalWrittenOff > 0 ? 1 : 0) +
+                  (data.totalUnallocatedSurplus > 0 ? 1 : 0) +
+                  (data.totalCashShortage > 0 ? 1 : 0)
+                }, minmax(0, 1fr))`,
+              }
             : undefined
         }
       >
@@ -124,6 +131,14 @@ export default function CollectionSessionDetailPage() {
             value={money(data.totalUnallocatedSurplus)}
             tone="var(--color-amber)"
             helper="Extra cash not tied to any bill — needs tracing"
+          />
+        ) : null}
+        {data.totalCashShortage > 0 ? (
+          <Metric
+            label="Session cash shortage"
+            value={money(data.totalCashShortage)}
+            tone="var(--color-danger)"
+            helper="Bills closed in full; cash counted fell short — not any customer's fault"
           />
         ) : null}
       </div>
@@ -246,6 +261,26 @@ export default function CollectionSessionDetailPage() {
                 <span style={{ color: 'var(--color-amber)' }}>Unassigned surplus</span>
                 <span className="mono" style={{ color: 'var(--color-amber)' }}>
                   {money(data.totalUnallocatedSurplus)}
+                </span>
+              </div>
+            ) : null}
+            {data.totalCashShortage > 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  fontSize: 12,
+                }}
+                title={
+                  data.lastCashShortageReason
+                    ? `Bills closed at full value even though the cash counted fell short — ${data.lastCashShortageReason}`
+                    : 'Bills closed at full value even though the cash counted fell short — not tied to any specific customer or bill.'
+                }
+              >
+                <span style={{ color: 'var(--color-danger)' }}>Session cash shortage</span>
+                <span className="mono" style={{ color: 'var(--color-danger)' }}>
+                  {money(data.totalCashShortage)}
                 </span>
               </div>
             ) : null}

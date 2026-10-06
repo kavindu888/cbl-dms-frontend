@@ -211,6 +211,17 @@ export default function ReconciliationPage() {
               </strong>
             </div>
           ) : null}
+          {data.totalCashShortage > 0 ? (
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between' }}
+              title="Bills closed at full value even though the cash counted fell short — not tied to any specific customer or bill."
+            >
+              <span style={{ color: 'var(--color-danger)' }}>Session cash shortage</span>
+              <strong className="mono" style={{ color: 'var(--color-danger)' }}>
+                {money(data.totalCashShortage)}
+              </strong>
+            </div>
+          ) : null}
         </div>
       </section>
       <section className="panel" style={{ padding: 18 }}>
