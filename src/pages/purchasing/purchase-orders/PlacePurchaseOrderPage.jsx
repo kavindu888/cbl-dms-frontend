@@ -233,7 +233,7 @@ export default function PlacePurchaseOrderPage() {
     const subtotal = lines.reduce((sum, line) => {
       const unitsPerBase = Number(line.baseToSmallest || 1)
       const lineSubtotal =
-        Number(line.bigBoxQty || 0) * unitsPerBase * Number(line.unitCostSmallest || 0)
+        Math.round(Number(line.bigBoxQty || 0) * unitsPerBase) * Number(line.unitCostSmallest || 0)
 
       return sum + lineSubtotal
     }, 0)
@@ -815,7 +815,7 @@ export default function PlacePurchaseOrderPage() {
                   const smallestUom = line.smallestUomCode || ''
                   const unitsPerBase = Number(line.baseToSmallest || 1)
                   const smallestQty = Number(line.bigBoxQty || 0) * unitsPerBase
-                  const subtotal = smallestQty * Number(line.unitCostSmallest || 0)
+                  const subtotal = Math.round(smallestQty) * Number(line.unitCostSmallest || 0)
                   const isFractionalSmallest =
                     Math.abs(smallestQty - Math.round(smallestQty)) > 0.0001
 
