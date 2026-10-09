@@ -140,6 +140,10 @@ function normalizeSummaryRow(row) {
     goodsReturnsTotal: Number(read(row, 'goodsReturnsTotal') ?? 0),
     physicalCashAmount: read(row, 'physicalCashAmount') ?? null,
     projectedCashSimplified: Number(read(row, 'projectedCashSimplified') ?? 0),
+    totalChequeCollected: Number(read(row, 'totalChequeCollected') ?? 0),
+    processedChequeAmount: Number(read(row, 'processedChequeAmount') ?? 0),
+    chequeDifference: Number(read(row, 'chequeDifference') ?? 0),
+    chequeStatus: read(row, 'chequeStatus') ?? 'Not Applicable',
     cashDifference: read(row, 'cashDifference') ?? null,
     cashStatus: read(row, 'cashStatus') ?? 'Not Recorded',
   }
@@ -153,7 +157,16 @@ function statusStyles(status) {
   if (status === 'Balanced') {
     return { color: '#166534', background: '#dcfce7', border: '#86efac' }
   }
+  if (status === 'Fully Processed') {
+    return { color: '#166534', background: '#dcfce7', border: '#86efac' }
+  }
+  if (status === 'Pending Deposit') {
+    return { color: '#92400e', background: '#fef3c7', border: '#fcd34d' }
+  }
   if (status === 'Short') {
+    return { color: '#991b1b', background: '#fee2e2', border: '#fca5a5' }
+  }
+  if (status === 'Review Required') {
     return { color: '#991b1b', background: '#fee2e2', border: '#fca5a5' }
   }
   if (status === 'Excess') {
@@ -292,6 +305,10 @@ function ExpandedSummary({ row }) {
 
         <SectionPanel title="Cheque Reconciliation">
           <ValueLine label="Cheques Recorded" value={row.chequesProcessedCount.toLocaleString()} />
+          <AmountLine label="Cheque Received" value={row.totalChequeCollected} />
+          <AmountLine label="Deposited / Cleared" value={row.processedChequeAmount} />
+          <AmountLine label="Pending Deposit" value={row.chequeDifference} />
+          <ValueLine label="Status" valueNode={<StatusBadge status={row.chequeStatus} />} />
         </SectionPanel>
 
         <SectionPanel
