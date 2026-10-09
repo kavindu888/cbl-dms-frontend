@@ -125,6 +125,16 @@ function FilterSelect({ value, onChange, options, placeholder, width = 220, disa
   )
 }
 
+function buildCategoryOptions(categories, parentPath = '') {
+  return (categories || []).flatMap((category) => {
+    const label = parentPath ? `${parentPath} / ${category.name}` : category.name
+    return [
+      { value: category.id, label },
+      ...buildCategoryOptions(category.children, label),
+    ]
+  })
+}
+
 export default function StockReportPage() {
   const [reportType, setReportType] = useState('overview')
   const [page, setPage] = useState(1)
@@ -143,6 +153,7 @@ export default function StockReportPage() {
   const { data: categories = [], isLoading: isLoadingCategories } = useCategories()
   const { data: locationsPage, isLoading: isLoadingLocations } = useReportStockLocations()
   const stockLocations = locationsPage?.items || []
+  const categoryOptions = useMemo(() => buildCategoryOptions(categories), [categories])
   const currentPageSize = reportType === 'overview' ? 200 : pageSize
 
   const queryParams = useMemo(() => {
@@ -184,10 +195,6 @@ export default function StockReportPage() {
     () => rows.reduce((sum, row) => sum + Number(row.qtyAvailable || 0), 0),
     [rows]
   )
-  const valuationGrandTotalCost = useMemo(
-    () => rows.reduce((sum, row) => sum + Number(row.totalValue || 0), 0),
-    [rows]
-  )
   const valuationGrandTotalSelling = useMemo(
     () => rows.reduce((sum, row) => sum + (Number(row.qtyAvailable || 0) * Number(row.sellingPrice || 0)), 0),
     [rows]
@@ -217,12 +224,10 @@ export default function StockReportPage() {
         categoryName: row.categoryName,
         rows: [],
         totalQty: 0,
-        totalValue: 0,
         totalSellingValue: 0,
       }
       group.rows.push(row)
       group.totalQty += Number(row.qtyAvailable || 0)
-      group.totalValue += Number(row.totalValue || 0)
       group.totalSellingValue += Number(row.qtyAvailable || 0) * Number(row.sellingPrice || 0)
       groups.set(key, group)
     }
@@ -306,10 +311,8 @@ export default function StockReportPage() {
       return [
         { key: 'product', label: 'Product' },
         { key: 'qtyAvailable', label: 'Qty Available', align: 'right' },
-        { key: 'unitCost', label: 'Unit Cost', align: 'right' },
-        { key: 'sellingPrice', label: 'Selling Price', align: 'right' },
         { key: 'mrp', label: 'MRP', align: 'right' },
-        { key: 'totalValue', label: 'Total Cost Value', align: 'right' },
+        { key: 'sellingPrice', label: 'Selling Price', align: 'right' },
         { key: 'totalSellingValue', label: 'Total Selling Value', align: 'right' },
       ]
     }
@@ -436,8 +439,8 @@ export default function StockReportPage() {
           value={filterCategoryId}
           onChange={setFilterCategoryId}
           placeholder={isLoadingCategories ? 'Loading categories...' : 'All categories'}
-          options={categories.map((category) => ({ value: category.id, label: category.name }))}
-          width={220}
+          options={categoryOptions}
+          width={260}
         />
 
         {reportType !== 'overview' ? (
@@ -563,15 +566,7 @@ export default function StockReportPage() {
             ['Categories', valuationUniqueCategories.toLocaleString('en-LK')],
             ['Products', valuationUniqueProducts.toLocaleString('en-LK')],
             ['Total Available Qty', formatNumber(valuationGrandTotalQty)],
-            ['Total Cost Value', formatLKR(valuationGrandTotalCost)],
             ['Total Selling Value', formatLKR(valuationGrandTotalSelling)],
-            [
-              'Est. Gross Margin',
-              formatLKR(valuationGrandTotalSelling - valuationGrandTotalCost) +
-                (valuationGrandTotalSelling > 0
-                  ? ` (${(((valuationGrandTotalSelling - valuationGrandTotalCost) / valuationGrandTotalSelling) * 100).toFixed(1)}%)`
-                  : ''),
-            ],
           ].map(([label, value]) => (
             <div
               key={label}
@@ -648,7 +643,7 @@ export default function StockReportPage() {
                           </td>
                         </tr>
                         {group.rows.map((row) => (
-                          <tr key={`${row.productId}-${row.unitCost}`}>
+                          <tr key={`${row.productId}-${row.mrp}`}>
                             {columns.map((column) => (
                               <td
                                 key={column.key}
@@ -689,10 +684,6 @@ export default function StockReportPage() {
                           </td>
                           <td></td>
                           <td></td>
-                          <td></td>
-                          <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
-                            {formatLKR(group.totalValue)}
-                          </td>
                           <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
                             {formatLKR(group.totalSellingValue)}
                           </td>
@@ -705,7 +696,7 @@ export default function StockReportPage() {
                           reportType === 'overview'
                             ? row.categoryId || row.categoryName
                             : reportType === 'valuation'
-                            ? `${row.productId}-${row.unitCost}`
+                            ? `${row.productId}-${row.mrp}`
                             : `${row.productId}-${row.locationName}-${row.batchNo}`
                         }
                       >
