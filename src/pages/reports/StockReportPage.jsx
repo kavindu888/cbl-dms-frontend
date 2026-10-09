@@ -125,6 +125,16 @@ function FilterSelect({ value, onChange, options, placeholder, width = 220, disa
   )
 }
 
+function buildCategoryOptions(categories, parentPath = '') {
+  return (categories || []).flatMap((category) => {
+    const label = parentPath ? `${parentPath} / ${category.name}` : category.name
+    return [
+      { value: category.id, label },
+      ...buildCategoryOptions(category.children, label),
+    ]
+  })
+}
+
 export default function StockReportPage() {
   const [reportType, setReportType] = useState('overview')
   const [page, setPage] = useState(1)
@@ -143,6 +153,7 @@ export default function StockReportPage() {
   const { data: categories = [], isLoading: isLoadingCategories } = useCategories()
   const { data: locationsPage, isLoading: isLoadingLocations } = useReportStockLocations()
   const stockLocations = locationsPage?.items || []
+  const categoryOptions = useMemo(() => buildCategoryOptions(categories), [categories])
   const currentPageSize = reportType === 'overview' ? 200 : pageSize
 
   const queryParams = useMemo(() => {
@@ -436,8 +447,8 @@ export default function StockReportPage() {
           value={filterCategoryId}
           onChange={setFilterCategoryId}
           placeholder={isLoadingCategories ? 'Loading categories...' : 'All categories'}
-          options={categories.map((category) => ({ value: category.id, label: category.name }))}
-          width={220}
+          options={categoryOptions}
+          width={260}
         />
 
         {reportType !== 'overview' ? (
