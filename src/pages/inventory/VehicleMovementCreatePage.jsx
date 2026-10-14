@@ -196,7 +196,11 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     async function loadAppliedLoadings() {
       try {
         const items = await inventoryService.listVehicleLoadings({ status: 2 })
-        if (active) setAppliedLoadings(items || [])
+        // Status "Applied" alone isn't enough — it stays Applied forever, even after the vehicle
+        // has already been fully unloaded (unloadedOn gets set separately, see
+        // VehicleLoading.MarkUnloaded). Without this filter, every loading that's ever existed
+        // piles up in this list; only ones still worth picking for a future unload belong here.
+        if (active) setAppliedLoadings((items || []).filter((item) => !item.unloadedOn))
       } catch {
         if (active) setAppliedLoadings([])
       }
