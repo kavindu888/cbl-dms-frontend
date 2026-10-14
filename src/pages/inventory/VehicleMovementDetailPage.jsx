@@ -1,4 +1,18 @@
-import { ArrowLeft, CheckCircle2, PackageX, Pencil, Plus, RotateCcw, Search, Trash2, Wrench, X, XCircle } from 'lucide-react'
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  PackageX,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Search,
+  Trash2,
+  Wrench,
+  X,
+  XCircle,
+} from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -378,6 +392,7 @@ export default function VehicleMovementDetailPage({
   const [editingLineId, setEditingLineId] = useState(null)
   const [editingQty, setEditingQty] = useState('')
   const [isAddLineModalOpen, setIsAddLineModalOpen] = useState(false)
+  const [expandedLineGroups, setExpandedLineGroups] = useState(new Set())
   const [reservationsByProductId, setReservationsByProductId] = useState({})
   const [reservationsLoaded, setReservationsLoaded] = useState(false)
   const [salesReportByProductId, setSalesReportByProductId] = useState({})
@@ -482,12 +497,74 @@ export default function VehicleMovementDetailPage({
     })
   }, [lineSearch, movement?.lines, productById, categoryDiscountByCategoryId])
 
-  const duplicateProductIds = useMemo(() => {
-    const counts = {}
-    for (const line of movement?.lines || []) {
-      counts[line.productId] = (counts[line.productId] || 0) + 1
+  // Lines for the same product AND the same MRP are just different physical batches of an
+  // otherwise identical row — display-only, shows them as one merged row (qty summed) instead of
+  // one row per batch. Lines for the same product at DIFFERENT MRPs stay as separate rows, since
+  // that's a real difference (a price change between loadings), not clutter. The underlying data
+  // and every admin action (edit/remove/audit) still operate on the real individual lines — a
+  // merged row just expands to reveal them, it never changes what's actually stored.
+  const groupKeyOf = (line) => `${line.productId}::${line.mrp}`
+  const lineGroups = useMemo(() => {
+    const map = new Map()
+    for (const line of filteredLines) {
+      const key = groupKeyOf(line)
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(line)
     }
-    return new Set(Object.keys(counts).filter((productId) => counts[productId] > 1))
+    return map
+  }, [filteredLines])
+
+  function toggleLineGroup(key) {
+    setExpandedLineGroups((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  // The rows actually rendered: a merged synthetic summary row (qty summed, cost averaged) for
+  // each un-expanded multi-batch group, or every real line for a single-batch or expanded group.
+  const groupedLines = useMemo(() => {
+    const rows = []
+    for (const [key, group] of lineGroups) {
+      if (group.length === 1) {
+        rows.push(group[0])
+        continue
+      }
+      if (expandedLineGroups.has(key)) {
+        // Expanded: show every real batch line individually (edit/remove still work exactly as
+        // before, since these are the actual lines, not synthetic ones), tagged so each one can
+        // offer a "collapse back" affordance.
+        rows.push(...group.map((l) => ({ ...l, _expandedGroupKey: key, _expandedGroupSize: group.length })))
+        continue
+      }
+      const totalQty = group.reduce((sum, l) => sum + Number(l.qtySmallest || 0), 0)
+      const weightedCost = totalQty
+        ? group.reduce((sum, l) => sum + Number(l.unitCostSmallest || 0) * Number(l.qtySmallest || 0), 0) / totalQty
+        : 0
+      rows.push({
+        ...group[0],
+        id: `merged::${key}`,
+        qtySmallest: totalQty,
+        unitCostSmallest: weightedCost,
+        _mergedGroupKey: key,
+        _mergedCount: group.length,
+      })
+    }
+    return rows
+  }, [lineGroups, expandedLineGroups])
+
+  // Now based on distinct MRPs per product (after same-MRP batches are merged above) — a product
+  // still spread across more than one MRP is the case actually worth a human glancing at, since
+  // same-MRP duplicates no longer clutter the table.
+  const duplicateProductIds = useMemo(() => {
+    const mrpsByProduct = {}
+    for (const line of movement?.lines || []) {
+      const set = mrpsByProduct[line.productId] || (mrpsByProduct[line.productId] = new Set())
+      set.add(line.mrp)
+    }
+    return new Set(Object.keys(mrpsByProduct).filter((productId) => mrpsByProduct[productId].size > 1))
   }, [movement?.lines])
 
   useEffect(() => {
@@ -1080,11 +1157,14 @@ export default function VehicleMovementDetailPage({
               {lineSearch.trim()
                 ? `${filteredLines.length} of ${movement.lines?.length || 0} stock lines match`
                 : `${movement.lines?.length || 0} stock line${movement.lines?.length === 1 ? '' : 's'} in this ${kind.toLowerCase()}`}
+              {groupedLines.length !== filteredLines.length
+                ? ` — shown as ${groupedLines.length} row${groupedLines.length === 1 ? '' : 's'} (same product + MRP merged)`
+                : ''}
             </p>
             {duplicateProductIds.size > 0 ? (
               <p style={{ color: 'var(--color-amber)', fontSize: 12, marginTop: 4, fontWeight: 700 }}>
-                ⚠ {duplicateProductIds.size} product{duplicateProductIds.size === 1 ? ' has' : 's have'} more
-                than one line (highlighted below) — review and remove any duplicate line(s).
+                ⚠ {duplicateProductIds.size} product{duplicateProductIds.size === 1 ? ' has' : 's have'} lines at
+                more than one MRP (highlighted below) — worth a check.
               </p>
             ) : null}
           </div>
@@ -1173,7 +1253,7 @@ export default function VehicleMovementDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {filteredLines.map((line) => {
+                {groupedLines.map((line) => {
                   const productName = line.productName || productById[line.productId]?.name
                   const unitCost = Number(line.unitCostSmallest || 0)
                   const qty = Number(line.qtySmallest || 0)
@@ -1242,8 +1322,52 @@ export default function VehicleMovementDetailPage({
                               color: 'var(--color-amber)',
                             }}
                           >
-                            ⚠ multiple lines for this product
+                            ⚠ also appears at a different MRP
                           </span>
+                        ) : null}
+                        {line._mergedCount > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleLineGroup(line._mergedGroupKey)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              marginTop: 4,
+                              background: 'transparent',
+                              border: 0,
+                              padding: 0,
+                              cursor: 'pointer',
+                              fontSize: 10,
+                              fontWeight: 800,
+                              color: 'var(--color-text-muted)',
+                            }}
+                          >
+                            <ChevronRight size={11} /> {line._mergedCount} batches at this MRP — show
+                            separately
+                          </button>
+                        ) : null}
+                        {line._expandedGroupKey ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleLineGroup(line._expandedGroupKey)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              marginTop: 4,
+                              background: 'transparent',
+                              border: 0,
+                              padding: 0,
+                              cursor: 'pointer',
+                              fontSize: 10,
+                              fontWeight: 800,
+                              color: 'var(--color-text-muted)',
+                            }}
+                          >
+                            <ChevronDown size={11} /> 1 of {line._expandedGroupSize} batches at this
+                            MRP — merge back
+                          </button>
                         ) : null}
                       </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
@@ -1284,7 +1408,11 @@ export default function VehicleMovementDetailPage({
                       </td>
                       {showAdminLineControls ? (
                         <td style={{ textAlign: 'right' }}>
-                          {isEditingThisLine ? (
+                          {line._mergedCount > 1 ? (
+                            <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                              Expand to edit
+                            </span>
+                          ) : isEditingThisLine ? (
                             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                               <button
                                 type="button"
