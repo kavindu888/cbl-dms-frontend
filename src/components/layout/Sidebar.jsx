@@ -37,7 +37,6 @@ import {
   UserCog,
   Users,
   Undo2,
-  Unlock,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
@@ -81,30 +80,6 @@ const navGroups = [
         to: '/sales/invoices/new',
         icon: ClipboardList,
         permissions: PERMISSIONS.sales.invoiceCreate,
-      },
-      {
-        label: 'Invoice Payment Record',
-        to: '/sales/invoice-payment-record',
-        icon: Banknote,
-        permissions: { all: [PERMISSIONS.sales.invoiceRead, PERMISSIONS.sales.invoiceAddPayment] },
-      },
-      {
-        label: 'Return Notes',
-        to: '/sales/return-notes',
-        icon: Undo2,
-        permissions: PERMISSIONS.sales.crnView,
-      },
-      {
-        label: 'Customer Credit',
-        to: '/sales/customer-credit',
-        icon: Banknote,
-        permissions: PERMISSIONS.sales.customerCreditView,
-      },
-      {
-        label: 'Stuck Reservations',
-        to: '/sales/orders/stuck-reservations',
-        icon: Unlock,
-        permissions: PERMISSIONS.sales.orderCancel,
       },
     ],
   },

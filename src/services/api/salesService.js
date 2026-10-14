@@ -147,6 +147,8 @@ function formatInvoice(invoice) {
     salesRouteName: invoice.salesRouteName ?? '',
     vehicleId: invoice.vehicleId ?? '',
     salesPersonId: invoice.salesPersonId ?? '',
+    createdByUserId: invoice.createdByUserId ?? invoice.CreatedByUserId ?? '',
+    createdByUsername: invoice.createdByUsername ?? invoice.CreatedByUsername ?? '',
     invoiceNumber: invoice.invoiceNumber ?? invoice.id,
     taxInvoiceNumber: invoice.taxInvoiceNumber ?? '',
     serialNumber: invoice.serialNumber ?? '',
