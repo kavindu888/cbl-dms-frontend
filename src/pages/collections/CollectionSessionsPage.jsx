@@ -314,47 +314,96 @@ export default function CollectionSessionsPage() {
         title="Open collection session"
         description="Start a session for a collector, salesman, and vehicle."
         showHeader={false}
-        maxWidth="620px"
-        contentStyle={{ padding: 0, overflow: 'hidden' }}
+        maxWidth="960px"
+        contentStyle={{
+          padding: 0,
+          overflow: 'hidden',
+          maxHeight: 'min(92vh, 760px)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
       >
-        <form id="new-session-form" onSubmit={submit}>
+        <form
+          id="new-session-form"
+          onSubmit={submit}
+          style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}
+        >
           <SessionModalHeader onClose={() => setOpen(false)} />
-          <div style={{ padding: '18px 22px 20px', display: 'grid', gap: 18 }}>
-            <EntityPicker
-              label="Collector"
-              icon={User}
-              query={collectors}
-              selectedId={form.collectorId}
-              onSelect={(collectorId) => setForm({ ...form, collectorId })}
-              emptyMessage="No active collectors. Register one first."
-            />
-            <EntityPicker
-              label="Salesman"
-              icon={User}
-              query={salesmen}
-              selectedId={form.salesmanId}
-              onSelect={(salesmanId) => setForm({ ...form, salesmanId })}
-              emptyMessage="No active salesmen. Register one first."
-            />
-            <EntityPicker
-              label="Vehicle"
-              icon={Truck}
-              query={vehicles}
-              selectedId={form.vehicleId}
-              onSelect={(vehicleId) => setForm({ ...form, vehicleId })}
-              emptyMessage="No active vehicles. Register a vehicle location first."
-            />
-            <label>
-              <span className="form-label">Session date</span>
-              <input
-                required
-                type="date"
-                className="form-input mono"
-                style={{ ...inputStyle, marginTop: 6 }}
-                value={form.sessionDate}
-                onChange={(e) => setForm({ ...form, sessionDate: e.target.value })}
+          <div
+            style={{
+              minHeight: 0,
+              overflowY: 'auto',
+              padding: '18px 20px 20px',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                gap: 14,
+                alignItems: 'start',
+              }}
+            >
+              <EntityPicker
+                label="Collector"
+                icon={User}
+                query={collectors}
+                selectedId={form.collectorId}
+                onSelect={(collectorId) => setForm({ ...form, collectorId })}
+                emptyMessage="No active collectors. Register one first."
               />
-            </label>
+              <EntityPicker
+                label="Salesman"
+                icon={User}
+                query={salesmen}
+                selectedId={form.salesmanId}
+                onSelect={(salesmanId) => setForm({ ...form, salesmanId })}
+                emptyMessage="No active salesmen. Register one first."
+              />
+              <EntityPicker
+                label="Vehicle"
+                icon={Truck}
+                query={vehicles}
+                selectedId={form.vehicleId}
+                onSelect={(vehicleId) => setForm({ ...form, vehicleId })}
+                emptyMessage="No active vehicles. Register a vehicle location first."
+              />
+              <section
+                style={{
+                  padding: 12,
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  background: 'color-mix(in srgb, var(--color-bg-base) 64%, transparent)',
+                }}
+              >
+                <label>
+                  <span className="form-label">Session date</span>
+                  <input
+                    required
+                    type="date"
+                    className="form-input mono"
+                    style={{ ...inputStyle, marginTop: 8 }}
+                    value={form.sessionDate}
+                    onChange={(e) => setForm({ ...form, sessionDate: e.target.value })}
+                  />
+                </label>
+                <div
+                  style={{
+                    marginTop: 12,
+                    paddingTop: 12,
+                    borderTop: '1px solid var(--color-border)',
+                    display: 'grid',
+                    gap: 6,
+                    fontSize: 11,
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
+                  <SelectionPreview label="Collector" item={collectorById[form.collectorId]} />
+                  <SelectionPreview label="Salesman" item={salesmanById[form.salesmanId]} />
+                  <SelectionPreview label="Vehicle" item={vehicleById[form.vehicleId]} />
+                </div>
+              </section>
+            </div>
           </div>
           <div
             style={{
@@ -364,13 +413,21 @@ export default function CollectionSessionsPage() {
               justifyContent: 'space-between',
               gap: 12,
               borderTop: '1px solid var(--color-border)',
-              background: 'color-mix(in srgb, var(--color-bg-base) 45%, transparent)',
+              background: 'var(--color-bg-surface)',
+              flex: '0 0 auto',
             }}
           >
             <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
               {canOpen ? 'Ready to open' : 'Select a collector, salesman, and vehicle'}
             </span>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div
+              style={{
+                width: 'min(100%, 310px)',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gap: 8,
+              }}
+            >
               <button type="button" className="button-secondary" onClick={() => setOpen(false)}>
                 Cancel
               </button>
@@ -537,6 +594,27 @@ function SessionModalHeader({ onClose }) {
   )
 }
 
+function SelectionPreview({ label, item }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, minWidth: 0 }}>
+      <span>{label}</span>
+      <span
+        title={item?.name || 'Not selected'}
+        style={{
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontWeight: 700,
+          color: item ? 'var(--color-text-primary)' : 'var(--color-text-dim)',
+        }}
+      >
+        {item?.name || 'Not selected'}
+      </span>
+    </div>
+  )
+}
+
 function EntityPicker({ label, icon: Icon, query, selectedId, onSelect, emptyMessage }) {
   const [search, setSearch] = useState('')
   const items = useMemo(() => {
@@ -549,7 +627,15 @@ function EntityPicker({ label, icon: Icon, query, selectedId, onSelect, emptyMes
   }, [query.data, search])
 
   return (
-    <div>
+    <section
+      style={{
+        minWidth: 0,
+        padding: 12,
+        border: '1px solid var(--color-border)',
+        borderRadius: 8,
+        background: 'color-mix(in srgb, var(--color-bg-base) 64%, transparent)',
+      }}
+    >
       <div
         style={{
           display: 'flex',
@@ -627,7 +713,7 @@ function EntityPicker({ label, icon: Icon, query, selectedId, onSelect, emptyMes
           <EntityMessage>{search ? `No ${label.toLowerCase()} matches your search.` : emptyMessage}</EntityMessage>
         )}
       </div>
-    </div>
+    </section>
   )
 }
 

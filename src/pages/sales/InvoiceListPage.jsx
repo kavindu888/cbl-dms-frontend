@@ -597,6 +597,8 @@ export default function InvoiceListPage() {
                   const serialNumber = String(invoice.serialNumber || '').trim()
                   const routeName =
                     routeNameById[invoice.salesRouteId] || invoice.salesRouteName || 'No route'
+                  const createdByName =
+                    invoice.createdByUsername || invoice.salesPersonId || 'Unknown user'
 
                   return (
                     <div
@@ -721,6 +723,19 @@ export default function InvoiceListPage() {
                           <span className="mono">Customer Code: {customerCode}</span>
                           <span aria-hidden="true"> · </span>
                           <span>{routeName}</span>
+                        </div>
+                        <div
+                          title={`Created by: ${createdByName}`}
+                          style={{
+                            marginTop: 3,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 11,
+                            color: 'var(--color-text-dim)',
+                          }}
+                        >
+                          Created by: <span className="mono">{createdByName}</span>
                         </div>
                       </div>
                       <div
