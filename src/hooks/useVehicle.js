@@ -112,6 +112,35 @@ export function useAutoRepairVehicleLoadingLines(id) {
   })
 }
 
+// For a loading that stayed "Applied" but whose vehicle-side stock was already drained by a real,
+// completed unload — re-credits the vehicle from Main for every line, without a new loading.
+export function useRestoreVehicleLoadingStock(id) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => inventoryService.restoreVehicleLoadingStock(id),
+    onSuccess: (result) => {
+      const restored = result?.linesRestored ?? 0
+      const skipped = result?.linesSkipped ?? 0
+      if (restored > 0 && skipped === 0) {
+        toast.success(`Restored ${restored} line${restored === 1 ? '' : 's'} back onto the vehicle.`)
+      } else if (restored > 0 && skipped > 0) {
+        toast.warning(
+          `Restored ${restored} line${restored === 1 ? '' : 's'}, but ${skipped} couldn't be restored — not enough stock at Main. Check the result for details.`
+        )
+      } else {
+        toast.error(`Couldn't restore any lines — not enough stock at Main for ${skipped} line${skipped === 1 ? '' : 's'}.`)
+      }
+      if (result?.duplicateProductSkus?.length) {
+        toast.message(
+          `${result.duplicateProductSkus.length} product(s) had more than one line and were each restored separately — review: ${result.duplicateProductSkus.join(', ')}`
+        )
+      }
+      invalidateMovement(queryClient, loadingListKey, loadingDetailKey, id)
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Unable to restore vehicle loading stock.')),
+  })
+}
+
 export function useCancelVehicleLoading() {
   const queryClient = useQueryClient()
   return useMutation({

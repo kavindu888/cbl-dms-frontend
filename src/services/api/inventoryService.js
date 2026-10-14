@@ -581,6 +581,14 @@ export const inventoryService = {
     const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/unmark-unloaded`)
     return getValue(response, 'Unable to unmark loading as unloaded.')
   },
+  // For a loading that stayed "Applied" but whose vehicle-side stock was already drained by a real,
+  // completed unload (so the vehicle is physically empty despite the status) — re-credits the
+  // vehicle from Main for every line in this loading, without creating a new loading. One-time per
+  // loading; the backend refuses to run it twice.
+  async restoreVehicleLoadingStock(id) {
+    const response = await api.post(`/api/v1/inventory/vehicle-loadings/${id}/restore-stock`)
+    return getValue(response, 'Unable to restore vehicle loading stock.')
+  },
   // Draft-only: auto-repairs any line whose pinned source batch has been drained below what it
   // needs (by something else, after the line was added) by re-picking FEFO batch(es) at Main that
   // currently have real stock, swapping the line over to them, and releasing the stale reservation.

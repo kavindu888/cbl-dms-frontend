@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, PackageX, Pencil, Plus, Search, Trash2, Wrench, X, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, PackageX, Pencil, Plus, RotateCcw, Search, Trash2, Wrench, X, XCircle } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import {
   useAdminUpdateAppliedLoadingLineQty,
   useAdminUpdateAppliedUnloadingLineQty,
   useAutoRepairVehicleLoadingLines,
+  useRestoreVehicleLoadingStock,
   useVehicles,
 } from '@/hooks/useVehicle'
 import { inventoryService } from '@/services/api/inventoryService'
@@ -363,6 +364,7 @@ export default function VehicleMovementDetailPage({
   const updateAppliedLoadingLineQty = useAdminUpdateAppliedLoadingLineQty(id)
   const addAppliedLoadingLine = useAdminAddAppliedLoadingLine(id)
   const autoRepairLoadingLines = useAutoRepairVehicleLoadingLines(id)
+  const restoreLoadingStock = useRestoreVehicleLoadingStock(id)
   const [deliveryRuns, setDeliveryRuns] = useState([])
   const [productById, setProductById] = useState({})
   const [categoryDiscountByCategoryId, setCategoryDiscountByCategoryId] = useState({})
@@ -692,6 +694,20 @@ export default function VehicleMovementDetailPage({
     }
   }
 
+  async function handleRestoreStock() {
+    if (
+      !window.confirm(
+        'Re-credit the vehicle with this loading\'s stock from Main? Only do this if the vehicle is genuinely empty right now (e.g. after an accidental unload) — this moves real stock and can only be run once per loading.'
+      )
+    )
+      return
+    try {
+      await restoreLoadingStock.mutateAsync()
+    } catch {
+      /* The mutation hook displays the API error. */
+    }
+  }
+
   async function handleCancel(event) {
     event.preventDefault()
     if (!cancelReason.trim()) return toast.error('A cancellation reason is required.')
@@ -878,6 +894,39 @@ export default function VehicleMovementDetailPage({
               ? "You can edit or remove lines on this applied unloading. Doing so reverses the associated stock movement — it's blocked if that stock has already moved on elsewhere."
               : "You can add, edit, or remove lines on this applied loading. Adding or editing moves real stock from main to the vehicle immediately; editing or removing an existing line reverses its movement first — it's blocked if that stock has already moved on elsewhere."}
           </p>
+        </section>
+      ) : null}
+
+      {showAdminLineControls && !isUnloading ? (
+        <section className="rounded-lg border border-amber-700/50 bg-amber-500/10 p-4 text-sm text-amber-300">
+          <p className="font-semibold">Vehicle physically empty despite "Applied"?</p>
+          {movement.restoredOn ? (
+            <p className="mt-1 text-amber-200/80">
+              This loading's stock was already restored to the vehicle on{' '}
+              {formatDateTime(movement.restoredOn)}. Running it again is blocked — it would double
+              the stock.
+            </p>
+          ) : (
+            <>
+              <p className="mt-1 text-amber-200/80">
+                Use this only if a completed vehicle unload already moved this loading's stock back
+                to Main for real (so the vehicle is physically empty even though this loading shows
+                "Applied") — e.g. an accidental unload that "Mark Unloaded"/"Unmark" can't reverse,
+                since those only change the label, never the stock. This re-credits the vehicle from
+                Main for every line in this loading, one time only.
+              </p>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={restoreLoadingStock.isPending}
+                onClick={handleRestoreStock}
+                style={{ marginTop: 10, height: 36, padding: '0 14px' }}
+              >
+                <RotateCcw size={15} />
+                {restoreLoadingStock.isPending ? 'Restoring...' : 'Restore vehicle stock'}
+              </button>
+            </>
+          )}
         </section>
       ) : null}
 
