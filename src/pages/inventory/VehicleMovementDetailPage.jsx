@@ -697,7 +697,7 @@ export default function VehicleMovementDetailPage({
   async function handleRestoreStock() {
     if (
       !window.confirm(
-        'Re-credit the vehicle with this loading\'s stock from Main? Only do this if the vehicle is genuinely empty right now (e.g. after an accidental unload) — this moves real stock and can only be run once per loading.'
+        'Re-credit the vehicle with this loading\'s stock from Main? Only do this if the vehicle is genuinely empty right now (e.g. after an accidental unload) — this moves real stock. Lines already restored on an earlier run are skipped automatically, so it\'s safe to run again to pick up anything that was short on stock before.'
       )
     )
       return
@@ -900,33 +900,81 @@ export default function VehicleMovementDetailPage({
       {showAdminLineControls && !isUnloading ? (
         <section className="rounded-lg border border-amber-700/50 bg-amber-500/10 p-4 text-sm text-amber-300">
           <p className="font-semibold">Vehicle physically empty despite "Applied"?</p>
+          <p className="mt-1 text-amber-200/80">
+            Use this only if a completed vehicle unload already moved this loading's stock back to
+            Main for real (so the vehicle is physically empty even though this loading shows
+            "Applied") — e.g. an accidental unload that "Mark Unloaded"/"Unmark" can't reverse, since
+            those only change the label, never the stock. This re-credits the vehicle from Main, one
+            line at a time. Safe to run more than once: a line that already succeeded is never
+            re-applied — only lines still waiting (because Main didn't have enough stock yet) get
+            retried on a later run.
+          </p>
           {movement.restoredOn ? (
-            <p className="mt-1 text-amber-200/80">
-              This loading's stock was already restored to the vehicle on{' '}
-              {formatDateTime(movement.restoredOn)}. Running it again is blocked — it would double
-              the stock.
+            <p className="mt-2 text-amber-200/60" style={{ fontSize: 12 }}>
+              Last run: {formatDateTime(movement.restoredOn)}
             </p>
-          ) : (
-            <>
-              <p className="mt-1 text-amber-200/80">
-                Use this only if a completed vehicle unload already moved this loading's stock back
-                to Main for real (so the vehicle is physically empty even though this loading shows
-                "Applied") — e.g. an accidental unload that "Mark Unloaded"/"Unmark" can't reverse,
-                since those only change the label, never the stock. This re-credits the vehicle from
-                Main for every line in this loading, one time only.
+          ) : null}
+          <button
+            type="button"
+            className="button-secondary"
+            disabled={restoreLoadingStock.isPending}
+            onClick={handleRestoreStock}
+            style={{ marginTop: 10, height: 36, padding: '0 14px' }}
+          >
+            <RotateCcw size={15} />
+            {restoreLoadingStock.isPending
+              ? 'Restoring...'
+              : movement.restoredOn
+                ? 'Retry restoring remaining stock'
+                : 'Restore vehicle stock'}
+          </button>
+
+          {restoreLoadingStock.data ? (
+            <div
+              style={{
+                marginTop: 14,
+                paddingTop: 14,
+                borderTop: '1px solid rgba(245, 158, 11, 0.3)',
+              }}
+            >
+              <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                Last restore result
               </p>
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={restoreLoadingStock.isPending}
-                onClick={handleRestoreStock}
-                style={{ marginTop: 10, height: 36, padding: '0 14px' }}
-              >
-                <RotateCcw size={15} />
-                {restoreLoadingStock.isPending ? 'Restoring...' : 'Restore vehicle stock'}
-              </button>
-            </>
-          )}
+              <ul className="mt-1" style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+                <li>{restoreLoadingStock.data.linesRestored ?? 0} line(s) restored just now</li>
+                <li>
+                  {restoreLoadingStock.data.linesAlreadyRestored ?? 0} line(s) already restored on an
+                  earlier run (skipped, not re-applied)
+                </li>
+                <li>{restoreLoadingStock.data.linesSkipped ?? 0} line(s) still not restored</li>
+              </ul>
+              {restoreLoadingStock.data.skipped?.length ? (
+                <div style={{ marginTop: 10 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-danger)' }}>
+                    Not restored — not enough stock at Main right now (retry once more arrives):
+                  </p>
+                  <ul style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    {restoreLoadingStock.data.skipped.map((s) => (
+                      <li key={s.lineId}>
+                        {s.productSku} — qty {s.qtySmallest}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {restoreLoadingStock.data.duplicateProductSkus?.length ? (
+                <div style={{ marginTop: 10 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-amber)' }}>
+                    These products had more than one line in this loading — each was restored
+                    separately. Worth checking the vehicle's actual stock isn't doubled up:
+                  </p>
+                  <p style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    {restoreLoadingStock.data.duplicateProductSkus.join(', ')}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       ) : null}
 

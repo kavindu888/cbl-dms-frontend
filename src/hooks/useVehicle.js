@@ -118,22 +118,16 @@ export function useRestoreVehicleLoadingStock(id) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => inventoryService.restoreVehicleLoadingStock(id),
+    // Full detail (what restored, what was skipped and why, which products were duplicated) is
+    // shown in a persistent panel on the page from this mutation's own `.data` — not just a toast,
+    // since a toast disappears before anyone can read a multi-line result.
     onSuccess: (result) => {
       const restored = result?.linesRestored ?? 0
       const skipped = result?.linesSkipped ?? 0
-      if (restored > 0 && skipped === 0) {
-        toast.success(`Restored ${restored} line${restored === 1 ? '' : 's'} back onto the vehicle.`)
-      } else if (restored > 0 && skipped > 0) {
-        toast.warning(
-          `Restored ${restored} line${restored === 1 ? '' : 's'}, but ${skipped} couldn't be restored — not enough stock at Main. Check the result for details.`
-        )
+      if (skipped === 0) {
+        toast.success(`Restored ${restored} line${restored === 1 ? '' : 's'} back onto the vehicle. See the result below.`)
       } else {
-        toast.error(`Couldn't restore any lines — not enough stock at Main for ${skipped} line${skipped === 1 ? '' : 's'}.`)
-      }
-      if (result?.duplicateProductSkus?.length) {
-        toast.message(
-          `${result.duplicateProductSkus.length} product(s) had more than one line and were each restored separately — review: ${result.duplicateProductSkus.join(', ')}`
-        )
+        toast.warning(`${skipped} line${skipped === 1 ? '' : 's'} couldn't be restored. See the result below.`)
       }
       invalidateMovement(queryClient, loadingListKey, loadingDetailKey, id)
     },
