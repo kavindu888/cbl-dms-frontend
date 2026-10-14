@@ -1,8 +1,12 @@
+import { useLanguage } from '@/i18n'
+
 export default function PageHeader({ title, subtitle, actions }) {
+  const { t } = useLanguage()
+
   return (
     <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
       <div>
-        <p className="eyebrow">FlowLink Hub</p>
+        <p className="eyebrow">{t('app.hubEyebrow')}</p>
         <h1 className="page-title mt-2">{title}</h1>
         {subtitle ? <p className="page-subtitle">{subtitle}</p> : null}
       </div>

@@ -24,6 +24,7 @@ import { inventoryService } from '@/services/api/inventoryService'
 import { useVehicles } from '@/hooks/useVehicle'
 import { useCustomerById } from '@/hooks/useCustomers'
 import { formatLKR, formatLKRShort } from '@/utils/formatCurrency'
+import { useLanguage } from '@/i18n'
 
 dayjs.extend(isSameOrAfter)
 dayjs.extend(isSameOrBefore)
@@ -58,8 +59,8 @@ function formatAxisMoney(value) {
   return `Rs. ${Math.round(value / 1000)}K`
 }
 
-function getTodayLabel() {
-  return new Intl.DateTimeFormat('en-LK', {
+function getTodayLabel(language) {
+  return new Intl.DateTimeFormat(language === 'si' ? 'si-LK' : 'en-LK', {
     weekday: 'long',
     day: '2-digit',
     month: 'short',
@@ -323,6 +324,7 @@ export default function DashboardPage() {
   const data = useDashboardData()
   const { data: vehicles = [] } = useVehicles()
   const { customerById } = useCustomerById()
+  const { language, t } = useLanguage()
 
   const today = dayjs()
   const todayStr = today.format('YYYY-MM-DD')
@@ -370,7 +372,7 @@ export default function DashboardPage() {
   const salesByRouteData = useMemo(() => {
     const totals = new Map()
     for (const inv of activeInvoices) {
-      const name = inv.salesRouteName || 'Unassigned'
+      const name = inv.salesRouteName || t('dashboard.unassigned')
       totals.set(name, (totals.get(name) || 0) + inv.netAmount)
     }
     const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1])
@@ -381,9 +383,10 @@ export default function DashboardPage() {
       value: Math.round(value),
       color: ROUTE_COLORS[index % ROUTE_COLORS.length],
     }))
-    if (otherTotal > 0) rows.push({ name: 'Other routes', value: Math.round(otherTotal), color: ROUTE_COLORS[4] })
+    if (otherTotal > 0)
+      rows.push({ name: t('dashboard.otherRoutes'), value: Math.round(otherTotal), color: ROUTE_COLORS[4] })
     return rows
-  }, [activeInvoices])
+  }, [activeInvoices, t])
 
   const totalRouteValue = salesByRouteData.reduce((sum, r) => sum + r.value, 0)
 
@@ -484,10 +487,10 @@ export default function DashboardPage() {
       >
         <div>
           <h1 style={{ color: 'var(--color-text-primary)', fontSize: 24, fontWeight: 800 }}>
-            Dashboard
+            {t('dashboard.dashboard')}
           </h1>
           <p style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 13 }}>
-            {getTodayLabel()} - Operational view for sales, collections, stock, and fleet.
+            {getTodayLabel(language)} - {t('dashboard.operationalView')}
           </p>
         </div>
       </header>
@@ -499,9 +502,9 @@ export default function DashboardPage() {
       >
         <div className="relative">
           <MetricCard
-            title="Today's Sales"
+            title={t('dashboard.todaySales')}
             value={formatCurrency(todaySales)}
-            detail="Compared to yesterday"
+            detail={t('dashboard.comparedToYesterday')}
             tone="accent"
             trend={salesTrend}
             isLoading={isLoading}
@@ -512,9 +515,12 @@ export default function DashboardPage() {
 
         <div className="relative">
           <MetricCard
-            title="Outstanding Credit"
+            title={t('dashboard.outstandingCredit')}
             value={formatCurrency(outstandingCredit.total)}
-            detail={`${outstandingCredit.accountCount} customer account${outstandingCredit.accountCount === 1 ? '' : 's'} with a balance`}
+            detail={t('dashboard.customerAccountsWithBalance', {
+              count: outstandingCredit.accountCount,
+              plural: outstandingCredit.accountCount === 1 ? '' : 's',
+            })}
             tone="neutral"
             isLoading={isLoading}
           />
@@ -524,9 +530,9 @@ export default function DashboardPage() {
 
         <div className="relative">
           <MetricCard
-            title="Total Stock Value"
+            title={t('dashboard.totalStockValue')}
             value={formatCurrency(stockStats.value)}
-            detail={`${stockStats.skuCount} active SKUs with stock on hand`}
+            detail={t('dashboard.activeSkusWithStock', { count: stockStats.skuCount })}
             tone="neutral"
             isLoading={isLoading}
           />
@@ -536,9 +542,11 @@ export default function DashboardPage() {
 
         <div className="relative">
           <MetricCard
-            title="Stock Selling Value"
+            title={t('dashboard.stockSellingValue')}
             value={formatLKRShort(stockStats.sellingValue)}
-            detail={`Main stock at batch cost + 6.7% | Full value ${formatLKR(stockStats.sellingValue)}`}
+            detail={t('dashboard.mainStockSellingDetail', {
+              value: formatLKR(stockStats.sellingValue),
+            })}
             tone="neutral"
             isLoading={isLoading}
           />
@@ -548,9 +556,9 @@ export default function DashboardPage() {
 
         <div className="relative">
           <MetricCard
-            title="Fleet On Road"
+            title={t('dashboard.fleetOnRoad')}
             value={`${vehiclesOnRoad} / ${vehicles.length}`}
-            detail="Vehicles with an applied load today"
+            detail={t('dashboard.vehiclesWithLoad')}
             tone="success"
             isLoading={isLoading}
           />
@@ -561,8 +569,11 @@ export default function DashboardPage() {
       <section className="grid grid-cols-1 md:grid-cols-2 gap-8" style={{ padding: '8px 0' }}>
         <div className="relative">
           <SectionPanel
-            title="Sales This Week"
-            subtitle={`${today.subtract(6, 'day').format('D MMM')} - ${today.format('D MMM')}, LKR`}
+            title={t('dashboard.salesThisWeek')}
+            subtitle={t('dashboard.weekCurrency', {
+              from: today.subtract(6, 'day').format('D MMM'),
+              to: today.format('D MMM'),
+            })}
           >
             <div style={{ width: '100%', minWidth: 0, height: 220 }}>
               <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 1, height: 220 }}>
@@ -585,7 +596,7 @@ export default function DashboardPage() {
                   />
                   <ChartTooltip
                     contentStyle={chartTooltipStyle}
-                    formatter={(value) => [formatCurrency(value), 'Sales']}
+                    formatter={(value) => [formatCurrency(value), t('dashboard.sales')]}
                     labelStyle={{ color: 'var(--color-text-muted)', fontWeight: 700 }}
                   />
                   <Bar dataKey="sales" fill="url(#salesBarGrad)" radius={[6, 6, 0, 0]} barSize={34} />
@@ -598,7 +609,10 @@ export default function DashboardPage() {
         </div>
 
         <div className="relative">
-          <SectionPanel title="Collections vs Invoiced" subtitle={`${today.format('MMMM YYYY')} cumulative, LKR`}>
+          <SectionPanel
+            title={t('dashboard.collectionsVsInvoiced')}
+            subtitle={t('dashboard.monthCurrency', { month: today.format('MMMM YYYY') })}
+          >
             <div style={{ width: '100%', minWidth: 0, height: 220 }}>
               <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 1, height: 220 }}>
                 <AreaChart data={collectionsVsInvoicedData} margin={{ top: 10, right: 14, left: 4, bottom: 0 }}>
@@ -639,16 +653,27 @@ export default function DashboardPage() {
       {/* Second Row (Invoices Table, Route mix, Cash/Cheque) */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-8" style={{ alignItems: 'start', padding: '8px 0' }}>
         <div className="relative">
-          <SectionPanel title="Recent Invoices" subtitle="Latest posted sales activity">
+          <SectionPanel
+            title={t('dashboard.recentInvoices')}
+            subtitle={t('dashboard.latestPostedSalesActivity')}
+          >
             {recentInvoices.length ? (
               <div className="overflow-x-auto">
                 <table className="data-table" style={{ fontSize: 12 }}>
                   <thead>
                     <tr>
-                      <th style={{ background: 'transparent', paddingLeft: 0 }}>Invoice</th>
-                      <th style={{ background: 'transparent' }}>Customer</th>
-                      <th style={{ background: 'transparent' }}>Amount</th>
-                      <th style={{ background: 'transparent', paddingRight: 0 }}>Status</th>
+                      <th style={{ background: 'transparent', paddingLeft: 0 }}>
+                        {t('dashboard.table.invoice')}
+                      </th>
+                      <th style={{ background: 'transparent' }}>
+                        {t('dashboard.table.customer')}
+                      </th>
+                      <th style={{ background: 'transparent' }}>
+                        {t('dashboard.table.amount')}
+                      </th>
+                      <th style={{ background: 'transparent', paddingRight: 0 }}>
+                        {t('dashboard.table.status')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -674,7 +699,9 @@ export default function DashboardPage() {
                 </table>
               </div>
             ) : (
-              <EmptyRow>{isLoading ? 'Loading...' : 'No recent invoices in this window.'}</EmptyRow>
+              <EmptyRow>
+                {isLoading ? t('common.loading') : t('dashboard.noRecentInvoices')}
+              </EmptyRow>
             )}
           </SectionPanel>
           <DividerRight className="hidden lg:block -right-4" />
@@ -683,7 +710,10 @@ export default function DashboardPage() {
 
         {/* Sales by Route */}
         <div className="relative">
-          <SectionPanel title="Sales by Route" subtitle="Top routes this week, by invoiced value">
+          <SectionPanel
+            title={t('dashboard.salesByRoute')}
+            subtitle={t('dashboard.topRoutesThisWeek')}
+          >
             {totalRouteValue > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div
@@ -720,7 +750,7 @@ export default function DashboardPage() {
                       {formatAxisMoney(totalRouteValue)}
                     </span>
                     <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-dim)', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      This Week
+                      {t('dashboard.thisWeek')}
                     </span>
                   </div>
                 </div>
@@ -739,7 +769,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <EmptyRow>{isLoading ? 'Loading...' : 'No route sales in this window.'}</EmptyRow>
+              <EmptyRow>{isLoading ? t('common.loading') : t('dashboard.noRouteSales')}</EmptyRow>
             )}
           </SectionPanel>
           <DividerRight className="hidden lg:block -right-4" />
@@ -748,14 +778,17 @@ export default function DashboardPage() {
 
         {/* Cash & Cheque Collections Summary */}
         <div className="relative">
-          <SectionPanel title="Cash & Cheque Summary" subtitle="Breakdown of today's collections by payment instrument">
+          <SectionPanel
+            title={t('dashboard.cashChequeSummary')}
+            subtitle={t('dashboard.cashChequeSubtitle')}
+          >
             {cashToday + chequeToday > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 6 }}>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-teal)' }} />
-                      Cash Collections
+                      {t('dashboard.cashCollections')}
                     </span>
                     <span style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}>
                       {formatCurrency(cashToday)} ({Math.round((cashToday / cashChequeTotal) * 100)}%)
@@ -769,7 +802,7 @@ export default function DashboardPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-blue)' }} />
-                      Cheque Collections
+                      {t('dashboard.chequeCollections')}
                     </span>
                     <span style={{ fontSize: 12, fontWeight: 850, color: 'var(--color-text-primary)' }}>
                       {formatCurrency(chequeToday)} ({Math.round((chequeToday / cashChequeTotal) * 100)}%)
@@ -781,7 +814,9 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <EmptyRow>{isLoading ? 'Loading...' : 'No collections recorded today yet.'}</EmptyRow>
+              <EmptyRow>
+                {isLoading ? t('common.loading') : t('dashboard.noCollectionsToday')}
+              </EmptyRow>
             )}
           </SectionPanel>
         </div>

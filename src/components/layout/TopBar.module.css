@@ -186,6 +186,40 @@
   position: relative;
 }
 
+.languageSelectWrap {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: transparent;
+  padding: 0 8px;
+  color: var(--color-text-muted);
+}
+
+.languageIcon {
+  height: 15px;
+  width: 15px;
+  flex-shrink: 0;
+  color: var(--color-text-dim);
+}
+
+.languageSelect {
+  min-width: 38px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  outline: 0;
+}
+
+.languageSelect option {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
 .notificationsDropdown {
   position: absolute;
   right: 0;
@@ -474,7 +508,8 @@
 
 :root[data-theme='light'] .clockChip,
 :root[data-theme='light'] .notificationButton,
-:root[data-theme='light'] .profileButton {
+:root[data-theme='light'] .profileButton,
+:root[data-theme='light'] .languageSelectWrap {
   background: #f8fbff;
   border-color: #b7c8e4;
 }
@@ -482,7 +517,8 @@
 :root[data-theme='light'] .notificationButton:hover,
 :root[data-theme='light'] .notificationButtonOpen,
 :root[data-theme='light'] .profileButtonOpen,
-:root[data-theme='light'] .profileButtonClosed:hover {
+:root[data-theme='light'] .profileButtonClosed:hover,
+:root[data-theme='light'] .languageSelectWrap:hover {
   background: #ffffff;
   border-color: #9bb7df;
 }
@@ -528,6 +564,15 @@
 
   .rightGroup {
     gap: 6px;
+  }
+
+  .languageSelectWrap {
+    height: 38px;
+    padding: 0 7px;
+  }
+
+  .languageIcon {
+    display: none;
   }
 
   .profileButton {

@@ -1,9 +1,11 @@
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@stores/authStore'
+import { useLanguage } from '@/i18n'
 import { describePermissionRequirement, userMeetsPermissionRequirement } from '@/utils/permissions'
 
 function AccessDenied({ requiredPermission }) {
   const location = useLocation()
+  const { t } = useLanguage()
 
   return (
     <div
@@ -16,7 +18,7 @@ function AccessDenied({ requiredPermission }) {
       }}
     >
       <div className="panel" style={{ maxWidth: 520, padding: 28, textAlign: 'center' }}>
-        <p className="eyebrow">Access denied</p>
+        <p className="eyebrow">{t('auth.accessDenied')}</p>
         <h1
           style={{
             marginTop: 10,
@@ -25,11 +27,10 @@ function AccessDenied({ requiredPermission }) {
             color: 'var(--color-text-primary)',
           }}
         >
-          You do not have permission.
+          {t('auth.noPermission')}
         </h1>
         <p style={{ marginTop: 10, fontSize: 14, color: 'var(--color-text-muted)' }}>
-          Your account cannot access {location.pathname}. Ask an administrator to grant the required
-          permission.
+          {t('auth.noPermissionDescription', { path: location.pathname })}
         </p>
         {requiredPermission ? (
           <p
@@ -51,7 +52,7 @@ function AccessDenied({ requiredPermission }) {
             textDecoration: 'none',
           }}
         >
-          Back to Dashboard
+          {t('common.backToDashboard')}
         </Link>
       </div>
     </div>
@@ -60,12 +61,13 @@ function AccessDenied({ requiredPermission }) {
 
 export function ProtectedRoute({ children, requiredRole, requiredPermission }) {
   const { isAuthenticated, isLoading, hasRole, user } = useAuthStore()
+  const { t } = useLanguage()
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg-base px-4">
         <div className="panel w-full max-w-md p-8 text-center">
-          <p className="eyebrow">Authorizing</p>
-          <p className="mt-3 text-lg text-text-primary">Preparing the ERP shell...</p>
+          <p className="eyebrow">{t('common.authorizing')}</p>
+          <p className="mt-3 text-lg text-text-primary">{t('common.preparingShell')}</p>
         </div>
       </div>
     )

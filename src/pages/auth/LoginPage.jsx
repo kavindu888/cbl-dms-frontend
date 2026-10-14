@@ -1,18 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, EyeOff } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Eye, EyeOff, Languages } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { useAuthStore } from '@stores/authStore'
 import loginBg from '@/assets/login_bg.png'
-const loginSchema = z.object({
-  username: z.string().trim().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
-  rememberMe: z.boolean().optional(),
-})
-function getErrorMessage(error) {
+import { useLanguage } from '@/i18n'
+function getErrorMessage(error, fallback) {
   if (
     error &&
     typeof error === 'object' &&
@@ -21,12 +17,22 @@ function getErrorMessage(error) {
   ) {
     return error.message
   }
-  return 'Unable to sign in. Please check your credentials.'
+  return fallback
 }
 export default function LoginPage() {
   const navigate = useNavigate()
   const { login, isLoading } = useAuthStore()
+  const { language, languages, setLanguage, t } = useLanguage()
   const [showPassword, setShowPassword] = useState(false)
+  const loginSchema = useMemo(
+    () =>
+      z.object({
+        username: z.string().trim().min(1, t('auth.usernameRequired')),
+        password: z.string().min(1, t('auth.passwordRequired')),
+        rememberMe: z.boolean().optional(),
+      }),
+    [t]
+  )
   const {
     register,
     handleSubmit,
@@ -48,7 +54,7 @@ export default function LoginPage() {
       await login(username, values.password)
       navigate('/', { replace: true })
     } catch (error) {
-      toast.error(getErrorMessage(error))
+      toast.error(getErrorMessage(error, t('auth.loginFailed')))
     }
   }
   return (
@@ -94,7 +100,7 @@ export default function LoginPage() {
           </span>
           <div className="w-px h-4 bg-white/20" />
           <span className="text-xs text-white/60 font-semibold uppercase tracking-wider">
-            Distribution Hub
+            {t('app.brandSubtitle')}
           </span>
         </div>
 
@@ -168,11 +174,10 @@ export default function LoginPage() {
               FlowLink
             </h1>
             <p className="text-[11px] font-bold tracking-[0.4em] text-white/50 mb-8 uppercase">
-              Intelligent Distribution Platform
+              {t('auth.intelligentPlatform')}
             </p>
             <p className="text-base text-white/70 leading-relaxed font-medium">
-              Connecting fleet operations, logistics networks, and business intelligence in real
-              time.
+              {t('auth.platformDescription')}
             </p>
           </div>
         </div>
@@ -189,6 +194,44 @@ export default function LoginPage() {
       <div className="relative flex w-full lg:w-2/5 items-center justify-center bg-bg-base">
         {/* Ambient glow matching theme colors */}
         <div className="absolute right-0 top-0 size-80 rounded-full bg-linear-to-br from-purple/10 to-amber/5 blur-3xl pointer-events-none" />
+        <label
+          aria-label={t('common.language')}
+          style={{
+            position: 'absolute',
+            top: 20,
+            right: 24,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            height: 38,
+            border: '1px solid var(--color-border)',
+            borderRadius: 8,
+            padding: '0 10px',
+            background: 'var(--color-bg-surface)',
+            color: 'var(--color-text-muted)',
+            zIndex: 20,
+          }}
+        >
+          <Languages size={16} />
+          <select
+            value={language}
+            onChange={(event) => setLanguage(event.target.value)}
+            style={{
+              border: 0,
+              outline: 0,
+              background: 'transparent',
+              color: 'var(--color-text-primary)',
+              fontWeight: 700,
+              fontSize: 12,
+            }}
+          >
+            {languages.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.shortLabel}
+              </option>
+            ))}
+          </select>
+        </label>
 
         {/* Form card — constrained width, no card background, left-aligned */}
         <div className="relative z-10 w-full" style={{ maxWidth: '360px', padding: '0 0' }}>
@@ -203,14 +246,14 @@ export default function LoginPage() {
               letterSpacing: '-0.5px',
             }}
           >
-            Welcome Back
+            {t('auth.welcomeBack')}
           </h2>
 
           {/* ── Subtitle ── */}
           <p
             style={{ fontSize: '0.92rem', color: 'var(--color-text-muted)', marginBottom: '36px' }}
           >
-            Sign in to your account
+            {t('auth.signInSubtitle')}
           </p>
 
           <form onSubmit={handleSubmit(onSubmit)}>
@@ -227,14 +270,14 @@ export default function LoginPage() {
                 marginBottom: '8px',
               }}
             >
-              Username
+              {t('auth.username')}
             </label>
 
             {/* ── Username input ── */}
             <input
               id="username"
               type="text"
-              placeholder="Enter username"
+              placeholder={t('auth.enterUsername')}
               autoComplete="username"
               style={{
                 display: 'block',
@@ -294,7 +337,7 @@ export default function LoginPage() {
                 marginBottom: '8px',
               }}
             >
-              Password
+              {t('auth.password')}
             </label>
 
             {/* ── Password input ── */}
@@ -338,6 +381,7 @@ export default function LoginPage() {
               />
               <button
                 type="button"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
                 onClick={() => setShowPassword((prev) => !prev)}
                 style={{
                   position: 'absolute',
@@ -396,7 +440,7 @@ export default function LoginPage() {
                   {...register('rememberMe')}
                 />
                 <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                  Remember me
+                  {t('auth.rememberMe')}
                 </span>
               </label>
             </div>
@@ -434,7 +478,7 @@ export default function LoginPage() {
                 e.currentTarget.style.boxShadow = '0 4px 14px rgba(142, 232, 240, 0.15)'
               }}
             >
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading ? t('auth.signingIn') : t('auth.signIn')}
             </button>
 
             {/* ── Having trouble ── */}
@@ -446,7 +490,7 @@ export default function LoginPage() {
                 margin: 0,
               }}
             >
-              Having trouble?{' '}
+              {t('auth.havingTrouble')}{' '}
               <button
                 type="button"
                 style={{
@@ -461,7 +505,7 @@ export default function LoginPage() {
                 onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-purple)')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-amber)')}
               >
-                Contact IT Support
+                {t('auth.contactSupport')}
               </button>
             </p>
           </form>

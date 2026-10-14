@@ -48,60 +48,61 @@ import { cn } from '@/utils'
 import { PERMISSIONS, userMeetsPermissionRequirement } from '@/utils/permissions'
 import { purchasingService } from '@/services/api/purchasingService'
 import { ReturnNoteStatus } from '@/types/purchasing.types'
+import { useLanguage } from '@/i18n'
 import styles from './Sidebar.module.css'
 const navGroups = [
   {
-    label: 'OPERATIONS',
-    items: [{ label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true }],
+    labelKey: 'nav.operations',
+    items: [{ labelKey: 'common.dashboard', to: '/', icon: LayoutDashboard, end: true }],
   },
   {
-    label: 'SALES',
+    labelKey: 'nav.sales',
     items: [
       {
-        label: 'Customer',
+        labelKey: 'nav.customer',
         to: '/sales/customers',
         icon: User,
         permissions: [PERMISSIONS.sales.customerRead, PERMISSIONS.sales.customerManage],
       },
       {
-        label: 'Customer Groups',
+        labelKey: 'nav.customerGroups',
         to: '/sales/customer-groups',
         icon: Users,
         permissions: PERMISSIONS.sales.customerManage,
       },
       {
-        label: 'Invoices',
+        labelKey: 'nav.invoices',
         to: '/sales/invoices',
         icon: FileText,
         end: true,
         permissions: PERMISSIONS.sales.invoiceRead,
       },
       {
-        label: 'New Invoice',
+        labelKey: 'nav.newInvoice',
         to: '/sales/invoices/new',
         icon: ClipboardList,
         permissions: PERMISSIONS.sales.invoiceCreate,
       },
       {
-        label: 'Invoice Payment Record',
+        labelKey: 'nav.invoicePaymentRecord',
         to: '/sales/invoice-payment-record',
         icon: Banknote,
         permissions: { all: [PERMISSIONS.sales.invoiceRead, PERMISSIONS.sales.invoiceAddPayment] },
       },
       {
-        label: 'Return Notes',
+        labelKey: 'nav.returnNotes',
         to: '/sales/return-notes',
         icon: Undo2,
         permissions: PERMISSIONS.sales.crnView,
       },
       {
-        label: 'Customer Credit',
+        labelKey: 'nav.customerCredit',
         to: '/sales/customer-credit',
         icon: Banknote,
         permissions: PERMISSIONS.sales.customerCreditView,
       },
       {
-        label: 'Stuck Reservations',
+        labelKey: 'nav.stuckReservations',
         to: '/sales/orders/stuck-reservations',
         icon: Unlock,
         permissions: PERMISSIONS.sales.orderCancel,
@@ -109,22 +110,22 @@ const navGroups = [
     ],
   },
   {
-    label: 'COLLECTIONS',
+    labelKey: 'nav.collections',
     items: [
       {
-        label: 'Daily Sessions',
+        labelKey: 'nav.dailySessions',
         to: '/collections/sessions',
         icon: ClipboardList,
         permissions: [PERMISSIONS.collections.sessionRead, PERMISSIONS.collections.sessionCreate],
       },
       {
-        label: 'Cheques',
+        labelKey: 'nav.cheques',
         to: '/collections/cheques',
         icon: FileCheck2,
         permissions: [PERMISSIONS.collections.chequeRead, PERMISSIONS.collections.chequeManage],
       },
       {
-        label: 'Customer Accounts',
+        labelKey: 'nav.customerAccounts',
         to: '/collections/customer-accounts',
         icon: Users,
         permissions: [
@@ -133,13 +134,13 @@ const navGroups = [
         ],
       },
       {
-        label: 'Banks & Branches',
+        labelKey: 'nav.banksBranches',
         to: '/collections/banks',
         icon: Landmark,
         permissions: PERMISSIONS.collections.bankManage,
       },
       {
-        label: 'Collectors',
+        labelKey: 'nav.collectors',
         to: '/collections/collectors',
         icon: User,
         permissions: [
@@ -148,7 +149,7 @@ const navGroups = [
         ],
       },
       {
-        label: 'Salesmen',
+        labelKey: 'nav.salesmen',
         to: '/collections/salesmen',
         icon: UserCog,
         permissions: [
@@ -159,35 +160,35 @@ const navGroups = [
     ],
   },
   {
-    label: 'PURCHASING',
+    labelKey: 'nav.purchasing',
     items: [
       {
         isSubHeader: true,
-        label: 'Purchasing Order',
+        labelKey: 'nav.purchasingOrder',
       },
       {
-        label: 'New Purchase Order',
+        labelKey: 'nav.newPurchaseOrder',
         to: '/purchasing/place-order',
         icon: ShoppingCart,
         end: true,
         permissions: PERMISSIONS.purchasing.poCreate,
       },
       {
-        label: 'PO Approve & Reject',
+        labelKey: 'nav.poApproveReject',
         to: '/purchasing/approvals',
         icon: ListChecks,
         end: true,
         permissions: { all: [PERMISSIONS.purchasing.poRead, PERMISSIONS.purchasing.poApprove] },
       },
       {
-        label: 'Approved Purchase Orders',
+        labelKey: 'nav.approvedPurchaseOrders',
         to: '/purchasing/approved',
         icon: BadgeCheck,
         end: true,
         permissions: PERMISSIONS.purchasing.poRead,
       },
       {
-        label: 'Purchase Orders List',
+        labelKey: 'nav.purchaseOrdersList',
         to: '/purchasing/all-orders',
         icon: ClipboardList,
         end: true,
@@ -195,24 +196,24 @@ const navGroups = [
       },
       {
         isSubHeader: true,
-        label: 'GRN',
+        labelKey: 'nav.grn',
       },
       {
-        label: 'New Goods Receipt',
+        labelKey: 'nav.newGoodsReceipt',
         to: '/purchasing/goods-receipt-entry',
         icon: PackageCheck,
         end: true,
         permissions: PERMISSIONS.purchasing.grnCreate,
       },
       {
-        label: 'GRN Approve & Reject',
+        labelKey: 'nav.grnApproveReject',
         to: '/purchasing/grn-approve-reject',
         icon: ListChecks,
         end: true,
         permissions: PERMISSIONS.purchasing.grnVerify,
       },
       {
-        label: 'Goods Receipt List',
+        labelKey: 'nav.goodsReceiptList',
         to: '/purchasing/goods-receipts',
         icon: ClipboardCheck,
         end: true,
@@ -220,10 +221,10 @@ const navGroups = [
       },
       {
         isSubHeader: true,
-        label: 'Return Note',
+        labelKey: 'nav.returnNote',
       },
       {
-        label: 'Purchase Returns',
+        labelKey: 'nav.purchaseReturns',
         to: '/purchasing/return-notes',
         icon: Undo2,
         end: true,
@@ -234,7 +235,7 @@ const navGroups = [
         ],
       },
       {
-        label: 'RN Approve & Reject',
+        labelKey: 'nav.rnApproveReject',
         to: '/purchasing/return-notes/approvals',
         icon: CheckSquare,
         end: true,
@@ -243,10 +244,10 @@ const navGroups = [
       },
       {
         isSubHeader: true,
-        label: 'Settlement',
+        labelKey: 'nav.settlement',
       },
       {
-        label: 'Supplier Settlement',
+        labelKey: 'nav.supplierSettlement',
         to: '/purchasing/settlement',
         icon: Banknote,
         end: true,
@@ -259,7 +260,7 @@ const navGroups = [
   //   items: [{ label: 'Collections', to: '/collections/daily', icon: Banknote }],
   // },
   {
-    label: 'MASTER',
+    labelKey: 'nav.master',
     items: [
       // {
       //   label: 'Supplier',
@@ -268,38 +269,38 @@ const navGroups = [
       //   permissions: PERMISSIONS.purchasing.supplierManage,
       // },
       {
-        label: 'Product',
+        labelKey: 'nav.product',
         to: '/master/products',
         icon: Package,
         end: true,
         permissions: PERMISSIONS.masterData.productRead,
       },
       {
-        label: 'Category',
+        labelKey: 'nav.category',
         to: '/master/categories',
         icon: Tags,
         permissions: PERMISSIONS.masterData.categoryManage,
       },
       {
-        label: 'Category Discounts',
+        labelKey: 'nav.categoryDiscounts',
         to: '/master/category-discounts',
         icon: Percent,
         permissions: PERMISSIONS.masterData.categoryManage,
       },
       {
-        label: 'UOM',
+        labelKey: 'nav.uom',
         to: '/master/units-of-measure',
         icon: Ruler,
         permissions: PERMISSIONS.masterData.uomManage,
       },
       {
-        label: 'Sales Routes',
+        labelKey: 'nav.salesRoutes',
         to: '/master/sales-routes',
         icon: Route,
         permissions: PERMISSIONS.masterData.salesRouteManage,
       },
       {
-        label: 'Delivery Runs',
+        labelKey: 'nav.deliveryRuns',
         to: '/master/delivery-runs',
         icon: Truck,
         permissions: PERMISSIONS.masterData.salesRouteManage,
@@ -307,17 +308,17 @@ const navGroups = [
     ],
   },
   {
-    label: 'INVENTORY',
+    labelKey: 'nav.inventory',
     items: [
       {
-        label: 'Stock Overview',
+        labelKey: 'nav.stockOverview',
         to: '/inventory/stock',
         icon: Package,
         end: true,
         permissions: PERMISSIONS.inventory.stockRead,
       },
       {
-        label: 'Opening Stock',
+        labelKey: 'nav.openingStock',
         to: '/inventory/opening-stock',
         icon: PackagePlus,
         permissions: PERMISSIONS.inventory.openingStock,
@@ -329,7 +330,7 @@ const navGroups = [
       //   permissions: PERMISSIONS.inventory.stockRead,
       // },
       {
-        label: 'In-Store Returns',
+        labelKey: 'nav.inStoreReturns',
         to: '/inventory/in-store-returns',
         icon: PackageX,
         permissions: [
@@ -338,7 +339,7 @@ const navGroups = [
         ],
       },
       {
-        label: 'Stock Adjustments',
+        labelKey: 'nav.stockAdjustments',
         to: '/inventory/stock-adjustments',
         icon: SlidersHorizontal,
         permissions: PERMISSIONS.inventory.stockAdjustmentCreate,
@@ -350,25 +351,25 @@ const navGroups = [
       //   permissions: PERMISSIONS.inventory.stockRead,
       // },
       {
-        label: 'Stock Batches',
+        labelKey: 'nav.stockBatches',
         to: '/inventory/batches',
         icon: PackageCheck,
         permissions: PERMISSIONS.inventory.stockRead,
       },
       {
-        label: 'Vehicle Loading',
+        labelKey: 'nav.vehicleLoading',
         to: '/inventory/vehicle-loadings',
         icon: Truck,
         permissions: PERMISSIONS.inventory.vehicleLoad,
       },
       {
-        label: 'Vehicle Unloading',
+        labelKey: 'nav.vehicleUnloading',
         to: '/inventory/vehicle-unloadings',
         icon: PackageOpen,
         permissions: PERMISSIONS.inventory.vehicleUnload,
       },
       {
-        label: 'Stock Locations',
+        labelKey: 'nav.stockLocations',
         to: '/inventory/locations',
         icon: Warehouse,
         permissions: PERMISSIONS.inventory.stockRead,
@@ -394,38 +395,38 @@ const navGroups = [
     ],
   },
   {
-    label: 'REPORTS',
+    labelKey: 'nav.reports',
     items: [
       {
-        label: 'Stock Report',
+        labelKey: 'nav.stockReport',
         to: '/reports/stock',
         icon: BarChart3,
         end: true,
         permissions: PERMISSIONS.reporting.viewReports,
       },
         {
-          label: 'Credit Aging Report',
+          labelKey: 'nav.creditAgingReport',
           to: '/reports/credit-aging',
           icon: TrendingUp,
           end: true,
           permissions: PERMISSIONS.reporting.viewReports,
         },
         {
-          label: 'Discount Report',
+          labelKey: 'nav.discountReport',
           to: '/reports/discount',
           icon: Percent,
           end: true,
           permissions: PERMISSIONS.reporting.discountView,
         },
         {
-          label: 'Daily Collection Report',
+          labelKey: 'nav.dailyCollectionReport',
         to: '/reports/daily-collection',
         icon: Banknote,
         end: true,
         permissions: PERMISSIONS.reporting.viewReports,
       },
       {
-        label: 'Month End Report',
+        labelKey: 'nav.monthEndReport',
         to: '/reports/month-end',
         icon: CalendarDays,
         end: true,
@@ -434,10 +435,10 @@ const navGroups = [
     ],
   },
   {
-    label: 'ADMIN',
+    labelKey: 'nav.admin',
     items: [
       {
-        label: 'Users',
+        labelKey: 'nav.users',
         to: '/users',
         icon: UserCog,
         end: true,
@@ -445,7 +446,7 @@ const navGroups = [
       },
       // { label: 'Roles & Permissions', to: '/users/roles', icon: Shield },
       {
-        label: 'Settings',
+        labelKey: 'nav.settings',
         to: '/settings',
         icon: Settings,
         permissions: [
@@ -466,7 +467,7 @@ function closeMobileSidebar() {
 function normalizeSearch(value) {
   return value.trim().toLowerCase()
 }
-function SidebarLink({ collapsed, item }) {
+function SidebarLink({ collapsed, item, label }) {
   const Icon = item.icon
   const link = (
     <NavLink
@@ -493,7 +494,7 @@ function SidebarLink({ collapsed, item }) {
           </div>
           {!collapsed ? (
             <>
-              <span className="truncate">{item.label}</span>
+              <span className="truncate">{label}</span>
               {item.badge ? (
                 <span
                   className="mono"
@@ -530,7 +531,7 @@ function SidebarLink({ collapsed, item }) {
       <Tooltip.Trigger asChild>{link}</Tooltip.Trigger>
       <Tooltip.Portal>
         <Tooltip.Content side="right" sideOffset={12} className={styles.tooltipContent}>
-          {item.label}
+          {label}
         </Tooltip.Content>
       </Tooltip.Portal>
     </Tooltip.Root>
@@ -539,6 +540,7 @@ function SidebarLink({ collapsed, item }) {
 export default function Sidebar() {
   const { sidebarCollapsed, sidebarMobileOpen } = useUIStore()
   const { user, logout } = useAuthStore()
+  const { t } = useLanguage()
   const [searchQuery, setSearchQuery] = useState('')
   const [pendingReturnApprovals, setPendingReturnApprovals] = useState(0)
   const displayName = user ? `${user.username}` : 'admin'
@@ -602,7 +604,7 @@ export default function Sidebar() {
         .map((group) => {
           const items = group.items.filter((item) => {
             if (item.isSubHeader) return false
-            const haystack = `${group.label} ${item.label}`.toLowerCase()
+            const haystack = `${t(group.labelKey)} ${t(item.labelKey)}`.toLowerCase()
             return haystack.includes(normalizedQuery)
           })
           return items.length ? { ...group, items } : null
@@ -670,7 +672,7 @@ export default function Sidebar() {
                   fontWeight: 700,
                 }}
               >
-                Distribution Hub
+                {t('app.brandSubtitle')}
               </p>
             </div>
           ) : null}
@@ -684,15 +686,15 @@ export default function Sidebar() {
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search menu..."
-                aria-label="Search menu"
+                placeholder={`${t('common.searchMenu')}...`}
+                aria-label={t('common.searchMenu')}
                 className={styles.searchInput}
               />
               {searchQuery ? (
                 <button
                   type="button"
                   className={styles.searchClear}
-                  aria-label="Clear search"
+                  aria-label={t('common.clearSearch')}
                   onClick={() => setSearchQuery('')}
                 >
                   x
@@ -705,25 +707,32 @@ export default function Sidebar() {
         <div className={styles.navContent}>
           {filteredNavGroups.length ? (
             filteredNavGroups.map((group) => (
-              <div key={group.label} className={styles.navGroup}>
-                {!sidebarCollapsed ? <p className={styles.navGroupLabel}>{group.label}</p> : null}
+              <div key={group.labelKey} className={styles.navGroup}>
+                {!sidebarCollapsed ? (
+                  <p className={styles.navGroupLabel}>{t(group.labelKey)}</p>
+                ) : null}
                 <div className={styles.navList}>
                   {group.items.map((item, idx) =>
                     item.isSubHeader ? (
                       !sidebarCollapsed ? (
                         <div key={`sub-${idx}`} className={styles.subHeader}>
-                          {item.label}
+                          {t(item.labelKey)}
                         </div>
                       ) : null
                     ) : (
-                      <SidebarLink key={item.to} collapsed={sidebarCollapsed} item={item} />
+                      <SidebarLink
+                        key={item.to}
+                        collapsed={sidebarCollapsed}
+                        item={item}
+                        label={t(item.labelKey)}
+                      />
                     )
                   )}
                 </div>
               </div>
             ))
           ) : !sidebarCollapsed ? (
-            <div className={styles.searchEmptyState}>No menu items found.</div>
+            <div className={styles.searchEmptyState}>{t('common.noMenuItemsFound')}</div>
           ) : null}
         </div>
 
@@ -743,11 +752,13 @@ export default function Sidebar() {
             <button
               type="button"
               className={styles.logoutButton}
-              aria-label="Logout"
+              aria-label={t('common.logout')}
               onClick={() => void logout()}
             >
               <LogOut className={styles.logoutIcon} />
-              {!sidebarCollapsed ? <span className={styles.logoutLabel}>Logout</span> : null}
+              {!sidebarCollapsed ? (
+                <span className={styles.logoutLabel}>{t('common.logout')}</span>
+              ) : null}
             </button>
           </div>
         </div>

@@ -24,6 +24,7 @@
 
   /* ── Fonts ──────────────────────────────────────────────────── */
   --font-sans: 'Geist Variable', system-ui, sans-serif;
+  --font-sinhala: 'Noto Sans Sinhala', 'Nirmala UI', 'Iskoola Pota', 'Malithi Web', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
   /* ── Radius ─────────────────────────────────────────────────── */
@@ -68,6 +69,10 @@ body,
 body {
   margin: 0;
   color-scheme: dark;
+}
+
+:root[data-language='si'] {
+  --font-sans: var(--font-sinhala);
 }
 
 a {

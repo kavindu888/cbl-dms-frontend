@@ -16,6 +16,7 @@ import {
   getReturnCreditAmount,
   calculateSalesOrderSummary,
 } from '@/utils/salesOrderCalculations'
+import { useLanguage } from '@/i18n'
 
 const emptyLine = {
   productId: '',
@@ -114,10 +115,10 @@ const readOnlyDisplayStyle = {
 }
 
 const returnReasonOptions = [
-  { value: 1, label: 'Damaged' },
-  { value: 2, label: 'Expired' },
-  { value: 3, label: 'Short Expiry' },
-  { value: 4, label: 'Unwanted' },
+  { value: 1, labelKey: 'invoiceCreator.damaged' },
+  { value: 2, labelKey: 'invoiceCreator.expired' },
+  { value: 3, labelKey: 'invoiceCreator.shortExpiry' },
+  { value: 4, labelKey: 'invoiceCreator.unwanted' },
 ]
 
 const invalidQuantityKeys = new Set(['.', ',', 'e', 'E', '+', '-'])
@@ -358,6 +359,7 @@ function SearchablePicker({
 }
 
 export default function InvoiceCreatorPage() {
+  const { t } = useLanguage()
   const location = useLocation()
   const navigate = useNavigate()
   const { id: routeInvoiceId } = useParams()
@@ -628,7 +630,7 @@ export default function InvoiceCreatorPage() {
         })
         setLinePage(1)
       } catch (err) {
-        toast.error('Unable to fetch latest Sales Order detail.')
+        toast.error(t('invoiceCreator.salesOrderFetchFailed'))
       } finally {
         setIsLoadingData(false)
       }
@@ -677,7 +679,7 @@ export default function InvoiceCreatorPage() {
       try {
         const invoice = await salesService.getInvoice(routeInvoiceId)
         if (invoice.status !== 'Draft') {
-          toast.error('Only draft invoices can be edited.')
+          toast.error(t('invoiceCreator.onlyDraftEditable'))
           navigate(`/sales/invoices/${routeInvoiceId}`, { replace: true })
           return
         }
@@ -740,7 +742,7 @@ export default function InvoiceCreatorPage() {
         setLinePage(1)
         lastDraftPayloadRef.current = ''
       } catch (error) {
-        toast.error(error?.message || 'Unable to load draft invoice.')
+        toast.error(error?.message || t('invoiceCreator.unableLoadDraftInvoice'))
       } finally {
         isHydratingDraftRef.current = false
         setIsLoadingData(false)
@@ -875,7 +877,7 @@ export default function InvoiceCreatorPage() {
       setValue(`lines.${index}.specialDiscountMax`, specialDiscount ?? 0, { shouldDirty: true })
       setValue(`lines.${index}.specialDiscountPercent`, 0, { shouldDirty: true })
     } catch (error) {
-      toast.error(error?.message || 'Unable to load product details.')
+      toast.error(error?.message || t('invoiceCreator.unableLoadProductDetails'))
       const product = productById[productId]
       setValue(`lines.${index}.unitId`, product?.smallestUnitId || product?.uomBase || '', {
         shouldDirty: true,
@@ -925,7 +927,7 @@ export default function InvoiceCreatorPage() {
         discountPercent: Number(categoryDiscount || 0),
       }))
     } catch (error) {
-      toast.error(error?.message || 'Unable to load return product details.')
+      toast.error(error?.message || t('invoiceCreator.unableLoadReturnProductDetails'))
       const product = productById[productId]
       setReturnDraftLine((current) => ({
         ...current,
@@ -946,7 +948,7 @@ export default function InvoiceCreatorPage() {
 
   function handleAddReturnLine() {
     if (!returnDraftLine.productId) {
-      toast.error('Return product is required.')
+      toast.error(t('invoiceCreator.returnProductRequired'))
       return
     }
 
@@ -954,7 +956,7 @@ export default function InvoiceCreatorPage() {
       Number(returnDraftLine.quantity) <= 0 ||
       !Number.isInteger(Number(returnDraftLine.quantity))
     ) {
-      toast.error('Return quantity must be a whole number greater than zero.')
+      toast.error(t('invoiceCreator.returnQuantityInvalid'))
       return
     }
 
@@ -1039,23 +1041,23 @@ export default function InvoiceCreatorPage() {
   function validate(values) {
     const cleanedSerialNumber = serialNumber.trim()
     if (!cleanedSerialNumber) {
-      return 'Serial Number is required.'
+      return t('invoiceCreator.serialNumberRequired')
     }
 
     if (!/^[a-zA-Z0-9]+$/.test(cleanedSerialNumber)) {
-      return 'Serial Number can contain only letters and numbers.'
+      return t('invoiceCreator.serialNumberLettersOnly')
     }
 
     if (!values.customerId) {
-      return 'Customer is required.'
+      return t('invoiceCreator.customerRequired')
     }
 
     if (!values.salesRouteId) {
-      return 'Selected customer does not have a sales route.'
+      return t('invoiceCreator.noCustomerSalesRoute')
     }
 
     if (!invoiceDate) {
-      return 'Invoice date is required.'
+      return t('invoiceCreator.invoiceDateRequired')
     }
 
     const invalidLine = values.lines.find(
@@ -1075,12 +1077,12 @@ export default function InvoiceCreatorPage() {
     )
 
     if (invalidLine) {
-      return 'Each line needs a product, a whole-number quantity greater than zero, and discounts within their allowed maximums.'
+      return t('invoiceCreator.invalidLine')
     }
 
     const maxManualDiscount = Math.max(0, totals.gross - totals.categoryDiscount)
     if (totals.skuDiscount + totals.specialDiscount > maxManualDiscount) {
-      return 'SKU discount and special discount cannot exceed the gross amount after category discount.'
+      return t('invoiceCreator.manualDiscountTooHigh')
     }
 
     return ''
@@ -1090,7 +1092,7 @@ export default function InvoiceCreatorPage() {
     if (isFromSalesOrder) return null
 
     if (!deliveryRunId) {
-      throw new Error('Selected route does not have a delivery run assigned.')
+      throw new Error(t('invoiceCreator.selectedRouteNoDeliveryRun'))
     }
 
     const appliedLoadings = await inventoryService.listVehicleLoadings({ status: 2 })
@@ -1102,7 +1104,10 @@ export default function InvoiceCreatorPage() {
 
     if (matchingLoadings.length === 0) {
       throw new Error(
-        `No applied vehicle loading found for ${deliveryRunName || 'this delivery run'} on ${invoiceDate}.`
+        t('invoiceCreator.noAppliedVehicleLoading', {
+          run: deliveryRunName || t('invoiceCreator.thisDeliveryRun'),
+          date: invoiceDate,
+        })
       )
     }
 
@@ -1112,7 +1117,10 @@ export default function InvoiceCreatorPage() {
 
     if (vehicleLocationIds.length !== 1) {
       throw new Error(
-        `Multiple vehicles are loaded for ${deliveryRunName || 'this delivery run'} on ${invoiceDate}. Select the correct vehicle before invoicing.`
+        t('invoiceCreator.multipleVehicleLoadings', {
+          run: deliveryRunName || t('invoiceCreator.thisDeliveryRun'),
+          date: invoiceDate,
+        })
       )
     }
 
@@ -1316,14 +1324,14 @@ export default function InvoiceCreatorPage() {
       setSalesRouteName('')
       setLinePage(1)
       if (isFromSalesOrder) {
-        toast.success('Sales order converted to invoice.')
+        toast.success(t('invoiceCreator.salesOrderConverted'))
         navigate(invoiceId ? `/sales/invoices/${invoiceId}` : '/sales/invoices/new', { replace: true })
       } else {
-        toast.success('Invoice created successfully.')
+        toast.success(t('invoiceCreator.invoiceCreated'))
         navigate(invoiceId ? `/sales/invoices/${invoiceId}` : '/sales/invoices', { replace: true })
       }
     } catch (error) {
-      toast.error(error?.message || 'Invoice could not be created.')
+      toast.error(error?.message || t('invoiceCreator.invoiceCreateFailed'))
     } finally {
       setIsSaving(false)
     }
@@ -1359,16 +1367,16 @@ export default function InvoiceCreatorPage() {
             }}
           >
             <ArrowLeft style={{ width: 14, height: 14 }} />
-            Back to Sales Order
+            {t('invoiceCreator.backToSalesOrder')}
           </button>
         ) : null}
         <div style={{ alignItems: 'center', display: 'flex', gap: 12 }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text-primary)' }}>
             {isFromSalesOrder
-              ? 'Convert to Invoice'
+              ? t('invoiceCreator.convertToInvoice')
               : isEditingDraftInvoice
-                ? 'Edit Draft Invoice'
-                : 'Create Invoice'}
+                ? t('invoiceCreator.editDraftInvoice')
+                : t('invoiceCreator.createInvoice')}
           </h1>
           {!isFromSalesOrder ? (
             <DraftStatusBadge status={draftStatus} lastSavedAt={lastSavedAt} />
@@ -1376,10 +1384,12 @@ export default function InvoiceCreatorPage() {
         </div>
         <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
           {isFromSalesOrder
-            ? `Converting Sales Order ${orderState.salesOrderNumber || ''}. You can adjust before saving.`
+            ? t('invoiceCreator.convertingSalesOrder', {
+                number: orderState.salesOrderNumber || '',
+              })
             : isEditingDraftInvoice
-              ? 'Changes stay as a draft until the invoice is finalized.'
-              : `Backend creates the invoice with today's server date: ${formatDate(new Date())}.`}
+              ? t('invoiceCreator.draftChangesHint')
+              : t('invoiceCreator.serverDateHint', { date: formatDate(new Date()) })}
         </p>
       </div>
 
@@ -1398,11 +1408,11 @@ export default function InvoiceCreatorPage() {
         >
           <Info style={{ width: 16, height: 16, flex: '0 0 auto' }} />
           <p style={{ margin: 0, fontSize: 13 }}>
-            Pre-filled from Sales Order{' '}
+            {t('invoiceCreator.convertedFromSalesOrder')}{' '}
             <span className="mono" style={{ fontWeight: 800 }}>
               {orderState.salesOrderNumber}
             </span>
-            . Review and adjust before saving.
+            . {t('invoiceCreator.reviewBeforeSaving')}
           </p>
         </div>
       ) : null}
@@ -1445,10 +1455,10 @@ export default function InvoiceCreatorPage() {
           >
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                Invoice Lines
+                {t('invoiceCreator.invoiceLines')}
               </h2>
               <p style={{ marginTop: 2, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                Add products, quantities, pricing, and discounts.
+                {t('invoiceCreator.addProductsHint')}
               </p>
             </div>
             <button
@@ -1458,7 +1468,7 @@ export default function InvoiceCreatorPage() {
               style={{ height: 34 }}
             >
               <Plus style={{ width: 14, height: 14 }} />
-              Add Item
+              {t('invoiceCreator.addItem')}
             </button>
           </div>
 
@@ -1478,7 +1488,7 @@ export default function InvoiceCreatorPage() {
             >
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Return Product
+                  {t('invoiceCreator.returnProduct')}
                 </label>
                 <SearchablePicker
                   inputRef={returnProductInputRef}
@@ -1499,14 +1509,14 @@ export default function InvoiceCreatorPage() {
                       .filter(Boolean)
                       .join(' - ')
                   }
-                  placeholder="Type SKU or product name..."
-                  emptyLabel="No matching active products"
+                  placeholder={t('invoiceCreator.typeSku')}
+                  emptyLabel={t('invoiceCreator.noMatchingProducts')}
                   disabled={isLoadingData || isSaving}
                 />
               </div>
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Qty
+                  {t('invoiceCreator.qty')}
                 </label>
                 <input
                   ref={returnQuantityInputRef}
@@ -1540,7 +1550,7 @@ export default function InvoiceCreatorPage() {
               </div>
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Reason
+                  {t('invoiceCreator.reason')}
                 </label>
                 <select
                   ref={returnReasonInputRef}
@@ -1561,14 +1571,14 @@ export default function InvoiceCreatorPage() {
                 >
                   {returnReasonOptions.map((reason) => (
                     <option key={reason.value} value={reason.value}>
-                      {reason.label}
+                      {t(reason.labelKey)}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Credit
+                  {t('invoiceCreator.credit')}
                 </label>
                 <div
                   className="form-input mono text-right"
@@ -1590,7 +1600,7 @@ export default function InvoiceCreatorPage() {
                 style={{ height: 38 }}
               >
                 <Plus style={{ width: 14, height: 14 }} />
-                Return
+                {t('invoiceCreator.return')}
               </button>
             </div>
           ) : null}
@@ -1617,23 +1627,23 @@ export default function InvoiceCreatorPage() {
               </colgroup>
               <thead>
                 <tr>
-                  <th>Product</th>
-                  <th>Smallest Unit</th>
+                  <th>{t('invoiceCreator.product')}</th>
+                  <th>{t('invoiceCreator.smallestUnit')}</th>
                   <th className="text-right">MRP</th>
-                  <th className="text-right">Qty</th>
+                  <th className="text-right">{t('invoiceCreator.qty')}</th>
                   <th className="text-center" title="Free item — reduces stock, charges nothing">
-                    Free
+                    {t('invoiceCreator.free')}
                   </th>
                   <th style={{ textAlign: 'right', paddingRight: 16 }}>
-                    Cat. Disc %
-                  </th>
-
-                  <th style={{ textAlign: 'right', paddingRight: 16 }}>
-                    Selling Price
+                    {t('invoiceCreator.catDiscPercent')}
                   </th>
 
                   <th style={{ textAlign: 'right', paddingRight: 16 }}>
-                    Total
+                    {t('dashboard.stockSellingValue')}
+                  </th>
+
+                  <th style={{ textAlign: 'right', paddingRight: 16 }}>
+                    {t('dashboard.table.amount')}
                   </th>
                   <th></th>
                 </tr>
@@ -1692,12 +1702,12 @@ export default function InvoiceCreatorPage() {
                           }
                           placeholder={
                             isLoadingData
-                              ? 'Loading products...'
+                              ? t('invoiceCreator.loadingProducts')
                               : products.length
-                                ? 'Type SKU or product name...'
-                                : 'No active products available'
+                                ? t('invoiceCreator.typeSku')
+                                : t('invoiceCreator.noActiveProducts')
                           }
-                          emptyLabel="No matching active products"
+                          emptyLabel={t('invoiceCreator.noMatchingProducts')}
                           disabled={isLoadingData || isSaving}
                         />
                         {line.productId ? (
@@ -1711,7 +1721,9 @@ export default function InvoiceCreatorPage() {
                             }}
                           >
                             {isLoadingAvailability[index] ? (
-                              <span style={{ color: 'var(--color-text-muted)' }}>Checking stock...</span>
+                              <span style={{ color: 'var(--color-text-muted)' }}>
+                                {t('invoiceCreator.checkingStock')}
+                              </span>
                             ) : availabilityByIndex[index] ? (
                               <span
                                 className="mono"
@@ -1722,22 +1734,27 @@ export default function InvoiceCreatorPage() {
                                       : 'var(--color-text-muted)',
                                 }}
                               >
-                                {resolvedVehicleLocationId ? 'Vehicle available ' : 'Main available '}
+                                {resolvedVehicleLocationId
+                                  ? `${t('invoiceCreator.vehicleAvailable')} `
+                                  : `${t('invoiceCreator.mainAvailable')} `}
                                 {Number(availabilityByIndex[index].totalAvailable || 0).toLocaleString()}
                                 {Number(availabilityByIndex[index].totalReserved) > 0 ? (
                                   <span style={{ color: 'var(--color-amber)' }}>
                                     {' '}
-                                    (Reserved {Number(availabilityByIndex[index].totalReserved || 0).toLocaleString()})
+                                    ({t('invoiceCreator.reserved')}{' '}
+                                    {Number(availabilityByIndex[index].totalReserved || 0).toLocaleString()})
                                   </span>
                                 ) : null}
                               </span>
                             ) : (
-                              <span style={{ color: 'var(--color-text-dim)' }}>Stock unknown</span>
+                              <span style={{ color: 'var(--color-text-dim)' }}>
+                                {t('invoiceCreator.stockUnknown')}
+                              </span>
                             )}
                             <button
                               type="button"
                               onClick={() => refreshAvailability(index, line.productId)}
-                              title="Refresh stock availability"
+                              title={t('invoiceCreator.checkingStock')}
                               style={{
                                 background: 'transparent',
                                 border: 0,
@@ -1856,7 +1873,7 @@ export default function InvoiceCreatorPage() {
                               fontWeight: 'bold',
                             }}
                           >
-                            FREE
+                            {t('invoiceCreator.free').toUpperCase()}
                           </span>
                         ) : (
                           <span
@@ -2017,21 +2034,21 @@ export default function InvoiceCreatorPage() {
         >
           <div>
             <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              Add New Invoice
+              {t('invoiceCreator.addNewInvoice')}
             </h2>
             <p style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
-              Route is taken from the selected customer.
+              {t('invoiceCreator.routeFromCustomer')}
             </p>
           </div>
 
           <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
             <p className="form-label" style={{ fontSize: 10 }}>
-              Basic Information
+              {t('invoiceCreator.basicInformation')}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Serial Number *
+                  {t('invoiceCreator.serialNumber')} *
                 </label>
                 <input
                   className="form-input"
@@ -2039,10 +2056,10 @@ export default function InvoiceCreatorPage() {
                   required
                   maxLength={20}
                   pattern="[A-Za-z0-9]+"
-                  title="Serial Number can contain only letters and numbers."
+                  title={t('invoiceCreator.serialNumberLettersOnly')}
                   value={serialNumber}
                   onChange={(event) => handleSerialNumberChange(event.target.value)}
-                  placeholder="Enter CBL POS serial number"
+                  placeholder={t('invoiceCreator.enterSerialNumber')}
                   disabled={isSaving}
                   style={{ width: '100%', height: 38, fontSize: 13 }}
                 />
@@ -2061,21 +2078,20 @@ export default function InvoiceCreatorPage() {
                       style={{ width: 13, height: 13, marginTop: 1, flex: '0 0 auto' }}
                     />
                     <p style={{ margin: 0, fontSize: 12, lineHeight: 1.35 }}>
-                      Serial number {serialNumber} has already been used on another invoice. You
-                      can still save.
+                      {t('invoiceCreator.serialAlreadyUsed', { serialNumber })}
                     </p>
                   </div>
                 ) : null}
                 {serialNumberChecking ? (
                   <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                    Checking...
+                    {t('invoiceCreator.checking')}
                   </p>
                 ) : null}
               </div>
 
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Invoice Date *
+                  {t('invoiceCreator.invoiceDate')} *
                 </label>
                 <input
                   className="form-input"
@@ -2090,7 +2106,7 @@ export default function InvoiceCreatorPage() {
 
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Customer *
+                  {t('invoiceCreator.customer')} *
                 </label>
                 <input type="hidden" {...register('customerId')} />
                 <SearchablePicker
@@ -2131,12 +2147,12 @@ export default function InvoiceCreatorPage() {
                   }
                   placeholder={
                     isLoadingData
-                      ? 'Loading customers...'
+                      ? t('invoiceCreator.loadingCustomers')
                       : customers.length
-                        ? 'Type customer name or code...'
-                        : 'No active customers available'
+                        ? t('invoiceCreator.typeCustomer')
+                        : t('invoiceCreator.noActiveCustomers')
                   }
-                  emptyLabel="No matching active customers"
+                  emptyLabel={t('invoiceCreator.noMatchingCustomers')}
                   disabled={isLoadingData || isSaving}
                 />
                 {selectedCustomer && (
@@ -2144,7 +2160,7 @@ export default function InvoiceCreatorPage() {
                     VRN:{' '}
                     {selectedCustomerDetails?.taxNumber ||
                       selectedCustomer.taxNumber ||
-                      'Not assigned'}
+                      t('invoiceCreator.notAssigned')}
                   </p>
                 )}
                 {fieldError(errors.customerId?.message)}
@@ -2152,7 +2168,7 @@ export default function InvoiceCreatorPage() {
 
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Sales Route
+                  {t('invoiceCreator.salesRoute')}
                 </label>
                 <div
                   className="form-input"
@@ -2164,14 +2180,16 @@ export default function InvoiceCreatorPage() {
                   }}
                 >
                   {salesRouteName ||
-                    (selectedSalesRouteId ? 'Loading route...' : 'Select a customer first')}
+                    (selectedSalesRouteId
+                      ? t('invoiceCreator.loadingRoute')
+                      : t('invoiceCreator.selectCustomerFirst'))}
                 </div>
                 <input type="hidden" {...register('salesRouteId')} />
               </div>
 
               <div>
                 <label className="form-label" style={{ fontSize: 10 }}>
-                  Delivery Run
+                  {t('invoiceCreator.deliveryRun')}
                 </label>
                 <div
                   className="form-input"
@@ -2185,7 +2203,9 @@ export default function InvoiceCreatorPage() {
                   }}
                 >
                   {deliveryRunName ||
-                    (selectedSalesRouteId ? 'Not assigned to route' : 'Select a customer first')}
+                    (selectedSalesRouteId
+                      ? t('invoiceCreator.notAssignedToRoute')
+                      : t('invoiceCreator.selectCustomerFirst'))}
                 </div>
                 {deliveryRunId ? (
                   resolvedVehicleLocationId ? (
@@ -2204,25 +2224,31 @@ export default function InvoiceCreatorPage() {
 
           <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
             <p className="form-label" style={{ fontSize: 10 }}>
-              Invoice Summary
+              {t('invoiceCreator.invoiceSummary')}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Gross</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>{t('invoiceCreator.gross')}</span>
                 <span className="mono">{money(totals.gross)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Category Discount</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>
+                  {t('invoiceCreator.categoryDiscount')}
+                </span>
                 <span className="mono">{money(totals.categoryDiscount)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Subtotal</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>
+                  {t('invoiceCreator.subtotal')}
+                </span>
                 <span className="mono">
                   {money(totals.gross - totals.categoryDiscount)}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>SKU Discount</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>
+                  {t('invoiceCreator.skuDiscount')}
+                </span>
                 {isFromSalesOrder ? (
                   <span className="mono">{money(totals.skuDiscount)}</span>
                 ) : (
@@ -2239,7 +2265,9 @@ export default function InvoiceCreatorPage() {
                 )}
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Special Discount</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>
+                  {t('invoiceCreator.specialDiscount')}
+                </span>
                 {isFromSalesOrder ? (
                   <span className="mono">{money(totals.specialDiscount)}</span>
                 ) : (
@@ -2257,19 +2285,21 @@ export default function InvoiceCreatorPage() {
               </div>
               {totals.returnTotal > 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--color-amber)' }}>Returns</span>
+                  <span style={{ color: 'var(--color-amber)' }}>
+                    {t('invoiceCreator.returns')}
+                  </span>
                   <span className="mono" style={{ color: 'var(--color-amber)' }}>
                     - {money(totals.returnTotal)}
                   </span>
                 </div>
               ) : null}
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>VAT</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>{t('invoiceCreator.vat')}</span>
                 <span className="mono">{money(totals.vat)}</span>
               </div>
               <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
-                <span>Net</span>
+                <span>{t('invoiceCreator.net')}</span>
                 <span className="mono" style={{ color: 'var(--color-amber)' }}>
                   {money(totals.net)}
                 </span>
@@ -2290,14 +2320,14 @@ export default function InvoiceCreatorPage() {
               onClick={handleClear}
             >
               <RotateCcw style={{ width: 15, height: 15 }} />
-              Clear
+              {t('invoiceCreator.clear')}
             </button>
             <button className="button-primary" type="submit"
               disabled={isSaving || isLoadingData || serialNumberChecking || !serialNumber.trim()
               }
             >
               <Save style={{ width: 15, height: 15 }} />
-              {isSaving ? 'Saving...' : 'Finalize Invoice'}
+              {isSaving ? t('invoiceCreator.saving') : t('invoiceCreator.finalizeInvoice')}
             </button>
           </div>
         </aside>

@@ -1,67 +1,127 @@
 import dayjs from 'dayjs'
-import { Bell, Clock3, Menu, User, Settings, LogOut } from 'lucide-react'
+import { Bell, Clock3, Languages, Menu, User, Settings, LogOut } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@stores/authStore'
 import { useUIStore } from '@stores/uiStore'
 import UserAvatarIcon from '@components/ui/UserAvatarIcon'
 import { cn } from '@/utils'
+import { useLanguage } from '@/i18n'
 import styles from './TopBar.module.css'
 const initialNotifications = [
   {
     id: 1,
-    title: '6 overdue accounts',
-    description: 'Collections team needs attention today.',
-    time: '12m ago',
+    titleKey: 'notifications.overdueAccountsTitle',
+    descriptionKey: 'notifications.overdueAccountsDescription',
+    timeKey: 'notifications.twelveMinutesAgo',
     tone: 'danger',
   },
   {
     id: 2,
-    title: '1 vehicle in maintenance',
-    description: 'WP-MB-4521 is marked unavailable.',
-    time: '28m ago',
+    titleKey: 'notifications.vehicleMaintenanceTitle',
+    descriptionKey: 'notifications.vehicleMaintenanceDescription',
+    timeKey: 'notifications.twentyEightMinutesAgo',
     tone: 'warning',
   },
   {
     id: 3,
-    title: 'Sales target updated',
-    description: "Today's sales exceeded yesterday by 12%.",
-    time: '1h ago',
+    titleKey: 'notifications.salesTargetTitle',
+    descriptionKey: 'notifications.salesTargetDescription',
+    timeKey: 'notifications.oneHourAgo',
     tone: 'success',
   },
 ]
-function toReadableSegment(segment) {
+const routeSegmentLabels = {
+  admin: 'nav.admin',
+  collections: 'nav.collections',
+  dashboard: 'common.dashboard',
+  fleet: 'nav.fleet',
+  inventory: 'nav.inventory',
+  master: 'nav.master',
+  purchasing: 'nav.purchasing',
+  reports: 'nav.reports',
+  sales: 'nav.sales',
+  settings: 'nav.settings',
+  users: 'nav.users',
+  profile: 'common.profile',
+  invoices: 'nav.invoices',
+  customers: 'nav.customer',
+  orders: 'nav.purchasingOrder',
+  'return-notes': 'nav.returnNotes',
+  'customer-credit': 'nav.customerCredit',
+  'customer-groups': 'nav.customerGroups',
+  'stuck-reservations': 'nav.stuckReservations',
+  sessions: 'nav.dailySessions',
+  cheques: 'nav.cheques',
+  banks: 'nav.banksBranches',
+  collectors: 'nav.collectors',
+  salesmen: 'nav.salesmen',
+  'opening-stock': 'nav.openingStock',
+  'in-store-returns': 'nav.inStoreReturns',
+  'vehicle-loadings': 'nav.vehicleLoading',
+  'vehicle-unloadings': 'nav.vehicleUnloading',
+  'stock-adjustments': 'nav.stockAdjustments',
+  batches: 'nav.stockBatches',
+  locations: 'nav.stockLocations',
+  products: 'nav.product',
+  categories: 'nav.category',
+  'category-discounts': 'nav.categoryDiscounts',
+  'units-of-measure': 'nav.uom',
+  'sales-routes': 'nav.salesRoutes',
+  'delivery-runs': 'nav.deliveryRuns',
+  'place-order': 'nav.newPurchaseOrder',
+  approvals: 'nav.poApproveReject',
+  approved: 'nav.approvedPurchaseOrders',
+  'all-orders': 'nav.purchaseOrdersList',
+  suppliers: 'nav.supplierSettlement',
+  'goods-receipt-entry': 'nav.newGoodsReceipt',
+  'goods-receipts': 'nav.goodsReceiptList',
+  'grn-approve-reject': 'nav.grnApproveReject',
+  settlement: 'nav.settlement',
+  'credit-aging': 'nav.creditAgingReport',
+  discount: 'nav.discountReport',
+  'daily-collection': 'nav.dailyCollectionReport',
+  'month-end': 'nav.monthEndReport',
+}
+function toReadableSegment(segment, t) {
   if (!segment) {
-    return 'Dashboard'
+    return t('common.dashboard')
+  }
+  if (routeSegmentLabels[segment]) {
+    return t(routeSegmentLabels[segment])
   }
   const normalized = segment.replace(/[-_]/g, ' ')
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
 }
-function buildBreadcrumb(pathname) {
+function buildBreadcrumb(pathname, t) {
   const segments = pathname.split('/').filter(Boolean)
   if (!segments.length) {
-    return ['Dashboard']
+    return [t('common.dashboard')]
   }
   if (segments.length === 1 && segments[0] === 'inventory') {
-    return ['Inventory', 'Overview']
+    return [t('nav.inventory'), t('common.overview')]
   }
   return segments.map((segment, index) => {
+    if (segment === 'stock') {
+      return segments[0] === 'reports' ? t('nav.stockReport') : t('nav.stockOverview')
+    }
     if (segment === 'new') {
-      return 'New'
+      return t('common.new')
     }
     if (index > 0 && /^[a-z0-9-]+$/i.test(segment) && segment.includes('-')) {
-      return toReadableSegment(segment)
+      return toReadableSegment(segment, t)
     }
     if (index > 0 && /^[a-z0-9]+$/i.test(segment) && /\d/.test(segment)) {
-      return 'Detail'
+      return t('common.detail')
     }
-    return toReadableSegment(segment)
+    return toReadableSegment(segment, t)
   })
 }
 export default function TopBar() {
   const location = useLocation()
   const { toggleSidebar } = useUIStore()
   const { user, logout } = useAuthStore()
+  const { language, languages, setLanguage, t } = useLanguage()
   const [now, setNow] = useState(() => dayjs())
   const [readNotificationIds, setReadNotificationIds] = useState(() => {
     try {
@@ -94,8 +154,8 @@ export default function TopBar() {
       window.clearInterval(intervalId)
     }
   }, [])
-  const breadcrumb = buildBreadcrumb(location.pathname)
-  const pageTitle = breadcrumb[breadcrumb.length - 1] || 'Dashboard'
+  const breadcrumb = buildBreadcrumb(location.pathname, t)
+  const pageTitle = breadcrumb[breadcrumb.length - 1] || t('common.dashboard')
   const parentBreadcrumb = breadcrumb.slice(0, -1)
   const unreadNotifications = initialNotifications.filter(
     (item) => !readNotificationIds.includes(item.id)
@@ -124,7 +184,7 @@ export default function TopBar() {
           <button
             type="button"
             className="icon-button shrink-0 lg:hidden"
-            aria-label="Toggle sidebar"
+            aria-label={t('common.toggleSidebar')}
             onClick={toggleSidebar}
           >
             <Menu className="h-4 w-4" />
@@ -135,7 +195,7 @@ export default function TopBar() {
               <span className={styles.breadcrumbLabel}>{pageTitle}</span>
               {parentBreadcrumb.map((item, index) => (
                 <span key={`${item}-${index}`} className={styles.breadcrumbSegment}>
-                  <span className={styles.breadcrumbSeparator}>in</span>
+                  <span className={styles.breadcrumbSeparator}>{t('common.in')}</span>
                   <span className={cn(styles.breadcrumbItem, styles.breadcrumbItemInactive)}>
                     {item}
                   </span>
@@ -160,7 +220,7 @@ export default function TopBar() {
                   ? styles.notificationButtonOpen
                   : styles.notificationButtonClosed
               )}
-              aria-label="Notifications"
+              aria-label={t('notifications.label')}
               aria-expanded={isNotificationsOpen}
               onClick={() => {
                 setIsNotificationsOpen((current) => !current)
@@ -177,10 +237,14 @@ export default function TopBar() {
               <div className={styles.notificationsDropdown} role="menu">
                 <div className={styles.notificationsHeader}>
                   <div>
-                    <p className={styles.notificationsTitle}>Notifications</p>
+                    <p className={styles.notificationsTitle}>{t('notifications.title')}</p>
                     <p className={styles.notificationsSubtitle}>
-                      {unreadNotifications.length} new alert
-                      {unreadNotifications.length === 1 ? '' : 's'}
+                      {t(
+                        unreadNotifications.length === 1
+                          ? 'notifications.newAlert'
+                          : 'notifications.newAlerts',
+                        { count: unreadNotifications.length }
+                      )}
                     </p>
                   </div>
                   <button
@@ -189,7 +253,7 @@ export default function TopBar() {
                     onClick={markAllNotificationsRead}
                     disabled={unreadNotifications.length === 0}
                   >
-                    {unreadNotifications.length > 0 ? 'Mark as read' : 'All read'}
+                    {unreadNotifications.length > 0 ? t('common.markAsRead') : t('common.allRead')}
                   </button>
                 </div>
 
@@ -211,24 +275,42 @@ export default function TopBar() {
                           )}
                         />
                         <span className={styles.notificationBody}>
-                          <span className={styles.notificationItemTitle}>{item.title}</span>
+                          <span className={styles.notificationItemTitle}>{t(item.titleKey)}</span>
                           <span className={styles.notificationItemDescription}>
-                            {item.description}
+                            {t(item.descriptionKey)}
                           </span>
                         </span>
-                        <span className={styles.notificationTime}>{item.time}</span>
+                        <span className={styles.notificationTime}>{t(item.timeKey)}</span>
                       </button>
                     ))
                   ) : (
                     <div className={styles.notificationsEmpty}>
-                      <p className={styles.notificationsEmptyTitle}>No new notifications</p>
-                      <p className={styles.notificationsEmptyText}>You are all caught up.</p>
+                      <p className={styles.notificationsEmptyTitle}>
+                        {t('notifications.emptyTitle')}
+                      </p>
+                      <p className={styles.notificationsEmptyText}>
+                        {t('notifications.emptyText')}
+                      </p>
                     </div>
                   )}
                 </div>
               </div>
             )}
           </div>
+          <label className={styles.languageSelectWrap} aria-label={t('common.language')}>
+            <Languages className={styles.languageIcon} />
+            <select
+              className={styles.languageSelect}
+              value={language}
+              onChange={(event) => setLanguage(event.target.value)}
+            >
+              {languages.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.shortLabel}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className={styles.profileWrap} ref={profileRef}>
             <button
               type="button"
@@ -265,7 +347,7 @@ export default function TopBar() {
                     onClick={() => setIsProfileOpen(false)}
                   >
                     <User className={styles.dropdownItemIcon} />
-                    Profile
+                    {t('common.profile')}
                   </Link>
 
                   <Link
@@ -274,7 +356,7 @@ export default function TopBar() {
                     onClick={() => setIsProfileOpen(false)}
                   >
                     <Settings className={styles.dropdownItemIcon} />
-                    Settings
+                    {t('common.settings')}
                   </Link>
 
                   <div className={styles.dropdownDivider} />
@@ -288,7 +370,7 @@ export default function TopBar() {
                     }}
                   >
                     <LogOut className={styles.dropdownItemIcon} />
-                    Logout
+                    {t('common.logout')}
                   </button>
                 </div>
               </div>

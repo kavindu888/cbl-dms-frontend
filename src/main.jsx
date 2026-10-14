@@ -9,6 +9,7 @@ import { router } from './routes'
 import { useConfirmStore } from './stores/confirmStore'
 import GlobalConfirmDialog from './components/ui/GlobalConfirmDialog'
 import FormKeyboardManager from './components/ui/FormKeyboardManager'
+import { LanguageProvider } from './i18n'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -97,13 +98,13 @@ const initialThemeMode = applyStoredTheme()
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <>
+      <LanguageProvider>
         <RouterProvider router={router} />
         <Toaster position="top-right" theme={initialThemeMode} richColors />
         <GlobalConfirmDialog />
         <FormKeyboardManager />
         {import.meta.env.DEV ? <ReactQueryDevtools initialIsOpen={false} /> : null}
-      </>
+      </LanguageProvider>
     </QueryClientProvider>
   </StrictMode>
 )
