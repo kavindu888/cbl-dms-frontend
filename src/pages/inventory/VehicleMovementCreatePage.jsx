@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, PackageSearch, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronRight, PackageSearch, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -66,6 +66,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [draftId, setDraftId] = useState(routeDraftId || '')
   const [lines, setLines] = useState([])
   const [stockLineSearch, setStockLineSearch] = useState('')
+  const [expandedStockLineGroups, setExpandedStockLineGroups] = useState(new Set())
   const [products, setProducts] = useState([])
   const [categoryDiscountByCategoryId, setCategoryDiscountByCategoryId] = useState({})
   const fetchedCategoryDiscountIdsRef = useRef(new Set())
@@ -539,6 +540,60 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       ].some((value) => String(value ?? '').toLowerCase().includes(term))
     })
   }, [lines, productById, productBySku, stockLineSearch])
+
+  // Display only — same treatment as the batch picker above and the Applied loading detail page:
+  // adding across several batches of the same product/MRP leaves one real stock line per batch, so
+  // merge same-product-same-MRP lines into one summed row by default. Remove still targets the
+  // real underlying line — a merged row expands to reveal them when one needs removing instead of
+  // all of them.
+  const stockLineGroupKeyOf = (line) => `${line.productId || line.productSku}::${line.mrp}`
+  const stockLineGroups = useMemo(() => {
+    const map = new Map()
+    for (const line of filteredStockLines) {
+      const key = stockLineGroupKeyOf(line)
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(line)
+    }
+    return map
+  }, [filteredStockLines])
+
+  function toggleStockLineGroup(key) {
+    setExpandedStockLineGroups((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const groupedStockLines = useMemo(() => {
+    const rows = []
+    for (const [key, group] of stockLineGroups) {
+      if (group.length === 1) {
+        rows.push(group[0])
+        continue
+      }
+      if (expandedStockLineGroups.has(key)) {
+        rows.push(...group.map((l) => ({ ...l, _expandedGroupKey: key, _expandedGroupSize: group.length })))
+        continue
+      }
+      const totalQty = group.reduce((sum, l) => sum + Number(l.qtySmallest || 0), 0)
+      const weightedCost = totalQty
+        ? group.reduce((sum, l) => sum + Number(l.unitCostSmallest || 0) * Number(l.qtySmallest || 0), 0) / totalQty
+        : 0
+      rows.push({
+        ...group[0],
+        id: `merged::${key}`,
+        qtySmallest: totalQty,
+        unitCostSmallest: weightedCost,
+        _mergedGroupKey: key,
+        _mergedCount: group.length,
+        _mergedLineIds: group.map((l) => l.id),
+      })
+    }
+    return rows
+  }, [stockLineGroups, expandedStockLineGroups])
+
   const filteredProducts = useMemo(() => {
     const term = productSearch.trim().toLowerCase()
     if (!term) return products.slice(0, 30)
@@ -1539,6 +1594,9 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                 {lines.length ? (
                   <p style={{ color: 'var(--color-text-muted)', fontSize: 11, marginTop: 3 }}>
                     {filteredStockLines.length} of {lines.length} line{lines.length === 1 ? '' : 's'}
+                    {groupedStockLines.length !== filteredStockLines.length
+                      ? ` — shown as ${groupedStockLines.length} row${groupedStockLines.length === 1 ? '' : 's'} (same product + MRP merged)`
+                      : ''}
                   </p>
                 ) : null}
               </div>
@@ -1609,7 +1667,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredStockLines.map((line) => {
+                    {groupedStockLines.map((line) => {
                       const categoryDiscountPercent = resolveLineCategoryDiscount(line)
                       return (
                       <tr key={line.id}>
@@ -1618,6 +1676,50 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                             {resolveLineProductName(line)}
                           </strong>
                           <span className="product-sku-badge mono">{line.productSku}</span>
+                          {line._mergedCount > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleStockLineGroup(line._mergedGroupKey)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                marginTop: 4,
+                                background: 'transparent',
+                                border: 0,
+                                padding: 0,
+                                cursor: 'pointer',
+                                fontSize: 10,
+                                fontWeight: 800,
+                                color: 'var(--color-text-muted)',
+                              }}
+                            >
+                              <ChevronRight size={11} /> {line._mergedCount} batches at this MRP —
+                              show separately
+                            </button>
+                          ) : null}
+                          {line._expandedGroupKey ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleStockLineGroup(line._expandedGroupKey)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                marginTop: 4,
+                                background: 'transparent',
+                                border: 0,
+                                padding: 0,
+                                cursor: 'pointer',
+                                fontSize: 10,
+                                fontWeight: 800,
+                                color: 'var(--color-text-muted)',
+                              }}
+                            >
+                              <ChevronDown size={11} /> 1 of {line._expandedGroupSize} batches at
+                              this MRP — merge back
+                            </button>
+                          ) : null}
                           {isUnloading ? (
                             <span
                               className={`rounded-full border px-2 py-0.5 text-xs font-medium ${unloadingTypeLabel(line.unloadingType) === 'Labelled' ? 'border-amber-700/50 bg-amber-500/10 text-amber-400' : 'border-gray-700 bg-gray-800 text-gray-300'}`}
@@ -1650,14 +1752,20 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                           )}
                         </td>
                         <td className="text-right">
-                          <button
-                            type="button"
-                            className="button-secondary"
-                            onClick={() => handleRemoveLine(line.id)}
-                            style={{ height: 30 }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {line._mergedCount > 1 ? (
+                            <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
+                              Expand to remove
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="button-secondary"
+                              onClick={() => handleRemoveLine(line.id)}
+                              style={{ height: 30 }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                       )
