@@ -1,7 +1,8 @@
 import { ChevronDown, ChevronRight, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStockAdjustment, useStockAdjustments } from '@/hooks/useStockAdjustment'
+import { usersService } from '@/services/api/usersService'
 import { formatDate, formatDateTime } from '@/utils/formatDate'
 import {
   STATUS_COLORS,
@@ -9,6 +10,13 @@ import {
   formatNumber,
   statusLabel,
 } from './stockAdjustmentUtils'
+
+// A raw user id is meaningless to read — same truncation style used on the vehicle movement
+// detail page, shown only until the real name resolves (or if it fails to).
+function formatUserId(value) {
+  if (!value) return '—'
+  return value.length > 16 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value
+}
 
 function StatusPill({ status }) {
   const label = statusLabel(status)
@@ -24,6 +32,29 @@ function StatusPill({ status }) {
 }
 
 function AdjustmentDetails({ adjustment, isLoading }) {
+  const [createdByName, setCreatedByName] = useState('')
+
+  useEffect(() => {
+    const createdByUserId = adjustment?.createdByUserId
+    if (!createdByUserId) {
+      setCreatedByName('')
+      return undefined
+    }
+    let active = true
+    setCreatedByName('')
+    usersService
+      .getUser(createdByUserId)
+      .then((user) => {
+        if (active) setCreatedByName(user?.username || '')
+      })
+      .catch(() => {
+        if (active) setCreatedByName('')
+      })
+    return () => {
+      active = false
+    }
+  }, [adjustment?.createdByUserId])
+
   if (isLoading) {
     return <div style={{ color: 'var(--color-text-muted)', padding: 18 }}>Loading details...</div>
   }
@@ -46,7 +77,11 @@ function AdjustmentDetails({ adjustment, isLoading }) {
         }}
       >
         <DetailItem label="Stock Location" value={adjustment.stockLocationId} mono />
-        <DetailItem label="Created By" value={adjustment.createdByUserId} mono />
+        <DetailItem
+          label="Created By"
+          value={createdByName || formatUserId(adjustment.createdByUserId)}
+          mono={!createdByName}
+        />
         <DetailItem label="Applied On" value={formatDateTime(adjustment.appliedOn)} mono />
         <DetailItem label="Notes" value={adjustment.notes || 'No notes'} />
       </div>
