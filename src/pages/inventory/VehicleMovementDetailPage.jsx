@@ -122,6 +122,34 @@ function AdminAddLoadingLineModal({ open, onOpenChange, onAdd, isSubmitting }) {
       .slice(0, 30)
   }, [productSearch, products])
 
+  // Same treatment as the New Loading page's own batch picker: repeated GRNs/returns fragment the
+  // same product/MRP into many near-identical batch rows — group by MRP for picking (one row per
+  // price, qty summed), and draw across the group's real underlying batches (soonest-expiry first)
+  // when submitting, so each resulting applied line still references one real batch.
+  const groupedBatches = useMemo(() => {
+    const groups = new Map()
+    for (const batch of batches) {
+      const key = Number(getMrp(batch)).toFixed(2)
+      if (!groups.has(key)) groups.set(key, { mrp: getMrp(batch), batches: [] })
+      groups.get(key).batches.push(batch)
+    }
+    return Array.from(groups.values())
+      .map((group) => {
+        const available = group.batches.reduce((sum, b) => sum + getQtyAvailable(b), 0)
+        const costs = new Set(group.batches.map((b) => getUnitCost(b)))
+        return {
+          id: `mrp-${group.mrp}`,
+          batchNo: group.batches.length > 1 ? `${group.batches.length} batches` : group.batches[0].batchNo,
+          qtyAvailable: available,
+          unitCostSmallest: costs.size === 1 ? [...costs][0] : null,
+          unitCostVaries: costs.size > 1,
+          mrp: group.mrp,
+          batches: group.batches,
+        }
+      })
+      .sort((a, b) => Number(a.mrp) - Number(b.mrp))
+  }, [batches])
+
   async function handleSubmit() {
     const requestedQty = Number(qty)
     if (!selectedProduct || !selectedBatch) {
@@ -136,12 +164,49 @@ function AdminAddLoadingLineModal({ open, onOpenChange, onAdd, isSubmitting }) {
       toast.error('Quantity cannot exceed the available batch quantity.')
       return
     }
-    await onAdd({
-      productId: selectedProduct.id,
-      productSku: selectedProduct.sku,
-      sourceBatchId: selectedBatch.id,
-      qtySmallest: requestedQty,
+
+    const sortedBatches = [...selectedBatch.batches].sort((a, b) => {
+      if (!a.expiryDate) return 1
+      if (!b.expiryDate) return -1
+      return new Date(a.expiryDate) - new Date(b.expiryDate)
     })
+
+    let remaining = requestedQty
+    let addedCount = 0
+    let anyFailed = false
+    for (const batch of sortedBatches) {
+      if (remaining <= 0) break
+      const drawQty = Math.min(remaining, getQtyAvailable(batch))
+      if (drawQty <= 0) continue
+
+      try {
+        await onAdd({
+          productId: selectedProduct.id,
+          productSku: selectedProduct.sku,
+          sourceBatchId: batch.id,
+          qtySmallest: drawQty,
+        })
+        addedCount++
+        remaining -= drawQty
+      } catch {
+        anyFailed = true
+        // The mutation hook already surfaced the error via toast — keep drawing from the
+        // remaining batches instead of abandoning the whole request.
+      }
+    }
+
+    if (addedCount && !anyFailed && remaining <= 0) {
+      // Each successful draw already shows its own "Line added" toast (see
+      // useAdminAddAppliedLoadingLine) — only the multi-batch case needs an extra summary.
+      if (addedCount > 1) toast.message(`Drew across ${addedCount} batches to cover the quantity.`)
+      onOpenChange(false)
+    } else if (addedCount) {
+      toast.warning(
+        remaining > 0
+          ? `Only ${formatNumber(requestedQty - remaining)} of ${formatNumber(requestedQty)} could be added — try the rest again.`
+          : `Added ${addedCount} line(s), but one or more batches failed.`
+      )
+    }
   }
 
   return (
@@ -247,8 +312,8 @@ function AdminAddLoadingLineModal({ open, onOpenChange, onAdd, isSubmitting }) {
                     <tr>
                       <td colSpan={5}>Loading batches...</td>
                     </tr>
-                  ) : batches.length ? (
-                    batches.map((batch) => (
+                  ) : groupedBatches.length ? (
+                    groupedBatches.map((batch) => (
                       <tr
                         key={batch.id}
                         style={{
@@ -258,7 +323,9 @@ function AdminAddLoadingLineModal({ open, onOpenChange, onAdd, isSubmitting }) {
                       >
                         <td className="mono">{batch.batchNo || '—'}</td>
                         <td className="mono text-right">{formatNumber(getQtyAvailable(batch))}</td>
-                        <td className="mono text-right">{formatLKR(getUnitCost(batch))}</td>
+                        <td className="mono text-right">
+                          {batch.unitCostVaries ? 'Varies' : formatLKR(getUnitCost(batch))}
+                        </td>
                         <td className="mono text-right">{formatLKR(getMrp(batch))}</td>
                         <td className="text-right">
                           <button
@@ -442,12 +509,10 @@ export default function VehicleMovementDetailPage({
   }
 
   async function addAppliedLine(payload) {
-    try {
-      await addAppliedLoadingLine.mutateAsync(payload)
-      setIsAddLineModalOpen(false)
-    } catch {
-      /* The mutation hook displays the API error. */
-    }
+    // Closing the modal is now the modal's own call — a grouped MRP selection draws across
+    // several real batches in one submission (see AdminAddLoadingLineModal), so this can be
+    // called more than once per submit and must not close the modal after just the first.
+    await addAppliedLoadingLine.mutateAsync(payload)
   }
   const deliveryRunById = useMemo(
     () => Object.fromEntries(deliveryRuns.map((run) => [run.id, run])),
