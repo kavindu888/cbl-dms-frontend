@@ -230,3 +230,12 @@ export const getUnreconciledInvoicePayments = () =>
     collectionsV1Axios.get('/payment-audit/unreconciled'),
     'Failed to load unreconciled payments report'
   )
+
+// Admin: force-removes every payment on an invoice (real or ghost) and resets it to Unpaid with
+// the full amount outstanding. Skips money records shared with other invoices or cheques that have
+// already progressed past Received — see the backend's own result for what got skipped and why.
+export const forceRemoveInvoicePayments = (invoiceId, reason) =>
+  value(
+    collectionsV1Axios.post(`/payment-audit/invoice/${invoiceId}/force-remove`, { reason }),
+    "Failed to remove this invoice's payments"
+  )

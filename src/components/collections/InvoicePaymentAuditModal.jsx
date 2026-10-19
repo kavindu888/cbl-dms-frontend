@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import Modal from '@components/ui/Modal'
-import { useInvoicePaymentAudit } from '@/hooks/useCollections'
+import { useForceRemoveInvoicePayments, useInvoicePaymentAudit } from '@/hooks/useCollections'
 import { salesService } from '@/services/api/salesService'
 import { usersService } from '@/services/api/usersService'
 import { formatDate, formatDateTime } from '@/utils'
@@ -25,11 +25,17 @@ export default function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onCl
   const data = audit.data
   const { user } = useAuthStore()
   const canReset = userHasPermission(user, PERMISSIONS.sales.invoiceAdminEditLines)
+  const canForceRemove = userHasPermission(user, PERMISSIONS.collections.sessionDelete)
   const queryClient = useQueryClient()
   const [showResetForm, setShowResetForm] = useState(false)
   const [resetReason, setResetReason] = useState('')
   const [isResetting, setIsResetting] = useState(false)
   const [userNames, setUserNames] = useState({})
+  const [showForceForm, setShowForceForm] = useState(false)
+  const [forceReason, setForceReason] = useState('')
+  const [forceAcknowledged, setForceAcknowledged] = useState(false)
+  const [forceResult, setForceResult] = useState(null)
+  const forceRemove = useForceRemoveInvoicePayments()
 
   // Resolve "recorded by" usernames for session rows that have one (Cash only — see
   // InvoicePaymentAuditRowDto.RecordedByUserId on the backend for why Cheque/BankTransfer never
@@ -79,6 +85,29 @@ export default function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onCl
       toast.error(error.message || 'Unable to reset this invoice.')
     } finally {
       setIsResetting(false)
+    }
+  }
+
+  async function submitForceRemove() {
+    if (!forceReason.trim()) {
+      toast.error('A reason is required.')
+      return
+    }
+    try {
+      const result = await forceRemove.mutateAsync({ invoiceId, reason: forceReason.trim() })
+      setForceResult(result)
+      setShowForceForm(false)
+      setForceReason('')
+      setForceAcknowledged(false)
+      if (result?.recordsSkipped > 0) {
+        toast.warning(
+          `Removed ${result.recordsRemoved} payment record(s). ${result.recordsSkipped} were skipped — see details below.`
+        )
+      } else {
+        toast.success(`Invoice reset to unpaid. ${result?.recordsRemoved || 0} payment record(s) removed.`)
+      }
+    } catch {
+      // Toast is already shown by useForceRemoveInvoicePayments' onError.
     }
   }
 
@@ -376,6 +405,115 @@ export default function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onCl
                   </div>
                 </div>
               )}
+            </div>
+          ) : null}
+
+          {Number(data.amountPaid || 0) > 0.01 && canForceRemove ? (
+            <div
+              style={{
+                border: '1px solid color-mix(in srgb, var(--color-danger) 50%, transparent)',
+                borderRadius: 8,
+                padding: 12,
+                background: 'color-mix(in srgb, var(--color-danger) 6%, transparent)',
+              }}
+            >
+              {!showForceForm ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    <strong style={{ color: 'var(--color-danger)' }}>Danger zone:</strong> force-remove
+                    every payment on this invoice — works even on real sessions, cheques, transfers
+                    and credit notes shown above, not just ghost payments.
+                  </div>
+                  <button
+                    type="button"
+                    className="button-primary"
+                    style={{
+                      height: 32,
+                      flexShrink: 0,
+                      background: 'var(--color-danger)',
+                      borderColor: 'var(--color-danger)',
+                    }}
+                    onClick={() => setShowForceForm(true)}
+                  >
+                    Force remove all
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-danger)' }}>
+                    Force-remove every payment on this invoice ({money(data.amountPaid)} will become
+                    outstanding again)
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                    Deletes the real sessions/cheques/transfers/credit notes behind this invoice's
+                    payments, reverses the customer's ledger, and resets this invoice to unpaid. A
+                    money record shared with other invoices, or a cheque already deposited/cleared,
+                    is skipped and reported — not partially altered.
+                  </div>
+                  <textarea
+                    className="form-input"
+                    rows={2}
+                    placeholder="Reason (required) — e.g. customer disputes this invoice, reversing by agreement"
+                    value={forceReason}
+                    onChange={(e) => setForceReason(e.target.value)}
+                    style={{ fontSize: 12 }}
+                  />
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 11 }}>
+                    <input
+                      type="checkbox"
+                      checked={forceAcknowledged}
+                      onChange={(e) => setForceAcknowledged(e.target.checked)}
+                      style={{ marginTop: 2 }}
+                    />
+                    I understand this removes real payment records, not just untraceable ones, and
+                    cannot be undone automatically.
+                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      style={{ height: 32 }}
+                      disabled={forceRemove.isPending}
+                      onClick={() => {
+                        setShowForceForm(false)
+                        setForceReason('')
+                        setForceAcknowledged(false)
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="button-primary"
+                      style={{ height: 32, background: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
+                      disabled={forceRemove.isPending || !forceAcknowledged}
+                      onClick={submitForceRemove}
+                    >
+                      {forceRemove.isPending ? 'Removing...' : 'Confirm force remove'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {forceResult ? (
+            <div
+              style={{
+                fontSize: 12,
+                border: '1px solid var(--color-border)',
+                borderRadius: 6,
+                padding: '8px 10px',
+              }}
+            >
+              <strong>{forceResult.recordsRemoved}</strong> payment record(s) removed.
+              {forceResult.recordsSkipped > 0 ? (
+                <ul style={{ margin: '6px 0 0', paddingLeft: 18, color: 'var(--color-amber)' }}>
+                  {forceResult.skipReasons.map((reason, i) => (
+                    <li key={i}>{reason}</li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
           ) : null}
         </div>

@@ -259,6 +259,23 @@ export const useUnreconciledInvoicePayments = () =>
     staleTime: 10_000,
     retry: false,
   })
+// Admin: force-removes every payment on an invoice (real or ghost). May touch several sessions at
+// once (wherever this invoice's money lived), so invalidates broadly rather than one session id.
+export const useForceRemoveInvoicePayments = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ invoiceId, reason }) => api.forceRemoveInvoicePayments(invoiceId, reason),
+    onSuccess: (_, { invoiceId }) => {
+      qc.invalidateQueries({ queryKey: ['invoice-payment-audit', invoiceId] })
+      qc.invalidateQueries({ queryKey: ['unreconciled-invoice-payments'] })
+      qc.invalidateQueries({ queryKey: ['collection-sessions'] })
+      qc.invalidateQueries({ queryKey: ['reconciliation'] })
+      qc.invalidateQueries({ queryKey: ['customer-account'] })
+      qc.invalidateQueries({ queryKey: ['customer-accounts'] })
+    },
+    onError: (error) => toast.error(errorMessage(error, "Failed to remove this invoice's payments")),
+  })
+}
 export const useOutstandingInvoicesByIds = (ids) =>
   useQuery({
     queryKey: ['outstanding-invoices-by-ids', ids],
