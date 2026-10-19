@@ -627,6 +627,13 @@ export const salesService = {
     await api.post(`/api/v1/sales/invoices/${id}/write-off`, { amount, reason })
   },
 
+  // Admin-only recovery for a "ghost payment" — AmountPaid shows nonzero with nothing in
+  // Collections or a direct invoice payment to explain it. The backend refuses outright if any
+  // real payment record exists at all, so this is safe to expose directly.
+  async resetGhostInvoicePayment(id, { reason } = {}) {
+    await api.post(`/api/v1/sales/invoices/${id}/reset-ghost-payment`, { reason })
+  },
+
   // Admin: retroactively recompute SKU/category discounts and totals on an issued invoice.
   // overrides: [{ lineId, skuDiscountPercent }] for lines the admin wants to set manually;
   // any line not listed gets its SKU discount auto-resolved from current active discount rules.
