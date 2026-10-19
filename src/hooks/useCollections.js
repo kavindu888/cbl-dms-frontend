@@ -242,6 +242,15 @@ export const useRecordCashPayment = () => {
     onError: (error) => toast.error(errorMessage(error, 'Failed to record cash payment')),
   })
 }
+// Admin audit: which collection session(s) collected a given invoice.
+export const useInvoicePaymentAudit = (invoiceId) =>
+  useQuery({
+    queryKey: ['invoice-payment-audit', invoiceId],
+    queryFn: () => api.getInvoicePaymentAudit(invoiceId),
+    enabled: Boolean(invoiceId),
+    staleTime: 10_000,
+    retry: false,
+  })
 export const useOutstandingInvoicesByIds = (ids) =>
   useQuery({
     queryKey: ['outstanding-invoices-by-ids', ids],

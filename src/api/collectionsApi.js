@@ -215,3 +215,10 @@ export const getReconciliation = (sessionId) =>
     collectionsV1Axios.get(`/reconciliation/${sessionId}`),
     'Failed to load reconciliation'
   )
+
+// Admin audit: every collection session that ever applied a payment against one invoice.
+export const getInvoicePaymentAudit = (invoiceId) =>
+  value(
+    collectionsV1Axios.get(`/payment-audit/invoice/${invoiceId}`),
+    'Failed to load payment audit for this invoice'
+  )

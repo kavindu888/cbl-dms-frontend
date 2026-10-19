@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronDown, ChevronRight, Pencil, Printer, Scale } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronRight, History, Pencil, Printer, Scale } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import AgingBadge from '@/components/collections/AgingBadge'
@@ -8,6 +8,7 @@ import StatusBadge from '@components/ui/StatusBadge'
 import {
   useCollectors,
   useCorrectAllocationAmount,
+  useInvoicePaymentAudit,
   useReconciliation,
   useVerifySession,
 } from '@/hooks/useCollections'
@@ -53,6 +54,134 @@ function AmountWithEdit({ value, canEdit, onEdit, color }) {
   )
 }
 
+// Admin audit trail: every collection session that ever collected money against one invoice —
+// answers "this shows partially paid, which session collected the rest?" without hunting through
+// every session by hand.
+function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onClose }) {
+  const audit = useInvoicePaymentAudit(invoiceId)
+  const data = audit.data
+
+  return (
+    <Modal
+      open={Boolean(invoiceId)}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose()
+      }}
+      title="Payment Audit"
+      description={invoiceLabel ? `Every collection session that applied money to invoice ${invoiceLabel}.` : ''}
+      maxWidth="640px"
+    >
+      {audit.isLoading ? (
+        <div style={{ padding: 18, textAlign: 'center', color: 'var(--color-text-muted)' }}>
+          Loading payment history...
+        </div>
+      ) : audit.isError ? (
+        <div style={{ padding: 18, textAlign: 'center', color: 'var(--color-danger)' }}>
+          {audit.error?.message || 'Unable to load payment history for this invoice.'}
+        </div>
+      ) : data ? (
+        <div style={{ display: 'grid', gap: 14 }}>
+          <div style={{ display: 'grid', gap: 9, gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>Invoice total</div>
+              <div className="mono" style={{ fontWeight: 750 }}>
+                {money(data.netAmount)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>Amount paid</div>
+              <div className="mono" style={{ fontWeight: 750 }}>
+                {money(data.amountPaid)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>Still outstanding</div>
+              <div
+                className="mono"
+                style={{
+                  fontWeight: 750,
+                  color: data.outstandingAmount > 0 ? 'var(--color-danger)' : 'var(--color-teal)',
+                }}
+              >
+                {data.outstandingAmount > 0 ? money(data.outstandingAmount) : '✓ Settled'}
+              </div>
+            </div>
+          </div>
+
+          {data.sessions?.length ? (
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
+              <table className="data-table product-table-compact">
+                <thead>
+                  <tr>
+                    <th>Session</th>
+                    <th>Date</th>
+                    <th>Collector</th>
+                    <th>Method</th>
+                    <th style={{ textAlign: 'right' }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.sessions.map((row) => (
+                    <tr key={row.allocationId}>
+                      <td>
+                        <Link
+                          className="mono"
+                          style={{ color: 'var(--color-cyan)' }}
+                          to={`/collections/reconciliation/${row.sessionId}`}
+                        >
+                          {row.sessionNumber || row.sessionId.slice(-8)}
+                        </Link>
+                        {row.sessionStatus ? (
+                          <div style={{ fontSize: 10, color: 'var(--color-text-dim)' }}>
+                            {row.sessionStatus}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="mono">
+                        {row.sessionDate ? formatDate(row.sessionDate) : formatDate(row.allocatedOn)}
+                      </td>
+                      <td>{row.collectorName || '—'}</td>
+                      <td>{row.paymentMethod}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        <div>{money(row.allocatedAmount)}</div>
+                        {row.writeOffAmount > 0 ? (
+                          <div style={{ fontSize: 10, color: 'var(--color-danger)' }}>
+                            −{money(row.writeOffAmount)} written off
+                            {row.writeOffReason ? ` (${row.writeOffReason})` : ''}
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ padding: 14, textAlign: 'center', color: 'var(--color-text-muted)' }}>
+              No collection session has ever applied money to this invoice through Collections.
+            </div>
+          )}
+
+          {data.unreconciledAmount > 0 ? (
+            <div
+              style={{
+                fontSize: 12,
+                color: 'var(--color-amber)',
+                border: '1px solid color-mix(in srgb, var(--color-amber) 35%, transparent)',
+                borderRadius: 6,
+                padding: '8px 10px',
+              }}
+            >
+              {money(data.unreconciledAmount)} of the amount paid isn't explained by a collection
+              session above — likely paid directly at the point of sale, or worth double-checking.
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </Modal>
+  )
+}
+
 export default function ReconciliationPage() {
   const { id } = useParams()
   const { user } = useAuthStore()
@@ -63,6 +192,7 @@ export default function ReconciliationPage() {
   const correctAmount = useCorrectAllocationAmount()
   const [expandedCustomers, setExpandedCustomers] = useState({})
   const [correction, setCorrection] = useState(null)
+  const [auditInvoice, setAuditInvoice] = useState(null)
 
   if (reconciliation.isLoading) return <Busy label="Preparing reconciliation..." />
   if (reconciliation.isError) return <Problem error={reconciliation.error} />
@@ -437,6 +567,32 @@ export default function ReconciliationPage() {
                                     {invoice.serialNumber || invoice.invoiceNumber}
                                   </span>
                                   <StatusBadge status={invoice.status} />
+                                  <button
+                                    type="button"
+                                    className="no-print"
+                                    title="Audit: which sessions collected this invoice?"
+                                    onClick={() =>
+                                      setAuditInvoice({
+                                        invoiceId: invoice.invoiceId,
+                                        label: invoice.serialNumber || invoice.invoiceNumber,
+                                      })
+                                    }
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      width: 20,
+                                      height: 20,
+                                      padding: 0,
+                                      border: '1px solid var(--color-border)',
+                                      borderRadius: 5,
+                                      background: 'transparent',
+                                      color: 'var(--color-text-dim)',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <History size={11} />
+                                  </button>
                                 </div>
                               </td>
                               <td>{invoice.dueDate ? formatDate(invoice.dueDate) : '—'}</td>
@@ -567,6 +723,12 @@ export default function ReconciliationPage() {
           </form>
         ) : null}
       </Modal>
+
+      <InvoicePaymentAuditModal
+        invoiceId={auditInvoice?.invoiceId}
+        invoiceLabel={auditInvoice?.label}
+        onClose={() => setAuditInvoice(null)}
+      />
     </div>
   )
 }
