@@ -158,9 +158,52 @@ function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onClose }) {
             </div>
           ) : (
             <div style={{ padding: 14, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-              No collection session has ever applied money to this invoice through Collections.
+              No collection session has ever applied money to this invoice — see below if it was
+              instead recorded directly on the invoice.
             </div>
           )}
+
+          {data.directPayments?.length ? (
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-dim)', marginBottom: 6 }}>
+                Recorded directly on the invoice (Sales) — not through a collection session
+              </div>
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
+                <table className="data-table product-table-compact">
+                  <thead>
+                    <tr>
+                      <th>Method</th>
+                      <th>Paid date</th>
+                      <th>Details</th>
+                      <th style={{ textAlign: 'right' }}>Amount</th>
+                      <th>Recorded</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.directPayments.map((row) => (
+                      <tr key={row.paymentId}>
+                        <td>{row.paymentMethod}</td>
+                        <td className="mono">{formatDate(row.paidDate)}</td>
+                        <td style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                          {row.chequeNumber
+                            ? `Cheque ${row.chequeNumber}${row.bankName ? ` — ${row.bankName}` : ''}`
+                            : row.collectionJournalId
+                              ? 'Settled via credit note'
+                              : '—'}
+                        </td>
+                        <td className="mono" style={{ textAlign: 'right' }}>
+                          {money(row.amount)}
+                        </td>
+                        <td className="mono" style={{ fontSize: 11 }}>
+                          {formatDate(row.recordedAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
 
           {data.unreconciledAmount > 0 ? (
             <div
@@ -173,7 +216,7 @@ function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onClose }) {
               }}
             >
               {money(data.unreconciledAmount)} of the amount paid isn't explained by a collection
-              session above — likely paid directly at the point of sale, or worth double-checking.
+              session or a direct invoice payment above — worth double-checking.
             </div>
           ) : null}
         </div>
