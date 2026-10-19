@@ -1,14 +1,20 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import Modal from '@components/ui/Modal'
 import { useInvoicePaymentAudit } from '@/hooks/useCollections'
 import { salesService } from '@/services/api/salesService'
-import { formatDate } from '@/utils'
+import { usersService } from '@/services/api/usersService'
+import { formatDate, formatDateTime } from '@/utils'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import { useAuthStore } from '@stores/authStore'
 import { money } from '@/pages/collections/collectionsUi'
+
+function formatUserId(value) {
+  if (!value) return '—'
+  return value.length > 16 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value
+}
 
 // Admin audit trail: every collection session that ever collected money against one invoice, plus
 // anything recorded directly on the invoice in Sales — answers "this shows partially paid, which
@@ -23,6 +29,29 @@ export default function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onCl
   const [showResetForm, setShowResetForm] = useState(false)
   const [resetReason, setResetReason] = useState('')
   const [isResetting, setIsResetting] = useState(false)
+  const [userNames, setUserNames] = useState({})
+
+  // Resolve "recorded by" usernames for session rows that have one (Cash only — see
+  // InvoicePaymentAuditRowDto.RecordedByUserId on the backend for why Cheque/BankTransfer never
+  // have this).
+  useEffect(() => {
+    const ids = [...new Set((data?.sessions || []).map((s) => s.recordedByUserId).filter(Boolean))]
+    if (!ids.length) return undefined
+    let active = true
+    Promise.all(
+      ids.map((id) =>
+        usersService
+          .getUser(id)
+          .then((u) => [id, u?.username || ''])
+          .catch(() => [id, ''])
+      )
+    ).then((pairs) => {
+      if (active) setUserNames(Object.fromEntries(pairs))
+    })
+    return () => {
+      active = false
+    }
+  }, [data?.sessions])
 
   // Mirrors the backend's own refusal rule exactly: only offer this when NOTHING real backs the
   // paid amount — any real collection/cheque/transfer/direct payment, even a tiny one, means the
@@ -108,6 +137,7 @@ export default function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onCl
                     <th>Session</th>
                     <th>Date</th>
                     <th>Collector</th>
+                    <th>Recorded by</th>
                     <th>Method</th>
                     <th style={{ textAlign: 'right' }}>Amount</th>
                   </tr>
@@ -133,6 +163,19 @@ export default function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onCl
                         {row.sessionDate ? formatDate(row.sessionDate) : formatDate(row.allocatedOn)}
                       </td>
                       <td>{row.collectorName || '—'}</td>
+                      <td
+                        className={row.recordedByUserId && !userNames[row.recordedByUserId] ? 'mono' : ''}
+                        style={{ fontSize: 11 }}
+                        title={
+                          row.recordedByUserId
+                            ? undefined
+                            : 'Not tracked for this payment method (only Cash collections record who entered them)'
+                        }
+                      >
+                        {row.recordedByUserId
+                          ? userNames[row.recordedByUserId] || formatUserId(row.recordedByUserId)
+                          : 'Not tracked'}
+                      </td>
                       <td>{row.paymentMethod}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>
                         <div>{money(row.allocatedAmount)}</div>
@@ -191,6 +234,65 @@ export default function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onCl
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
+          {data.creditLedgerHistory?.length ? (
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-dim)', marginBottom: 6 }}>
+                {data.customerName}'s full credit history — shows where a CreditNote payment's money
+                actually came from (an earlier overpayment, a return, etc.). The system doesn't
+                record which user applied or earned each entry.
+              </div>
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
+                <table className="data-table product-table-compact">
+                  <thead>
+                    <tr>
+                      <th>Type</th>
+                      <th>Description</th>
+                      <th style={{ textAlign: 'right' }}>Amount</th>
+                      <th style={{ textAlign: 'right' }}>Balance after</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.creditLedgerHistory.map((row) => {
+                      const isEarned = row.creditType === 'Earned'
+                      return (
+                        <tr key={row.id}>
+                          <td>
+                            <span
+                              className={`rounded border px-2 py-0.5 text-xs font-semibold ${
+                                isEarned
+                                  ? 'border-green-800/50 bg-green-900/20 text-green-400'
+                                  : 'border-amber-800/50 bg-amber-900/20 text-amber-400'
+                              }`}
+                            >
+                              {isEarned ? '+ Earned' : '− Consumed'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                            {row.description}
+                          </td>
+                          <td
+                            className="mono"
+                            style={{ textAlign: 'right', color: isEarned ? '#4ade80' : 'var(--color-amber)' }}
+                          >
+                            {isEarned ? '+' : '−'}
+                            {money(row.amount)}
+                          </td>
+                          <td className="mono" style={{ textAlign: 'right' }}>
+                            {money(row.balanceAfter)}
+                          </td>
+                          <td className="mono" style={{ fontSize: 11 }}>
+                            {formatDateTime(row.transactionDate)}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
