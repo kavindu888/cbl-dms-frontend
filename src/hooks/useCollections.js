@@ -251,6 +251,14 @@ export const useInvoicePaymentAudit = (invoiceId) =>
     staleTime: 10_000,
     retry: false,
   })
+// Admin sweep: every invoice org-wide with an unexplained "ghost payment" gap.
+export const useUnreconciledInvoicePayments = () =>
+  useQuery({
+    queryKey: ['unreconciled-invoice-payments'],
+    queryFn: () => api.getUnreconciledInvoicePayments(),
+    staleTime: 10_000,
+    retry: false,
+  })
 export const useOutstandingInvoicesByIds = (ids) =>
   useQuery({
     queryKey: ['outstanding-invoices-by-ids', ids],

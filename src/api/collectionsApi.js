@@ -222,3 +222,11 @@ export const getInvoicePaymentAudit = (invoiceId) =>
     collectionsV1Axios.get(`/payment-audit/invoice/${invoiceId}`),
     'Failed to load payment audit for this invoice'
   )
+
+// Admin sweep: every invoice org-wide whose amount paid isn't explained by any collection session
+// or direct invoice payment — the "ghost payment" finder.
+export const getUnreconciledInvoicePayments = () =>
+  value(
+    collectionsV1Axios.get('/payment-audit/unreconciled'),
+    'Failed to load unreconciled payments report'
+  )
