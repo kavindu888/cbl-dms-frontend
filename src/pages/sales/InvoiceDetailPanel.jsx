@@ -1,9 +1,10 @@
-import { Ban, Package, Pencil, RefreshCw, Tags, Wrench } from 'lucide-react'
+import { Ban, History, Package, Pencil, RefreshCw, Tags, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@stores/authStore'
 import { PERMISSIONS, userHasPermission } from '@/utils/permissions'
 import { salesService } from '@/services/api/salesService'
+import InvoicePaymentAuditModal from '@/components/collections/InvoicePaymentAuditModal'
 import RecalculateInvoiceDiscountsModal from './RecalculateInvoiceDiscountsModal'
 import AdminEditInvoiceLinesModal from './AdminEditInvoiceLinesModal'
 import SetInvoiceOrderDiscountsModal from './SetInvoiceOrderDiscountsModal'
@@ -38,11 +39,13 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
   const canAdjustDiscounts = userHasPermission(currentUser, PERMISSIONS.sales.invoiceAdjustDiscounts)
   const canAdminEditLines = userHasPermission(currentUser, PERMISSIONS.sales.invoiceAdminEditLines)
   const canCancelInvoice = userHasPermission(currentUser, PERMISSIONS.sales.invoiceCancel)
+  const canViewPaymentAudit = userHasPermission(currentUser, PERMISSIONS.collections.reconciliationRead)
   const [isRecalculateOpen, setIsRecalculateOpen] = useState(false)
   const [isAdminEditOpen, setIsAdminEditOpen] = useState(false)
   const [isSetOrderDiscountsOpen, setIsSetOrderDiscountsOpen] = useState(false)
   const [isCancelOpen, setIsCancelOpen] = useState(false)
   const [isFixingStatus, setIsFixingStatus] = useState(false)
+  const [isPaymentAuditOpen, setIsPaymentAuditOpen] = useState(false)
 
   async function fixPaymentStatus() {
     setIsFixingStatus(true)
@@ -101,10 +104,23 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
           <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
             {normalLines.length} item{normalLines.length === 1 ? '' : 's'}
           </span>
-          {(canAdjustDiscounts || canAdminEditLines || canCancelInvoice) &&
-          invoice.status !== 'Cancelled' ? (
+          {canAdjustDiscounts ||
+          canAdminEditLines ||
+          canCancelInvoice ||
+          canViewPaymentAudit ? (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-              {canAdminEditLines ? (
+              {canViewPaymentAudit ? (
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => setIsPaymentAuditOpen(true)}
+                  title="Every collection session, cheque, transfer, and credit note that ever applied money to this invoice"
+                  style={{ height: 26, fontSize: 11, padding: '0 10px' }}
+                >
+                  <History size={12} /> Payment Audit
+                </button>
+              ) : null}
+              {canAdminEditLines && invoice.status !== 'Cancelled' ? (
                 <button
                   type="button"
                   className="button-secondary"
@@ -114,7 +130,7 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                   <Pencil size={12} /> Edit Lines
                 </button>
               ) : null}
-              {canAdjustDiscounts ? (
+              {canAdjustDiscounts && invoice.status !== 'Cancelled' ? (
                 <button
                   type="button"
                   className="button-secondary"
@@ -124,7 +140,7 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                   <Wrench size={12} /> Recalculate Discounts
                 </button>
               ) : null}
-              {canAdjustDiscounts ? (
+              {canAdjustDiscounts && invoice.status !== 'Cancelled' ? (
                 <button
                   type="button"
                   className="button-secondary"
@@ -134,7 +150,7 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                   <Tags size={12} /> Set Order Discounts
                 </button>
               ) : null}
-              {canAdjustDiscounts ? (
+              {canAdjustDiscounts && invoice.status !== 'Cancelled' ? (
                 <button
                   type="button"
                   className="button-secondary"
@@ -146,7 +162,7 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                   <RefreshCw size={12} /> {isFixingStatus ? 'Fixing...' : 'Fix Payment Status'}
                 </button>
               ) : null}
-              {canCancelInvoice ? (
+              {canCancelInvoice && invoice.status !== 'Cancelled' ? (
                 <button
                   type="button"
                   className="button-secondary"
@@ -369,6 +385,17 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
         onClose={() => setIsCancelOpen(false)}
         onDone={onRefresh}
       />
+
+      {isPaymentAuditOpen ? (
+        <InvoicePaymentAuditModal
+          invoiceId={invoice.id}
+          invoiceLabel={invoice.serialNumber || invoice.invoiceNumber}
+          onClose={() => {
+            setIsPaymentAuditOpen(false)
+            onRefresh?.()
+          }}
+        />
+      ) : null}
     </div>
   )
 }
