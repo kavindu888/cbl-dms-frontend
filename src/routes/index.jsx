@@ -12,6 +12,7 @@ import CustomerAccountPage from '@pages/collections/CustomerAccountPage'
 import DepositBatchesPage from '@pages/collections/DepositBatchesPage'
 import ReconciliationPage from '@pages/collections/ReconciliationPage'
 import SalesmenPage from '@pages/collections/SalesmenPage'
+import CreditNoteAppliedInvoicesPage from '@pages/collections/CreditNoteAppliedInvoicesPage'
 import UnreconciledPaymentsPage from '@pages/collections/UnreconciledPaymentsPage'
 import DashboardPage from '@pages/dashboard/DashboardPage'
 import FleetOverviewPage from '@pages/fleet/FleetOverviewPage'
@@ -532,6 +533,13 @@ export const router = createBrowserRouter([
         path: 'collections/unreconciled-payments',
         element: requirePermission(
           <UnreconciledPaymentsPage />,
+          PERMISSIONS.collections.reconciliationRead
+        ),
+      },
+      {
+        path: 'collections/credit-note-applied',
+        element: requirePermission(
+          <CreditNoteAppliedInvoicesPage />,
           PERMISSIONS.collections.reconciliationRead
         ),
       },

@@ -259,6 +259,14 @@ export const useUnreconciledInvoicePayments = () =>
     staleTime: 10_000,
     retry: false,
   })
+// Admin sweep: every invoice with an auto-applied customer-credit-note payment.
+export const useCreditNoteAppliedInvoices = () =>
+  useQuery({
+    queryKey: ['credit-note-applied-invoices'],
+    queryFn: () => api.getCreditNoteAppliedInvoices(),
+    staleTime: 10_000,
+    retry: false,
+  })
 // Admin: force-removes every payment on an invoice (real or ghost). May touch several sessions at
 // once (wherever this invoice's money lived), so invalidates broadly rather than one session id.
 export const useForceRemoveInvoicePayments = () => {

@@ -239,3 +239,11 @@ export const forceRemoveInvoicePayments = (invoiceId, reason) =>
     collectionsV1Axios.post(`/payment-audit/invoice/${invoiceId}/force-remove`, { reason }),
     "Failed to remove this invoice's payments"
   )
+
+// Admin sweep: every invoice that ever had a customer-credit-note payment auto-applied to it (an
+// unrelated leftover credit swept in at invoice creation) — not inherently wrong, but review-worthy.
+export const getCreditNoteAppliedInvoices = () =>
+  value(
+    collectionsV1Axios.get('/payment-audit/credit-note-applied'),
+    'Failed to load credit-note-applied invoices'
+  )
