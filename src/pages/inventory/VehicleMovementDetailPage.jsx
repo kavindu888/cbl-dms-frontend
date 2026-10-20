@@ -887,6 +887,9 @@ export default function VehicleMovementDetailPage({
   const isDraft = status === 'Draft'
   const actionPending =
     applyMovement.isPending || cancelMovement.isPending || autoRepairLoadingLines.isPending
+  const itemCount = new Set(
+    (movement.lines || []).map((line) => line.productId || line.productSku).filter(Boolean)
+  ).size
   const totalQty = (movement.lines || []).reduce(
     (sum, line) => sum + Number(line.qtySmallest || 0),
     0
@@ -1161,7 +1164,11 @@ export default function VehicleMovementDetailPage({
             mono={!createdByName}
           />
           <InfoTile label="Applied On" value={formatDateTime(movement.appliedOn)} mono />
-          <InfoTile label="Total Lines" value={movement.lines?.length ?? 0} mono />
+          <InfoTile
+            label={isUnloading ? 'Total Lines' : 'Total Items'}
+            value={isUnloading ? movement.lines?.length ?? 0 : itemCount}
+            mono
+          />
           <InfoTile label="Total Selling Value" value={formatLKR(totalSellingValue)} mono />
           <InfoTile label="Total Unit Cost Value" value={formatLKR(totalUnitCostValue)} mono />
         </div>
@@ -1691,7 +1698,11 @@ export default function VehicleMovementDetailPage({
                 label="Vehicle"
                 value={vehicle ? vehicleLabel(vehicle) : movement.vehicleLocationId}
               />
-              <InfoTile label="Lines" value={movement.lines?.length || 0} mono />
+              <InfoTile
+                label={isUnloading ? 'Lines' : 'Items'}
+                value={isUnloading ? movement.lines?.length || 0 : itemCount}
+                mono
+              />
               <InfoTile label="Total Qty" value={formatNumber(totalQty)} mono />
             </div>
             <div

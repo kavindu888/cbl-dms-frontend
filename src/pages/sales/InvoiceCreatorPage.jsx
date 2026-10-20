@@ -367,6 +367,7 @@ export default function InvoiceCreatorPage() {
   const hasPrefilledFromSalesOrder = useRef(false)
   const hasHydratedDraftInvoice = useRef(false)
   const draftSaveTimeout = useRef(null)
+  const draftSavePromiseRef = useRef(Promise.resolve())
   const lastDraftPayloadRef = useRef('')
   const isHydratingDraftRef = useRef(false)
   const [customers, setCustomers] = useState([])
@@ -402,6 +403,9 @@ export default function InvoiceCreatorPage() {
   const [draftStatus, setDraftStatus] = useState(routeInvoiceId ? 'saved' : 'idle')
   const [lastSavedAt, setLastSavedAt] = useState(null)
   const serialCheckTimeout = useRef(null)
+  const serialCheckVersion = useRef(0)
+  const draftInvoiceIdRef = useRef(draftInvoiceId)
+  draftInvoiceIdRef.current = draftInvoiceId
   const productInputRefs = useRef([])
   const quantityInputRefs = useRef([])
   const pendingProductFocusIndexRef = useRef(null)
@@ -987,34 +991,47 @@ export default function InvoiceCreatorPage() {
   }
 
   function handleSerialNumberChange(value) {
-    // Allow only English letters and numbers
     const cleanedValue = value.replace(/[^a-zA-Z0-9]/g, '')
-
+    if (cleanedValue === serialNumber) return
+    serialCheckVersion.current += 1
     setSerialNumber(cleanedValue)
     setSerialNumberWarning(false)
-    setSerialNumberChecking(false)
+    setSerialNumberChecking(Boolean(cleanedValue))
+  }
 
-    if (serialCheckTimeout.current) {
-      clearTimeout(serialCheckTimeout.current)
+  useEffect(() => {
+    const version = ++serialCheckVersion.current
+    if (!serialNumber.trim()) {
+      setSerialNumberWarning(false)
+      setSerialNumberChecking(false)
+      return undefined
     }
 
-    if (!cleanedValue) return
-
+    setSerialNumberChecking(true)
     serialCheckTimeout.current = setTimeout(async () => {
-      setSerialNumberChecking(true)
-
       try {
-        const result = await salesService.checkSerialNumberExists(cleanedValue)
-        setSerialNumberWarning(Boolean(result.exists))
+        const result = await salesService.checkSerialNumberExists(
+          serialNumber.trim(),
+          draftInvoiceIdRef.current
+        )
+        if (version === serialCheckVersion.current) {
+          setSerialNumberWarning(Boolean(result.exists))
+        }
       } catch (error) {
         console.error('Serial number check failed:', error)
       } finally {
-        setSerialNumberChecking(false)
+        if (version === serialCheckVersion.current) setSerialNumberChecking(false)
       }
     }, 600)
-  }
+
+    return () => {
+      clearTimeout(serialCheckTimeout.current)
+      serialCheckVersion.current += 1
+    }
+  }, [serialNumber, draftInvoiceId])
 
   function handleClear() {
+    serialCheckVersion.current += 1
     if (serialCheckTimeout.current) clearTimeout(serialCheckTimeout.current)
     setSerialNumber('')
     setInvoiceDate(todayInputDate())
@@ -1045,6 +1062,12 @@ export default function InvoiceCreatorPage() {
     if (!/^[a-zA-Z0-9]+$/.test(cleanedSerialNumber)) {
       return 'Serial Number can contain only letters and numbers.'
     }
+
+    if (serialNumberWarning) {
+      return 'This serial number is already entered. Please enter a different serial number.'
+    }
+
+    if (serialNumberChecking) return 'Please wait while the serial number is checked.'
 
     if (!values.customerId) {
       return 'Customer is required.'
@@ -1220,13 +1243,19 @@ export default function InvoiceCreatorPage() {
     const payloadJson = JSON.stringify(payload)
     if (payloadJson === lastDraftPayloadRef.current && draftInvoiceId) return draftInvoiceId
 
-    async function persist() {
+    async function persistDraft() {
       setDraftStatus('saving')
       try {
-        let id = draftInvoiceId
+        let id = draftInvoiceIdRef.current
+        if (serialNumberWarning) {
+          throw new Error(
+            'This serial number is already entered. Please enter a different serial number.'
+          )
+        }
         if (!id) {
           const response = await salesService.createInvoiceDraft(payload)
           id = getInvoiceId(response)
+          draftInvoiceIdRef.current = id
           setDraftInvoiceId(id)
           if (!routeInvoiceId && id) {
             navigate(`/sales/invoices/${id}/edit`, { replace: true })
@@ -1246,7 +1275,16 @@ export default function InvoiceCreatorPage() {
       }
     }
 
-    if (immediate) return persist()
+    function persist() {
+      const pending = draftSavePromiseRef.current.then(persistDraft)
+      draftSavePromiseRef.current = pending.catch(() => {})
+      return pending
+    }
+
+    if (immediate) {
+      if (draftSaveTimeout.current) clearTimeout(draftSaveTimeout.current)
+      return persist()
+    }
 
     if (draftSaveTimeout.current) clearTimeout(draftSaveTimeout.current)
     draftSaveTimeout.current = setTimeout(() => {
@@ -2053,7 +2091,7 @@ export default function InvoiceCreatorPage() {
                       alignItems: 'flex-start',
                       gap: 6,
                       marginTop: 6,
-                      color: 'var(--color-amber)',
+                      color: 'var(--color-danger)',
                     }}
                   >
                     <TriangleAlert
@@ -2061,8 +2099,7 @@ export default function InvoiceCreatorPage() {
                       style={{ width: 13, height: 13, marginTop: 1, flex: '0 0 auto' }}
                     />
                     <p style={{ margin: 0, fontSize: 12, lineHeight: 1.35 }}>
-                      Serial number {serialNumber} has already been used on another invoice. You
-                      can still save.
+                      This serial number is already entered. Please enter a different serial number.
                     </p>
                   </div>
                 ) : null}
@@ -2293,7 +2330,7 @@ export default function InvoiceCreatorPage() {
               Clear
             </button>
             <button className="button-primary" type="submit"
-              disabled={isSaving || isLoadingData || serialNumberChecking || !serialNumber.trim()
+              disabled={isSaving || isLoadingData || serialNumberChecking || serialNumberWarning || !serialNumber.trim()
               }
             >
               <Save style={{ width: 15, height: 15 }} />

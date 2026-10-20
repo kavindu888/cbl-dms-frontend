@@ -660,6 +660,9 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     })
   }
 
+  const itemCount = new Set(
+    lines.map((line) => line.productId || line.productSku).filter(Boolean)
+  ).size
   const totalQty = lines.reduce((sum, line) => sum + Number(line.qtySmallest || 0), 0)
   const totalSellingValue = lines.reduce(
     (sum, line) =>
@@ -1838,7 +1841,11 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
               <SummaryRow label="Unloading Date" value={unloadingDate || 'Not selected'} mono />
             </>
           )}
-          <SummaryRow label="Lines" value={lines.length} mono />
+          <SummaryRow
+            label={isUnloading ? 'Lines' : 'Items'}
+            value={isUnloading ? lines.length : itemCount}
+            mono
+          />
           {isUnloading ? (
             <>
               <SummaryRow label="Normal" value={normalCount} mono />

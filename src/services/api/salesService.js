@@ -542,11 +542,11 @@ export const salesService = {
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
   },
 
-  async checkSerialNumberExists(serialNumber) {
+  async checkSerialNumberExists(serialNumber, excludeInvoiceId = null) {
     if (!serialNumber?.trim()) return { exists: false }
 
     const response = await api.get('/api/v1/sales/invoices/check-serial', {
-      params: { serialNumber },
+      params: { serialNumber, excludeInvoiceId: excludeInvoiceId || undefined },
     })
 
     return response.data ?? { exists: false }
