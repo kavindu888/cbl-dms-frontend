@@ -78,6 +78,7 @@ import OpeningStockPage from '@pages/inventory/OpeningStock/OpeningStockPage'
 import StockOverviewPage from '@pages/inventory/Stock/StockOverviewPage'
 import StockBatchesDetailPage from '@pages/inventory/Stock/StockBatchesPage'
 import StockAuditPage from '@pages/inventory/StockAudit/StockAuditPage'
+import StockIntegrityReportPage from '@pages/inventory/StockAudit/StockIntegrityReportPage'
 import StockAdjustmentCreatePage from '@pages/inventory/StockAdjustment/StockAdjustmentCreatePage'
 import StockAdjustmentListPage from '@pages/inventory/StockAdjustment/StockAdjustmentListPage'
 import { ProtectedRoute } from './ProtectedRoute'
@@ -325,6 +326,10 @@ export const router = createBrowserRouter([
       {
         path: 'inventory/stock-audit',
         element: requirePermission(<StockAuditPage />, PERMISSIONS.inventory.stockRead),
+      },
+      {
+        path: 'inventory/stock-integrity',
+        element: requirePermission(<StockIntegrityReportPage />, PERMISSIONS.inventory.stockRead),
       },
       {
         path: 'inventory/stock/batches/:productId',

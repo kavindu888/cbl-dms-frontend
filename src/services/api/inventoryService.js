@@ -229,6 +229,30 @@ export const inventoryService = {
     return asList(getValue(response, 'Unable to load stock movements.')).map(formatMovement)
   },
 
+  // Full admin audit surface — ledger with filters/pagination/who-did-it, batch lifecycle,
+  // stocktake variance (theft/shrinkage detection), and per-lorry-run handling.
+  async getStockMovementLedger(params = {}) {
+    const response = await getOnce('/api/v1/inventory/stock-audit/movements', { params })
+    const result = getValue(response, 'Unable to load the stock movement ledger.')
+    return {
+      items: asList(result).map(formatMovement),
+      totalCount: Number(result?.totalCount ?? 0),
+    }
+  },
+  async getBatchLifecycle(batchId) {
+    const response = await getOnce(`/api/v1/inventory/stock-audit/batches/${batchId}/lifecycle`)
+    const result = getValue(response, 'Unable to load this batch’s history.')
+    return { ...result, movements: (result?.movements || []).map(formatMovement) }
+  },
+  async getStocktakeVarianceReport(params = {}) {
+    const response = await getOnce('/api/v1/inventory/stock-audit/stocktake-variance', { params })
+    return asList(getValue(response, 'Unable to load the stocktake variance report.'))
+  },
+  async getVehicleHandlingReport(params = {}) {
+    const response = await getOnce('/api/v1/inventory/stock-audit/vehicle-handling', { params })
+    return asList(getValue(response, 'Unable to load the vehicle handling report.'))
+  },
+
   //Inventory Stock Locations
   async listStockLocations(params = {}) {
     const response = await getOnce('/api/inventory/stock-locations', { params })

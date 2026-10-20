@@ -71,10 +71,10 @@ export default function StockAuditPage() {
     setIsLoading(true)
     setAudit(null)
     try {
-      const [position, batches, movements, staged] = await Promise.all([
+      const [position, batches, ledger, staged] = await Promise.all([
         inventoryService.getStockAvailability(product.id),
         inventoryService.listStockBatches(product.id),
-        inventoryService.listStockMovements({ productId: product.id, page: 1, pageSize: 50 }),
+        inventoryService.getStockMovementLedger({ productId: product.id, page: 1, pageSize: 100 }),
         inventoryService.listReturnStock({ productId: product.id }),
       ])
       setAudit({
@@ -84,7 +84,8 @@ export default function StockAuditPage() {
           if (!b.expiryDate) return -1
           return new Date(a.expiryDate) - new Date(b.expiryDate)
         }),
-        movements: movements || [],
+        movements: ledger.items || [],
+        movementsTotal: ledger.totalCount || 0,
         staged: staged?.items || [],
       })
     } catch (error) {
@@ -195,21 +196,33 @@ export default function StockAuditPage() {
             </tbody>
           </AuditTable>
 
-          <AuditTable title="Recent Movements" count={audit.movements.length} minWidth={940}>
-            <thead><tr><th>Date</th><th>Type</th><th style={{ textAlign: 'right' }}>Qty</th><th>Reference Type</th><th>Reference ID</th><th>Notes</th></tr></thead>
+          <AuditTable title="Recent Movements" count={audit.movementsTotal || audit.movements.length} minWidth={1140}>
+            <thead><tr><th>Date</th><th>Type</th><th style={{ textAlign: 'right' }}>Qty</th><th>Batch</th><th>Location</th><th>Reference</th><th>Recorded By</th><th>Notes</th></tr></thead>
             <tbody>
               {audit.movements.length ? audit.movements.map((movement) => (
                 <tr key={movement.id} style={{ boxShadow: `inset 3px 0 ${movementColors[movement.movementType] || 'transparent'}` }}>
                   <td>{formatShortDateTime(movement.occurredOn)}</td>
                   <td><StatusBadge status={movement.movementType} /></td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800, color: Number(movement.quantity) >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>{Number(movement.quantity) > 0 ? '+' : ''}{number(movement.quantity)}</td>
-                  <td>{movement.referenceType}</td>
-                  <td className="mono">{movement.referenceId}</td>
+                  <td className="mono">{movement.batchNo || '-'}</td>
+                  <td>{movement.stockLocationName || movement.stockLocationId}</td>
+                  <td>
+                    <div>{movement.referenceType}</div>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      {movement.referenceLabel || movement.referenceId}
+                    </div>
+                  </td>
+                  <td style={{ fontSize: 12 }}>{movement.userName || (movement.userId ? 'Unknown user' : '-')}</td>
                   <td>{movement.notes || '-'}</td>
                 </tr>
-              )) : <EmptyRow columns={6} />}
+              )) : <EmptyRow columns={8} />}
             </tbody>
           </AuditTable>
+          {audit.movementsTotal > audit.movements.length ? (
+            <div style={{ fontSize: 11, color: 'var(--color-text-dim)', textAlign: 'center' }}>
+              Showing the most recent {audit.movements.length} of {audit.movementsTotal} movements for this product.
+            </div>
+          ) : null}
 
           <AuditTable title="Staged for Return" count={audit.staged.length} minWidth={720}>
             <thead><tr><th>Batch No</th><th>Expiry</th><th style={{ textAlign: 'right' }}>Qty</th><th>Reason</th><th>Status</th><th>Flagged On</th></tr></thead>

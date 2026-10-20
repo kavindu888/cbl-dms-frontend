@@ -325,12 +325,18 @@ const navGroups = [
         icon: SlidersHorizontal,
         permissions: PERMISSIONS.inventory.stockAdjustmentCreate,
       },
-      // {
-      //   label: 'Stock Audit',
-      //   to: '/inventory/stock-audit',
-      //   icon: Search,
-      //   permissions: PERMISSIONS.inventory.stockRead,
-      // },
+      {
+        label: 'Stock Audit',
+        to: '/inventory/stock-audit',
+        icon: Search,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
+      {
+        label: 'Stock Integrity Reports',
+        to: '/inventory/stock-integrity',
+        icon: ShieldAlert,
+        permissions: PERMISSIONS.inventory.stockRead,
+      },
       {
         label: 'Stock Batches',
         to: '/inventory/batches',
