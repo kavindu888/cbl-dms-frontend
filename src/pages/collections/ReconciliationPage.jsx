@@ -22,33 +22,42 @@ const amountOrDash = (value) => (Number(value || 0) > 0 ? money(value) : '—')
 // A per-invoice Cash/Cheques figure, with an admin-only edit affordance when there's actually an
 // amount to correct — an empty cell means no payment was recorded at all, so there's nothing here
 // to fix (recording a new payment is the right action for that, not this correction tool).
-function AmountWithEdit({ value, canEdit, onEdit, color }) {
+// recordedBy: who was logged in when this amount was entered this session (resolved server-side
+// from Collection.CollectedByUserId) — shown as a small line under the value itself.
+function AmountWithEdit({ value, canEdit, onEdit, color, recordedBy }) {
   const amount = Number(value || 0)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-      <span style={color ? { color } : undefined}>{amountOrDash(amount)}</span>
-      {canEdit && amount > 0 ? (
-        <button
-          type="button"
-          onClick={onEdit}
-          className="no-print"
-          title="Correct this amount"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 20,
-            height: 20,
-            padding: 0,
-            border: '1px solid var(--color-border)',
-            borderRadius: 5,
-            background: 'transparent',
-            color: 'var(--color-text-dim)',
-            cursor: 'pointer',
-          }}
-        >
-          <Pencil size={11} />
-        </button>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+        <span style={color ? { color } : undefined}>{amountOrDash(amount)}</span>
+        {canEdit && amount > 0 ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="no-print"
+            title="Correct this amount"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 20,
+              height: 20,
+              padding: 0,
+              border: '1px solid var(--color-border)',
+              borderRadius: 5,
+              background: 'transparent',
+              color: 'var(--color-text-dim)',
+              cursor: 'pointer',
+            }}
+          >
+            <Pencil size={11} />
+          </button>
+        ) : null}
+      </div>
+      {amount > 0 && recordedBy ? (
+        <span style={{ fontSize: 10, color: 'var(--color-text-dim)', fontWeight: 400 }}>
+          by {recordedBy}
+        </span>
       ) : null}
     </div>
   )
@@ -479,6 +488,7 @@ export default function ReconciliationPage() {
                                   onEdit={() =>
                                     openCorrection(customer, invoice, 'Cash', invoice.sessionCashAmount)
                                   }
+                                  recordedBy={invoice.cashRecordedByUserName}
                                 />
                               </td>
                               <td className="mono" style={{ textAlign: 'right' }}>
@@ -488,6 +498,7 @@ export default function ReconciliationPage() {
                                   onEdit={() =>
                                     openCorrection(customer, invoice, 'Cheque', invoice.sessionChequeAmount)
                                   }
+                                  recordedBy={invoice.chequeRecordedByUserName}
                                 />
                               </td>
                               <td className="mono" style={{ textAlign: 'right' }}>

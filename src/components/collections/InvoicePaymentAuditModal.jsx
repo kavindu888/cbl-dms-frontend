@@ -198,7 +198,7 @@ export default function InvoicePaymentAuditModal({ invoiceId, invoiceLabel, onCl
                         title={
                           row.recordedByUserId
                             ? undefined
-                            : 'Not tracked for this payment method (only Cash collections record who entered them)'
+                            : 'Not tracked for this payment method (only Cash and Cheque record who entered them)'
                         }
                       >
                         {row.recordedByUserId
