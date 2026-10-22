@@ -597,6 +597,12 @@ export const salesService = {
     return (response.data || []).map(formatInvoice)
   },
 
+  // Admin "watch" report: groups of invoices that share the same serial number.
+  async getDuplicateSerialNumberInvoices() {
+    const response = await getOnce('/api/v1/sales/invoices/duplicate-serial-numbers')
+    return getResponseData(response, 'Unable to load duplicate serial numbers.') || []
+  },
+
   // Add a payment to an invoice
   async addInvoicePayment(id, payload) {
     await api.post(`/api/v1/sales/invoices/${id}/payments`, payload)

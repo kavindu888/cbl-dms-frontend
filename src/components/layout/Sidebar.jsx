@@ -83,6 +83,12 @@ const navGroups = [
         icon: ClipboardList,
         permissions: PERMISSIONS.sales.invoiceCreate,
       },
+      {
+        label: 'Duplicate Serial Numbers',
+        to: '/sales/invoices/duplicate-serial-numbers',
+        icon: ShieldAlert,
+        permissions: PERMISSIONS.sales.invoiceRead,
+      },
     ],
   },
   {
