@@ -2,8 +2,9 @@ import { AlertTriangle, Ban, Wallet } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import Modal from '@components/ui/Modal'
-import { getOutstandingInvoicesByIds } from '@/api/collectionsApi'
+import { getChequeMergeCandidate, getOutstandingInvoicesByIds } from '@/api/collectionsApi'
 import {
+  useAddAllocationToCheque,
   useBankBranches,
   useBanks,
   useDiscardCashDraft,
@@ -923,9 +924,12 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
     notes: '',
   })
   const [allocations, setAllocations] = useState([])
+  const [mergeCandidate, setMergeCandidate] = useState(null)
+  const [isCheckingMerge, setIsCheckingMerge] = useState(false)
   const banks = useBanks()
   const branches = useBankBranches(form.bankId)
   const mutation = useRecordChequePayment()
+  const addToExisting = useAddAllocationToCheque()
   const gate = useAllocationReviewGate()
   const amount = Number(form.amount || 0)
   const allocated = allocationTotal(allocations)
@@ -939,23 +943,10 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
   const bank = (banks.data || []).find((row) => row.id === form.bankId)
   const branch = (branches.data || []).find((row) => row.id === form.branchId)
 
-  async function doSubmit(writeOffsByInvoiceId = {}) {
-    await mutation.mutateAsync({
-      sessionId,
-      customerId: customer.id,
-      totalAmount: amount,
-      chequeNumber: form.chequeNumber,
-      drawerName: form.drawerName,
-      chequeDate: apiDate(form.chequeDate),
-      allocations: payloadAllocations(allocations, writeOffsByInvoiceId, amount),
-      bankId: form.bankId,
-      bankBranchId: form.branchId || null,
-      bankName: bank?.name || null,
-      branchName: branch?.name || null,
-      notes: form.notes || null,
-    })
+  function resetForm() {
     setBill(null)
     setAllocations([])
+    setMergeCandidate(null)
     setForm({
       chequeNumber: '',
       drawerName: '',
@@ -965,6 +956,56 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
       chequeDate: colomboToday(),
       notes: '',
     })
+  }
+
+  async function doSubmit(writeOffsByInvoiceId = {}) {
+    const chequeAllocations = payloadAllocations(allocations, writeOffsByInvoiceId, amount)
+    try {
+      await mutation.mutateAsync({
+        sessionId,
+        customerId: customer.id,
+        totalAmount: amount,
+        chequeNumber: form.chequeNumber,
+        drawerName: form.drawerName,
+        chequeDate: apiDate(form.chequeDate),
+        allocations: chequeAllocations,
+        bankId: form.bankId,
+        bankBranchId: form.branchId || null,
+        bankName: bank?.name || null,
+        branchName: branch?.name || null,
+        notes: form.notes || null,
+      })
+    } catch (error) {
+      // The same physical cheque, recorded against more bills in a separate submission, hits this
+      // exact rejection — check whether it's safe to add to that existing cheque instead of just
+      // failing outright.
+      if (!error.message?.includes('already exists for this customer')) throw error
+      setIsCheckingMerge(true)
+      try {
+        const candidate = await getChequeMergeCandidate(sessionId, customer.id, form.chequeNumber)
+        if (candidate?.canMerge) {
+          setMergeCandidate({ ...candidate, chequeAllocations })
+          return
+        }
+        if (candidate) toast.error(candidate.cannotMergeReason || error.message)
+        else throw error
+      } finally {
+        setIsCheckingMerge(false)
+      }
+      return
+    }
+    resetForm()
+    onRecorded?.()
+  }
+
+  async function confirmMerge() {
+    if (!mergeCandidate) return
+    await addToExisting.mutateAsync({
+      chequeId: mergeCandidate.chequeId,
+      sessionId,
+      allocations: mergeCandidate.chequeAllocations,
+    })
+    resetForm()
     onRecorded?.()
   }
 
@@ -1086,12 +1127,52 @@ export function ChequesTab({ sessionId, disabled, onRecorded }) {
           onChange={(event) => setForm({ ...form, notes: event.target.value })}
         />
       </label>
-      <button
-        className="button-primary"
-        disabled={disabled || mutation.isPending || gate.isConfirming || !canSubmitCheque}
-      >
-        {mutation.isPending || gate.isConfirming ? 'Recording...' : 'Record cheque'}
-      </button>
+      {mergeCandidate ? (
+        <div
+          style={{
+            padding: 12,
+            display: 'grid',
+            gap: 8,
+            border: '1px solid var(--color-teal)',
+            borderRadius: 7,
+            color: 'var(--color-teal)',
+            fontSize: 12,
+          }}
+        >
+          <span>
+            Cheque #{mergeCandidate.chequeNumber} was already recorded this session for{' '}
+            {money(mergeCandidate.currentAmount)}. Add {money(amount)} more to it for this bill,
+            making the total {money(mergeCandidate.currentAmount + amount)}?
+          </span>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => setMergeCandidate(null)}
+              disabled={addToExisting.isPending}
+              style={{ height: 32 }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="button-primary"
+              onClick={confirmMerge}
+              disabled={addToExisting.isPending}
+              style={{ height: 32 }}
+            >
+              {addToExisting.isPending ? 'Adding...' : 'Add to existing cheque'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          className="button-primary"
+          disabled={disabled || mutation.isPending || isCheckingMerge || gate.isConfirming || !canSubmitCheque}
+        >
+          {mutation.isPending || isCheckingMerge || gate.isConfirming ? 'Recording...' : 'Record cheque'}
+        </button>
+      )}
       <AllocationReviewModal gate={gate} customerName={customer?.name} />
     </form>
   )

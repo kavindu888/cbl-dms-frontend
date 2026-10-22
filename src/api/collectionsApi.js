@@ -132,6 +132,20 @@ export const recordCashPayment = (data) =>
   value(collectionsV1Axios.post('/payments/cash', data), 'Failed to record cash payment')
 export const recordChequePayment = (data) =>
   value(collectionsV1Axios.post('/payments/cheque', data), 'Failed to record cheque payment')
+// Checks whether a "cheque already exists" rejection is the same physical cheque being split
+// across more than one submission for this customer, and whether it's safe to add to.
+export const getChequeMergeCandidate = (sessionId, customerId, chequeNumber) =>
+  value(
+    collectionsV1Axios.get('/payments/cheque/merge-candidate', {
+      params: { sessionId, customerId, chequeNumber },
+    }),
+    'Failed to check the existing cheque'
+  )
+export const addAllocationToCheque = (chequeId, data) =>
+  value(
+    collectionsV1Axios.post(`/payments/cheque/${chequeId}/add-allocations`, data),
+    'Failed to add to the existing cheque'
+  )
 export const recordBankTransferPayment = (data) =>
   value(collectionsV1Axios.post('/payments/bank-transfer', data), 'Failed to record transfer')
 export const updateCashDraft = (id, data) =>

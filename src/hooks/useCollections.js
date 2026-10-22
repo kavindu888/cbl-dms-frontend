@@ -346,6 +346,20 @@ export const useRecordChequePayment = () => {
 }
 export const useRecordBankTransfer = () =>
   usePaymentMutation(api.recordBankTransferPayment, 'Bank transfer recorded')
+// Adds more invoices to an existing Received cheque from the same session, instead of rejecting
+// a second submission of the same cheque number outright. No onError toast here — the caller
+// drives its own merge-confirmation UI and error handling around this one.
+export const useAddAllocationToCheque = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ chequeId, ...data }) => api.addAllocationToCheque(chequeId, data),
+    onSuccess: () => {
+      invalidatePayments(qc)
+      qc.invalidateQueries({ queryKey: ['cheques'] })
+      toast.success('Added to the existing cheque')
+    },
+  })
+}
 
 // Legacy hooks retained for older collection entry code.
 export const useRecordCash = (sessionId) => {
