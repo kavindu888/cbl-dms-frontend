@@ -391,6 +391,22 @@ function AllocationSection({ customer, total, allocations, setAllocations }) {
   const allocated = allocationTotal(allocations)
   const matches = Number(total) > 0 && Math.abs(allocated - Number(total)) < 0.01
   const hasUnallocated = allocated < Number(total || 0) - 0.01
+  const remainingGap = Math.round((Number(total || 0) - allocated) * 100) / 100
+
+  // Puts the leftover onto the last picked bill, over its own outstanding — the system already
+  // treats any allocation beyond a bill's outstanding as an overpayment that becomes redeemable
+  // customer credit (see the "+Rs X (becomes credit)" indicator in InvoiceAllocationTable, and the
+  // review gate this flows through at submit). It stays on the customer's account as a credit —
+  // it is never auto-applied to a future invoice, only ever by someone choosing to apply it.
+  function addRemainingAsCredit() {
+    if (!allocations.length || remainingGap <= 0) return
+    const next = [...allocations]
+    const lastIndex = next.length - 1
+    const bumped = Math.round((Number(next[lastIndex].allocated || 0) + remainingGap) * 100) / 100
+    next[lastIndex] = { ...next[lastIndex], allocated: bumped.toFixed(2) }
+    setAllocations(next)
+  }
+
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       {invoices.isLoading ? (
@@ -411,7 +427,9 @@ function AllocationSection({ customer, total, allocations, setAllocations }) {
         style={{
           padding: 10,
           display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 10,
           border: `1px solid ${matches ? 'var(--color-teal)' : 'var(--color-amber)'}`,
           borderRadius: 7,
           color: matches ? 'var(--color-teal)' : 'var(--color-amber)',
@@ -422,12 +440,24 @@ function AllocationSection({ customer, total, allocations, setAllocations }) {
           {matches
             ? 'Allocations match payment total'
             : hasUnallocated
-              ? `${money(Number(total || 0) - allocated)} still needs to go to a bill — allocate less than a bill's outstanding to write off the rest`
+              ? `${money(remainingGap)} still needs to go to a bill`
               : `Exceeds the payment total by ${money(allocated - Number(total || 0))} — reduce an allocation before recording`}
         </span>
-        <span className="mono">
-          {money(allocated)} / {money(total)}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          {hasUnallocated && allocations.length > 0 ? (
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={addRemainingAsCredit}
+              style={{ height: 26, fontSize: 11, padding: '0 10px', whiteSpace: 'nowrap' }}
+            >
+              Add {money(remainingGap)} as customer credit
+            </button>
+          ) : null}
+          <span className="mono">
+            {money(allocated)} / {money(total)}
+          </span>
+        </div>
       </div>
     </div>
   )
