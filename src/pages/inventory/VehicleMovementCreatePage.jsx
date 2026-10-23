@@ -90,6 +90,11 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [isLoadingAllBatches, setIsLoadingAllBatches] = useState(false)
   const [selectedRemainingIds, setSelectedRemainingIds] = useState(() => new Set())
   const [isBulkAdding, setIsBulkAdding] = useState(false)
+  // Per-product loaded/sold/remaining for the selected loading, so an admin unloading "from this
+  // loading" can see WHY a batch's Available Qty is what it is — e.g. a batch sitting at its full
+  // loaded quantity even though this product sold elsewhere, because the sale was drawn (FEFO) from
+  // a different, older batch of the same product still sitting on the same vehicle.
+  const [loadingSalesReport, setLoadingSalesReport] = useState({})
 
   const { data: resumedLoading, isFetching: isFetchingLoading } = useVehicleLoading(
     !isUnloading && hydrateLinesFromServer ? draftId : undefined
@@ -308,6 +313,34 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       setIsSoftRefreshingBatches(false)
     }
   }
+
+  useEffect(() => {
+    if (!isUnloading || unloadMode !== 'loading' || !vehicleLoadingId) {
+      setLoadingSalesReport({})
+      return undefined
+    }
+    let active = true
+    inventoryService
+      .getVehicleLoadingSalesReport(vehicleLoadingId)
+      .then((report) => {
+        if (!active) return
+        const byProduct = {}
+        for (const line of report?.lines || []) {
+          byProduct[line.productId] = {
+            qtyLoaded: line.qtyLoaded,
+            qtySold: line.qtySold,
+            qtyRemaining: line.qtyRemaining,
+          }
+        }
+        setLoadingSalesReport(byProduct)
+      })
+      .catch(() => {
+        if (active) setLoadingSalesReport({})
+      })
+    return () => {
+      active = false
+    }
+  }, [isUnloading, unloadMode, vehicleLoadingId])
 
   async function refreshAllActiveBatches() {
     if (!isUnloading) return
@@ -1226,7 +1259,24 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                             <span className="product-sku-badge mono">{item.productSku}</span>
                           </td>
                           <td className="mono">{item.batchNo || '—'}</td>
-                          <td className="mono text-right">{formatNumber(getQtyAvailable(item))}</td>
+                          <td className="mono text-right">
+                            {formatNumber(getQtyAvailable(item))}
+                            {unloadMode === 'loading' && loadingSalesReport[item.productId]?.qtySold > 0 ? (
+                              <div
+                                style={{
+                                  color: 'var(--color-text-dim)',
+                                  fontSize: 10,
+                                  fontWeight: 400,
+                                  marginTop: 2,
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title="Total sold from this product's batch(es) from this loading since it was applied — may be from a different batch of this product than the one in this row, if this loading created more than one."
+                              >
+                                {formatNumber(loadingSalesReport[item.productId].qtySold)} sold from
+                                this loading so far
+                              </div>
+                            ) : null}
+                          </td>
                           <td
                             className="mono text-right"
                             style={{
