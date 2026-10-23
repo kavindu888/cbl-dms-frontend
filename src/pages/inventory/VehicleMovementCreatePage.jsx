@@ -90,6 +90,7 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   const [isLoadingAllBatches, setIsLoadingAllBatches] = useState(false)
   const [selectedRemainingIds, setSelectedRemainingIds] = useState(() => new Set())
   const [isBulkAdding, setIsBulkAdding] = useState(false)
+  const [expandedRemainingGroups, setExpandedRemainingGroups] = useState(() => new Set())
   // Per-product loaded/sold/remaining for the selected loading, so an admin unloading "from this
   // loading" can see WHY a batch's Available Qty is what it is — e.g. a batch sitting at its full
   // loaded quantity even though this product sold elsewhere, because the sale was drawn (FEFO) from
@@ -674,6 +675,65 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       .sort((a, b) => (a.productName || '').localeCompare(b.productName || ''))
   }, [isUnloading, vehicleId, allActiveBatches, selectedVehicleLoading, lines, products])
 
+  // Display only — same treatment as the Applied Loading detail page and the Add Stock Line picker:
+  // several batches of the same product at the same MRP are just repeated top-ups (or a loading
+  // that created more than one vehicle batch for a product), so merge them into one summed row by
+  // default instead of listing every batch separately. Selecting a merged row selects every real
+  // batch underneath it — bulk-add still submits one unload line per actual batch, this only changes
+  // what's shown. A product that genuinely differs in MRP between batches stays split, since that's
+  // a real price difference worth seeing, not clutter.
+  const remainingGroupKeyOf = (item) => `${item.productId}::${item.mrp}`
+  const remainingGroups = useMemo(() => {
+    const map = new Map()
+    for (const item of remainingVehicleItems) {
+      const key = remainingGroupKeyOf(item)
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(item)
+    }
+    return map
+  }, [remainingVehicleItems])
+
+  function toggleRemainingGroup(key) {
+    setExpandedRemainingGroups((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const groupedRemainingItems = useMemo(() => {
+    const rows = []
+    for (const [key, group] of remainingGroups) {
+      if (group.length === 1 || expandedRemainingGroups.has(key)) {
+        rows.push(
+          ...group.map((item) =>
+            group.length > 1 ? { ...item, _expandedGroupKey: key, _expandedGroupSize: group.length } : item
+          )
+        )
+        continue
+      }
+      const totalAvailable = group.reduce((sum, item) => sum + Number(getQtyAvailable(item) || 0), 0)
+      const totalReserved = group.reduce((sum, item) => sum + Number(getQtyReserved(item) || 0), 0)
+      const weightedCost = totalAvailable
+        ? group.reduce((sum, item) => sum + Number(getUnitCost(item) || 0) * Number(getQtyAvailable(item) || 0), 0) /
+          totalAvailable
+        : 0
+      rows.push({
+        ...group[0],
+        id: `merged::${key}`,
+        qtyAvailable: totalAvailable,
+        qtyReserved: totalReserved,
+        unitCostSmallest: weightedCost,
+        batchNo: `${group.length} batches`,
+        _mergedGroupKey: key,
+        _mergedCount: group.length,
+        _mergedBatchIds: group.map((item) => item.id),
+      })
+    }
+    return rows
+  }, [remainingGroups, expandedRemainingGroups])
+
   const allRemainingSelected =
     remainingVehicleItems.length > 0 &&
     remainingVehicleItems.every((item) => selectedRemainingIds.has(item.id))
@@ -684,11 +744,15 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
     )
   }
 
-  function toggleRemainingItem(id) {
+  function toggleRemainingItem(item) {
+    const ids = item._mergedBatchIds || [item.id]
     setSelectedRemainingIds((current) => {
       const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      const allSelected = ids.every((id) => next.has(id))
+      for (const id of ids) {
+        if (allSelected) next.delete(id)
+        else next.add(id)
+      }
       return next
     })
   }
@@ -1235,21 +1299,22 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                       <tr>
                         <td colSpan={7}>Loading vehicle stock...</td>
                       </tr>
-                    ) : remainingVehicleItems.length ? (
-                      remainingVehicleItems.map((item) => (
+                    ) : groupedRemainingItems.length ? (
+                      groupedRemainingItems.map((item) => {
+                        const groupIds = item._mergedBatchIds || [item.id]
+                        const isChecked = groupIds.every((id) => selectedRemainingIds.has(id))
+                        return (
                         <tr
                           key={item.id}
                           style={{
-                            boxShadow: selectedRemainingIds.has(item.id)
-                              ? 'inset 3px 0 var(--color-teal)'
-                              : 'none',
+                            boxShadow: isChecked ? 'inset 3px 0 var(--color-teal)' : 'none',
                           }}
                         >
                           <td>
                             <input
                               type="checkbox"
-                              checked={selectedRemainingIds.has(item.id)}
-                              onChange={() => toggleRemainingItem(item.id)}
+                              checked={isChecked}
+                              onChange={() => toggleRemainingItem(item)}
                             />
                           </td>
                           <td>
@@ -1257,6 +1322,50 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                               {item.productName}
                             </strong>
                             <span className="product-sku-badge mono">{item.productSku}</span>
+                            {item._mergedCount > 1 ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleRemainingGroup(item._mergedGroupKey)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 3,
+                                  marginTop: 4,
+                                  background: 'transparent',
+                                  border: 0,
+                                  padding: 0,
+                                  cursor: 'pointer',
+                                  fontSize: 10,
+                                  fontWeight: 800,
+                                  color: 'var(--color-text-muted)',
+                                }}
+                              >
+                                <ChevronRight size={11} /> {item._mergedCount} batches at this MRP —
+                                show separately
+                              </button>
+                            ) : null}
+                            {item._expandedGroupKey ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleRemainingGroup(item._expandedGroupKey)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 3,
+                                  marginTop: 4,
+                                  background: 'transparent',
+                                  border: 0,
+                                  padding: 0,
+                                  cursor: 'pointer',
+                                  fontSize: 10,
+                                  fontWeight: 800,
+                                  color: 'var(--color-text-muted)',
+                                }}
+                              >
+                                <ChevronDown size={11} /> 1 of {item._expandedGroupSize} batches at
+                                this MRP — merge back
+                              </button>
+                            ) : null}
                           </td>
                           <td className="mono">{item.batchNo || '—'}</td>
                           <td className="mono text-right">
@@ -1288,7 +1397,8 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                           <td className="mono text-right">{formatLKR(getUnitCost(item))}</td>
                           <td className="mono text-right">{formatLKR(getMrp(item))}</td>
                         </tr>
-                      ))
+                        )
+                      })
                     ) : (
                       <tr>
                         <td colSpan={7}>
