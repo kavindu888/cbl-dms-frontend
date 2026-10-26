@@ -54,6 +54,7 @@ import InvoiceCreatorPage from '@pages/sales/InvoiceCreatorPage'
 import InvoiceDetailPage from '@pages/sales/InvoiceDetailPage'
 import InvoiceListPage from '@pages/sales/InvoiceListPage'
 import DuplicateSerialNumbersPage from '@pages/sales/DuplicateSerialNumbersPage'
+import FreeItemMismatchesPage from '@pages/sales/FreeItemMismatchesPage'
 import InvoicePaymentRecordPage from '@pages/sales/InvoicePaymentRecordPage'
 import NewSalesOrder from '@pages/sales/NewSalesOrder'
 import SalesOrderList from '@pages/sales/SalesOrderList'
@@ -488,6 +489,10 @@ export const router = createBrowserRouter([
       {
         path: 'sales/invoices/duplicate-serial-numbers',
         element: requirePermission(<DuplicateSerialNumbersPage />, PERMISSIONS.sales.invoiceRead),
+      },
+      {
+        path: 'sales/invoices/free-item-mismatches',
+        element: requirePermission(<FreeItemMismatchesPage />, PERMISSIONS.sales.invoiceRead),
       },
       {
         path: 'sales/invoices/new',

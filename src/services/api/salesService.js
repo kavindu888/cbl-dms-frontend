@@ -603,6 +603,20 @@ export const salesService = {
     return getResponseData(response, 'Unable to load duplicate serial numbers.') || []
   },
 
+  // Admin "watch" report: invoices with a free line whose stored Net/Outstanding no longer matches
+  // what recalculating would give (the free-item Gross/Net inflation bug).
+  async getFreeItemAmountMismatches() {
+    const response = await getOnce('/api/v1/sales/invoices/free-item-mismatches')
+    return getResponseData(response, 'Unable to load free-item amount mismatches.') || []
+  },
+
+  // Admin: re-derives Gross/discount/Net totals from the invoice's existing, untouched lines —
+  // fixes the free-item inflation bug without re-pricing anything (unlike recalculateInvoiceDiscounts,
+  // which also re-derives each line's discount percentages from today's rules).
+  async recalculateInvoiceAmounts(id, { reason } = {}) {
+    await api.post(`/api/v1/sales/invoices/${id}/recalculate-amounts`, { reason: reason || null })
+  },
+
   // Add a payment to an invoice
   async addInvoicePayment(id, payload) {
     await api.post(`/api/v1/sales/invoices/${id}/payments`, payload)

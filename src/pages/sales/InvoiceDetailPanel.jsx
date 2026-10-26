@@ -208,7 +208,24 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                         <span className="mono" style={{ fontSize: 12, color: 'var(--color-accent)' }}>
                           {productSku}
                         </span>
-                        <span className="product-info-sub">{productName}</span>
+                        <span className="product-info-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {productName}
+                          {line.isFree ? (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 800,
+                                color: 'var(--color-teal)',
+                                border: '1px solid var(--color-teal)',
+                                borderRadius: 4,
+                                padding: '1px 5px',
+                              }}
+                              title="Given free — counted in Gross for giveaway reporting but charged at Rs. 0."
+                            >
+                              FREE
+                            </span>
+                          ) : null}
+                        </span>
                         <span className="mono" style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
                           MRP: {formatMoney(line.mrp)}
                         </span>

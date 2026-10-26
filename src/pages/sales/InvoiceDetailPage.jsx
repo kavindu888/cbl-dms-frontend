@@ -336,7 +336,24 @@ export default function InvoiceDetailPage() {
                             <div className="mono" style={{ fontSize: 12, color: 'var(--color-accent)' }}>
                               {productSku}
                             </div>
-                            <div style={{ fontWeight: 700 }}>{productName}</div>
+                            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {productName}
+                              {line.isFree ? (
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    color: 'var(--color-teal)',
+                                    border: '1px solid var(--color-teal)',
+                                    borderRadius: 4,
+                                    padding: '1px 5px',
+                                  }}
+                                  title="Given free — counted in Gross for giveaway reporting but charged at Rs. 0."
+                                >
+                                  FREE
+                                </span>
+                              ) : null}
+                            </div>
                             <div className="mono" style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
                               MRP: {money(line.mrp)}
                             </div>

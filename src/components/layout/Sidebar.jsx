@@ -89,6 +89,12 @@ const navGroups = [
         icon: ShieldAlert,
         permissions: PERMISSIONS.sales.invoiceRead,
       },
+      {
+        label: 'Free Item Corrections',
+        to: '/sales/invoices/free-item-mismatches',
+        icon: ShieldAlert,
+        permissions: PERMISSIONS.sales.invoiceRead,
+      },
     ],
   },
   {
