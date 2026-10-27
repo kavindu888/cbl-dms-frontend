@@ -565,6 +565,16 @@ export const salesService = {
     return (data || []).map(formatInvoice)
   },
 
+  // Same endpoint as listInvoices, but server-paginated/searched/counted — use this for a UI page
+  // with its own page controls instead of fetching everything and slicing client-side (which silently
+  // truncates once there are more invoices than whatever page size you fetched with).
+  async searchInvoices(params = {}) {
+    const response = await getOnce('/api/v1/sales/invoices', { params })
+    const data = getResponseData(response, 'Unable to load invoices.')
+    const totalCount = Number(response.headers?.['x-total-count'] ?? data?.length ?? 0)
+    return { items: (data || []).map(formatInvoice), totalCount }
+  },
+
   // Get invoices by customer including paid ones (used for CRN linking)
   async getInvoicesByCustomer(customerId) {
     const response = await getOnce('/api/v1/sales/invoices', {

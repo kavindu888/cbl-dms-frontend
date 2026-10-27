@@ -50,7 +50,11 @@ export default function InvoiceListPage() {
   const navigate = useNavigate()
   const [customers, setCustomers] = useState([])
   const [invoices, setInvoices] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
   const [search, setSearch] = useState('')
+  // Debounced so every keystroke doesn't fire its own request — the server does the actual
+  // filtering now (search/status/route/date), not a client-side pass over an already-fetched batch.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [status, setStatus] = useState('')
   const [salesRouteId, setSalesRouteId] = useState('')
   const [invoiceDate, setInvoiceDate] = useState('')
@@ -104,28 +108,31 @@ export default function InvoiceListPage() {
     setError('')
 
     try {
-      let fetchedInvoices = []
-      if (salesRouteId && invoiceDate) {
-        fetchedInvoices = await salesService.listInvoicesByRouteAndDate({
-          salesRouteId,
-          date: invoiceDate,
-        })
-      } else {
-        fetchedInvoices = await salesService.listInvoices({
-          status: status ? statusMap[status] : null,
-          pageSize: 1000,
-        })
+      const params = {
+        status: status ? statusMap[status] : null,
+        salesRouteId: salesRouteId || null,
+        search: debouncedSearch.trim() || null,
+        page: invoicePage,
+        pageSize: invoicePageSize,
+      }
+      if (invoiceDate) {
+        // Single calendar day as a from/to range — the server stores InvoiceDate as an instant, not
+        // a date, so an exact-equals filter would miss anything with a time component.
+        params.from = `${invoiceDate}T00:00:00.000Z`
+        params.to = `${invoiceDate}T23:59:59.999Z`
       }
 
-      fetchedInvoices.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate))
-      setInvoices(fetchedInvoices)
+      const { items, totalCount: count } = await salesService.searchInvoices(params)
+      setInvoices(items)
+      setTotalCount(count)
     } catch (requestError) {
       setError(requestError.message)
       setInvoices([])
+      setTotalCount(0)
     } finally {
       setIsLoading(false)
     }
-  }, [invoiceDate, salesRouteId, status])
+  }, [debouncedSearch, invoiceDate, invoicePage, salesRouteId, status])
 
   useEffect(() => {
     let isCurrent = true
@@ -268,71 +275,37 @@ export default function InvoiceListPage() {
     }
   }, [selectedId, detailRefreshToken])
 
-  const filteredInvoices = useMemo(() => {
-    const query = search.trim().toLowerCase()
+  // `invoices` is already exactly one page, filtered and sorted by the server — no further
+  // client-side filter/slice needed (that's what silently capped the list at 1000 before).
+  const pagedInvoices = invoices
 
-    const filtered = invoices.filter((invoice) => {
-      const customer = customerById[invoice.customerId]
-      const customerName = customer?.name || ''
-      const customerCode = customer?.code || ''
-      const routeName = routeNameById[invoice.salesRouteId] || invoice.salesRouteName || ''
-      const invoiceDay = dayjs(invoice.invoiceDate).format('YYYY-MM-DD')
-
-      const matchesSearch =
-        !query ||
-        invoice.invoiceNumber?.toLowerCase().includes(query) ||
-        String(invoice.serialNumber || '')
-          .toLowerCase()
-          .includes(query) ||
-        invoice.id?.toLowerCase().includes(query) ||
-        customerName.toLowerCase().includes(query) ||
-        customerCode.toLowerCase().includes(query) ||
-        routeName.toLowerCase().includes(query)
-      const matchesStatus = !status || invoice.status === status
-      const matchesRoute = !salesRouteId || invoice.salesRouteId === salesRouteId
-      const matchesDate = !invoiceDate || invoiceDay === invoiceDate
-
-      return matchesSearch && matchesStatus && matchesRoute && matchesDate
-    })
-
-    return [...filtered].sort((a, b) => {
-      const activityA = a.status === 'Draft' ? a.updatedAt || a.invoiceDate : a.invoiceDate
-      const activityB = b.status === 'Draft' ? b.updatedAt || b.invoiceDate : b.invoiceDate
-      const dateA = dayjs(activityA)
-      const dateB = dayjs(activityB)
-      if (!dateA.isSame(dateB)) return dateB.isAfter(dateA) ? 1 : -1
-      return String(b.invoiceNumber || '').localeCompare(String(a.invoiceNumber || ''), undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      })
-    })
-  }, [customerById, invoices, invoiceDate, routeNameById, salesRouteId, search, status])
-
-  const pagedInvoices = useMemo(() => {
-    const start = (invoicePage - 1) * invoicePageSize
-    return filteredInvoices.slice(start, start + invoicePageSize)
-  }, [filteredInvoices, invoicePage])
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 350)
+    return () => clearTimeout(timer)
+  }, [search])
 
   useEffect(() => {
     setInvoicePage(1)
-  }, [invoiceDate, salesRouteId, search, status])
+  }, [invoiceDate, salesRouteId, debouncedSearch, status])
 
   useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / invoicePageSize))
+    const totalPages = Math.max(1, Math.ceil(totalCount / invoicePageSize))
     if (invoicePage > totalPages) setInvoicePage(totalPages)
-  }, [filteredInvoices.length, invoicePage])
+  }, [totalCount, invoicePage])
 
   useEffect(() => {
-    if (filteredInvoices.length > 0) {
-      const exists = filteredInvoices.some((invoice) => invoice.id === selectedId)
-      if (!exists) setSelectedId(filteredInvoices[0].id)
+    if (pagedInvoices.length > 0) {
+      const exists = pagedInvoices.some((invoice) => invoice.id === selectedId)
+      if (!exists) setSelectedId(pagedInvoices[0].id)
     } else {
       setSelectedId(null)
     }
-  }, [filteredInvoices, selectedId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagedInvoices])
 
   function clearFilters() {
     setSearch('')
+    setDebouncedSearch('')
     setStatus('')
     setSalesRouteId('')
     setInvoiceDate('')
@@ -578,7 +551,7 @@ export default function InvoiceListPage() {
                 background: 'rgba(142, 232, 240, 0.1)',
               }}
             >
-              {filteredInvoices.length}
+              {totalCount}
             </span>
           </div>
 
@@ -587,7 +560,7 @@ export default function InvoiceListPage() {
               <div className="p-6 text-sm text-danger">{error}</div>
             ) : isLoading ? (
               <QueueMessage>Loading invoices...</QueueMessage>
-            ) : filteredInvoices.length ? (
+            ) : pagedInvoices.length ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {pagedInvoices.map((invoice) => {
                   const isSelected = invoice.id === selectedId
@@ -783,7 +756,7 @@ export default function InvoiceListPage() {
           <SimplePagination
             page={invoicePage}
             pageSize={invoicePageSize}
-            totalItems={filteredInvoices.length}
+            totalItems={totalCount}
             onPageChange={setInvoicePage}
             itemLabel="invoices"
           />
