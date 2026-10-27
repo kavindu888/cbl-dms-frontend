@@ -103,9 +103,10 @@ export default function FreeItemMismatchesPage() {
         <div>
           <h2 style={{ margin: 0, fontSize: 18 }}>Free Item Amount Corrections</h2>
           <p style={{ margin: '4px 0 0', color: 'var(--color-text-dim)', fontSize: 13, maxWidth: 720 }}>
-            Invoices with a free (promotional) line whose Outstanding was overstated by that
-            item's would-be value. New invoices compute correctly already — this is only for ones
-            created before the fix.
+            Invoices whose Net/Outstanding doesn't match what a free (promotional) line on them
+            should give — usually overstated, but a row can also be understated if it was Fixed by
+            an earlier, buggy version of this tool. Fix always recomputes to the correct value
+            either way, and is safe to click more than once.
           </p>
         </div>
         <button type="button" className="button-secondary" onClick={() => load(true)} style={{ height: 38 }}>
@@ -120,9 +121,12 @@ export default function FreeItemMismatchesPage() {
           <div style={{ fontSize: 22, fontWeight: 700 }}>{rows.length}</div>
         </div>
         <div className="panel" style={{ padding: 12 }}>
-          <div style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>Total overstated</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+            Net total difference{totalOverstated < 0 ? ' (understated)' : ''}
+          </div>
           <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-amber)' }}>
-            {formatMoney(totalOverstated)}
+            {totalOverstated < 0 ? '-' : ''}
+            {formatMoney(Math.abs(totalOverstated))}
           </div>
         </div>
         <div className="panel" style={{ padding: 12 }}>
@@ -173,7 +177,7 @@ export default function FreeItemMismatchesPage() {
                   <th style={{ textAlign: 'right' }}>Gross</th>
                   <th style={{ textAlign: 'right' }}>Current Net</th>
                   <th style={{ textAlign: 'right' }}>Corrected Net</th>
-                  <th style={{ textAlign: 'right' }}>Overstated by</th>
+                  <th style={{ textAlign: 'right' }}>Difference</th>
                   <th />
                 </tr>
               </thead>
@@ -217,9 +221,20 @@ export default function FreeItemMismatchesPage() {
                       </td>
                       <td
                         className="mono"
-                        style={{ textAlign: 'right', fontWeight: 750, color: 'var(--color-amber)' }}
+                        style={{
+                          textAlign: 'right',
+                          fontWeight: 750,
+                          color: 'var(--color-amber)',
+                        }}
+                        title={
+                          Number(row.difference) >= 0
+                            ? 'Current Net is overstated by this much — Fix will lower it.'
+                            : 'Current Net is understated by this much (likely from an earlier version of this tool) — Fix will raise it back up.'
+                        }
                       >
-                        {formatMoney(row.difference)}
+                        {Number(row.difference) >= 0
+                          ? formatMoney(row.difference)
+                          : `-${formatMoney(Math.abs(row.difference))}`}
                       </td>
                       <td>
                         <button
