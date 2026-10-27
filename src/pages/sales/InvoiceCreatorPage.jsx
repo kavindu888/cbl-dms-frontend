@@ -9,6 +9,7 @@ import { masterService } from '@/services/api/masterService'
 import { salesService } from '@/services/api/salesService'
 import { DISCOUNT_POLICY } from '@/constants/discountPolicy'
 import { formatDate } from '@/utils'
+import { INVOICE_SERIAL_MESSAGE, isValidInvoiceSerialNumber, normalizeInvoiceSerialNumber } from '@/utils/invoiceSerialNumber'
 import SimplePagination from '@components/ui/SimplePagination'
 import {
   toNumber,
@@ -707,7 +708,7 @@ export default function InvoiceCreatorPage() {
             : [{ ...emptyLine }],
         })
 
-        setSerialNumber(invoice.serialNumber || '')
+        setSerialNumber(normalizeInvoiceSerialNumber(invoice.serialNumber))
         setInvoiceDate(toInputDate(invoice.invoiceDate) || todayInputDate())
         setReturnLines(
           invoiceReturnLines.map((line) => ({
@@ -987,8 +988,7 @@ export default function InvoiceCreatorPage() {
   }
 
   function handleSerialNumberChange(value) {
-    // Allow only English letters and numbers
-    const cleanedValue = value.replace(/[^a-zA-Z0-9]/g, '')
+    const cleanedValue = normalizeInvoiceSerialNumber(value)
 
     setSerialNumber(cleanedValue)
     setSerialNumberWarning(false)
@@ -1004,7 +1004,7 @@ export default function InvoiceCreatorPage() {
       setSerialNumberChecking(true)
 
       try {
-        const result = await salesService.checkSerialNumberExists(cleanedValue)
+        const result = await salesService.checkSerialNumberExists(cleanedValue.trim(), draftInvoiceId || undefined)
         setSerialNumberWarning(Boolean(result.exists))
       } catch (error) {
         console.error('Serial number check failed:', error)
@@ -1042,8 +1042,8 @@ export default function InvoiceCreatorPage() {
       return 'Serial Number is required.'
     }
 
-    if (!/^[a-zA-Z0-9]+$/.test(cleanedSerialNumber)) {
-      return 'Serial Number can contain only letters and numbers.'
+    if (!isValidInvoiceSerialNumber(cleanedSerialNumber)) {
+      return INVOICE_SERIAL_MESSAGE
     }
 
     if (!values.customerId) {
@@ -1178,7 +1178,7 @@ export default function InvoiceCreatorPage() {
     return {
       customerId: values.customerId,
       salesRouteId: values.salesRouteId,
-      serialNumber: serialNumber.trim(),
+      serialNumber: normalizeInvoiceSerialNumber(serialNumber),
       invoiceDate: toCalendarDateTimeOffset(invoiceDate),
       dueDate: null,
       isTaxInvoice: isCustomerVatRegistered,
@@ -1300,7 +1300,7 @@ export default function InvoiceCreatorPage() {
     try {
       const response = isFromSalesOrder
         ? await salesService.convertSalesOrderToInvoice(orderState.salesOrderId, {
-            serialNumber: serialNumber.trim(),
+            serialNumber: normalizeInvoiceSerialNumber(serialNumber),
             notes: null,
           })
         : await (async () => {
@@ -2038,11 +2038,11 @@ export default function InvoiceCreatorPage() {
                   type="text"
                   required
                   maxLength={20}
-                  pattern="[A-Za-z0-9]+"
-                  title="Serial Number can contain only letters and numbers."
+                  pattern="[A-D][0-9]{1,19}"
+                  title={INVOICE_SERIAL_MESSAGE}
                   value={serialNumber}
                   onChange={(event) => handleSerialNumberChange(event.target.value)}
-                  placeholder="Enter CBL POS serial number"
+                  placeholder="e.g. A69809 (A, B, C or D + digits)"
                   disabled={isSaving}
                   style={{ width: '100%', height: 38, fontSize: 13 }}
                 />
