@@ -48,6 +48,9 @@ function formatDate(value) {
 }
 
 function permissionLabel(permission) {
+  if (`${permission.module}:${permission.resource}:${permission.action}` === PERMISSIONS.sales.invoiceCorrectSerial) {
+    return 'Correct invoice serial number'
+  }
   return `${permission.resource} ${permission.action}`.trim()
 }
 

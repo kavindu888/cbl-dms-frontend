@@ -9,6 +9,7 @@ import RecalculateInvoiceDiscountsModal from './RecalculateInvoiceDiscountsModal
 import AdminEditInvoiceLinesModal from './AdminEditInvoiceLinesModal'
 import SetInvoiceOrderDiscountsModal from './SetInvoiceOrderDiscountsModal'
 import CancelInvoiceModal from './CancelInvoiceModal'
+import CorrectInvoiceSerialNumberModal from './CorrectInvoiceSerialNumberModal'
 
 function formatMoney(value) {
   return `Rs. ${Number(value || 0).toLocaleString('en-LK', {
@@ -38,12 +39,14 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
   const currentUser = useAuthStore((state) => state.user)
   const canAdjustDiscounts = userHasPermission(currentUser, PERMISSIONS.sales.invoiceAdjustDiscounts)
   const canAdminEditLines = userHasPermission(currentUser, PERMISSIONS.sales.invoiceAdminEditLines)
+  const canCorrectSerial = userHasPermission(currentUser, PERMISSIONS.sales.invoiceCorrectSerial)
   const canCancelInvoice = userHasPermission(currentUser, PERMISSIONS.sales.invoiceCancel)
   const canViewPaymentAudit = userHasPermission(currentUser, PERMISSIONS.collections.reconciliationRead)
   const [isRecalculateOpen, setIsRecalculateOpen] = useState(false)
   const [isAdminEditOpen, setIsAdminEditOpen] = useState(false)
   const [isSetOrderDiscountsOpen, setIsSetOrderDiscountsOpen] = useState(false)
   const [isCancelOpen, setIsCancelOpen] = useState(false)
+  const [isSerialCorrectionOpen, setIsSerialCorrectionOpen] = useState(false)
   const [isFixingStatus, setIsFixingStatus] = useState(false)
   const [isPaymentAuditOpen, setIsPaymentAuditOpen] = useState(false)
 
@@ -109,11 +112,8 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
           <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
             {normalLines.length} item{normalLines.length === 1 ? '' : 's'}
           </span>
-          {canAdjustDiscounts ||
-          canAdminEditLines ||
-          canCancelInvoice ||
-          canViewPaymentAudit ? (
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {canAdjustDiscounts || canAdminEditLines || canCorrectSerial || canCancelInvoice || canViewPaymentAudit ? (
+            <div style={{ marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
               {canViewPaymentAudit ? (
                 <button
                   type="button"
@@ -123,6 +123,16 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                   style={{ height: 26, fontSize: 11, padding: '0 10px' }}
                 >
                   <History size={12} /> Payment Audit
+                </button>
+              ) : null}
+              {canCorrectSerial && invoice.status !== 'Cancelled' ? (
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => setIsSerialCorrectionOpen(true)}
+                  style={{ height: 26, fontSize: 11, padding: '0 10px' }}
+                >
+                  <Pencil size={12} /> Correct Serial
                 </button>
               ) : null}
               {canAdminEditLines && invoice.status !== 'Cancelled' ? (
@@ -210,10 +220,16 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                   <tr key={line.id}>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <span className="mono" style={{ fontSize: 12, color: 'var(--color-accent)' }}>
+                        <span
+                          className="mono"
+                          style={{ fontSize: 12, color: 'var(--color-accent)' }}
+                        >
                           {productSku}
                         </span>
-                        <span className="product-info-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span
+                          className="product-info-sub"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                        >
                           {productName}
                           {line.isFree ? (
                             <span
@@ -231,7 +247,10 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
                             </span>
                           ) : null}
                         </span>
-                        <span className="mono" style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        <span
+                          className="mono"
+                          style={{ fontSize: 11, color: 'var(--color-text-muted)' }}
+                        >
                           MRP: {formatMoney(line.mrp)}
                         </span>
                       </div>
@@ -405,6 +424,15 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
         onClose={() => setIsSetOrderDiscountsOpen(false)}
         onDone={onRefresh}
       />
+
+      {isSerialCorrectionOpen ? (
+        <CorrectInvoiceSerialNumberModal
+          key={invoice.id}
+          invoice={invoice}
+          onClose={() => setIsSerialCorrectionOpen(false)}
+          onDone={onRefresh}
+        />
+      ) : null}
 
       <CancelInvoiceModal
         isOpen={isCancelOpen}
