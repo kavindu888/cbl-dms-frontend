@@ -66,6 +66,11 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
   )
   const returnDeduction =
     Number(invoice.totalReturnAmount || 0) + Number(invoice.returnCreditAmount || 0)
+  // See InvoiceDetailPage.jsx — a free line's Gross value needs its own deduction here too, or
+  // Subtotal won't reconcile down to Net(Rs).
+  const freeGoodsAmount = normalLines
+    .filter((line) => line.isFree)
+    .reduce((sum, line) => sum + Number(line.grossAmount || 0), 0)
 
   return (
     <div
@@ -339,10 +344,15 @@ export default function InvoiceDetailPanel({ invoice, productById, onRefresh }) 
             value={formatMoney(invoice.totalCategoryDiscountAmount)}
           />
         ) : null}
+        {freeGoodsAmount > 0 ? (
+          <SummaryRow label="Free Items" value={formatMoney(freeGoodsAmount)} />
+        ) : null}
         <SummaryRow
           label="Subtotal"
           value={formatMoney(
-            Number(invoice.grossAmount || 0) - Number(invoice.totalCategoryDiscountAmount || 0)
+            Number(invoice.grossAmount || 0) -
+              Number(invoice.totalCategoryDiscountAmount || 0) -
+              freeGoodsAmount
           )}
         />
         {Number(invoice.totalSkuDiscountAmount || 0) > 0 ? (

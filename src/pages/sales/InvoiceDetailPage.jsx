@@ -140,6 +140,16 @@ export default function InvoiceDetailPage() {
     return normalInvoiceLines.reduce((sum, line) => sum + Number(line.lineTotal || 0), 0)
   }, [normalInvoiceLines])
 
+  // A free line's full MRP value sits in Gross (intentional, for giveaway reporting — see
+  // Invoice.RecalculateAmounts on the backend) but isn't a Category/SKU/Special discount, so it
+  // must be subtracted on its own here too or this breakdown's Subtotal won't reconcile down to
+  // Net(Rs), which the backend already computes correctly.
+  const freeGoodsAmount = useMemo(() => {
+    return normalInvoiceLines
+      .filter((line) => line.isFree)
+      .reduce((sum, line) => sum + Number(line.grossAmount || 0), 0)
+  }, [normalInvoiceLines])
+
   const returnDeduction = useMemo(() => {
     return Number(invoice?.totalReturnAmount || 0) + Number(invoice?.returnCreditAmount || 0)
   }, [invoice])
@@ -482,11 +492,15 @@ export default function InvoiceDetailPage() {
               {Number(invoice.totalCategoryDiscountAmount || 0) > 0 ? (
                 <AmountRow label="Category Discount" value={invoice.totalCategoryDiscountAmount} />
               ) : null}
+              {freeGoodsAmount > 0 ? (
+                <AmountRow label="Free Items" value={freeGoodsAmount} />
+              ) : null}
               <AmountRow
                 label="Subtotal"
                 value={
                   Number(invoice.grossAmount || 0) -
-                  Number(invoice.totalCategoryDiscountAmount || 0)
+                  Number(invoice.totalCategoryDiscountAmount || 0) -
+                  freeGoodsAmount
                 }
               />
               {Number(invoice.totalSkuDiscountAmount || 0) > 0 ? (
