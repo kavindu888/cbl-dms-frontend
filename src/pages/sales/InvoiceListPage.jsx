@@ -164,7 +164,7 @@ export default function InvoiceListPage() {
 
   useEffect(() => {
     loadInvoices()
-  }, [loadInvoices])
+  }, [loadInvoices, detailRefreshToken])
 
   useEffect(() => {
     if (!selectedId) {

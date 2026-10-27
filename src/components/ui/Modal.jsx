@@ -7,6 +7,7 @@ export default function Modal({
   footer,
   open,
   onOpenChange,
+  onOpenAutoFocus,
   maxWidth = '640px',
   showHeader = true,
   contentStyle,
@@ -17,6 +18,7 @@ export default function Modal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
         <Dialog.Content
+          onOpenAutoFocus={onOpenAutoFocus}
           className="panel fixed left-1/2 top-1/2 z-50 w-[min(92vw,640px)] -translate-x-1/2 -translate-y-1/2 p-6 shadow-[var(--shadow-modal)]"
           style={{ width: `min(92vw, ${maxWidth})`, ...contentStyle }}
         >

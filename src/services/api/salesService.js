@@ -542,11 +542,11 @@ export const salesService = {
     return response.data?.id ?? response.data?.data?.value ?? response.data?.data ?? response.data
   },
 
-  async checkSerialNumberExists(serialNumber) {
+  async checkSerialNumberExists(serialNumber, excludeInvoiceId) {
     if (!serialNumber?.trim()) return { exists: false }
 
     const response = await api.get('/api/v1/sales/invoices/check-serial', {
-      params: { serialNumber },
+      params: { serialNumber, excludeInvoiceId },
     })
 
     return response.data ?? { exists: false }
@@ -625,6 +625,10 @@ export const salesService = {
   // Cancel an invoice with a reason
   async cancelInvoice(id, reason) {
     await api.put(`/api/v1/sales/invoices/${id}/cancel`, { reason })
+  },
+
+  async correctInvoiceSerialNumber(id, payload) {
+    await api.put(`/api/v1/sales/invoices/${id}/serial-number`, payload)
   },
 
   // Assign or update the tax invoice number for an invoice

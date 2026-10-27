@@ -58,6 +58,7 @@
     invoiceAssignTaxNumber: 'sales:invoice:assigntaxnumber',
     invoiceAdjustDiscounts: 'sales:invoice:adjustdiscounts',
     invoiceAdminEditLines: 'sales:invoice:admineditlines',
+    invoiceCorrectSerial: 'sales:invoice:correctserial',
     customerManage: 'sales:customer:manage',
     customerRead: 'sales:customer:read',
     priceListManage: 'sales:pricelist:manage',
