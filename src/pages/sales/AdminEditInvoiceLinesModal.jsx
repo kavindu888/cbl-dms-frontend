@@ -226,12 +226,35 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
                 }}
               >
                 <div style={{ minWidth: 0 }}>
-                  <div className="mono" style={{ fontSize: 12, color: 'var(--color-text-primary)' }}>
+                  <div
+                    className="mono"
+                    style={{ fontSize: 12, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
                     {line.productSku || product?.sku || line.productId}
+                    {line.isFree ? (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 800,
+                          color: 'var(--color-teal)',
+                          border: '1px solid var(--color-teal)',
+                          borderRadius: 4,
+                          padding: '1px 5px',
+                        }}
+                        title="Free line — MRP below is shown for reference/giveaway reporting only, the customer is charged Rs. 0.00 for it."
+                      >
+                        FREE
+                      </span>
+                    ) : null}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
                     {line.productName || product?.name || 'Unknown product'}
                   </div>
+                  {line.isFree ? (
+                    <div style={{ fontSize: 10, color: 'var(--color-text-dim)' }}>
+                      Charged Rs. 0.00 — MRP below is reference value only
+                    </div>
+                  ) : null}
                 </div>
                 <div className="mono" style={{ textAlign: 'right', fontSize: 12 }}>
                   {line.quantity}
@@ -253,7 +276,11 @@ export default function AdminEditInvoiceLinesModal({ isOpen, onClose, invoice, p
                   step="0.01"
                   disabled={isRemoved}
                   value={edit.mrp ?? line.mrp}
-                  title="Defaults to the line's current MRP — change it if it doesn't match Vehicle Loading."
+                  title={
+                    line.isFree
+                      ? "Reference MRP only — this line is free, the customer is charged Rs. 0.00 regardless of this value."
+                      : "Defaults to the line's current MRP — change it if it doesn't match Vehicle Loading."
+                  }
                   onChange={(event) => updateMrp(line.id, event.target.value)}
                   style={{ height: 32, textAlign: 'right' }}
                 />
