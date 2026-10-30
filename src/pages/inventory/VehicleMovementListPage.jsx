@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   ChevronRight,
   FileBarChart,
+  Lock,
   Plus,
   RefreshCw,
   Search,
@@ -520,10 +521,22 @@ export default function VehicleMovementListPage({
                       </td>
                       <td className="mono">{formatDate(row[dateField] || row.createdAt)}</td>
                       <td>
-                        {row.vehicleName ||
-                          (vehicleById[row.vehicleLocationId]
-                            ? vehicleLabel(vehicleById[row.vehicleLocationId])
-                            : row.vehicleLocationId)}
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          {row.vehicleName ||
+                            (vehicleById[row.vehicleLocationId]
+                              ? vehicleLabel(vehicleById[row.vehicleLocationId])
+                              : row.vehicleLocationId)}
+                          {kind === 'Loading' &&
+                          vehicleById[row.vehicleLocationId]?.isLocked &&
+                          vehicleById[row.vehicleLocationId]?.activeLoadingNo === row.loadingNo ? (
+                            <span
+                              title="Locked — this vehicle can't be loaded again until unloaded"
+                              style={{ display: 'inline-flex' }}
+                            >
+                              <Lock size={13} style={{ color: 'var(--color-amber)' }} />
+                            </span>
+                          ) : null}
+                        </span>
                       </td>
                       {kind === 'Loading' ? (
                         <td>
