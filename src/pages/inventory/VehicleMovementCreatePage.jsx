@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ChevronDown, ChevronRight, PackageSearch, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronRight, Lock, PackageSearch, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -1158,11 +1158,32 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
                   >
                     <option value="">Select vehicle...</option>
                     {vehicles.map((vehicle) => (
-                      <option key={vehicle.id} value={vehicle.id}>
+                      <option
+                        key={vehicle.id}
+                        value={vehicle.id}
+                        disabled={vehicle.isLocked}
+                        title={
+                          vehicle.isLocked
+                            ? `Locked — still has loading ${vehicle.activeLoadingNo} on it. Unload it first.`
+                            : undefined
+                        }
+                      >
+                        {vehicle.isLocked ? '🔒 ' : ''}
                         {vehicleLabel(vehicle)}
+                        {vehicle.isLocked ? ` (locked — unload ${vehicle.activeLoadingNo} first)` : ''}
                       </option>
                     ))}
                   </select>
+                  {selectedVehicle?.isLocked ? (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-amber-400">
+                      <Lock size={14} aria-hidden="true" />
+                      This vehicle is locked — loading {selectedVehicle.activeLoadingNo}
+                      {selectedVehicle.activeLoadingDate
+                        ? ` from ${formatDate(selectedVehicle.activeLoadingDate)}`
+                        : ''}{' '}
+                      hasn't been unloaded yet.
+                    </p>
+                  ) : null}
                 </label>
               ) : null}
               {!isUnloading ? (
