@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { FileSpreadsheet, FileText, Search, TrendingUp, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
 import { masterService } from '@/services/api/masterService'
@@ -13,13 +14,21 @@ import { formatLKR } from '@/utils/formatCurrency'
 
 const pageSize = 20
 
-const BUCKETS = [
-  ['bucket0To7', '0-7'],
-  ['bucket8To14', '8-14'],
-  ['bucket15To21', '15-21'],
-  ['bucket22To31', '22-31'],
-  ['bucketOver31', '32+'],
+const SORTS = [
+  { value: 'OldestInvoice', label: 'Oldest invoice' },
+  { value: 'WeightedAge', label: 'Weighted average age' },
+  { value: 'Over90Amount', label: '90+ amount' },
+  { value: 'TotalOutstanding', label: 'Total outstanding' },
 ]
+
+function normalizeObject(value) {
+  return Object.fromEntries(
+    Object.entries(value || {}).map(([key, item]) => [
+      key.charAt(0).toLowerCase() + key.slice(1),
+      item,
+    ])
+  )
+}
 
 function selectStyle(disabled) {
   return {
@@ -136,6 +145,7 @@ function normalizeRow(row) {
     invoiceDate: read(row, 'invoiceDate') ?? null,
     customerId: read(row, 'customerId') ?? '',
     customerName: read(row, 'customerName') ?? 'Unknown customer',
+    customerCode: read(row, 'customerCode') ?? '',
     salesRouteId: read(row, 'salesRouteId') ?? '',
     routeName: read(row, 'routeName') ?? '',
     deliveryRunId: read(row, 'deliveryRunId') ?? '',
@@ -146,7 +156,9 @@ function normalizeRow(row) {
     bucket8To14: Number(read(row, 'bucket8To14', 'Bucket8To14') ?? 0),
     bucket15To21: Number(read(row, 'bucket15To21', 'Bucket15To21') ?? 0),
     bucket22To31: Number(read(row, 'bucket22To31', 'Bucket22To31') ?? 0),
-    bucketOver31: Number(read(row, 'bucketOver31', 'BucketOver31') ?? 0),
+    bucket32To60: Number(read(row, 'bucket32To60') ?? 0),
+    bucket61To90: Number(read(row, 'bucket61To90') ?? 0),
+    bucketOver90: Number(read(row, 'bucketOver90') ?? 0),
   }
 }
 
@@ -158,16 +170,41 @@ function buildOptions(items, label) {
 }
 
 export default function CreditAgingReportPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view = searchParams.get('view') === 'detail' ? 'detail' : 'summary'
+  const sort = SORTS.some((option) => option.value === searchParams.get('sort'))
+    ? searchParams.get('sort')
+    : 'OldestInvoice'
+  const groupByRoute = searchParams.get('groupByRoute') === 'true'
+  const drillCustomer = view === 'detail' ? searchParams.get('drillCustomer') : null
   const [page, setPage] = useState(1)
-  const [filters, setFilters] = useState({
-    customerId: '',
-    salesRouteId: '',
-    deliveryRunId: '',
-    dateFrom: '',
-    dateTo: '',
-    asOfDate: '',
-  })
-  const [appliedFilters, setAppliedFilters] = useState(filters)
+  function updateViewSettings(values) {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous)
+      Object.entries(values).forEach(([key, value]) =>
+        value == null ? next.delete(key) : next.set(key, String(value))
+      )
+      return next
+    })
+    setPage(1)
+  }
+  const [defaultAsOf] = useState(() => dayjs().tz('Asia/Colombo').format('YYYY-MM-DD'))
+  const appliedFilters = useMemo(
+    () => ({
+      customerId: searchParams.get('customerId') || '',
+      salesRouteId: searchParams.get('salesRouteId') || '',
+      deliveryRunId: searchParams.get('deliveryRunId') || '',
+      dateFrom: searchParams.get('dateFrom') || '',
+      dateTo: searchParams.get('dateTo') || '',
+      asOfDate: searchParams.get('asOfDate') || defaultAsOf,
+      agingBasis: searchParams.get('agingBasis') === 'DueDate' ? 'DueDate' : 'InvoiceDate',
+    }),
+    [searchParams, defaultAsOf]
+  )
+  const [filters, setFilters] = useState(appliedFilters)
+  useEffect(() => {
+    setFilters(appliedFilters)
+  }, [appliedFilters])
   const [isExportingPdf, setIsExportingPdf] = useState(false)
   const [isExportingExcel, setIsExportingExcel] = useState(false)
 
@@ -190,16 +227,20 @@ export default function CreditAgingReportPage() {
   })
 
   const queryParams = useMemo(() => {
-    const params = { page, pageSize }
+    const params = { page, pageSize, sort, groupByRoute }
     Object.entries(appliedFilters).forEach(([key, value]) => {
       if (value) params[key] = value
     })
+    if (drillCustomer) params.customerId = drillCustomer
     return params
-  }, [page, appliedFilters])
+  }, [page, appliedFilters, sort, groupByRoute, drillCustomer])
 
   const reportQuery = useQuery({
-    queryKey: ['reports', 'credit-aging', queryParams],
-    queryFn: () => reportsService.getCreditAgingReport(queryParams),
+    queryKey: ['reports', 'credit-aging', view, queryParams],
+    queryFn: () =>
+      view === 'summary'
+        ? reportsService.getCustomerCreditAgingSummary(queryParams)
+        : reportsService.getCreditAgingReport(queryParams),
     placeholderData: keepPreviousData,
   })
 
@@ -207,7 +248,15 @@ export default function CreditAgingReportPage() {
     setPage(1)
   }, [appliedFilters])
 
-  const rows = useMemo(() => (reportQuery.data?.items || []).map(normalizeRow), [reportQuery.data])
+  const rows = useMemo(
+    () => (reportQuery.data?.items || []).map(view === 'summary' ? normalizeObject : normalizeRow),
+    [reportQuery.data, view]
+  )
+  const BUCKETS = (reportQuery.data?.bucketDefinitions || []).map((bucket) => [
+    bucket.key,
+    bucket.label,
+  ])
+  const routeTotals = reportQuery.data?.routeTotals || []
   const totalItems = Number(reportQuery.data?.totalItems ?? rows.length)
   const isBusy = reportQuery.isLoading || reportQuery.isFetching
 
@@ -235,19 +284,7 @@ export default function CreditAgingReportPage() {
     [deliveryRunsQuery.data]
   )
 
-  const pageTotals = useMemo(
-    () =>
-      BUCKETS.reduce(
-        (totals, [key]) => {
-          totals[key] = rows.reduce((sum, row) => sum + Number(row[key] || 0), 0)
-          return totals
-        },
-        {
-          outstandingAmount: rows.reduce((sum, row) => sum + Number(row.outstandingAmount || 0), 0),
-        }
-      ),
-    [rows]
-  )
+  const pageTotals = reportQuery.data?.totals || {}
 
   function updateFilter(key, value) {
     setFilters((current) => ({ ...current, [key]: value }))
@@ -255,7 +292,7 @@ export default function CreditAgingReportPage() {
 
   function handleApply(event) {
     event?.preventDefault()
-    setAppliedFilters(filters)
+    updateViewSettings({ ...filters, drillCustomer: null })
   }
 
   function handleClear() {
@@ -265,17 +302,19 @@ export default function CreditAgingReportPage() {
       deliveryRunId: '',
       dateFrom: '',
       dateTo: '',
-      asOfDate: '',
+      asOfDate: dayjs().tz('Asia/Colombo').format('YYYY-MM-DD'),
+      agingBasis: 'InvoiceDate',
     }
     setFilters(next)
-    setAppliedFilters(next)
+    updateViewSettings({ ...next, drillCustomer: null })
   }
 
   function buildExportParams() {
-    const params = {}
+    const params = { view, sort, groupByRoute }
     Object.entries(appliedFilters).forEach(([key, value]) => {
       if (value) params[key] = value
     })
+    if (drillCustomer) params.customerId = drillCustomer
     return params
   }
 
@@ -317,6 +356,28 @@ export default function CreditAgingReportPage() {
         </p>
       </header>
 
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {['summary', 'detail'].map((option) => (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={view === option}
+            className={view === option ? 'button-primary' : 'button-secondary'}
+            onClick={() => updateViewSettings({ view: option, drillCustomer: null })}
+          >
+            {option === 'summary' ? 'Customer Summary' : 'Invoice Detail'}
+          </button>
+        ))}
+        {drillCustomer && (
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => updateViewSettings({ view: 'summary', drillCustomer: null })}
+          >
+            Back to summary
+          </button>
+        )}
+      </div>
       <form
         onSubmit={handleApply}
         className="panel responsive-filter-bar"
@@ -379,6 +440,38 @@ export default function CreditAgingReportPage() {
           />
         </FilterField>
 
+        <FilterField id="filter-aging-basis" label="Aging Basis" width={180}>
+          <FilterSelect
+            id="filter-aging-basis"
+            value={filters.agingBasis}
+            onChange={(value) => updateFilter('agingBasis', value || 'InvoiceDate')}
+            placeholder="Select basis"
+            options={[
+              { value: 'InvoiceDate', label: 'Invoice date' },
+              { value: 'DueDate', label: 'Due date' },
+            ]}
+          />
+        </FilterField>
+        {view === 'summary' && (
+          <FilterField id="filter-aging-sort" label="Sort" width={210}>
+            <FilterSelect
+              id="filter-aging-sort"
+              value={sort}
+              onChange={(value) => updateViewSettings({ sort: value || 'OldestInvoice' })}
+              placeholder="Select sort"
+              options={SORTS}
+            />
+          </FilterField>
+        )}
+        <label style={{ display: 'flex', gap: 8, height: 40, alignItems: 'center' }}>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={groupByRoute}
+            onChange={(event) => updateViewSettings({ groupByRoute: event.target.checked })}
+          />
+          Group by route
+        </label>
         <button
           type="submit"
           className="button-primary"
@@ -421,17 +514,22 @@ export default function CreditAgingReportPage() {
         </div>
       </form>
 
-      {rows.length ? (
+      {reportQuery.data ? (
         <div
           className="panel"
           style={{
             padding: 12,
             display: 'grid',
-            gridTemplateColumns: 'repeat(6, minmax(120px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
             gap: 10,
           }}
         >
-          {[['outstandingAmount', 'Visible Total'], ...BUCKETS].map(([key, label]) => (
+          {[
+            ['totalOutstanding', 'Total Outstanding'],
+            ...BUCKETS,
+            ['pdcInHand', 'PDC In Hand'],
+            ['netExposure', 'Net Exposure'],
+          ].map(([key, label]) => (
             <div
               key={key}
               style={{
@@ -443,7 +541,7 @@ export default function CreditAgingReportPage() {
             >
               <div style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>{label}</div>
               <div className="mono" style={{ marginTop: 4, fontWeight: 800 }}>
-                {formatLKR(pageTotals[key])}
+                {formatLKR(pageTotals[key] || 0)}
               </div>
             </div>
           ))}
@@ -481,51 +579,117 @@ export default function CreditAgingReportPage() {
           </div>
         ) : rows.length ? (
           <div style={{ overflowX: 'auto' }}>
-            <table className="data-table product-table-compact">
-              <thead>
-                <tr>
-                  <th>Invoice Number</th>
-                  <th>Customer Name</th>
-                  <th>Route Name</th>
-                  <th>Delivery Run</th>
-                  <th>Invoice Date</th>
-                  <th style={{ textAlign: 'right' }}>Days Outstanding</th>
-                  <th style={{ textAlign: 'right' }}>Outstanding Amount</th>
-                  {BUCKETS.map(([, label]) => (
-                    <th key={label} style={{ textAlign: 'right' }}>
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.invoiceId || row.invoiceNumber}>
-                    <td>
-                      <span className="mono">{row.invoiceNumber}</span>
-                    </td>
-                    <td>{row.customerName}</td>
-                    <td>{row.routeName || row.salesRouteId || 'No route'}</td>
-                    <td>{row.deliveryRunName || 'Unassigned'}</td>
-                    <td className="mono">{formatDate(row.invoiceDate)}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>
-                      {row.daysOutstanding}
-                    </td>
-                    <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
-                      {formatLKR(row.outstandingAmount)}
-                    </td>
-                    {BUCKETS.map(([key]) => (
-                      <td key={key} className="mono" style={{ textAlign: 'right' }}>
-                        {Number(row[key] || 0).toLocaleString('en-LK', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
+            {(() => {
+              const columns = [
+                ['customerCode', 'Customer Code'],
+                ['customerName', 'Customer Name'],
+                ['routeName', 'Route'],
+                ...(view === 'summary'
+                  ? [
+                      ['openInvoiceCount', 'Open Invoices', 'number'],
+                      ['oldestInvoiceDate', 'Oldest Invoice', 'date'],
+                      ['oldestDays', 'Oldest Days', 'number'],
+                      ['weightedAvgDays', 'Weighted Avg Days', 'number'],
+                    ]
+                  : [
+                      ['invoiceNumber', 'Invoice'],
+                      ['deliveryRunName', 'Delivery Run'],
+                      ['invoiceDate', 'Invoice Date', 'date'],
+                      ['daysOutstanding', 'Days Outstanding', 'number'],
+                    ]),
+                ...BUCKETS.map(([key, label]) => [key, label, 'money']),
+                [
+                  view === 'summary' ? 'totalOutstanding' : 'outstandingAmount',
+                  'Total Outstanding',
+                  'money',
+                ],
+                ...(view === 'summary'
+                  ? [
+                      ['overdueAmount', 'Overdue', 'money'],
+                      ['pdcInHand', 'PDC In Hand', 'money'],
+                      ['netExposure', 'Net Exposure', 'money'],
+                      ['creditLimit', 'Credit Limit', 'money'],
+                      ['utilizationPercent', 'Utilization %', 'percent'],
+                      ['lastReceiptDate', 'Last Receipt', 'date'],
+                    ]
+                  : []),
+              ]
+              return (
+                <table className="data-table product-table-compact">
+                  <thead>
+                    <tr>
+                      {columns.map(([key, label, type]) => (
+                        <th
+                          key={key}
+                          style={{ textAlign: type && type !== 'date' ? 'right' : 'left' }}
+                        >
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr
+                        key={view === 'summary' ? row.customerId : row.invoiceId}
+                        onClick={
+                          view === 'summary'
+                            ? () =>
+                                updateViewSettings({
+                                  view: 'detail',
+                                  drillCustomer: row.customerId,
+                                })
+                            : undefined
+                        }
+                        style={{
+                          cursor: view === 'summary' ? 'pointer' : undefined,
+                          background:
+                            Number(row.utilizationPercent) > 100
+                              ? 'color-mix(in srgb, var(--color-danger) 12%, transparent)'
+                              : Number(row.oldestDays) > 90
+                                ? 'color-mix(in srgb, var(--color-amber) 12%, transparent)'
+                                : undefined,
+                        }}
+                      >
+                        {columns.map(([key, , type]) => (
+                          <td
+                            key={key}
+                            className={type ? 'mono' : undefined}
+                            style={{ textAlign: type && type !== 'date' ? 'right' : 'left' }}
+                          >
+                            {view === 'summary' && key === 'customerName' ? (
+                              <button
+                                type="button"
+                                className="button-secondary"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  updateViewSettings({
+                                    view: 'detail',
+                                    drillCustomer: row.customerId,
+                                  })
+                                }}
+                              >
+                                {row[key]}
+                              </button>
+                            ) : row[key] == null ? (
+                              '\u2014'
+                            ) : type === 'date' ? (
+                              formatDate(row[key])
+                            ) : type === 'money' ? (
+                              formatLKR(row[key])
+                            ) : type === 'percent' ? (
+                              `${Number(row[key]).toFixed(2)}%`
+                            ) : (
+                              row[key]
+                            )}
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </tbody>
+                </table>
+              )
+            })()}
           </div>
         ) : (
           <div style={{ padding: 42, textAlign: 'center', color: 'var(--color-text-muted)' }}>
@@ -537,6 +701,44 @@ export default function CreditAgingReportPage() {
           </div>
         )}
 
+        {groupByRoute && routeTotals.length > 0 && (
+          <div style={{ padding: 12, overflowX: 'auto' }}>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              Route subtotals cover all filtered customers. Customers on multiple routes contribute
+              to each route; these subtotals are not additive.
+            </p>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Route</th>
+                  <th>Customers</th>
+                  {BUCKETS.map(([key, label]) => (
+                    <th key={key}>{label}</th>
+                  ))}
+                  <th>Total Outstanding</th>
+                  <th>PDC In Hand</th>
+                  <th>Net Exposure</th>
+                </tr>
+              </thead>
+              <tbody>
+                {routeTotals.map((route) => (
+                  <tr key={route.salesRouteId || 'none'}>
+                    <td>{route.routeName}</td>
+                    <td>{route.customerCount}</td>
+                    {BUCKETS.map(([key]) => (
+                      <td className="mono" key={key}>
+                        {formatLKR(route[key])}
+                      </td>
+                    ))}
+                    <td className="mono">{formatLKR(route.totalOutstanding)}</td>
+                    <td className="mono">{formatLKR(route.pdcInHand)}</td>
+                    <td className="mono">{formatLKR(route.netExposure)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         {rows.length ? (
           <div style={{ padding: '0 12px 10px' }}>
             <SimplePagination

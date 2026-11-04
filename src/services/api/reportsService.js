@@ -41,6 +41,11 @@ export const reportsService = {
     }
   },
 
+  async getCustomerCreditAgingSummary(params = {}) {
+    const response = await getOnce('/api/reports/credit-aging/summary', { params })
+    return getValue(response, 'Unable to load customer credit aging summary.')
+  },
+
   async getCreditAgingReport(params = {}) {
     const response = await getOnce('/api/reports/credit-aging', { params })
     const page = getValue(response, 'Unable to load credit aging report.')
