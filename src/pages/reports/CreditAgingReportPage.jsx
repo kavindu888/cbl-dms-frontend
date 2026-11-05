@@ -1,554 +1,285 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { FileSpreadsheet, FileText, Search, TrendingUp, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import SimplePagination from '@components/ui/SimplePagination'
+import { getOnce } from '@/lib/api'
 import { masterService } from '@/services/api/masterService'
-import { reportsService } from '@/services/api/reportsService'
-import { salesService } from '@/services/api/salesService'
 import { formatDate } from '@/utils'
 import { downloadExcel, openPdfInNewTab } from '@/utils/fileDownload'
-import { formatLKR } from '@/utils/formatCurrency'
+import { displayDate, money, parseDate } from './creditAgingReportUtils'
 
-const pageSize = 20
+const PAGE_SIZE = 50
+const API = '/api/reports/all-customer-credit-aging'
+const SUMMARY_SORTS = new Set(['OldestDays', 'Customer', 'Route', 'Total',
+  'Bucket0To30', 'Bucket31To60', 'Bucket61To90', 'BucketOver90', 'LastReceipt'])
 
-const BUCKETS = [
-  ['bucket0To7', '0-7'],
-  ['bucket8To14', '8-14'],
-  ['bucket15To21', '15-21'],
-  ['bucket22To31', '22-31'],
-  ['bucketOver31', '32+'],
-]
-
-function selectStyle(disabled) {
-  return {
-    width: '100%',
-    height: 40,
-    background: 'rgba(0,0,0,0.15)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 6,
-    color: 'var(--color-text-primary)',
-    fontSize: 14,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.5 : 1,
-    appearance: 'none',
-    paddingLeft: 12,
-    paddingRight: 36,
-  }
+function DateFilter({ value, onChange }) {
+  const inputRef = useRef(null)
+  const [display, setDisplay] = useState(() => displayDate(value))
+  useEffect(() => {
+    setDisplay(displayDate(value))
+    inputRef.current?.setCustomValidity('')
+  }, [value])
+  return <input ref={inputRef} id="all-aging-as-of" className="form-input" type="text"
+    placeholder="dd/MM/yyyy" inputMode="numeric" title="Enter a date as dd/MM/yyyy"
+    pattern="(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}" value={display}
+    onChange={(event) => {
+      const next = event.target.value
+      setDisplay(next)
+      const iso = parseDate(next)
+      event.target.setCustomValidity(next && /^\d{2}\/\d{2}\/\d{4}$/.test(next) && !iso
+        ? 'Enter a valid calendar date' : '')
+      if (!next) onChange('')
+      else if (iso) onChange(iso)
+    }} style={{ width: 175 }} />
 }
 
-function inputStyle() {
-  return {
-    width: '100%',
-    height: 40,
-    background: 'rgba(0,0,0,0.15)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 6,
-    color: 'var(--color-text-primary)',
-    fontSize: 14,
-  }
+function amount(value) {
+  return money(value)
 }
 
-// Every filter renders its own visible, uppercase eyebrow label above the control (not just a
-// placeholder/title) — a <select>'s placeholder option disappears from view the moment a real
-// option is chosen, and a native date input shows no placeholder text at all (just "mm/dd/yyyy"),
-// so without a persistent label there is no way to tell "Date From" apart from "Date To" or "As Of
-// Date" once the filter bar is in use. `id`/`htmlFor` pairs the label with its control for a11y
-// (screen readers, click-to-focus) on top of the visual cue.
-function FilterField({ id, label, width, children }) {
-  return (
-    <div style={{ width, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label htmlFor={id} className="eyebrow">
-        {label}
-      </label>
-      {children}
-    </div>
-  )
-}
-
-function FilterSelect({ id, value, onChange, options, placeholder, disabled }) {
-  return (
-    <div style={{ position: 'relative' }}>
-      <select
-        id={id}
-        className="form-input"
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        style={selectStyle(disabled)}
-      >
-        <option value="" style={{ background: 'var(--color-bg-elevated)' }}>
-          {placeholder}
-        </option>
-        {options.map((option) => (
-          <option
-            key={option.value}
-            value={option.value}
-            style={{ background: 'var(--color-bg-elevated)' }}
-          >
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <div
-        style={{
-          pointerEvents: 'none',
-          position: 'absolute',
-          right: 12,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          color: 'var(--color-text-dim)',
-        }}
-      >
-        <svg style={{ width: 14, height: 14, fill: 'currentColor' }} viewBox="0 0 20 20">
-          <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-        </svg>
-      </div>
-    </div>
-  )
-}
-
-function DateFilter({ id, value, onChange }) {
-  return (
-    <input
-      id={id}
-      type="date"
-      className="form-input"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      style={inputStyle()}
-    />
-  )
-}
-
-function read(row, camelKey, pascalKey = camelKey.charAt(0).toUpperCase() + camelKey.slice(1)) {
-  return row?.[camelKey] ?? row?.[pascalKey]
-}
-
-function normalizeRow(row) {
-  const outstandingAmount = Number(read(row, 'outstandingAmount') ?? 0)
-  const daysOutstanding = Number(read(row, 'daysOutstanding') ?? 0)
-
-  return {
-    invoiceId: read(row, 'invoiceId') ?? '',
-    invoiceNumber: read(row, 'invoiceNumber') ?? 'Unknown invoice',
-    invoiceDate: read(row, 'invoiceDate') ?? null,
-    customerId: read(row, 'customerId') ?? '',
-    customerName: read(row, 'customerName') ?? 'Unknown customer',
-    salesRouteId: read(row, 'salesRouteId') ?? '',
-    routeName: read(row, 'routeName') ?? '',
-    deliveryRunId: read(row, 'deliveryRunId') ?? '',
-    deliveryRunName: read(row, 'deliveryRunName') ?? '',
-    outstandingAmount,
-    daysOutstanding,
-    bucket0To7: Number(read(row, 'bucket0To7', 'Bucket0To7') ?? 0),
-    bucket8To14: Number(read(row, 'bucket8To14', 'Bucket8To14') ?? 0),
-    bucket15To21: Number(read(row, 'bucket15To21', 'Bucket15To21') ?? 0),
-    bucket22To31: Number(read(row, 'bucket22To31', 'Bucket22To31') ?? 0),
-    bucketOver31: Number(read(row, 'bucketOver31', 'BucketOver31') ?? 0),
-  }
-}
-
-function buildOptions(items, label) {
-  return (items || []).map((item) => ({
-    value: item.id,
-    label: label(item),
-  }))
+function SortHeader({ label, sort, current, descending, onSort, numeric = false, width }) {
+  return <th style={{ width, padding: '8px 5px', textAlign: numeric ? 'right' : 'left',
+    whiteSpace: 'nowrap', background: 'var(--color-bg-elevated)' }}>
+    {sort ? <button type="button" onClick={() => onSort(sort)}
+      style={{ border: 0, padding: 0, background: 'none', cursor: 'pointer',
+        color: 'inherit', font: 'inherit', whiteSpace: 'nowrap' }}>
+      {label} {current === sort ? (descending ? '↓' : '↑') : '↕'}
+    </button> : label}
+  </th>
 }
 
 export default function CreditAgingReportPage() {
+  const [params, setParams] = useSearchParams()
+  const [today] = useState(() => dayjs().tz('Asia/Colombo').format('YYYY-MM-DD'))
+  const view = params.get('view') === 'detail' ? 'detail' : 'summary'
+  const routeId = params.get('salesRouteId') || ''
+  const asOfDate = params.get('asOfDate') || today
+  const search = params.get('search') || ''
+  const bucket = params.get('bucket') || 'None'
+  const drillCustomer = view === 'detail' ? params.get('customerId') : null
+  const summarySort = SUMMARY_SORTS.has(params.get('summarySort')) ? params.get('summarySort') : 'OldestDays'
+  const summaryDescending = params.get('summaryDescending') !== 'false'
+  const detailDescending = params.get('detailDescending') !== 'false'
+  const sortBy = view === 'summary' ? summarySort : 'Days'
+  const descending = view === 'summary' ? summaryDescending : detailDescending
+  const [routeDraft, setRouteDraft] = useState(routeId)
+  const [dateDraft, setDateDraft] = useState(asOfDate)
+  const [searchDraft, setSearchDraft] = useState(search)
   const [page, setPage] = useState(1)
-  const [filters, setFilters] = useState({
-    customerId: '',
-    salesRouteId: '',
-    deliveryRunId: '',
-    dateFrom: '',
-    dateTo: '',
-    asOfDate: '',
-  })
-  const [appliedFilters, setAppliedFilters] = useState(filters)
-  const [isExportingPdf, setIsExportingPdf] = useState(false)
-  const [isExportingExcel, setIsExportingExcel] = useState(false)
+  const [exporting, setExporting] = useState('')
 
-  const customersQuery = useQuery({
-    queryKey: ['sales', 'customers', 'credit-aging-filter'],
-    queryFn: () => salesService.listAllCustomers({ pageSize: 100, isActive: true }),
-    staleTime: 5 * 60_000,
-  })
+  useEffect(() => { setRouteDraft(routeId); setDateDraft(asOfDate) }, [routeId, asOfDate])
+  useEffect(() => { setSearchDraft(search) }, [search])
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const trimmed = searchDraft.trim()
+      if (trimmed === search) return
+      setParams((previous) => {
+        const next = new URLSearchParams(previous)
+        if (trimmed) next.set('search', trimmed)
+        else next.delete('search')
+        return next
+      })
+      setPage(1)
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [searchDraft, search, setParams])
+
+  function update(values) {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous)
+      Object.entries(values).forEach(([key, value]) => {
+        if (value == null || value === '') next.delete(key)
+        else next.set(key, String(value))
+      })
+      return next
+    })
+    setPage(1)
+  }
 
   const routesQuery = useQuery({
-    queryKey: ['master', 'sales-routes', 'credit-aging-filter'],
+    queryKey: ['all-customer-aging', 'routes'],
     queryFn: () => masterService.listAllSalesRoutes({ pageSize: 100 }),
     staleTime: 5 * 60_000,
   })
-
-  const deliveryRunsQuery = useQuery({
-    queryKey: ['master', 'delivery-runs', 'credit-aging-filter'],
-    queryFn: () => masterService.listAllDeliveryRuns({ activeOnly: true, pageSize: 100 }),
-    staleTime: 5 * 60_000,
-  })
-
-  const queryParams = useMemo(() => {
-    const params = { page, pageSize }
-    Object.entries(appliedFilters).forEach(([key, value]) => {
-      if (value) params[key] = value
-    })
-    return params
-  }, [page, appliedFilters])
-
+  const routes = routesQuery.data || []
+  const routeName = routes.find((route) => route.id === routeId)?.name || ''
+  const queryParams = useMemo(() => ({ page, pageSize: PAGE_SIZE,
+    salesRouteId: routeId || undefined, asOfDate, search: search || undefined,
+    customerId: drillCustomer || undefined, bucket, sortBy, descending }),
+  [page, routeId, asOfDate, search, drillCustomer, bucket, sortBy, descending])
   const reportQuery = useQuery({
-    queryKey: ['reports', 'credit-aging', queryParams],
-    queryFn: () => reportsService.getCreditAgingReport(queryParams),
+    queryKey: ['all-customer-aging', view, queryParams],
+    queryFn: async () => (await getOnce(`${API}/${view}`, { params: queryParams })).data,
     placeholderData: keepPreviousData,
   })
+  const report = reportQuery.data
+  const rows = report?.items || []
+  const totals = report?.totals || {}
+  const buckets = report?.bucketDefinitions || []
+  const totalItems = Number(report?.totalItems || 0)
+  const busy = reportQuery.isLoading || reportQuery.isFetching
 
-  useEffect(() => {
-    setPage(1)
-  }, [appliedFilters])
-
-  const rows = useMemo(() => (reportQuery.data?.items || []).map(normalizeRow), [reportQuery.data])
-  const totalItems = Number(reportQuery.data?.totalItems ?? rows.length)
-  const isBusy = reportQuery.isLoading || reportQuery.isFetching
-
-  const customerOptions = useMemo(
-    () =>
-      buildOptions(customersQuery.data, (customer) =>
-        [customer.code, customer.name].filter(Boolean).join(' - ')
-      ),
-    [customersQuery.data]
-  )
-
-  const routeOptions = useMemo(
-    () =>
-      buildOptions(routesQuery.data, (route) =>
-        [route.code, route.name].filter(Boolean).join(' - ')
-      ),
-    [routesQuery.data]
-  )
-
-  const deliveryRunOptions = useMemo(
-    () =>
-      buildOptions(deliveryRunsQuery.data, (run) =>
-        [run.code, run.name].filter(Boolean).join(' - ')
-      ),
-    [deliveryRunsQuery.data]
-  )
-
-  const pageTotals = useMemo(
-    () =>
-      BUCKETS.reduce(
-        (totals, [key]) => {
-          totals[key] = rows.reduce((sum, row) => sum + Number(row[key] || 0), 0)
-          return totals
-        },
-        {
-          outstandingAmount: rows.reduce((sum, row) => sum + Number(row.outstandingAmount || 0), 0),
-        }
-      ),
-    [rows]
-  )
-
-  function updateFilter(key, value) {
-    setFilters((current) => ({ ...current, [key]: value }))
+  function apply(event) {
+    event.preventDefault()
+    update({ salesRouteId: routeDraft, asOfDate: dateDraft || today,
+      search: searchDraft.trim(), customerId: null })
   }
-
-  function handleApply(event) {
-    event?.preventDefault()
-    setAppliedFilters(filters)
+  function clear() {
+    setRouteDraft(''); setDateDraft(today); setSearchDraft('')
+    update({ salesRouteId: null, asOfDate: today, search: null, customerId: null,
+      bucket: null, summarySort: null, summaryDescending: null, detailDescending: null })
   }
-
-  function handleClear() {
-    const next = {
-      customerId: '',
-      salesRouteId: '',
-      deliveryRunId: '',
-      dateFrom: '',
-      dateTo: '',
-      asOfDate: '',
-    }
-    setFilters(next)
-    setAppliedFilters(next)
+  function switchView(next) { update({ view: next, customerId: null }) }
+  function sortSummary(next) {
+    const firstDescending = !['Customer', 'Route'].includes(next)
+    update({ summarySort: next, summaryDescending:
+      summarySort === next ? !summaryDescending : firstDescending })
   }
-
-  function buildExportParams() {
-    const params = {}
-    Object.entries(appliedFilters).forEach(([key, value]) => {
-      if (value) params[key] = value
-    })
-    return params
-  }
-
-  async function handleExportPdf() {
-    setIsExportingPdf(true)
+  async function exportReport(format) {
+    setExporting(format)
     try {
-      await openPdfInNewTab('/api/reports/credit-aging/export', {
-        ...buildExportParams(),
-        format: 'pdf',
-      })
-    } catch (error) {
-      toast.error(error.message || 'Unable to export PDF.')
-    } finally {
-      setIsExportingPdf(false)
-    }
+      const exportParams = { ...queryParams, routeName: routeName || undefined, view, format }
+      if (format === 'pdf') await openPdfInNewTab(`${API}/export`, exportParams)
+      else await downloadExcel(`${API}/export`, exportParams,
+        `all-customers-credit-aging-${view}-${dayjs().format('YYYYMMDD')}.xlsx`)
+    } catch (error) { toast.error(error.message || `Unable to export ${format.toUpperCase()}.`) }
+    finally { setExporting('') }
   }
 
-  async function handleExportExcel() {
-    setIsExportingExcel(true)
-    try {
-      await downloadExcel(
-        '/api/reports/credit-aging/export',
-        { ...buildExportParams(), format: 'excel' },
-        `credit-aging-report-${dayjs().format('YYYYMMDD')}.xlsx`
-      )
-    } catch (error) {
-      toast.error(error.message || 'Unable to export Excel.')
-    } finally {
-      setIsExportingExcel(false)
-    }
-  }
+  const summaryColumns = [
+    ['code', 'Code', null, 70], ['customer', 'Customer', 'Customer', 135],
+    ['route', 'Route', 'Route', 120], ['totalOutstanding', 'Total (Rs.)', 'Total', 100],
+    ...buckets.map((item) => [item.key, item.label, item.key[0].toUpperCase() + item.key.slice(1), 76]),
+    ['oldestDays', 'Oldest Days', 'OldestDays', 78], ['pdcInHand', 'PDC (Rs.)', null, 95],
+    ['lastReceipt', 'Last Receipt', 'LastReceipt', 105],
+  ]
+  const detailColumns = [
+    ['code', 'Code', 75], ['customer', 'Customer', 145], ['route', 'Route', 135],
+    ['invoiceNumber', 'Invoice No', 120], ['invoiceDate', 'Invoice Date', 110],
+    ['days', 'Days', 65], ['outstanding', 'Outstanding (Rs.)', 130],
+    ['deliveryRun', 'Delivery Run', 140],
+  ]
+  const numberKeys = new Set(['totalOutstanding', 'bucket0To30', 'bucket31To60',
+    'bucket61To90', 'bucketOver90', 'pdcInHand', 'outstanding'])
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <header>
-        <h1 style={{ fontSize: 25, fontWeight: 800 }}>Credit Aging Report</h1>
-        <p style={{ marginTop: 3, fontSize: 13, color: 'var(--color-text-muted)' }}>
-          Outstanding customer invoices grouped by aging bucket.
-        </p>
-      </header>
-
-      <form
-        onSubmit={handleApply}
-        className="panel responsive-filter-bar"
-        style={{ padding: 16, display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}
-      >
-        <FilterField id="filter-customer" label="Customer" width={240}>
-          <FilterSelect
-            id="filter-customer"
-            value={filters.customerId}
-            onChange={(value) => updateFilter('customerId', value)}
-            placeholder={customersQuery.isLoading ? 'Loading customers...' : 'All customers'}
-            options={customerOptions}
-            disabled={customersQuery.isLoading}
-          />
-        </FilterField>
-
-        <FilterField id="filter-route" label="Sales Route" width={220}>
-          <FilterSelect
-            id="filter-route"
-            value={filters.salesRouteId}
-            onChange={(value) => updateFilter('salesRouteId', value)}
-            placeholder={routesQuery.isLoading ? 'Loading routes...' : 'All sales routes'}
-            options={routeOptions}
-            disabled={routesQuery.isLoading}
-          />
-        </FilterField>
-
-        <FilterField id="filter-delivery-run" label="Delivery Run" width={220}>
-          <FilterSelect
-            id="filter-delivery-run"
-            value={filters.deliveryRunId}
-            onChange={(value) => updateFilter('deliveryRunId', value)}
-            placeholder={deliveryRunsQuery.isLoading ? 'Loading runs...' : 'All delivery runs'}
-            options={deliveryRunOptions}
-            disabled={deliveryRunsQuery.isLoading}
-          />
-        </FilterField>
-
-        <FilterField id="filter-date-from" label="Date From" width={170}>
-          <DateFilter
-            id="filter-date-from"
-            value={filters.dateFrom}
-            onChange={(value) => updateFilter('dateFrom', value)}
-          />
-        </FilterField>
-
-        <FilterField id="filter-date-to" label="Date To" width={170}>
-          <DateFilter
-            id="filter-date-to"
-            value={filters.dateTo}
-            onChange={(value) => updateFilter('dateTo', value)}
-          />
-        </FilterField>
-
-        <FilterField id="filter-as-of-date" label="As Of Date" width={170}>
-          <DateFilter
-            id="filter-as-of-date"
-            value={filters.asOfDate}
-            onChange={(value) => updateFilter('asOfDate', value)}
-          />
-        </FilterField>
-
-        <button
-          type="submit"
-          className="button-primary"
-          style={{ height: 40, padding: '0 18px', display: 'flex', alignItems: 'center', gap: 8 }}
-        >
-          <Search style={{ width: 16, height: 16 }} />
-          Apply
-        </button>
-        <button
-          type="button"
-          className="button-secondary"
-          onClick={handleClear}
-          style={{ height: 40, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7 }}
-        >
-          <X style={{ width: 15, height: 15 }} />
-          Clear
-        </button>
-
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={handleExportPdf}
-            disabled={isExportingPdf}
-            style={{ height: 40, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7 }}
-          >
-            <FileText style={{ width: 15, height: 15 }} />
-            {isExportingPdf ? 'Exporting...' : 'Export PDF'}
-          </button>
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={handleExportExcel}
-            disabled={isExportingExcel}
-            style={{ height: 40, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 7 }}
-          >
-            <FileSpreadsheet style={{ width: 15, height: 15 }} />
-            {isExportingExcel ? 'Exporting...' : 'Export Excel'}
-          </button>
-        </div>
-      </form>
-
-      {rows.length ? (
-        <div
-          className="panel"
-          style={{
-            padding: 12,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(6, minmax(120px, 1fr))',
-            gap: 10,
-          }}
-        >
-          {[['outstandingAmount', 'Visible Total'], ...BUCKETS].map(([key, label]) => (
-            <div
-              key={key}
-              style={{
-                padding: 10,
-                border: '1px solid var(--color-border)',
-                borderRadius: 6,
-                background: 'color-mix(in srgb, var(--color-bg-elevated) 45%, transparent)',
-              }}
-            >
-              <div style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>{label}</div>
-              <div className="mono" style={{ marginTop: 4, fontWeight: 800 }}>
-                {formatLKR(pageTotals[key])}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <section className="panel" style={{ overflow: 'hidden' }}>
-        <div
-          style={{
-            padding: '10px 12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            background: 'color-mix(in srgb, var(--color-bg-elevated) 45%, transparent)',
-            borderBottom: '1px solid var(--color-border)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <TrendingUp size={15} color="var(--color-amber)" />
-            <strong style={{ fontSize: 13 }}>Credit aging report</strong>
-          </div>
-          <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>
-            {totalItems} row{totalItems === 1 ? '' : 's'}
-          </span>
-        </div>
-
-        {isBusy ? (
-          <div style={{ padding: 36, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-            Loading credit aging report...
-          </div>
-        ) : reportQuery.isError ? (
-          <div style={{ padding: 42, textAlign: 'center', color: 'var(--color-danger)' }}>
-            {reportQuery.error?.message || 'Unable to load credit aging report.'}
-          </div>
-        ) : rows.length ? (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table product-table-compact">
-              <thead>
-                <tr>
-                  <th>Invoice Number</th>
-                  <th>Customer Name</th>
-                  <th>Route Name</th>
-                  <th>Delivery Run</th>
-                  <th>Invoice Date</th>
-                  <th style={{ textAlign: 'right' }}>Days Outstanding</th>
-                  <th style={{ textAlign: 'right' }}>Outstanding Amount</th>
-                  {BUCKETS.map(([, label]) => (
-                    <th key={label} style={{ textAlign: 'right' }}>
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.invoiceId || row.invoiceNumber}>
-                    <td>
-                      <span className="mono">{row.invoiceNumber}</span>
-                    </td>
-                    <td>{row.customerName}</td>
-                    <td>{row.routeName || row.salesRouteId || 'No route'}</td>
-                    <td>{row.deliveryRunName || 'Unassigned'}</td>
-                    <td className="mono">{formatDate(row.invoiceDate)}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>
-                      {row.daysOutstanding}
-                    </td>
-                    <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>
-                      {formatLKR(row.outstandingAmount)}
-                    </td>
-                    {BUCKETS.map(([key]) => (
-                      <td key={key} className="mono" style={{ textAlign: 'right' }}>
-                        {Number(row[key] || 0).toLocaleString('en-LK', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ padding: 42, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-            <TrendingUp
-              size={27}
-              style={{ margin: '0 auto 8px', color: 'var(--color-text-dim)' }}
-            />
-            No credit aging rows match the current filters.
-          </div>
-        )}
-
-        {rows.length ? (
-          <div style={{ padding: '0 12px 10px' }}>
-            <SimplePagination
-              page={page}
-              pageSize={pageSize}
-              totalItems={totalItems}
-              onPageChange={setPage}
-              itemLabel="rows"
-            />
-          </div>
-        ) : null}
-      </section>
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <header>
+      <h1 style={{ fontSize: 25, fontWeight: 800 }}>All Customers Credit Aging Report</h1>
+      <p style={{ marginTop: 3, fontSize: 13, color: 'var(--color-text-muted)' }}>
+        Outstanding customer invoices grouped by aging bucket.
+      </p>
+    </header>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {['summary', 'detail'].map((option) => <button key={option} type="button"
+        className={view === option ? 'button-primary' : 'button-secondary'}
+        onClick={() => switchView(option)}>
+        {option === 'summary' ? 'Customer Summary' : 'Invoice Detail'}
+      </button>)}
+      {drillCustomer && <button type="button" className="button-secondary"
+        onClick={() => update({ view: 'summary', customerId: null })}>Back to summary</button>}
     </div>
-  )
+    <form className="panel" onSubmit={apply} style={{ padding: 16, display: 'flex',
+      alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+      <label style={{ display: 'grid', gap: 6, minWidth: 210 }}>
+        <span className="eyebrow">Sales Route</span>
+        <select className="form-input" value={routeDraft} onChange={(event) => setRouteDraft(event.target.value)}>
+          <option value="">All sales routes</option>
+          {routes.map((route) => <option key={route.id} value={route.id}>
+            {[route.code, route.name].filter(Boolean).join(' - ')}
+          </option>)}
+        </select>
+      </label>
+      <label htmlFor="all-aging-as-of" style={{ display: 'grid', gap: 6 }}>
+        <span className="eyebrow">As Of Date</span>
+        <DateFilter value={dateDraft} onChange={setDateDraft} />
+      </label>
+      <label style={{ display: 'grid', gap: 6, minWidth: 230, flex: 1, maxWidth: 340 }}>
+        <span className="eyebrow">Customer search</span>
+        <input className="form-input" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)}
+          placeholder="Search code or name" aria-label="Search customer code or name" />
+      </label>
+      <button type="submit" className="button-primary"><Search size={15} /> Apply</button>
+      <button type="button" className="button-secondary" onClick={clear}><X size={15} /> Clear</button>
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <button type="button" className="button-secondary" disabled={!!exporting}
+          onClick={() => exportReport('pdf')}><FileText size={15} /> Export PDF</button>
+        <button type="button" className="button-secondary" disabled={!!exporting}
+          onClick={() => exportReport('excel')}><FileSpreadsheet size={15} /> Export Excel</button>
+      </div>
+    </form>
+    <div className="panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 8,
+      padding: 10 }}>
+      {[
+        ['totalOutstanding', 'Total Outstanding', null],
+        ...buckets.map((item) => [item.key, item.label, item.key]),
+        ['pdcInHand', 'PDC In Hand', null],
+      ].map(([key, label, filter]) => <button key={key} type="button" disabled={!filter}
+        onClick={() => update({ bucket: bucket === filter ? null : filter })}
+        aria-pressed={filter ? bucket === filter : undefined}
+        style={{ padding: 10, textAlign: 'left', minWidth: 0, borderRadius: 6,
+          border: filter && bucket === filter ? '2px solid var(--color-amber)' : '1px solid var(--color-border)',
+          background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)',
+          cursor: filter ? 'pointer' : 'default' }}>
+        <div style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{label} (Rs.)</div>
+        <strong style={{ display: 'block', marginTop: 5, fontVariantNumeric: 'tabular-nums',
+          whiteSpace: 'nowrap', fontSize: 15 }}>{amount(totals[key])}</strong>
+        {key === 'totalOutstanding' && <small style={{ display: 'block', marginTop: 4 }}>
+          Net of PDC: Rs. {amount(totals.netOfPdc)}</small>}
+      </button>)}
+    </div>
+    <section className="panel" style={{ overflow: 'hidden' }}>
+      <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between',
+        background: 'var(--color-bg-elevated)', borderBottom: '1px solid var(--color-border)' }}>
+        <strong style={{ fontSize: 13 }}><TrendingUp size={15} /> Credit aging report</strong>
+        <span style={{ fontSize: 12 }}>{view === 'summary'
+          ? `${totals.customerCount || 0} customers`
+          : `${totalItems} invoices · ${totals.customerCount || 0} customers`}</span>
+      </div>
+      {busy ? <p style={{ padding: 30, textAlign: 'center' }}>Loading credit aging report...</p>
+        : reportQuery.isError ? <p style={{ padding: 30, textAlign: 'center', color: 'var(--color-danger)' }}>
+          {reportQuery.error?.message || 'Unable to load credit aging report.'}</p>
+          : rows.length ? <div>
+            <table className="data-table" style={{ width: '100%', tableLayout: 'fixed',
+              borderCollapse: 'collapse', fontSize: 11 }}>
+              <colgroup>{(view === 'summary' ? summaryColumns : detailColumns).map((column) =>
+                <col key={column[0]} style={{ width: column[view === 'summary' ? 3 : 2] }} />)}</colgroup>
+              <thead><tr>{view === 'summary'
+                ? summaryColumns.map(([key, label, sort, width]) => <SortHeader key={key} label={label}
+                  sort={sort} current={summarySort} descending={summaryDescending}
+                  onSort={sortSummary} numeric={numberKeys.has(key)} width={width} />)
+                : detailColumns.map(([key, label, width]) => <SortHeader key={key}
+                  label={label}
+                  sort={key === 'days' ? 'Days' : null} current={key === 'days' ? 'Days' : null}
+                  descending={detailDescending} width={width}
+                  onSort={() => update({ detailDescending: !detailDescending })}
+                  numeric={numberKeys.has(key)} />)}
+              </tr></thead>
+              <tbody>{rows.map((row) => <tr key={view === 'summary' ? row.customerId : row.invoiceId}>
+                {(view === 'summary' ? summaryColumns : detailColumns).map(([key]) => <td key={key}
+                  title={typeof row[key] === 'string' ? row[key] : undefined}
+                  style={{ padding: '8px 5px', overflow: 'hidden', textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums',
+                    textAlign: numberKeys.has(key) || key === 'days' || key === 'oldestDays' ? 'right' : 'left',
+                    color: key === 'bucketOver90' && Number(row[key]) > 0 ||
+                      key === 'days' && Number(row[key]) > 90 ? 'var(--color-danger)' : undefined }}>
+                  {key === 'customer' && view === 'summary' ? <a href="#invoice-detail"
+                    style={{ textDecoration: 'underline', color: 'var(--color-amber)' }}
+                    onClick={(event) => { event.preventDefault(); update({ view: 'detail', customerId: row.customerId }) }}>
+                    {row.customer}</a>
+                    : numberKeys.has(key) ? amount(row[key])
+                      : key === 'invoiceDate' || key === 'lastReceipt' ? row[key] ? formatDate(row[key]) : '–'
+                        : row[key] ?? '–'}
+                </td>)}</tr>)}</tbody>
+            </table>
+            <div style={{ padding: '0 12px 10px' }}><SimplePagination page={page} pageSize={PAGE_SIZE}
+              totalItems={totalItems} onPageChange={setPage} itemLabel="rows" /></div>
+          </div> : <p style={{ padding: 30, textAlign: 'center' }}>
+            No credit aging rows match the current filters.</p>}
+    </section>
+  </div>
 }

@@ -31,6 +31,23 @@ export const getQtyReserved = (batch) =>
 export const getQtyFree = (batch) =>
   Number(batch?.sellableQty ?? Math.max(0, getQtyAvailable(batch) - getQtyReserved(batch)))
 
+// Inventory quantities are stored as numeric(18,4). Keep every client-side split at that same
+// precision so binary floating-point remainders can never become zero-quantity database rows.
+export const VEHICLE_MOVEMENT_MIN_QUANTITY = 0.0001
+export const normalizeVehicleMovementQuantity = (value) => {
+  const quantity = Number(value)
+  if (!Number.isFinite(quantity)) return 0
+  return Math.round((quantity + Number.EPSILON) * 10_000) / 10_000
+}
+
+export const hasVehicleMovementQuantityPrecision = (value) => {
+  const quantity = Number(value)
+  return (
+    Number.isFinite(quantity) &&
+    Math.abs(quantity - normalizeVehicleMovementQuantity(quantity)) < 1e-10
+  )
+}
+
 export const getUnitCost = (batch) => Number(batch?.unitCostSmallest ?? batch?.unitCost ?? 0)
 export const getMrp = (batch) => Number(batch?.mrp ?? batch?.MRP ?? 0)
 

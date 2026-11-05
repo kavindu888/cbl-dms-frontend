@@ -411,8 +411,15 @@ const navGroups = [
         permissions: PERMISSIONS.reporting.viewReports,
       },
         {
-          label: 'Credit Aging Report',
-          to: '/reports/credit-aging',
+        label: 'Credit Aging Report',
+        to: '/reports/credit-aging',
+        icon: TrendingUp,
+        end: true,
+        permissions: PERMISSIONS.reporting.viewReports,
+      },
+      {
+          label: 'All Customers Credit Aging',
+          to: '/reports/all-customer-credit-aging',
           icon: TrendingUp,
           end: true,
           permissions: PERMISSIONS.reporting.viewReports,
