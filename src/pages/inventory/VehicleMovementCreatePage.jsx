@@ -26,6 +26,8 @@ import {
   getQtyFree,
   getQtyReserved,
   getUnitCost,
+  hasVehicleMovementQuantityPrecision,
+  normalizeVehicleMovementQuantity,
   resultId,
   returnReasonLabel,
   unloadingTypeLabel,
@@ -813,9 +815,19 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
   async function handleAddLine() {
     if (!selectedVehicle || !selectedProduct || !selectedBatch)
       return toast.error('Select a vehicle, product, and batch first.')
-    const requestedQty = Number(qty)
-    if (requestedQty <= 0) return toast.error('Enter a quantity greater than zero.')
-    if (requestedQty > getQtyFree(selectedBatch))
+    const enteredQty = Number(qty)
+    if (enteredQty <= 0) return toast.error('Enter a quantity greater than zero.')
+    if (!isUnloading && enteredQty < 0.0001)
+      return toast.error('Enter a quantity of at least 0.0001.')
+    if (!isUnloading && !hasVehicleMovementQuantityPrecision(enteredQty))
+      return toast.error('Quantity can have no more than 4 decimal places.')
+    const requestedQty = isUnloading
+      ? enteredQty
+      : normalizeVehicleMovementQuantity(enteredQty)
+    const selectedBatchFree = isUnloading
+      ? getQtyFree(selectedBatch)
+      : normalizeVehicleMovementQuantity(getQtyFree(selectedBatch))
+    if (requestedQty > selectedBatchFree)
       return toast.error('Quantity cannot exceed sellable (available minus reserved) batch quantity.')
     if (isUnloading && unloadingType === 2 && !returnReason)
       return toast.error('Labelled unloading requires a return reason.')
@@ -838,7 +850,13 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
       let anyFailed = false
       for (const batch of sortedBatches) {
         if (remaining <= 0) break
-        const drawQty = Math.min(remaining, getQtyFree(batch))
+        const batchFree = isUnloading
+          ? getQtyFree(batch)
+          : normalizeVehicleMovementQuantity(getQtyFree(batch))
+        const unroundedDrawQty = Math.min(remaining, batchFree)
+        const drawQty = isUnloading
+          ? unroundedDrawQty
+          : normalizeVehicleMovementQuantity(unroundedDrawQty)
         if (drawQty <= 0) continue
 
         const payload = {
@@ -867,7 +885,9 @@ export default function VehicleMovementCreatePage({ kind, basePath }) {
             unloadingType,
             returnReason: unloadingType === 2 ? Number(returnReason) : null,
           })
-          remaining -= drawQty
+          remaining = isUnloading
+            ? remaining - drawQty
+            : normalizeVehicleMovementQuantity(remaining - drawQty)
         } catch (batchError) {
           anyFailed = true
           toast.error(
