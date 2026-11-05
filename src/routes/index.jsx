@@ -44,6 +44,7 @@ import SupplierListPage from '@pages/master/SupplierListPage'
 import ReportHubPage from '@pages/reports/ReportHubPage'
 import ReportPreviewPage from '@pages/reports/ReportPreviewPage'
 import CreditAgingReportPage from '@pages/reports/CreditAgingReportPage'
+import LegacyCreditAgingReportPage from '@pages/reports/LegacyCreditAgingReportPage'
 import DailyCollectionReportPage from '@pages/reports/DailyCollectionReportPage'
 import DiscountReportPage from '@pages/reports/DiscountReportPage'
 import MonthEndReportPage from '@pages/reports/MonthEndReportPage'
@@ -610,6 +611,10 @@ export const router = createBrowserRouter([
       },
         {
           path: 'reports/credit-aging',
+          element: requirePermission(<LegacyCreditAgingReportPage />, PERMISSIONS.reporting.viewReports),
+        },
+        {
+          path: 'reports/all-customer-credit-aging',
           element: requirePermission(<CreditAgingReportPage />, PERMISSIONS.reporting.viewReports),
         },
         {
