@@ -57,6 +57,7 @@ export default function CreditAgingReportPage() {
   const [today] = useState(() => dayjs().tz('Asia/Colombo').format('YYYY-MM-DD'))
   const view = params.get('view') === 'detail' ? 'detail' : 'summary'
   const routeId = params.get('salesRouteId') || ''
+  const deliveryRunId = params.get('deliveryRunId') || ''
   const asOfDate = params.get('asOfDate') || today
   const search = params.get('search') || ''
   const bucket = params.get('bucket') || 'None'
@@ -67,12 +68,13 @@ export default function CreditAgingReportPage() {
   const sortBy = view === 'summary' ? summarySort : 'Days'
   const descending = view === 'summary' ? summaryDescending : detailDescending
   const [routeDraft, setRouteDraft] = useState(routeId)
+  const [deliveryRunDraft, setDeliveryRunDraft] = useState(deliveryRunId)
   const [dateDraft, setDateDraft] = useState(asOfDate)
   const [searchDraft, setSearchDraft] = useState(search)
   const [page, setPage] = useState(1)
   const [exporting, setExporting] = useState('')
 
-  useEffect(() => { setRouteDraft(routeId); setDateDraft(asOfDate) }, [routeId, asOfDate])
+  useEffect(() => { setRouteDraft(routeId); setDeliveryRunDraft(deliveryRunId); setDateDraft(asOfDate) }, [routeId, deliveryRunId, asOfDate])
   useEffect(() => { setSearchDraft(search) }, [search])
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -108,10 +110,17 @@ export default function CreditAgingReportPage() {
   })
   const routes = routesQuery.data || []
   const routeName = routes.find((route) => route.id === routeId)?.name || ''
+  const deliveryRunsQuery = useQuery({
+    queryKey: ['all-customer-aging', 'delivery-runs'],
+    queryFn: () => masterService.listAllDeliveryRuns({ activeOnly: true, pageSize: 100 }),
+    staleTime: 5 * 60_000,
+  })
+  const deliveryRuns = deliveryRunsQuery.data || []
+  const deliveryRunName = deliveryRuns.find((run) => run.id === deliveryRunId)?.name || ''
   const queryParams = useMemo(() => ({ page, pageSize: PAGE_SIZE,
-    salesRouteId: routeId || undefined, asOfDate, search: search || undefined,
+    salesRouteId: routeId || undefined, deliveryRunId: deliveryRunId || undefined, asOfDate, search: search || undefined,
     customerId: drillCustomer || undefined, bucket, sortBy, descending }),
-  [page, routeId, asOfDate, search, drillCustomer, bucket, sortBy, descending])
+  [page, routeId, deliveryRunId, asOfDate, search, drillCustomer, bucket, sortBy, descending])
   const reportQuery = useQuery({
     queryKey: ['all-customer-aging', view, queryParams],
     queryFn: async () => (await getOnce(`${API}/${view}`, { params: queryParams })).data,
@@ -126,12 +135,12 @@ export default function CreditAgingReportPage() {
 
   function apply(event) {
     event.preventDefault()
-    update({ salesRouteId: routeDraft, asOfDate: dateDraft || today,
+    update({ salesRouteId: routeDraft, deliveryRunId: deliveryRunDraft, asOfDate: dateDraft || today,
       search: searchDraft.trim(), customerId: null })
   }
   function clear() {
-    setRouteDraft(''); setDateDraft(today); setSearchDraft('')
-    update({ salesRouteId: null, asOfDate: today, search: null, customerId: null,
+    setRouteDraft(''); setDeliveryRunDraft(''); setDateDraft(today); setSearchDraft('')
+    update({ salesRouteId: null, deliveryRunId: null, asOfDate: today, search: null, customerId: null,
       bucket: null, summarySort: null, summaryDescending: null, detailDescending: null })
   }
   function switchView(next) { update({ view: next, customerId: null }) }
@@ -143,7 +152,8 @@ export default function CreditAgingReportPage() {
   async function exportReport(format) {
     setExporting(format)
     try {
-      const exportParams = { ...queryParams, routeName: routeName || undefined, view, format }
+      const exportParams = { ...queryParams, routeName: routeName || undefined,
+        deliveryRunName: deliveryRunName || undefined, view, format }
       if (format === 'pdf') await openPdfInNewTab(`${API}/export`, exportParams)
       else await downloadExcel(`${API}/export`, exportParams,
         `all-customers-credit-aging-${view}-${dayjs().format('YYYYMMDD')}.xlsx`)
@@ -191,6 +201,15 @@ export default function CreditAgingReportPage() {
           <option value="">All sales routes</option>
           {routes.map((route) => <option key={route.id} value={route.id}>
             {[route.code, route.name].filter(Boolean).join(' - ')}
+          </option>)}
+        </select>
+      </label>
+      <label style={{ display: 'grid', gap: 6, minWidth: 210 }}>
+        <span className="eyebrow">Delivery Run</span>
+        <select className="form-input" value={deliveryRunDraft} onChange={(event) => setDeliveryRunDraft(event.target.value)}>
+          <option value="">All delivery runs</option>
+          {deliveryRuns.map((run) => <option key={run.id} value={run.id}>
+            {[run.code, run.name].filter(Boolean).join(' - ')}
           </option>)}
         </select>
       </label>
